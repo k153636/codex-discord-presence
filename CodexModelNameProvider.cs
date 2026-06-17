@@ -19,49 +19,37 @@ public sealed class CodexModelNameProvider
 
     public string GetModelName(string projectPath)
     {
-        if (!_presenceOptions.AutoDetectModelName)
-        {
-            return FallbackModelName();
-        }
-
-        return DetectFromEnvironment()
-            ?? DetectFromRecentSessionsOrConfig(projectPath)
-            ?? FallbackModelName();
+        return GetSnapshot(projectPath).FinalDisplayedModel;
     }
 
-    private string? DetectFromRecentSessionsOrConfig(string projectPath)
+    public ModelNameSnapshot GetSnapshot(string projectPath)
     {
-        var configPath = Path.Combine(_codexHomePath, "config.toml");
-        var configTime = File.Exists(configPath) ? File.GetLastWriteTimeUtc(configPath) : DateTime.MinValue;
+        var fallback = FallbackModelName();
+        var environmentModel = DetectFromEnvironment();
+        var selectedUiModel = DetectFromConfig();
+        var sessionModel = DetectFromRecentSessions(projectPath);
 
-        var sessionsPath = Path.Combine(_codexHomePath, "sessions");
-        FileInfo? latestSessionFile = null;
-        if (Directory.Exists(sessionsPath))
+        if (!_presenceOptions.AutoDetectModelName)
         {
-            try
-            {
-                latestSessionFile = Directory
-                    .EnumerateFiles(sessionsPath, "*.jsonl", SearchOption.AllDirectories)
-                    .Select(path => new FileInfo(path))
-                    .OrderByDescending(file => file.LastWriteTimeUtc)
-                    .FirstOrDefault();
-            }
-            catch
-            {
-                // Ignore
-            }
+            return new ModelNameSnapshot(selectedUiModel, sessionModel, fallback, "fallback");
         }
 
-        var sessionTime = latestSessionFile?.LastWriteTimeUtc ?? DateTime.MinValue;
+        if (environmentModel != null)
+        {
+            return new ModelNameSnapshot(selectedUiModel, sessionModel, environmentModel, "environment");
+        }
 
-        if (configTime > sessionTime)
+        if (selectedUiModel != null)
         {
-            return DetectFromConfig() ?? DetectFromRecentSessions(projectPath);
+            return new ModelNameSnapshot(selectedUiModel, sessionModel, selectedUiModel, "selected-ui");
         }
-        else
+
+        if (sessionModel != null)
         {
-            return DetectFromRecentSessions(projectPath) ?? DetectFromConfig();
+            return new ModelNameSnapshot(selectedUiModel, sessionModel, sessionModel, "last-session");
         }
+
+        return new ModelNameSnapshot(selectedUiModel, sessionModel, fallback, "fallback");
     }
 
     private string FallbackModelName()
@@ -236,3 +224,9 @@ public sealed class CodexModelNameProvider
 
     private sealed record SessionModelInspection(bool MatchesProject, string? ModelName);
 }
+
+public sealed record ModelNameSnapshot(
+    string? SelectedUiModel,
+    string? LastUsedSessionModel,
+    string FinalDisplayedModel,
+    string Source);

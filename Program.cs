@@ -44,24 +44,32 @@ Console.WriteLine("Press Ctrl+C to stop.");
 
 await rpc.StartAsync(cts.Token);
 
-string? lastModelName = null;
+ModelNameSnapshot? lastModelSnapshot = null;
 
 while (!cts.IsCancellationRequested)
 {
     var projectSnapshot = projectInspector.GetSnapshot();
     var gitSnapshot = gitInspector.GetSnapshot(projectInspector.ProjectPath);
     var codexSnapshot = codexDetector.GetSnapshot(projectInspector.ProjectPath);
-    var modelName = modelNameProvider.GetModelName(projectInspector.ProjectPath);
-    if (!string.Equals(modelName, lastModelName, StringComparison.Ordinal))
+    var modelSnapshot = modelNameProvider.GetSnapshot(projectInspector.ProjectPath);
+    if (lastModelSnapshot is null ||
+        !string.Equals(modelSnapshot.SelectedUiModel, lastModelSnapshot.SelectedUiModel, StringComparison.Ordinal) ||
+        !string.Equals(modelSnapshot.LastUsedSessionModel, lastModelSnapshot.LastUsedSessionModel, StringComparison.Ordinal) ||
+        !string.Equals(modelSnapshot.FinalDisplayedModel, lastModelSnapshot.FinalDisplayedModel, StringComparison.Ordinal))
     {
-        Console.WriteLine($"Using model name: {modelName}");
-        lastModelName = modelName;
+        Console.WriteLine(
+            "Model detection: " +
+            $"Selected UI model={FormatLogValue(modelSnapshot.SelectedUiModel)}, " +
+            $"Last used session model={FormatLogValue(modelSnapshot.LastUsedSessionModel)}, " +
+            $"Final displayed model={FormatLogValue(modelSnapshot.FinalDisplayedModel)} " +
+            $"(source={modelSnapshot.Source})");
+        lastModelSnapshot = modelSnapshot;
     }
 
     var tokenSnapshot = tokenUsageProvider.GetSnapshot();
 
     var context = new PresenceContext(
-        modelName,
+        modelSnapshot.FinalDisplayedModel,
         codexSnapshot,
         projectSnapshot,
         gitSnapshot,
@@ -78,3 +86,8 @@ while (!cts.IsCancellationRequested)
 rpc.Clear();
 Console.WriteLine("Stopped Codex Discord RPC.");
 return 0;
+
+static string FormatLogValue(string? value)
+{
+    return string.IsNullOrWhiteSpace(value) ? "<none>" : value;
+}
