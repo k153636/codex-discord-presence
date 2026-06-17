@@ -388,11 +388,11 @@ public class CodexStateTests
             var projectSnapshot = new ProjectSnapshot(
                 "discord-presence-for-codex",
                 @"E:\tool\discord-presence-for-codex",
-                "RefactorProgram.cs",
-                @"E:\tool\discord-presence-for-codex\RefactorProgram.cs",
+                null,
+                null,
                 12,
                 500,
-                [new RecentProjectFileSnapshot("RefactorProgram.cs", @"E:\tool\discord-presence-for-codex\RefactorProgram.cs", DateTime.UtcNow)]);
+                []);
 
             var snapshot = detector.GetSnapshot(
                 @"E:\tool\discord-presence-for-codex",
@@ -402,6 +402,59 @@ public class CodexStateTests
             Assert.True(snapshot.IsRunning);
             Assert.Equal(CodexActivityKind.Refactoring, snapshot.ActivityKind);
             Assert.Equal(ActivityConfidence.Low, snapshot.Confidence);
+        }
+        finally
+        {
+            Directory.Delete(tempPath, true);
+        }
+    }
+
+    [Fact]
+    public void Test_13_RefactorWordInSessionText_DoesNotForceRefactoring()
+    {
+        var tempPath = CreateTempSessionDirectory();
+        try
+        {
+            var now = DateTime.UtcNow;
+            WriteMockSessionLog(tempPath, "session1.jsonl", new[]
+            {
+                $"{{\"timestamp\":\"{now:yyyy-MM-ddTHH:mm:ss.fffZ}\",\"type\":\"response_item\",\"payload\":{{\"type\":\"message\",\"text\":\"Let's refactor this later\"}}}}"
+            });
+
+            var projectRoot = Path.Combine(Path.GetTempPath(), "CodexEditingProject_" + Guid.NewGuid());
+            Directory.CreateDirectory(projectRoot);
+
+            try
+            {
+                var file1 = Path.Combine(projectRoot, "Alpha.cs");
+                var file2 = Path.Combine(projectRoot, "Beta.cs");
+                File.WriteAllText(file1, "1");
+                File.WriteAllText(file2, "2");
+                File.SetLastWriteTimeUtc(file1, now);
+                File.SetLastWriteTimeUtc(file2, now.AddSeconds(-5));
+
+                var projectSnapshot = new ProjectSnapshot(
+                    Path.GetFileName(projectRoot),
+                    projectRoot,
+                    "Alpha.cs",
+                    file1,
+                    2,
+                    2,
+                    [
+                        new RecentProjectFileSnapshot("Alpha.cs", file1, File.GetLastWriteTimeUtc(file1)),
+                        new RecentProjectFileSnapshot("Beta.cs", file2, File.GetLastWriteTimeUtc(file2))
+                    ]);
+
+                var detector = new CodexProcessDetector(new CodexDetectionOptions { HomePath = tempPath }, new PresenceTemplateOptions { EditingFreshnessSeconds = 120 });
+                var snapshot = detector.GetSnapshot(projectRoot, projectSnapshot, new GitSnapshot(true, 2, null));
+
+                Assert.Equal(CodexActivityKind.UpdatingFiles, snapshot.ActivityKind);
+                Assert.Equal(ActivityConfidence.High, snapshot.Confidence);
+            }
+            finally
+            {
+                Directory.Delete(projectRoot, true);
+            }
         }
         finally
         {

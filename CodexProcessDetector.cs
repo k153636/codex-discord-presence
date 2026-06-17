@@ -106,14 +106,6 @@ public sealed class CodexProcessDetector
             return CodexActivityKind.RunningCommand;
         }
 
-        if (hasRefactorEvidence)
-        {
-            provenance = ActivityProvenance.Observed;
-            confidence = ActivityConfidence.Low;
-            reason = BuildRefactorReason(recentEditedFiles, sessionInspection, gitSnapshot);
-            return CodexActivityKind.Refactoring;
-        }
-
         if (hasRecentEdits)
         {
             provenance = ActivityProvenance.Observed;
@@ -134,6 +126,14 @@ public sealed class CodexProcessDetector
             confidence = ActivityConfidence.Low;
             reason = "turn_context collaboration_mode=plan";
             return CodexActivityKind.Planning;
+        }
+
+        if (hasRefactorEvidence)
+        {
+            provenance = ActivityProvenance.Observed;
+            confidence = ActivityConfidence.Low;
+            reason = BuildRefactorReason(sessionInspection, gitSnapshot);
+            return CodexActivityKind.Refactoring;
         }
 
         if (sessionInspection?.HasTaskCompleted == true && !sessionInspection.HasTaskStarted)
@@ -194,7 +194,6 @@ public sealed class CodexProcessDetector
     }
 
     private static string BuildRefactorReason(
-        IReadOnlyList<RecentProjectFileSnapshot> recentEditedFiles,
         SessionInspection? sessionInspection,
         GitSnapshot? gitSnapshot)
     {
@@ -203,19 +202,7 @@ public sealed class CodexProcessDetector
             return $"git commit message suggests refactor: {commitMessage}";
         }
 
-        var recentFile = recentEditedFiles.FirstOrDefault(file =>
-            ContainsAny(file.Name, RefactorKeywords) || ContainsAny(file.Path, RefactorKeywords));
-        if (recentFile is not null)
-        {
-            return $"recent file name suggests refactor: {recentFile.Name}";
-        }
-
-        if (!string.IsNullOrWhiteSpace(sessionInspection?.RefactorEvidenceReason))
-        {
-            return sessionInspection.RefactorEvidenceReason!;
-        }
-
-        return "refactor hint detected in session or git metadata";
+        return sessionInspection?.RefactorEvidenceReason ?? "git metadata suggests refactor";
     }
 
     private static bool HasRefactorEvidence(
@@ -225,18 +212,6 @@ public sealed class CodexProcessDetector
     {
         if (gitSnapshot?.LatestCommitMessage is { Length: > 0 } commitMessage &&
             ContainsAny(commitMessage, RefactorKeywords))
-        {
-            return true;
-        }
-
-        if (recentEditedFiles.Any(file =>
-                ContainsAny(file.Name, RefactorKeywords) ||
-                ContainsAny(file.Path, RefactorKeywords)))
-        {
-            return true;
-        }
-
-        if (!string.IsNullOrWhiteSpace(sessionInspection?.RefactorEvidenceReason))
         {
             return true;
         }
@@ -321,7 +296,6 @@ public sealed class CodexProcessDetector
         var pendingShellCommands = new HashSet<string>(StringComparer.Ordinal);
         var completedShellCommands = new HashSet<string>(StringComparer.Ordinal);
         string? runningCommandReason = null;
-        string? refactorEvidenceReason = null;
 
         try
         {
@@ -406,11 +380,6 @@ public sealed class CodexProcessDetector
                     completedShellCommands.Add(outputCallId);
                 }
 
-                if (refactorEvidenceReason is null && ContainsAny(line, RefactorKeywords))
-                {
-                    refactorEvidenceReason = $"session log hint: {CompactLine(line)}";
-                }
-
                 if (runningCommandReason is null &&
                     payloadType is "function_call" &&
                     TryGetString(payload, "name", out var callName) &&
@@ -442,13 +411,7 @@ public sealed class CodexProcessDetector
             collaborationMode,
             hasRunningCommand,
             runningCommandReason,
-            refactorEvidenceReason);
-    }
-
-    private static string CompactLine(string line)
-    {
-        var trimmed = line.Trim();
-        return trimmed.Length <= 120 ? trimmed : trimmed[..117] + "...";
+            null);
     }
 
     private static string? TryGetCollaborationMode(JsonElement payload)
