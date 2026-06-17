@@ -51,7 +51,7 @@ public sealed class AppOptions
 
 public sealed class DiscordOptions
 {
-    public string ClientId { get; set; } = "1516774220636360784";
+    public string ClientId { get; set; } = "1516846793873424474";
     public string? LargeImageKey { get; set; } = "codex_logo";
     public string? SmallImageKey { get; set; }
 }

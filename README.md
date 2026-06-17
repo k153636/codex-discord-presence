@@ -7,7 +7,7 @@ The displayed text is intentionally configurable through `appsettings.json`.
 ## Setup
 
 1. Create an application in the Discord Developer Portal.
-2. The default `Discord:ClientId` is already set to `1516774220636360784`.
+2. The default `Discord:ClientId` is already set to `1516846793873424474`.
 3. Optionally add Rich Presence assets matching `LargeImageKey` and `SmallImageKey`.
 4. Build with `build.cmd`.
 5. Start it with `start.cmd`.
