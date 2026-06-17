@@ -22,10 +22,10 @@ The app automatically detects the current Codex model name when possible. Use `P
 
 The default template uses English text with a clear model-driven agent feel:
 
-- `Details`: `{ModelName} building {ProjectName}`
-- `State`: `Editing {EditingFileName} | {ChangedFileCount} files changed`
-- `LargeImageText`: `{CodexStatus} | session {SessionElapsed}`
-- `SmallImageText`: `{Tokens} | est. {EstimatedCost}`
+- `Details`: `{ModelName} working on {ProjectName}`
+- `State`: `Editing {EditingFileName} ・ {ChangedFileCount} files changed`
+- `LargeImageText`: `{CodexStatus} ・ session {SessionElapsed}`
+- `SmallImageText`: `{Tokens} ・ est. {EstimatedCost}`
 - Button: `GitHub`
 
 Token and cost values are enabled in the template, but automatic Codex usage extraction is still a future integration point. Until then, `TokenUsage:TotalTokens` and `TokenUsage:EstimatedCostUsd` can be filled manually.
