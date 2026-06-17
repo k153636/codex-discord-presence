@@ -26,15 +26,10 @@ public sealed class PresenceTemplateRenderer
             .OrderByDescending(file => file.LastWriteTimeUtc)
             .ToArray();
         var editingFileName = recentEditedFiles.FirstOrDefault()?.Name ?? "";
-        var codexState = !context.Codex.IsRunning ? template.OfflineText
-            : context.Codex.IsThinking ? template.ThinkingText
-            : template.WaitingText;
         var changedFilesText = FormatChangedFiles(context.Git.ChangedFileCount);
         var projectSizeText = FormatProjectSize(context.Project.ScannedFileCount, context.Project.TotalLineCount);
-        var activeEditingText = BuildEditingActivityLine(recentEditedFiles);
-        var activityLine = !string.IsNullOrWhiteSpace(activeEditingText)
-            ? $"{activeEditingText} ・ {changedFilesText}"
-            : BuildIdleActivityLine(template, context, codexState, changedFilesText);
+        var stateLabel = ResolveStateLabel(template, context.Codex.ActivityKind);
+        var activityLine = BuildActivityLine(template, context, recentEditedFiles, changedFilesText, stateLabel);
 
         return new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
         {
@@ -47,9 +42,13 @@ public sealed class PresenceTemplateRenderer
             ["EditingFileLabel"] = string.IsNullOrWhiteSpace(editingFileName) ? "" : $"Editing {editingFileName}",
             ["EditingFilePath"] = context.Project.RecentFilePath ?? "",
             ["ActiveEditedFileCount"] = recentEditedFiles.Length.ToString(CultureInfo.InvariantCulture),
-            ["ActiveEditedFilesText"] = activeEditingText,
+            ["ActiveEditedFilesText"] = BuildActiveEditedFilesText(template, context, recentEditedFiles),
             ["ChangedFileCount"] = context.Git.ChangedFileCount.ToString(CultureInfo.InvariantCulture),
             ["ChangedFilesText"] = changedFilesText,
+            ["ActivityLabel"] = stateLabel,
+            ["ActivityKind"] = context.Codex.ActivityKind.ToString(),
+            ["ActivityProvenance"] = context.Codex.ActivityProvenance.ToString(),
+            ["ActivityReason"] = context.Codex.ActivityReason,
             ["ActivityLine"] = activityLine,
             ["ProjectFileCount"] = context.Project.ScannedFileCount.ToString(CultureInfo.InvariantCulture),
             ["ProjectLineCount"] = context.Project.TotalLineCount.ToString(CultureInfo.InvariantCulture),
@@ -58,8 +57,103 @@ public sealed class PresenceTemplateRenderer
             ["SessionStartedAt"] = context.Session.StartedAt.ToLocalTime().ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture),
             ["Tokens"] = context.TokenUsage.TotalTokens is null ? "tokens pending" : FormatNumber(context.TokenUsage.TotalTokens.Value),
             ["EstimatedCost"] = context.TokenUsage.EstimatedCostUsd is null ? "cost pending" : "$" + context.TokenUsage.EstimatedCostUsd.Value.ToString("0.00", CultureInfo.InvariantCulture),
-            ["CodexState"] = codexState
+            ["CodexState"] = stateLabel
         };
+    }
+
+    private static string BuildActivityLine(
+        PresenceTemplateOptions template,
+        PresenceContext context,
+        IReadOnlyList<RecentProjectFileSnapshot> recentEditedFiles,
+        string changedFilesText,
+        string stateLabel)
+    {
+        if (!context.Codex.IsRunning)
+        {
+            return $"{template.OfflineText} ・ {changedFilesText}";
+        }
+
+        if (recentEditedFiles.Count > 0)
+        {
+            return $"{BuildEditingActivityLine(template, context.Codex.ActivityKind, recentEditedFiles)} ・ {changedFilesText}";
+        }
+
+        return $"{BuildIdleActivityLine(template, context, stateLabel)} ・ {changedFilesText}";
+    }
+
+    private static string BuildActiveEditedFilesText(
+        PresenceTemplateOptions template,
+        PresenceContext context,
+        IReadOnlyList<RecentProjectFileSnapshot> recentEditedFiles)
+    {
+        if (recentEditedFiles.Count == 0)
+        {
+            return "";
+        }
+
+        return BuildEditingActivityLine(template, context.Codex.ActivityKind, recentEditedFiles);
+    }
+
+    private static string BuildEditingActivityLine(
+        PresenceTemplateOptions template,
+        CodexActivityKind activityKind,
+        IReadOnlyList<RecentProjectFileSnapshot> recentEditedFiles)
+    {
+        if (recentEditedFiles.Count == 1)
+        {
+            return $"Editing {recentEditedFiles[0].Name}";
+        }
+
+        if (recentEditedFiles.Count <= 3)
+        {
+            return $"Editing {recentEditedFiles[0].Name} + {recentEditedFiles.Count - 1} more";
+        }
+
+        return activityKind == CodexActivityKind.Refactoring
+            ? $"{ResolveStateLabel(template, CodexActivityKind.Refactoring)} across {recentEditedFiles.Count.ToString(CultureInfo.InvariantCulture)} files"
+            : $"Editing {recentEditedFiles[0].Name} + {recentEditedFiles.Count - 1} more";
+    }
+
+    private static string BuildIdleActivityLine(
+        PresenceTemplateOptions template,
+        PresenceContext context,
+        string stateLabel)
+    {
+        return context.Codex.ActivityKind switch
+        {
+            CodexActivityKind.Planning => $"{stateLabel} on {context.Project.Name}",
+            CodexActivityKind.ApplyingEdits => $"{stateLabel} on {context.Project.Name}",
+            CodexActivityKind.Refactoring => $"{stateLabel} on {context.Project.Name}",
+            CodexActivityKind.Analyzing => $"{stateLabel} on {context.Project.Name}",
+            _ => FirstNonEmpty(template.ReadyActivityText, template.WaitingActivityText, "Ready for next task"),
+        };
+    }
+
+    private static string ResolveStateLabel(PresenceTemplateOptions template, CodexActivityKind activityKind)
+    {
+        return activityKind switch
+        {
+            CodexActivityKind.Planning => FirstNonEmpty(template.PlanningText, template.WaitingText, "Planning"),
+            CodexActivityKind.ApplyingEdits => FirstNonEmpty(template.ApplyingEditsText, template.ThinkingText, "Applying edits"),
+            CodexActivityKind.Refactoring => FirstNonEmpty(template.RefactoringText, "Refactoring"),
+            CodexActivityKind.Analyzing => FirstNonEmpty(template.AnalyzingText, template.ThinkingText, "Analyzing"),
+            CodexActivityKind.Ready => FirstNonEmpty(template.ReadyText, template.WaitingText, "Ready"),
+            CodexActivityKind.Offline => FirstNonEmpty(template.OfflineText, "Offline"),
+            _ => FirstNonEmpty(template.ReadyText, "Ready")
+        };
+    }
+
+    private static string FirstNonEmpty(params string[] values)
+    {
+        foreach (var value in values)
+        {
+            if (!string.IsNullOrWhiteSpace(value))
+            {
+                return value;
+            }
+        }
+
+        return "";
     }
 
     private static string Apply(string value, IReadOnlyDictionary<string, string> values)
@@ -101,45 +195,6 @@ public sealed class PresenceTemplateRenderer
     private static string FormatChangedFiles(int count)
     {
         return count == 1 ? "1 file changed" : $"{count.ToString(CultureInfo.InvariantCulture)} files changed";
-    }
-
-    private static string BuildEditingActivityLine(IReadOnlyList<RecentProjectFileSnapshot> recentEditedFiles)
-    {
-        if (recentEditedFiles.Count == 0)
-        {
-            return "";
-        }
-
-        if (recentEditedFiles.Count == 1)
-        {
-            return $"Editing {recentEditedFiles[0].Name}";
-        }
-
-        if (recentEditedFiles.Count <= 3)
-        {
-            return $"Editing {recentEditedFiles[0].Name} + {recentEditedFiles.Count - 1} more";
-        }
-
-        return $"Coordinating changes across {recentEditedFiles.Count.ToString(CultureInfo.InvariantCulture)} files";
-    }
-
-    private static string BuildIdleActivityLine(
-        PresenceTemplateOptions template,
-        PresenceContext context,
-        string codexState,
-        string changedFilesText)
-    {
-        if (!context.Codex.IsRunning)
-        {
-            return $"{codexState} ・ {changedFilesText}";
-        }
-
-        if (context.Codex.IsThinking)
-        {
-            return $"{codexState} on {context.Project.Name} ・ {changedFilesText}";
-        }
-
-        return $"{template.WaitingActivityText} ・ {changedFilesText}";
     }
 
     private static string FormatProjectSize(int fileCount, long lineCount)

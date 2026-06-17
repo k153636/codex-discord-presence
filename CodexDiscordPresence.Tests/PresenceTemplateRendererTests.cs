@@ -6,7 +6,7 @@ namespace CodexDiscordPresence.Tests;
 public sealed class PresenceTemplateRendererTests
 {
     [Fact]
-    public void Render_WithoutRecentEditedFile_UsesProjectFallbackActivity()
+    public void Render_WithoutRecentEditedFile_UsesAnalyzingActivity()
     {
         var renderer = new PresenceTemplateRenderer();
         var template = new PresenceTemplateOptions { State = "{ActivityLine}" };
@@ -17,11 +17,11 @@ public sealed class PresenceTemplateRendererTests
 
         var presence = renderer.Render(template, context);
 
-        Assert.Equal("Thinking on Nexstrap ・ 1 file changed", presence.State);
+        Assert.Equal("Analyzing on Nexstrap ・ 1 file changed", presence.State);
     }
 
     [Fact]
-    public void Render_WaitingWithoutRecentEditedFile_UsesReadyActivity()
+    public void Render_ReadyWithoutRecentEditedFile_UsesReadyActivity()
     {
         var renderer = new PresenceTemplateRenderer();
         var template = new PresenceTemplateOptions { State = "{ActivityLine}" };
@@ -174,13 +174,17 @@ public sealed class PresenceTemplateRendererTests
     }
 
     [Fact]
-    public void Render_WithFourRecentEditedFiles_UsesCoordinatingActivity()
+    public void Render_WithFourRecentEditedFiles_UsesRefactoringActivity()
     {
         var now = DateTime.UtcNow;
         var renderer = new PresenceTemplateRenderer();
         var template = new PresenceTemplateOptions { State = "{ActivityLine}" };
         var context = CreateContext(
-            new CodexProcessSnapshot(true, "codex", false),
+            new CodexProcessSnapshot(true, "codex", false)
+            {
+                DetectedActivityKind = CodexActivityKind.Refactoring,
+                ActivityProvenance = ActivityProvenance.Observed
+            },
             new ProjectSnapshot(
                 "Nexstrap",
                 @"E:\tool\Nexstrap",
@@ -198,7 +202,7 @@ public sealed class PresenceTemplateRendererTests
 
         var presence = renderer.Render(template, context);
 
-        Assert.Equal("Coordinating changes across 4 files ・ 4 files changed", presence.State);
+        Assert.Equal("Refactoring across 4 files ・ 4 files changed", presence.State);
     }
 
     private static PresenceContext CreateContext(

@@ -1,7 +1,7 @@
 @echo off
 setlocal
 set "ROOT_DIR=%~dp0"
-set "APP_DIR=%ROOT_DIR%bin\Debug\net9.0\win-x64"
+set "APP_DIR=%ROOT_DIR%publish"
 set "APP_EXE=%APP_DIR%\discord-presence-for-codex.exe"
 
 if not exist "%APP_EXE%" (

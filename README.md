@@ -1,44 +1,33 @@
 # Discord Presence for Codex
 
-Discord Rich Presence for making Codex / a model agent appear as the active worker, rather than showing the user's current tab or editor state.
+Discord Rich Presence for making Codex look like the active worker, not the user's current tab or editor state.
 
-The displayed text is intentionally configurable through `appsettings.json`.
+The displayed text is template-driven through `appsettings.json`, so the copy can be changed without code edits.
 
 ## Setup
 
-1. Create an application in the Discord Developer Portal.
-2. The default `Discord:ClientId` is already set to `1516846793873424474`.
-3. Optionally add Rich Presence assets matching `LargeImageKey` and `SmallImageKey`.
-4. Build with `build.cmd`.
-5. Start it with `start.cmd`.
-6. Stop it with `stop.cmd`.
+1. Build with `build.cmd`.
+2. Start with `start.cmd`.
+3. Stop with `stop.cmd`.
+4. Set `Discord:ClientId` only if you want to use a different Discord application.
 
-You can also set `Project:Path` directly in `appsettings.json`.
-The app automatically detects the current Codex model name when possible. Use `Presence:ModelName` or `--model <name>` as the fallback name.
-`Project:IgnoredFilePatterns` excludes noisy runtime files such as logs and PID files from the recent editing file detector.
-`Project:MaxRecentEditedFilesToTrack` controls how many recently touched files are tracked for multi-file editing activity.
-`Project:MaxProjectFilesToScan` and `Project:MaxLineCountFileBytes` keep project size detection lightweight for large repositories.
-`Presence:WaitingActivityText` controls the idle activity line shown when Codex is running but not currently thinking.
-`Presence:EditingFreshnessSeconds` controls how long `Editing ...` remains visible after the last detected file update.
+## What It Detects
 
-## Current Display Style
+- Current Codex model when available
+- Project name and project size
+- Recent edited file and multi-file editing bursts
+- Git changed-file count
+- Session elapsed time
+- Token count and estimated cost placeholders
+- AI activity labels inferred from session logs, file writes, and Git diff behavior
 
-The default template uses English text with a clear model-driven agent feel:
+## Default Presence
 
 - `Details`: `{ModelName} working on {ProjectName}`
 - `State`: `{ActivityLine}`
 - `LargeImageText`: `{ProjectSizeText} ・ session {SessionElapsed}`
 - `SmallImageText`: `{Tokens} ・ est. {EstimatedCost}`
 - Button: `GitHub`
-
-Token and cost values are enabled in the template, but automatic Codex usage extraction is still a future integration point. Until then, `TokenUsage:TotalTokens` and `TokenUsage:EstimatedCostUsd` can be filled manually.
-
-## Easy Start And Stop
-
-- `build.cmd` builds the Windows `exe`
-- `start.cmd` launches the app in the background
-- `stop.cmd` shuts down the running instance
-- Only one instance can run at a time
 
 ## Model Detection
 
@@ -48,6 +37,32 @@ When `Presence.AutoDetectModelName` is enabled, the app resolves `{ModelName}` f
 - Recent Codex session JSONL files under `CODEX_HOME` or `%USERPROFILE%\.codex`
 - `%USERPROFILE%\.codex\config.toml`
 - `Presence.ModelName` as the fallback
+
+The app also logs:
+
+- Selected UI model
+- Last used session model
+- Final displayed model
+
+## Activity Labels
+
+The current state engine prefers these labels:
+
+- `Analyzing`
+- `Planning`
+- `Applying edits`
+- `Refactoring`
+- `Ready`
+
+The labels and their surrounding copy stay configurable in `appsettings.json`.
+
+## Ready-to-Run Build
+
+The project is configured for a self-contained `win-x64` single-file publish.
+
+- `build.cmd` publishes the app
+- `start.cmd` launches the published exe in the background
+- `stop.cmd` shuts down the running instance
 
 ## Template Values
 
@@ -66,6 +81,10 @@ When `Presence.AutoDetectModelName` is enabled, the app resolves `{ModelName}` f
 - `{EditingFilePath}`
 - `{ChangedFileCount}`
 - `{ChangedFilesText}`
+- `{ActivityLabel}`
+- `{ActivityKind}`
+- `{ActivityProvenance}`
+- `{ActivityReason}`
 - `{ActivityLine}`
 - `{SessionElapsed}`
 - `{SessionStartedAt}`

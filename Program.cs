@@ -45,6 +45,7 @@ Console.WriteLine("Press Ctrl+C to stop.");
 await rpc.StartAsync(cts.Token);
 
 ModelNameSnapshot? lastModelSnapshot = null;
+CodexProcessSnapshot? lastActivitySnapshot = null;
 string? lastPresenceDetails = null;
 string? lastPresenceState = null;
 
@@ -54,7 +55,7 @@ while (!cts.IsCancellationRequested)
     {
         var projectSnapshot = projectInspector.GetSnapshot();
         var gitSnapshot = gitInspector.GetSnapshot(projectInspector.ProjectPath);
-        var codexSnapshot = codexDetector.GetSnapshot(projectInspector.ProjectPath);
+        var codexSnapshot = codexDetector.GetSnapshot(projectInspector.ProjectPath, projectSnapshot, gitSnapshot);
         var modelSnapshot = modelNameProvider.GetSnapshot(projectInspector.ProjectPath);
         if (lastModelSnapshot is null ||
             !string.Equals(modelSnapshot.SelectedUiModel, lastModelSnapshot.SelectedUiModel, StringComparison.Ordinal) ||
@@ -68,6 +69,19 @@ while (!cts.IsCancellationRequested)
                 $"Final displayed model={FormatLogValue(modelSnapshot.FinalDisplayedModel)} " +
                 $"(source={modelSnapshot.Source})");
             lastModelSnapshot = modelSnapshot;
+        }
+
+        if (lastActivitySnapshot is null ||
+            lastActivitySnapshot.ActivityKind != codexSnapshot.ActivityKind ||
+            lastActivitySnapshot.ActivityProvenance != codexSnapshot.ActivityProvenance ||
+            !string.Equals(lastActivitySnapshot.ActivityReason, codexSnapshot.ActivityReason, StringComparison.Ordinal))
+        {
+            Console.WriteLine(
+                "Activity detection: " +
+                $"state={codexSnapshot.ActivityKind}, " +
+                $"provenance={codexSnapshot.ActivityProvenance}, " +
+                $"reason={codexSnapshot.ActivityReason}");
+            lastActivitySnapshot = codexSnapshot;
         }
 
         var tokenSnapshot = tokenUsageProvider.GetSnapshot();

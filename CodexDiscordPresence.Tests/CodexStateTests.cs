@@ -1,7 +1,7 @@
 using System;
 using System.IO;
-using Xunit;
 using CodexDiscordPresence;
+using Xunit;
 
 namespace CodexDiscordPresence.Tests;
 
@@ -9,7 +9,7 @@ public class CodexStateTests
 {
     private string CreateTempSessionDirectory()
     {
-        var tempPath = Path.Combine(Path.GetTempPath(), "CodexTests_" + Guid.NewGuid().ToString());
+        var tempPath = Path.Combine(Path.GetTempPath(), "CodexTests_" + Guid.NewGuid());
         Directory.CreateDirectory(Path.Combine(tempPath, "sessions"));
         return tempPath;
     }
@@ -30,24 +30,33 @@ public class CodexStateTests
     [Fact]
     public void Test_1_CodexProcessNotRunning_ReturnsOffline()
     {
-        // 1. Codexプロセスなし → Offline (IsRunning = false, IsThinking = false)
-        var options = new CodexDetectionOptions
+        var tempPath = CreateTempSessionDirectory();
+        try
         {
-            ProcessNameContains = new[] { "non_existent_codex_process_xyz_123" },
-            WindowTitleContains = new[] { "non_existent_codex_window_xyz_123" }
-        };
-        var presenceOptions = new PresenceTemplateOptions();
-        var detector = new CodexProcessDetector(options, presenceOptions);
+            var options = new CodexDetectionOptions
+            {
+                HomePath = tempPath,
+                ProcessNameContains = new[] { "non_existent_codex_process_xyz_123" },
+                WindowTitleContains = new[] { "non_existent_codex_window_xyz_123" }
+            };
 
-        var snapshot = detector.GetSnapshot();
-        Assert.False(snapshot.IsRunning);
-        Assert.False(snapshot.IsThinking);
+            var detector = new CodexProcessDetector(options, new PresenceTemplateOptions());
+
+            var snapshot = detector.GetSnapshot();
+
+            Assert.False(snapshot.IsRunning);
+            Assert.False(snapshot.IsThinking);
+            Assert.Equal(CodexActivityKind.Offline, snapshot.ActivityKind);
+        }
+        finally
+        {
+            Directory.Delete(tempPath, true);
+        }
     }
 
     [Fact]
     public void Test_2_NoTaskStartedInSession_ReturnsWaiting()
     {
-        // 2. Codex起動中・最新sessionにtask_startedなし → waiting (IsThinking = false)
         var tempPath = CreateTempSessionDirectory();
         try
         {
@@ -56,11 +65,10 @@ public class CodexStateTests
                 "{\"timestamp\":\"2026-06-17T13:00:00.000Z\",\"type\":\"event_msg\",\"payload\":{\"type\":\"token_count\"}}"
             });
 
-            var options = new CodexDetectionOptions { HomePath = tempPath };
-            var presenceOptions = new PresenceTemplateOptions();
-            var detector = new CodexProcessDetector(options, presenceOptions);
+            var detector = new CodexProcessDetector(new CodexDetectionOptions { HomePath = tempPath }, new PresenceTemplateOptions());
 
             var isThinking = detector.DetermineIfThinking();
+
             Assert.False(isThinking);
         }
         finally
@@ -72,7 +80,6 @@ public class CodexStateTests
     [Fact]
     public void Test_3_LatestSessionHasTaskStarted_ReturnsThinking()
     {
-        // 3. 最新sessionにtask_started追加 → Thinking (IsThinking = true)
         var tempPath = CreateTempSessionDirectory();
         try
         {
@@ -82,11 +89,10 @@ public class CodexStateTests
                 $"{{\"timestamp\":\"{nowStr}\",\"type\":\"event_msg\",\"payload\":{{\"type\":\"task_started\",\"turn_id\":\"123\"}}}}"
             });
 
-            var options = new CodexDetectionOptions { HomePath = tempPath };
-            var presenceOptions = new PresenceTemplateOptions { ThinkingStaleTimeoutMinutes = 10 };
-            var detector = new CodexProcessDetector(options, presenceOptions);
+            var detector = new CodexProcessDetector(new CodexDetectionOptions { HomePath = tempPath }, new PresenceTemplateOptions { ThinkingStaleTimeoutMinutes = 10 });
 
             var isThinking = detector.DetermineIfThinking();
+
             Assert.True(isThinking);
         }
         finally
@@ -98,7 +104,6 @@ public class CodexStateTests
     [Fact]
     public void Test_4_LatestSessionHasTaskComplete_ReturnsWaiting()
     {
-        // 4. task_complete追加 → waiting (IsThinking = false)
         var tempPath = CreateTempSessionDirectory();
         try
         {
@@ -111,11 +116,10 @@ public class CodexStateTests
                 $"{{\"timestamp\":\"{time2}\",\"type\":\"event_msg\",\"payload\":{{\"type\":\"task_complete\",\"turn_id\":\"123\"}}}}"
             });
 
-            var options = new CodexDetectionOptions { HomePath = tempPath };
-            var presenceOptions = new PresenceTemplateOptions();
-            var detector = new CodexProcessDetector(options, presenceOptions);
+            var detector = new CodexProcessDetector(new CodexDetectionOptions { HomePath = tempPath }, new PresenceTemplateOptions());
 
             var isThinking = detector.DetermineIfThinking();
+
             Assert.False(isThinking);
         }
         finally
@@ -127,22 +131,19 @@ public class CodexStateTests
     [Fact]
     public void Test_5_TaskStartedStaleTimeout_ReturnsWaiting()
     {
-        // 5. task_started後、ThinkingStaleTimeoutMinutesを超えた扱い → waiting (IsThinking = false)
         var tempPath = CreateTempSessionDirectory();
         try
         {
-            // 11 minutes ago
             var staleTimeStr = DateTime.UtcNow.AddMinutes(-11).ToString("yyyy-MM-ddTHH:mm:ss.fffZ");
             WriteMockSessionLog(tempPath, "session1.jsonl", new[]
             {
                 $"{{\"timestamp\":\"{staleTimeStr}\",\"type\":\"event_msg\",\"payload\":{{\"type\":\"task_started\",\"turn_id\":\"123\"}}}}"
             });
 
-            var options = new CodexDetectionOptions { HomePath = tempPath };
-            var presenceOptions = new PresenceTemplateOptions { ThinkingStaleTimeoutMinutes = 10 };
-            var detector = new CodexProcessDetector(options, presenceOptions);
+            var detector = new CodexProcessDetector(new CodexDetectionOptions { HomePath = tempPath }, new PresenceTemplateOptions { ThinkingStaleTimeoutMinutes = 10 });
 
             var isThinking = detector.DetermineIfThinking();
+
             Assert.False(isThinking);
         }
         finally
@@ -154,7 +155,6 @@ public class CodexStateTests
     [Fact]
     public void Test_6_NewTaskStartedAfterStale_ReturnsThinking()
     {
-        // 6. staleでwaitingに戻った後、新しいtask_started追加 → Thinking (IsThinking = true)
         var tempPath = CreateTempSessionDirectory();
         try
         {
@@ -166,11 +166,10 @@ public class CodexStateTests
                 $"{{\"timestamp\":\"{nowStr}\",\"type\":\"event_msg\",\"payload\":{{\"type\":\"task_started\",\"turn_id\":\"456\"}}}}"
             });
 
-            var options = new CodexDetectionOptions { HomePath = tempPath };
-            var presenceOptions = new PresenceTemplateOptions { ThinkingStaleTimeoutMinutes = 10 };
-            var detector = new CodexProcessDetector(options, presenceOptions);
+            var detector = new CodexProcessDetector(new CodexDetectionOptions { HomePath = tempPath }, new PresenceTemplateOptions { ThinkingStaleTimeoutMinutes = 10 });
 
             var isThinking = detector.DetermineIfThinking();
+
             Assert.True(isThinking);
         }
         finally
@@ -202,8 +201,7 @@ public class CodexStateTests
             SetSessionWriteTime(tempPath, "current.jsonl", now.AddSeconds(-5));
             SetSessionWriteTime(tempPath, "other.jsonl", now);
 
-            var options = new CodexDetectionOptions { HomePath = tempPath };
-            var detector = new CodexProcessDetector(options, new PresenceTemplateOptions());
+            var detector = new CodexProcessDetector(new CodexDetectionOptions { HomePath = tempPath }, new PresenceTemplateOptions());
 
             var isThinking = detector.DetermineIfThinking(currentProject);
 
@@ -227,13 +225,109 @@ public class CodexStateTests
                 $"{{\"timestamp\":\"{nowStr}\",\"type\":\"event_msg\",\"payload\":{{\"type\":\"task_started\",\"turn_id\":\"123\"}}}}"
             });
 
-            var options = new CodexDetectionOptions { HomePath = tempPath };
-            var presenceOptions = new PresenceTemplateOptions { ThinkingStaleTimeoutMinutes = 10 };
-            var detector = new CodexProcessDetector(options, presenceOptions);
+            var detector = new CodexProcessDetector(new CodexDetectionOptions { HomePath = tempPath }, new PresenceTemplateOptions { ThinkingStaleTimeoutMinutes = 10 });
 
             var isThinking = detector.DetermineIfThinking(Path.Combine(Path.GetTempPath(), "AnyProject"));
 
             Assert.True(isThinking);
+        }
+        finally
+        {
+            Directory.Delete(tempPath, true);
+        }
+    }
+
+    [Fact]
+    public void Test_9_PlanModeSession_ReturnsPlanning()
+    {
+        var tempPath = CreateTempSessionDirectory();
+        try
+        {
+            var now = DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ss.fffZ");
+            WriteMockSessionLog(tempPath, "session1.jsonl", new[]
+            {
+                $"{{\"timestamp\":\"{now}\",\"type\":\"event_msg\",\"payload\":{{\"type\":\"turn_context\",\"cwd\":\"E:\\\\tool\\\\discord-presence-for-codex\",\"collaboration_mode\":{{\"mode\":\"plan\",\"settings\":{{\"model\":\"gpt-5.5\"}}}}}}}}"
+            });
+
+            var detector = new CodexProcessDetector(new CodexDetectionOptions { HomePath = tempPath }, new PresenceTemplateOptions());
+            var projectSnapshot = new ProjectSnapshot(
+                "discord-presence-for-codex",
+                @"E:\tool\discord-presence-for-codex",
+                null,
+                null,
+                10,
+                200,
+                []);
+
+            var snapshot = detector.GetSnapshot(@"E:\tool\discord-presence-for-codex", projectSnapshot, new GitSnapshot(false, 0));
+
+            Assert.True(snapshot.IsRunning);
+            Assert.Equal(CodexActivityKind.Planning, snapshot.ActivityKind);
+            Assert.True(snapshot.IsThinking);
+            Assert.Equal(ActivityProvenance.Observed, snapshot.ActivityProvenance);
+        }
+        finally
+        {
+            Directory.Delete(tempPath, true);
+        }
+    }
+
+    [Fact]
+    public void Test_10_MultiFileEdits_ReturnRefactoring()
+    {
+        var tempPath = CreateTempSessionDirectory();
+        try
+        {
+            var now = DateTime.UtcNow;
+            WriteMockSessionLog(tempPath, "session1.jsonl", new[]
+            {
+                $"{{\"timestamp\":\"{now:yyyy-MM-ddTHH:mm:ss.fffZ}\",\"type\":\"event_msg\",\"payload\":{{\"type\":\"task_started\",\"turn_id\":\"123\",\"cwd\":\"E:\\\\tool\\\\discord-presence-for-codex\"}}}}"
+            });
+
+            var projectRoot = Path.Combine(Path.GetTempPath(), "CodexRefactorProject_" + Guid.NewGuid());
+            Directory.CreateDirectory(projectRoot);
+
+            try
+            {
+                var file1 = Path.Combine(projectRoot, "One.cs");
+                var file2 = Path.Combine(projectRoot, "Two.cs");
+                var file3 = Path.Combine(projectRoot, "Three.cs");
+                var file4 = Path.Combine(projectRoot, "Four.cs");
+                File.WriteAllText(file1, "1");
+                File.WriteAllText(file2, "2");
+                File.WriteAllText(file3, "3");
+                File.WriteAllText(file4, "4");
+                File.SetLastWriteTimeUtc(file1, now);
+                File.SetLastWriteTimeUtc(file2, now.AddSeconds(-5));
+                File.SetLastWriteTimeUtc(file3, now.AddSeconds(-10));
+                File.SetLastWriteTimeUtc(file4, now.AddSeconds(-15));
+
+                var projectSnapshot = new ProjectSnapshot(
+                    Path.GetFileName(projectRoot),
+                    projectRoot,
+                    "One.cs",
+                    file1,
+                    4,
+                    4,
+                    [
+                        new RecentProjectFileSnapshot("One.cs", file1, File.GetLastWriteTimeUtc(file1)),
+                        new RecentProjectFileSnapshot("Two.cs", file2, File.GetLastWriteTimeUtc(file2)),
+                        new RecentProjectFileSnapshot("Three.cs", file3, File.GetLastWriteTimeUtc(file3)),
+                        new RecentProjectFileSnapshot("Four.cs", file4, File.GetLastWriteTimeUtc(file4))
+                    ]);
+
+                var detector = new CodexProcessDetector(new CodexDetectionOptions { HomePath = tempPath }, new PresenceTemplateOptions { EditingFreshnessSeconds = 120 });
+                var snapshot = detector.GetSnapshot(projectRoot, projectSnapshot, new GitSnapshot(true, 4));
+
+                Assert.True(snapshot.IsRunning);
+                Assert.Equal(CodexActivityKind.Refactoring, snapshot.ActivityKind);
+                Assert.True(snapshot.IsThinking);
+                Assert.Equal(ActivityProvenance.Observed, snapshot.ActivityProvenance);
+            }
+            finally
+            {
+                Directory.Delete(projectRoot, true);
+            }
         }
         finally
         {

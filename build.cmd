@@ -1,3 +1,3 @@
 @echo off
 setlocal
-dotnet build "%~dp0discord-presence-for-codex.csproj"
+dotnet publish "%~dp0discord-presence-for-codex.csproj" -c Release -r win-x64 --self-contained true -o "%~dp0publish"

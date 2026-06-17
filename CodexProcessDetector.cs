@@ -1,5 +1,4 @@
 using System.Diagnostics;
-using System.IO;
 using System.Text.Json;
 
 namespace CodexDiscordPresence;
@@ -15,7 +14,329 @@ public sealed class CodexProcessDetector
         _presenceOptions = presenceOptions;
     }
 
-    public CodexProcessSnapshot GetSnapshot(string? projectPath = null)
+    public CodexProcessSnapshot GetSnapshot(
+        string? projectPath = null,
+        ProjectSnapshot? projectSnapshot = null,
+        GitSnapshot? gitSnapshot = null)
+    {
+        var sessionInspection = InspectRecentSessions(projectPath);
+        var matchedProcessName = FindMatchingProcessName();
+        var isRunning = matchedProcessName is not null ||
+            (sessionInspection is not null &&
+             sessionInspection.HasRecentActivity(_presenceOptions.ThinkingStaleTimeoutMinutes));
+
+        if (!isRunning)
+        {
+            return new CodexProcessSnapshot(false, null, false)
+            {
+                DetectedActivityKind = CodexActivityKind.Offline,
+                ActivityProvenance = ActivityProvenance.Observed,
+                ActivityReason = "Codex process, window, and recent session activity were not detected."
+            };
+        }
+
+        var recentEditedFiles = GetRecentEditedFiles(projectSnapshot);
+        var changedFileCount = gitSnapshot?.ChangedFileCount ?? 0;
+        var activity = DetermineActivity(
+            recentEditedFiles,
+            changedFileCount,
+            sessionInspection,
+            out var provenance,
+            out var reason,
+            out var lastObservedAt);
+
+        return new CodexProcessSnapshot(true, matchedProcessName, activity.IsActive())
+        {
+            DetectedActivityKind = activity,
+            ActivityProvenance = provenance,
+            ActivityReason = reason,
+            LastObservedAt = lastObservedAt
+        };
+    }
+
+    public bool DetermineIfThinking(string? projectPath = null)
+    {
+        return GetSnapshot(projectPath).IsThinking;
+    }
+
+    private IReadOnlyList<RecentProjectFileSnapshot> GetRecentEditedFiles(ProjectSnapshot? projectSnapshot)
+    {
+        if (projectSnapshot is null)
+        {
+            return Array.Empty<RecentProjectFileSnapshot>();
+        }
+
+        var freshnessSeconds = Math.Max(5, _presenceOptions.EditingFreshnessSeconds);
+        var cutoff = DateTime.UtcNow - TimeSpan.FromSeconds(freshnessSeconds);
+        return projectSnapshot.RecentFiles
+            .Where(file => file.LastWriteTimeUtc >= cutoff)
+            .OrderByDescending(file => file.LastWriteTimeUtc)
+            .ToArray();
+    }
+
+    private CodexActivityKind DetermineActivity(
+        IReadOnlyList<RecentProjectFileSnapshot> recentEditedFiles,
+        int changedFileCount,
+        SessionInspection? sessionInspection,
+        out ActivityProvenance provenance,
+        out string reason,
+        out DateTime? lastObservedAt)
+    {
+        lastObservedAt = sessionInspection?.LastObservedAt ?? recentEditedFiles.FirstOrDefault()?.LastWriteTimeUtc;
+        var hasFreshSession = sessionInspection is not null &&
+            sessionInspection.HasRecentActivity(_presenceOptions.ThinkingStaleTimeoutMinutes);
+
+        if (sessionInspection?.CollaborationMode is "plan" && hasFreshSession)
+        {
+            provenance = ActivityProvenance.Observed;
+            reason = "turn_context collaboration_mode=plan";
+            return CodexActivityKind.Planning;
+        }
+
+        if (recentEditedFiles.Count >= 4 ||
+            changedFileCount >= 4 ||
+            (recentEditedFiles.Count >= 2 && changedFileCount >= 2))
+        {
+            provenance = ActivityProvenance.Observed;
+            reason = $"recent edits={recentEditedFiles.Count}, git changed files={changedFileCount}";
+            return CodexActivityKind.Refactoring;
+        }
+
+        if (recentEditedFiles.Count > 0 || changedFileCount > 0)
+        {
+            provenance = ActivityProvenance.Observed;
+            reason = $"recent edits={recentEditedFiles.Count}, git changed files={changedFileCount}";
+            return CodexActivityKind.ApplyingEdits;
+        }
+
+        if (hasFreshSession && sessionInspection?.HasTaskCompleted == true && !sessionInspection.HasTaskStarted)
+        {
+            provenance = ActivityProvenance.Observed;
+            reason = "task_complete without task_started";
+            return CodexActivityKind.Ready;
+        }
+
+        if (hasFreshSession && sessionInspection?.HasTaskCompletedSinceStart == true)
+        {
+            provenance = ActivityProvenance.Observed;
+            reason = "task_complete without file writes";
+            return CodexActivityKind.Ready;
+        }
+
+        if (hasFreshSession && sessionInspection?.HasTaskStarted == true && !sessionInspection.HasTaskCompletedSinceStart)
+        {
+            provenance = ActivityProvenance.Inferred;
+            reason = "task_started without file writes";
+            return CodexActivityKind.Analyzing;
+        }
+
+        if (hasFreshSession)
+        {
+            provenance = ActivityProvenance.Inferred;
+            reason = "recent Codex activity without file writes";
+            return CodexActivityKind.Analyzing;
+        }
+
+        provenance = ActivityProvenance.Inferred;
+        reason = "Codex running but idle";
+        return CodexActivityKind.Ready;
+    }
+
+    private SessionInspection? InspectRecentSessions(string? projectPath)
+    {
+        var resolvedPath = _options.GetResolvedHomePath();
+        var sessionsPath = Path.Combine(resolvedPath, "sessions");
+        if (!Directory.Exists(sessionsPath))
+        {
+            return null;
+        }
+
+        try
+        {
+            var normalizedProjectPath = string.IsNullOrWhiteSpace(projectPath)
+                ? null
+                : NormalizePath(projectPath);
+
+            var files = Directory
+                .EnumerateFiles(sessionsPath, "*.jsonl", SearchOption.AllDirectories)
+                .Select(path => new FileInfo(path))
+                .OrderByDescending(file => file.LastWriteTimeUtc)
+                .Take(Math.Max(1, _options.RecentSessionFilesToScan))
+                .ToArray();
+
+            SessionInspection? latestAny = null;
+            SessionInspection? latestProjectMatch = null;
+
+            foreach (var file in files)
+            {
+                var inspection = AnalyzeSessionFile(file.FullName, normalizedProjectPath);
+                latestAny ??= inspection;
+
+                if (inspection.MatchesProject)
+                {
+                    latestProjectMatch = inspection;
+                    break;
+                }
+            }
+
+            return latestProjectMatch ?? latestAny;
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    private SessionInspection AnalyzeSessionFile(string path, string? normalizedProjectPath)
+    {
+        var hasProjectPath = false;
+        var matchesProject = false;
+        var hasTaskStarted = false;
+        var hasTaskCompleted = false;
+        DateTime? lastTaskStartedAt = null;
+        DateTime? lastTaskCompletedAt = null;
+        DateTime? lastObservedAt = null;
+        string? collaborationMode = null;
+
+        try
+        {
+            using var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
+            using var reader = new StreamReader(stream, System.Text.Encoding.UTF8);
+
+            string? line;
+            while ((line = reader.ReadLine()) != null)
+            {
+                if (!line.Contains("\"payload\"", StringComparison.Ordinal))
+                {
+                    continue;
+                }
+
+                using var document = JsonDocument.Parse(line);
+                if (!document.RootElement.TryGetProperty("payload", out var payload))
+                {
+                    continue;
+                }
+
+                var timestamp = TryGetTimestamp(document.RootElement);
+                if (timestamp.HasValue)
+                {
+                    lastObservedAt = timestamp;
+                }
+
+                if (TryGetString(payload, "cwd", out var cwd))
+                {
+                    hasProjectPath = true;
+                    if (normalizedProjectPath != null && NormalizePath(cwd) == normalizedProjectPath)
+                    {
+                        matchesProject = true;
+                    }
+                }
+
+                var payloadType = TryGetString(payload, "type", out var type) ? type : null;
+
+                if (payloadType is "task_started" || line.Contains("\"task_started\"", StringComparison.Ordinal))
+                {
+                    hasTaskStarted = true;
+                    if (timestamp.HasValue)
+                    {
+                        lastTaskStartedAt = timestamp;
+                    }
+
+                    var mode = TryGetCollaborationMode(payload);
+                    if (!string.IsNullOrWhiteSpace(mode))
+                    {
+                        collaborationMode = mode;
+                    }
+                }
+
+                if (payloadType is "task_complete" || line.Contains("\"task_complete\"", StringComparison.Ordinal))
+                {
+                    hasTaskCompleted = true;
+                    if (timestamp.HasValue)
+                    {
+                        lastTaskCompletedAt = timestamp;
+                    }
+                }
+
+                if (payloadType is "turn_context")
+                {
+                    var mode = TryGetCollaborationMode(payload);
+                    if (!string.IsNullOrWhiteSpace(mode))
+                    {
+                        collaborationMode = mode;
+                    }
+                }
+            }
+        }
+        catch
+        {
+            // Fall through with what we were able to infer.
+        }
+
+        return new SessionInspection(
+            hasProjectPath,
+            matchesProject,
+            hasTaskStarted,
+            hasTaskCompleted,
+            lastTaskStartedAt,
+            lastTaskCompletedAt,
+            lastObservedAt,
+            collaborationMode);
+    }
+
+    private static string? TryGetCollaborationMode(JsonElement payload)
+    {
+        if (payload.TryGetProperty("collaboration_mode", out var collaborationMode))
+        {
+            if (TryGetString(collaborationMode, "mode", out var mode))
+            {
+                return mode;
+            }
+        }
+
+        if (TryGetString(payload, "collaboration_mode_kind", out var collaborationModeKind))
+        {
+            return collaborationModeKind;
+        }
+
+        return null;
+    }
+
+    private static DateTime? TryGetTimestamp(JsonElement root)
+    {
+        if (!root.TryGetProperty("timestamp", out var prop) || prop.ValueKind != JsonValueKind.String)
+        {
+            return null;
+        }
+
+        var timeStr = prop.GetString();
+        if (DateTime.TryParse(timeStr, null, System.Globalization.DateTimeStyles.AdjustToUniversal, out var dt))
+        {
+            return dt;
+        }
+
+        return null;
+    }
+
+    private static string? TryGetString(JsonElement element, string propertyName)
+    {
+        return TryGetString(element, propertyName, out var value) ? value : null;
+    }
+
+    private static bool TryGetString(JsonElement element, string propertyName, out string value)
+    {
+        value = "";
+        if (!element.TryGetProperty(propertyName, out var property) ||
+            property.ValueKind != JsonValueKind.String)
+        {
+            return false;
+        }
+
+        value = property.GetString() ?? "";
+        return true;
+    }
+
+    private string? FindMatchingProcessName()
     {
         foreach (var process in Process.GetProcesses())
         {
@@ -24,8 +345,7 @@ public sealed class CodexProcessDetector
                 if (Matches(process.ProcessName, _options.ProcessNameContains) ||
                     Matches(process.MainWindowTitle, _options.WindowTitleContains))
                 {
-                    var isThinking = DetermineIfThinking(projectPath);
-                    return new CodexProcessSnapshot(true, process.ProcessName, isThinking);
+                    return process.ProcessName;
                 }
             }
             catch
@@ -38,176 +358,6 @@ public sealed class CodexProcessDetector
             }
         }
 
-        return new CodexProcessSnapshot(false, null, false);
-    }
-
-    internal bool DetermineIfThinking(string? projectPath = null)
-    {
-        var resolvedPath = _options.GetResolvedHomePath();
-        var sessionsPath = Path.Combine(resolvedPath, "sessions");
-        if (!Directory.Exists(sessionsPath))
-        {
-            return false;
-        }
-
-        try
-        {
-            var files = Directory
-                .EnumerateFiles(sessionsPath, "*.jsonl", SearchOption.AllDirectories)
-                .Select(path => new FileInfo(path))
-                .OrderByDescending(file => file.LastWriteTimeUtc)
-                .Take(Math.Max(1, _options.RecentSessionFilesToScan))
-                .ToArray();
-
-            if (files.Length == 0)
-            {
-                return false;
-            }
-
-            var normalizedProjectPath = string.IsNullOrWhiteSpace(projectPath)
-                ? null
-                : NormalizePath(projectPath);
-            SessionThinkingInspection? latestAnySession = null;
-            var sawProjectAwareSession = false;
-
-            foreach (var file in files)
-            {
-                var inspection = AnalyzeSessionFileForThinking(file.FullName, normalizedProjectPath);
-                latestAnySession ??= inspection;
-
-                if (inspection.HasProjectPath)
-                {
-                    sawProjectAwareSession = true;
-                }
-
-                if (normalizedProjectPath != null && inspection.MatchesProject)
-                {
-                    return inspection.IsThinking;
-                }
-            }
-
-            if (normalizedProjectPath != null && sawProjectAwareSession)
-            {
-                return false;
-            }
-
-            return latestAnySession?.IsThinking ?? false;
-        }
-        catch
-        {
-            return false;
-        }
-    }
-
-    private SessionThinkingInspection AnalyzeSessionFileForThinking(string path, string? normalizedProjectPath)
-    {
-        bool isThinking = false;
-        bool hasProjectPath = false;
-        bool matchesProject = false;
-        DateTime? lastTaskStartedTime = null;
-
-        try
-        {
-            using var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
-            using var reader = new StreamReader(stream, System.Text.Encoding.UTF8);
-
-            string? line;
-            while ((line = reader.ReadLine()) != null)
-            {
-                var payloadType = TryReadPayloadTypeAndCwd(line, out var cwd);
-                if (!string.IsNullOrWhiteSpace(cwd))
-                {
-                    hasProjectPath = true;
-                    if (normalizedProjectPath != null && NormalizePath(cwd) == normalizedProjectPath)
-                    {
-                        matchesProject = true;
-                    }
-                }
-
-                if (string.Equals(payloadType, "task_started", StringComparison.Ordinal) ||
-                    line.Contains("\"task_started\"", StringComparison.Ordinal))
-                {
-                    isThinking = true;
-                    lastTaskStartedTime = ExtractTimestamp(line);
-                }
-                else if (string.Equals(payloadType, "task_complete", StringComparison.Ordinal) ||
-                         line.Contains("\"task_complete\"", StringComparison.Ordinal))
-                {
-                    isThinking = false;
-                }
-            }
-        }
-        catch
-        {
-            // Return current state found up to exception, or false
-        }
-
-        if (isThinking && lastTaskStartedTime.HasValue)
-        {
-            var elapsed = DateTime.UtcNow - lastTaskStartedTime.Value;
-            if (elapsed.TotalMinutes >= _presenceOptions.ThinkingStaleTimeoutMinutes)
-            {
-                isThinking = false;
-            }
-        }
-
-        return new SessionThinkingInspection(isThinking, hasProjectPath, matchesProject);
-    }
-
-    private static string? TryReadPayloadTypeAndCwd(string line, out string? cwd)
-    {
-        cwd = null;
-        if (!line.Contains("\"payload\"", StringComparison.Ordinal))
-        {
-            return null;
-        }
-
-        try
-        {
-            using var doc = JsonDocument.Parse(line);
-            if (!doc.RootElement.TryGetProperty("payload", out var payload))
-            {
-                return null;
-            }
-
-            if (payload.TryGetProperty("cwd", out var cwdProperty) &&
-                cwdProperty.ValueKind == JsonValueKind.String)
-            {
-                cwd = cwdProperty.GetString();
-            }
-
-            if (payload.TryGetProperty("type", out var typeProperty) &&
-                typeProperty.ValueKind == JsonValueKind.String)
-            {
-                return typeProperty.GetString();
-            }
-        }
-        catch
-        {
-            return null;
-        }
-
-        return null;
-    }
-
-    private static DateTime? ExtractTimestamp(string line)
-    {
-        try
-        {
-            using var doc = JsonDocument.Parse(line);
-            if (doc.RootElement.TryGetProperty("timestamp", out var prop))
-            {
-                var timeStr = prop.GetString();
-                if (DateTime.TryParse(timeStr, null, System.Globalization.DateTimeStyles.AdjustToUniversal, out var dt))
-                {
-                    return dt;
-                }
-            }
-        }
-        catch
-        {
-            // Ignore parse errors
-        }
         return null;
     }
 
@@ -237,5 +387,32 @@ public sealed class CodexProcessDetector
         }
     }
 
-    private sealed record SessionThinkingInspection(bool IsThinking, bool HasProjectPath, bool MatchesProject);
+    private sealed record SessionInspection(
+        bool HasProjectPath,
+        bool MatchesProject,
+        bool HasTaskStarted,
+        bool HasTaskCompleted,
+        DateTime? LastTaskStartedAt,
+        DateTime? LastTaskCompletedAt,
+        DateTime? LastObservedAt,
+        string? CollaborationMode)
+    {
+        public bool HasRecentActivity(int staleTimeoutMinutes)
+        {
+            var freshest = LastObservedAt ?? LastTaskStartedAt ?? LastTaskCompletedAt;
+            if (!freshest.HasValue)
+            {
+                return false;
+            }
+
+            return DateTime.UtcNow - freshest.Value <= TimeSpan.FromMinutes(staleTimeoutMinutes);
+        }
+
+        public bool HasTaskCompletedSinceStart =>
+            HasTaskStarted &&
+            HasTaskCompleted &&
+            LastTaskStartedAt.HasValue &&
+            LastTaskCompletedAt.HasValue &&
+            LastTaskCompletedAt >= LastTaskStartedAt;
+    }
 }

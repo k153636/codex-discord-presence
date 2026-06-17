@@ -135,8 +135,14 @@ public sealed class PresenceTemplateOptions
     public string LargeImageText { get; set; } = "{ProjectSizeText} ・ session {SessionElapsed}";
     public string SmallImageText { get; set; } = "{Tokens} ・ est. {EstimatedCost}";
     public PresenceButtonOptions[] Buttons { get; set; } = [];
-    public string ThinkingText { get; set; } = "Thinking";
+    public string AnalyzingText { get; set; } = "Analyzing";
+    public string PlanningText { get; set; } = "Planning";
+    public string ApplyingEditsText { get; set; } = "Applying edits";
+    public string RefactoringText { get; set; } = "Refactoring";
+    public string ReadyText { get; set; } = "Ready";
+    public string ThinkingText { get; set; } = "Analyzing";
     public string WaitingText { get; set; } = "Ready";
+    public string ReadyActivityText { get; set; } = "Ready for next task";
     public string WaitingActivityText { get; set; } = "Ready for next task";
     public string OfflineText { get; set; } = "Offline";
     public int ThinkingStaleTimeoutMinutes { get; set; } = 10;

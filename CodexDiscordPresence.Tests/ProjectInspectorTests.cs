@@ -47,8 +47,12 @@ public sealed class ProjectInspectorTests
 
         try
         {
-            File.WriteAllText(Path.Combine(tempPath, "One.cs"), "a\nb\n");
-            File.WriteAllText(Path.Combine(tempPath, "Two.md"), "a\nb\nc");
+            var first = Path.Combine(tempPath, "One.cs");
+            var second = Path.Combine(tempPath, "Two.md");
+            File.WriteAllText(first, "a\nb\n");
+            File.WriteAllText(second, "a\nb\nc");
+            File.SetLastWriteTimeUtc(first, DateTime.UtcNow.AddMinutes(-5));
+            File.SetLastWriteTimeUtc(second, DateTime.UtcNow);
 
             var inspector = new ProjectInspector(new ProjectOptions
             {
