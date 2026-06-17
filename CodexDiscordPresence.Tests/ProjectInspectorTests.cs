@@ -65,4 +65,29 @@ public sealed class ProjectInspectorTests
             Directory.Delete(tempPath, true);
         }
     }
+
+    [Fact]
+    public void Constructor_WhenPathIsInsideGitRepo_UsesGitRootAsProjectPath()
+    {
+        var tempPath = Path.Combine(Path.GetTempPath(), "CodexProjectInspectorTests_" + Guid.NewGuid());
+        var outputPath = Path.Combine(tempPath, "bin", "Debug", "net9.0", "win-x64");
+        Directory.CreateDirectory(Path.Combine(tempPath, ".git"));
+        Directory.CreateDirectory(outputPath);
+
+        try
+        {
+            var inspector = new ProjectInspector(new ProjectOptions
+            {
+                Path = outputPath,
+                PreferGitRootForProjectPath = true
+            });
+
+            Assert.Equal(tempPath, inspector.ProjectPath);
+            Assert.Equal(Path.GetFileName(tempPath), inspector.GetSnapshot().Name);
+        }
+        finally
+        {
+            Directory.Delete(tempPath, true);
+        }
+    }
 }

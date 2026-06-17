@@ -9,7 +9,7 @@ public sealed class ProjectInspector
     public ProjectInspector(ProjectOptions options)
     {
         _options = options;
-        ProjectPath = Path.GetFullPath(options.Path);
+        ProjectPath = ResolveProjectPath(options);
         _ignoredDirectories = options.IgnoredDirectories.ToHashSet(StringComparer.OrdinalIgnoreCase);
         _ignoredFilePatterns = options.IgnoredFilePatterns
             .Where(pattern => !string.IsNullOrWhiteSpace(pattern))
@@ -106,6 +106,29 @@ public sealed class ProjectInspector
         }
 
         return false;
+    }
+
+    private static string ResolveProjectPath(ProjectOptions options)
+    {
+        var resolvedPath = Path.GetFullPath(Environment.ExpandEnvironmentVariables(options.Path));
+        if (!options.PreferGitRootForProjectPath)
+        {
+            return resolvedPath;
+        }
+
+        var directory = new DirectoryInfo(resolvedPath);
+        while (directory != null)
+        {
+            if (Directory.Exists(Path.Combine(directory.FullName, ".git")) ||
+                File.Exists(Path.Combine(directory.FullName, ".git")))
+            {
+                return directory.FullName;
+            }
+
+            directory = directory.Parent;
+        }
+
+        return resolvedPath;
     }
 
     private long TryCountLines(FileInfo file)

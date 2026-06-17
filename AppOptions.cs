@@ -91,6 +91,7 @@ public sealed class ProjectOptions
 {
     public string Path { get; set; } = ".";
     public string? DisplayName { get; set; }
+    public bool PreferGitRootForProjectPath { get; set; } = true;
     public int RecentFileSearchDepth { get; set; } = 6;
     public int MaxProjectFilesToScan { get; set; } = 5000;
     public long MaxLineCountFileBytes { get; set; } = 1_000_000;
