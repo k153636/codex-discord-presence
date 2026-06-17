@@ -6,7 +6,7 @@ public sealed class GitInspector
 {
     public GitSnapshot GetSnapshot(string projectPath)
     {
-        var output = RunGit(projectPath, "status --porcelain");
+        var output = RunGit(projectPath, ["-C", projectPath, "status", "--porcelain=v1"]);
         if (output is null)
         {
             return new GitSnapshot(false, 0);
@@ -22,19 +22,30 @@ public sealed class GitInspector
         return new GitSnapshot(true, changedFiles);
     }
 
-    private static string? RunGit(string projectPath, string arguments)
+    private static string? RunGit(string projectPath, IReadOnlyList<string> arguments)
     {
         try
         {
-            using var process = Process.Start(new ProcessStartInfo
+            if (!Directory.Exists(projectPath))
+            {
+                return null;
+            }
+
+            var startInfo = new ProcessStartInfo
             {
                 FileName = "git",
-                Arguments = $"-C \"{projectPath}\" {arguments}",
                 RedirectStandardOutput = true,
                 RedirectStandardError = true,
                 UseShellExecute = false,
                 CreateNoWindow = true
-            });
+            };
+
+            foreach (var argument in arguments)
+            {
+                startInfo.ArgumentList.Add(argument);
+            }
+
+            using var process = Process.Start(startInfo);
 
             if (process is null)
             {
@@ -42,7 +53,20 @@ public sealed class GitInspector
             }
 
             var output = process.StandardOutput.ReadToEnd();
-            process.WaitForExit(3000);
+            if (!process.WaitForExit(3000))
+            {
+                try
+                {
+                    process.Kill(entireProcessTree: true);
+                }
+                catch
+                {
+                    // Ignore cleanup failures after a git timeout.
+                }
+
+                return null;
+            }
+
             return process.ExitCode == 0 ? output : null;
         }
         catch

@@ -48,36 +48,43 @@ ModelNameSnapshot? lastModelSnapshot = null;
 
 while (!cts.IsCancellationRequested)
 {
-    var projectSnapshot = projectInspector.GetSnapshot();
-    var gitSnapshot = gitInspector.GetSnapshot(projectInspector.ProjectPath);
-    var codexSnapshot = codexDetector.GetSnapshot(projectInspector.ProjectPath);
-    var modelSnapshot = modelNameProvider.GetSnapshot(projectInspector.ProjectPath);
-    if (lastModelSnapshot is null ||
-        !string.Equals(modelSnapshot.SelectedUiModel, lastModelSnapshot.SelectedUiModel, StringComparison.Ordinal) ||
-        !string.Equals(modelSnapshot.LastUsedSessionModel, lastModelSnapshot.LastUsedSessionModel, StringComparison.Ordinal) ||
-        !string.Equals(modelSnapshot.FinalDisplayedModel, lastModelSnapshot.FinalDisplayedModel, StringComparison.Ordinal))
+    try
     {
-        Console.WriteLine(
-            "Model detection: " +
-            $"Selected UI model={FormatLogValue(modelSnapshot.SelectedUiModel)}, " +
-            $"Last used session model={FormatLogValue(modelSnapshot.LastUsedSessionModel)}, " +
-            $"Final displayed model={FormatLogValue(modelSnapshot.FinalDisplayedModel)} " +
-            $"(source={modelSnapshot.Source})");
-        lastModelSnapshot = modelSnapshot;
+        var projectSnapshot = projectInspector.GetSnapshot();
+        var gitSnapshot = gitInspector.GetSnapshot(projectInspector.ProjectPath);
+        var codexSnapshot = codexDetector.GetSnapshot(projectInspector.ProjectPath);
+        var modelSnapshot = modelNameProvider.GetSnapshot(projectInspector.ProjectPath);
+        if (lastModelSnapshot is null ||
+            !string.Equals(modelSnapshot.SelectedUiModel, lastModelSnapshot.SelectedUiModel, StringComparison.Ordinal) ||
+            !string.Equals(modelSnapshot.LastUsedSessionModel, lastModelSnapshot.LastUsedSessionModel, StringComparison.Ordinal) ||
+            !string.Equals(modelSnapshot.FinalDisplayedModel, lastModelSnapshot.FinalDisplayedModel, StringComparison.Ordinal))
+        {
+            Console.WriteLine(
+                "Model detection: " +
+                $"Selected UI model={FormatLogValue(modelSnapshot.SelectedUiModel)}, " +
+                $"Last used session model={FormatLogValue(modelSnapshot.LastUsedSessionModel)}, " +
+                $"Final displayed model={FormatLogValue(modelSnapshot.FinalDisplayedModel)} " +
+                $"(source={modelSnapshot.Source})");
+            lastModelSnapshot = modelSnapshot;
+        }
+
+        var tokenSnapshot = tokenUsageProvider.GetSnapshot();
+
+        var context = new PresenceContext(
+            modelSnapshot.FinalDisplayedModel,
+            codexSnapshot,
+            projectSnapshot,
+            gitSnapshot,
+            session.GetSnapshot(),
+            tokenSnapshot);
+
+        var presence = renderer.Render(options.Presence, context);
+        rpc.Update(presence);
     }
-
-    var tokenSnapshot = tokenUsageProvider.GetSnapshot();
-
-    var context = new PresenceContext(
-        modelSnapshot.FinalDisplayedModel,
-        codexSnapshot,
-        projectSnapshot,
-        gitSnapshot,
-        session.GetSnapshot(),
-        tokenSnapshot);
-
-    var presence = renderer.Render(options.Presence, context);
-    rpc.Update(presence);
+    catch (Exception ex)
+    {
+        Console.Error.WriteLine($"Presence update loop failed: {ex.Message}");
+    }
 
     await Task.Delay(TimeSpan.FromSeconds(Math.Max(5, options.UpdateIntervalSeconds)), cts.Token)
         .ContinueWith(_ => { }, CancellationToken.None);
