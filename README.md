@@ -29,9 +29,8 @@ The presence engine prefers high-confidence labels:
 - `Running command`
 - `Coordinating changes across {n} files`
 - `Applying edits`
-- `Analyzing project`
-- `Ready`
-- `Offline`
+- `Thinking`
+- `Idling`
 
 `Planning` and `Refactoring` are still supported, but they are treated as low-confidence labels and only appear when the local evidence is explicit enough.
 

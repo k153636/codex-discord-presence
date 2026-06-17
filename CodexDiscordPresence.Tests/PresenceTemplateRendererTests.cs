@@ -17,7 +17,7 @@ public sealed class PresenceTemplateRendererTests
 
         var presence = renderer.Render(template, context);
 
-        Assert.Equal("Analyzing project", presence.State);
+        Assert.Equal("Thinking", presence.State);
     }
 
     [Fact]
@@ -32,7 +32,7 @@ public sealed class PresenceTemplateRendererTests
 
         var presence = renderer.Render(template, context);
 
-        Assert.Equal("Ready", presence.State);
+        Assert.Equal("Idling", presence.State);
     }
 
     [Fact]
@@ -96,7 +96,7 @@ public sealed class PresenceTemplateRendererTests
 
             var presence = renderer.Render(template, context);
 
-            Assert.Equal("Ready", presence.State);
+            Assert.Equal("Idling", presence.State);
         }
         finally
         {

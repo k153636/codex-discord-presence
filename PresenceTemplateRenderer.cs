@@ -136,10 +136,10 @@ public sealed class PresenceTemplateRenderer
             CodexActivityKind.UpdatingFiles => FirstNonEmpty(template.UpdatingFilesText, "Updating files"),
             CodexActivityKind.RunningCommand => FirstNonEmpty(template.RunningCommandText, "Running command"),
             CodexActivityKind.Refactoring => FirstNonEmpty(template.RefactoringText, "Refactoring"),
-            CodexActivityKind.AnalyzingProject => FirstNonEmpty(template.AnalyzingProjectText, template.AnalyzingText, template.ThinkingText, "Analyzing project"),
-            CodexActivityKind.Ready => FirstNonEmpty(template.ReadyText, "Ready"),
-            CodexActivityKind.Offline => FirstNonEmpty(template.OfflineText, "Offline"),
-            _ => FirstNonEmpty(template.ReadyText, "Ready")
+            CodexActivityKind.AnalyzingProject => FirstNonEmpty(template.ThinkingText, template.AnalyzingProjectText, template.AnalyzingText, "Thinking"),
+            CodexActivityKind.Ready => FirstNonEmpty(template.IdlingText, template.ReadyText, "Idling"),
+            CodexActivityKind.Offline => FirstNonEmpty(template.OfflineText, template.IdlingText, "Idling"),
+            _ => FirstNonEmpty(template.IdlingText, template.ReadyText, "Idling")
         };
 
         return label.Replace("{n}", changedFileCount.ToString(CultureInfo.InvariantCulture), StringComparison.Ordinal);

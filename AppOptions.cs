@@ -141,13 +141,14 @@ public sealed class PresenceTemplateOptions
     public string PlanningText { get; set; } = "Planning";
     public string ApplyingEditsText { get; set; } = "Applying edits";
     public string RefactoringText { get; set; } = "Refactoring";
-    public string ReadyText { get; set; } = "Ready";
-    public string AnalyzingText { get; set; } = "Analyzing project";
-    public string ThinkingText { get; set; } = "Analyzing project";
-    public string WaitingText { get; set; } = "Ready";
-    public string ReadyActivityText { get; set; } = "Ready";
-    public string WaitingActivityText { get; set; } = "Ready";
-    public string OfflineText { get; set; } = "Offline";
+    public string ThinkingText { get; set; } = "Thinking";
+    public string IdlingText { get; set; } = "Idling";
+    public string ReadyText { get; set; } = "Thinking";
+    public string AnalyzingText { get; set; } = "Thinking";
+    public string WaitingText { get; set; } = "Idling";
+    public string ReadyActivityText { get; set; } = "Idling";
+    public string WaitingActivityText { get; set; } = "Idling";
+    public string OfflineText { get; set; } = "Idling";
     public int ThinkingStaleTimeoutMinutes { get; set; } = 10;
     public int EditingFreshnessSeconds { get; set; } = 45;
 }
