@@ -58,8 +58,16 @@ public sealed class DiscordOptions
 
 public sealed class CodexDetectionOptions
 {
+    public string? HomePath { get; set; }
+    public string[] ModelEnvironmentVariables { get; set; } =
+    [
+        "CODEX_MODEL",
+        "OPENAI_MODEL",
+        "MODEL_NAME"
+    ];
     public string[] ProcessNameContains { get; set; } = ["codex"];
     public string[] WindowTitleContains { get; set; } = ["Codex"];
+    public int RecentSessionFilesToScan { get; set; } = 20;
 }
 
 public sealed class ProjectOptions
@@ -82,6 +90,7 @@ public sealed class ProjectOptions
 
 public sealed class PresenceTemplateOptions
 {
+    public bool AutoDetectModelName { get; set; } = true;
     public string ModelName { get; set; } = "Codex";
     public string Details { get; set; } = "{ModelName} is building {ProjectName}";
     public string State { get; set; } = "Working on {ProjectName}";

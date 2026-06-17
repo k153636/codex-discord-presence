@@ -16,7 +16,7 @@ dotnet run -- --project "E:\path\to\your\project"
 ```
 
 You can also set `Project:Path` directly in `appsettings.json`.
-Use `Presence:ModelName` or `--model <name>` to choose the model name shown in Discord.
+The app automatically detects the current Codex model name when possible. Use `Presence:ModelName` or `--model <name>` as the fallback name.
 
 ## Current Display Style
 
@@ -29,6 +29,15 @@ The default template uses English text with a clear model-driven agent feel:
 - Button: `GitHub`
 
 Token and cost values are enabled in the template, but automatic Codex usage extraction is still a future integration point. Until then, `TokenUsage:TotalTokens` and `TokenUsage:EstimatedCostUsd` can be filled manually.
+
+## Model Detection
+
+When `Presence.AutoDetectModelName` is enabled, the app resolves `{ModelName}` from:
+
+- `CODEX_MODEL`, `OPENAI_MODEL`, or `MODEL_NAME`
+- Recent Codex session JSONL files under `CODEX_HOME` or `%USERPROFILE%\.codex`
+- `%USERPROFILE%\.codex\config.toml`
+- `Presence.ModelName` as the fallback
 
 ## Template Values
 

@@ -23,7 +23,7 @@ public sealed class PresenceTemplateRenderer
     {
         return new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
         {
-            ["ModelName"] = template.ModelName,
+            ["ModelName"] = context.ModelName,
             ["CodexStatus"] = context.Codex.IsRunning ? "Codex running" : "Codex not detected",
             ["CodexProcessName"] = context.Codex.ProcessName ?? "",
             ["ProjectName"] = context.Project.Name,

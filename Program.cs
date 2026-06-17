@@ -18,6 +18,7 @@ Console.CancelKeyPress += (_, eventArgs) =>
 
 var session = new SessionClock();
 var codexDetector = new CodexProcessDetector(options.Codex);
+var modelNameProvider = new CodexModelNameProvider(options.Codex, options.Presence);
 var projectInspector = new ProjectInspector(options.Project);
 var gitInspector = new GitInspector();
 var tokenUsageProvider = new TokenUsageProvider(options.TokenUsage);
@@ -30,14 +31,24 @@ Console.WriteLine("Press Ctrl+C to stop.");
 
 await rpc.StartAsync(cts.Token);
 
+string? lastModelName = null;
+
 while (!cts.IsCancellationRequested)
 {
     var projectSnapshot = projectInspector.GetSnapshot();
     var gitSnapshot = gitInspector.GetSnapshot(projectInspector.ProjectPath);
     var codexSnapshot = codexDetector.GetSnapshot();
+    var modelName = modelNameProvider.GetModelName(projectInspector.ProjectPath);
+    if (!string.Equals(modelName, lastModelName, StringComparison.Ordinal))
+    {
+        Console.WriteLine($"Using model name: {modelName}");
+        lastModelName = modelName;
+    }
+
     var tokenSnapshot = tokenUsageProvider.GetSnapshot();
 
     var context = new PresenceContext(
+        modelName,
         codexSnapshot,
         projectSnapshot,
         gitSnapshot,

@@ -1,6 +1,7 @@
 namespace CodexDiscordPresence;
 
 public sealed record PresenceContext(
+    string ModelName,
     CodexProcessSnapshot Codex,
     ProjectSnapshot Project,
     GitSnapshot Git,
