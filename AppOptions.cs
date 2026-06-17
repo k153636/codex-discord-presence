@@ -92,6 +92,14 @@ public sealed class ProjectOptions
     public string Path { get; set; } = ".";
     public string? DisplayName { get; set; }
     public int RecentFileSearchDepth { get; set; } = 6;
+    public string[] IgnoredFilePatterns { get; set; } =
+    [
+        "*.log",
+        "*.pid",
+        "*.tmp",
+        "*.user",
+        "*.suo"
+    ];
     public string[] IgnoredDirectories { get; set; } =
     [
         ".git",

@@ -4,12 +4,16 @@ public sealed class ProjectInspector
 {
     private readonly ProjectOptions _options;
     private readonly HashSet<string> _ignoredDirectories;
+    private readonly string[] _ignoredFilePatterns;
 
     public ProjectInspector(ProjectOptions options)
     {
         _options = options;
         ProjectPath = Path.GetFullPath(options.Path);
         _ignoredDirectories = options.IgnoredDirectories.ToHashSet(StringComparer.OrdinalIgnoreCase);
+        _ignoredFilePatterns = options.IgnoredFilePatterns
+            .Where(pattern => !string.IsNullOrWhiteSpace(pattern))
+            .ToArray();
     }
 
     public string ProjectPath { get; }
@@ -58,6 +62,11 @@ public sealed class ProjectInspector
 
             foreach (var file in files)
             {
+                if (IsIgnoredFile(file.Name))
+                {
+                    continue;
+                }
+
                 if (best is null || file.LastWriteTimeUtc > best.LastWriteTimeUtc)
                 {
                     best = file;
@@ -74,5 +83,18 @@ public sealed class ProjectInspector
         }
 
         return best;
+    }
+
+    private bool IsIgnoredFile(string fileName)
+    {
+        foreach (var pattern in _ignoredFilePatterns)
+        {
+            if (System.IO.Enumeration.FileSystemName.MatchesSimpleExpression(pattern, fileName, ignoreCase: true))
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 }
