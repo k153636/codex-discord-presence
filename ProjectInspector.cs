@@ -25,18 +25,22 @@ public sealed class ProjectInspector
             ? directory.Name
             : _options.DisplayName;
 
-        var recentFile = directory.Exists ? FindMostRecentFile(directory) : null;
+        var inspection = directory.Exists ? InspectProject(directory) : ProjectInspection.Empty;
 
         return new ProjectSnapshot(
             projectName,
             ProjectPath,
-            recentFile?.Name,
-            recentFile?.FullName);
+            inspection.RecentFile?.Name,
+            inspection.RecentFile?.FullName,
+            inspection.ScannedFileCount,
+            inspection.TotalLineCount);
     }
 
-    private FileInfo? FindMostRecentFile(DirectoryInfo root)
+    private ProjectInspection InspectProject(DirectoryInfo root)
     {
         FileInfo? best = null;
+        var scannedFileCount = 0;
+        long totalLineCount = 0;
         var pending = new Queue<(DirectoryInfo Directory, int Depth)>();
         pending.Enqueue((root, 0));
 
@@ -67,6 +71,12 @@ public sealed class ProjectInspector
                     continue;
                 }
 
+                if (scannedFileCount < _options.MaxProjectFilesToScan)
+                {
+                    scannedFileCount++;
+                    totalLineCount += TryCountLines(file);
+                }
+
                 if (best is null || file.LastWriteTimeUtc > best.LastWriteTimeUtc)
                 {
                     best = file;
@@ -82,7 +92,7 @@ public sealed class ProjectInspector
             }
         }
 
-        return best;
+        return new ProjectInspection(best, scannedFileCount, totalLineCount);
     }
 
     private bool IsIgnoredFile(string fileName)
@@ -96,5 +106,53 @@ public sealed class ProjectInspector
         }
 
         return false;
+    }
+
+    private long TryCountLines(FileInfo file)
+    {
+        if (file.Length > _options.MaxLineCountFileBytes)
+        {
+            return 0;
+        }
+
+        try
+        {
+            long lines = 0;
+            var sawCharacters = false;
+            var lastWasNewLine = false;
+            using var stream = file.Open(FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
+            using var reader = new StreamReader(stream, detectEncodingFromByteOrderMarks: true);
+
+            var buffer = new char[8192];
+            int read;
+            while ((read = reader.Read(buffer, 0, buffer.Length)) > 0)
+            {
+                for (var i = 0; i < read; i++)
+                {
+                    sawCharacters = true;
+                    lastWasNewLine = buffer[i] == '\n';
+                    if (buffer[i] == '\n')
+                    {
+                        lines++;
+                    }
+                }
+            }
+
+            if (sawCharacters && !lastWasNewLine)
+            {
+                lines++;
+            }
+
+            return lines;
+        }
+        catch
+        {
+            return 0;
+        }
+    }
+
+    private sealed record ProjectInspection(FileInfo? RecentFile, int ScannedFileCount, long TotalLineCount)
+    {
+        public static ProjectInspection Empty { get; } = new(null, 0, 0);
     }
 }

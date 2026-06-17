@@ -29,6 +29,36 @@ public sealed class ProjectInspectorTests
             var snapshot = inspector.GetSnapshot();
 
             Assert.Equal("Feature.cs", snapshot.RecentFileName);
+            Assert.Equal(1, snapshot.ScannedFileCount);
+            Assert.Equal(1, snapshot.TotalLineCount);
+        }
+        finally
+        {
+            Directory.Delete(tempPath, true);
+        }
+    }
+
+    [Fact]
+    public void GetSnapshot_CountsIncludedFilesAndLines()
+    {
+        var tempPath = Path.Combine(Path.GetTempPath(), "CodexProjectInspectorTests_" + Guid.NewGuid());
+        Directory.CreateDirectory(tempPath);
+
+        try
+        {
+            File.WriteAllText(Path.Combine(tempPath, "One.cs"), "a\nb\n");
+            File.WriteAllText(Path.Combine(tempPath, "Two.md"), "a\nb\nc");
+
+            var inspector = new ProjectInspector(new ProjectOptions
+            {
+                Path = tempPath,
+                IgnoredFilePatterns = []
+            });
+
+            var snapshot = inspector.GetSnapshot();
+
+            Assert.Equal(2, snapshot.ScannedFileCount);
+            Assert.Equal(5, snapshot.TotalLineCount);
         }
         finally
         {

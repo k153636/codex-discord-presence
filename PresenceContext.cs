@@ -14,7 +14,9 @@ public sealed record ProjectSnapshot(
     string Name,
     string Path,
     string? RecentFileName,
-    string? RecentFilePath);
+    string? RecentFilePath,
+    int ScannedFileCount,
+    long TotalLineCount);
 
 public sealed record GitSnapshot(bool IsGitRepository, int ChangedFileCount);
 

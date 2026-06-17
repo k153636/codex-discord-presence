@@ -92,13 +92,24 @@ public sealed class ProjectOptions
     public string Path { get; set; } = ".";
     public string? DisplayName { get; set; }
     public int RecentFileSearchDepth { get; set; } = 6;
+    public int MaxProjectFilesToScan { get; set; } = 5000;
+    public long MaxLineCountFileBytes { get; set; } = 1_000_000;
     public string[] IgnoredFilePatterns { get; set; } =
     [
         "*.log",
         "*.pid",
         "*.tmp",
         "*.user",
-        "*.suo"
+        "*.suo",
+        "*.png",
+        "*.jpg",
+        "*.jpeg",
+        "*.gif",
+        "*.ico",
+        "*.dll",
+        "*.exe",
+        "*.pdb",
+        "*.zip"
     ];
     public string[] IgnoredDirectories { get; set; } =
     [
@@ -119,7 +130,7 @@ public sealed class PresenceTemplateOptions
     public string ModelName { get; set; } = "Codex";
     public string Details { get; set; } = "{ModelName} working on {ProjectName}";
     public string State { get; set; } = "{ActivityLine}";
-    public string LargeImageText { get; set; } = "{CodexStatus} ・ session {SessionElapsed}";
+    public string LargeImageText { get; set; } = "{ProjectSizeText} ・ session {SessionElapsed}";
     public string SmallImageText { get; set; } = "{Tokens} ・ est. {EstimatedCost}";
     public PresenceButtonOptions[] Buttons { get; set; } = [];
     public string ThinkingText { get; set; } = "Thinking";

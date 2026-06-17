@@ -47,6 +47,7 @@ public sealed class PresenceTemplateRenderer
             : context.Codex.IsThinking ? template.ThinkingText
             : template.WaitingText;
         var changedFilesText = FormatChangedFiles(context.Git.ChangedFileCount);
+        var projectSizeText = FormatProjectSize(context.Project.ScannedFileCount, context.Project.TotalLineCount);
         var activityLine = !string.IsNullOrWhiteSpace(editingFileName)
             ? $"Editing {editingFileName} ・ {changedFilesText}"
             : $"{codexState} on {context.Project.Name} ・ {changedFilesText}";
@@ -64,6 +65,9 @@ public sealed class PresenceTemplateRenderer
             ["ChangedFileCount"] = context.Git.ChangedFileCount.ToString(CultureInfo.InvariantCulture),
             ["ChangedFilesText"] = changedFilesText,
             ["ActivityLine"] = activityLine,
+            ["ProjectFileCount"] = context.Project.ScannedFileCount.ToString(CultureInfo.InvariantCulture),
+            ["ProjectLineCount"] = context.Project.TotalLineCount.ToString(CultureInfo.InvariantCulture),
+            ["ProjectSizeText"] = projectSizeText,
             ["SessionElapsed"] = FormatElapsed(context.Session.Elapsed),
             ["SessionStartedAt"] = context.Session.StartedAt.ToLocalTime().ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture),
             ["Tokens"] = context.TokenUsage.TotalTokens is null ? "tokens pending" : FormatNumber(context.TokenUsage.TotalTokens.Value),
@@ -111,6 +115,13 @@ public sealed class PresenceTemplateRenderer
     private static string FormatChangedFiles(int count)
     {
         return count == 1 ? "1 file changed" : $"{count.ToString(CultureInfo.InvariantCulture)} files changed";
+    }
+
+    private static string FormatProjectSize(int fileCount, long lineCount)
+    {
+        var files = fileCount == 1 ? "1 file" : $"{FormatNumber(fileCount)} files";
+        var lines = lineCount == 1 ? "1 line" : $"{FormatNumber(lineCount)} lines";
+        return $"{files} ・ {lines}";
     }
 }
 

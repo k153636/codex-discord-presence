@@ -16,6 +16,7 @@ The displayed text is intentionally configurable through `appsettings.json`.
 You can also set `Project:Path` directly in `appsettings.json`.
 The app automatically detects the current Codex model name when possible. Use `Presence:ModelName` or `--model <name>` as the fallback name.
 `Project:IgnoredFilePatterns` excludes noisy runtime files such as logs and PID files from the recent editing file detector.
+`Project:MaxProjectFilesToScan` and `Project:MaxLineCountFileBytes` keep project size detection lightweight for large repositories.
 
 ## Current Display Style
 
@@ -23,7 +24,7 @@ The default template uses English text with a clear model-driven agent feel:
 
 - `Details`: `{ModelName} working on {ProjectName}`
 - `State`: `{ActivityLine}`
-- `LargeImageText`: `{CodexStatus} ・ session {SessionElapsed}`
+- `LargeImageText`: `{ProjectSizeText} ・ session {SessionElapsed}`
 - `SmallImageText`: `{Tokens} ・ est. {EstimatedCost}`
 - Button: `GitHub`
 
@@ -54,6 +55,9 @@ When `Presence.AutoDetectModelName` is enabled, the app resolves `{ModelName}` f
 - `{CodexProcessName}`
 - `{ProjectName}`
 - `{ProjectPath}`
+- `{ProjectFileCount}`
+- `{ProjectLineCount}`
+- `{ProjectSizeText}`
 - `{EditingFileName}`
 - `{EditingFileLabel}`
 - `{EditingFilePath}`
