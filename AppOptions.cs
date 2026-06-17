@@ -135,7 +135,8 @@ public sealed class PresenceTemplateOptions
     public string SmallImageText { get; set; } = "{Tokens} ・ est. {EstimatedCost}";
     public PresenceButtonOptions[] Buttons { get; set; } = [];
     public string ThinkingText { get; set; } = "Thinking";
-    public string WaitingText { get; set; } = "waiting";
+    public string WaitingText { get; set; } = "Ready";
+    public string WaitingActivityText { get; set; } = "Ready for next task";
     public string OfflineText { get; set; } = "Offline";
     public int ThinkingStaleTimeoutMinutes { get; set; } = 10;
 }

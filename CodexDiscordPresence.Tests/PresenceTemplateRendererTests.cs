@@ -21,6 +21,21 @@ public sealed class PresenceTemplateRendererTests
     }
 
     [Fact]
+    public void Render_WaitingWithoutRecentEditedFile_UsesReadyActivity()
+    {
+        var renderer = new PresenceTemplateRenderer();
+        var template = new PresenceTemplateOptions { State = "{ActivityLine}" };
+        var context = CreateContext(
+            new CodexProcessSnapshot(true, "codex", false),
+            new ProjectSnapshot("Nexstrap", @"E:\tool\Nexstrap", null, null, 128, 42000),
+            new GitSnapshot(true, 0));
+
+        var presence = renderer.Render(template, context);
+
+        Assert.Equal("Ready for next task ・ 0 files changed", presence.State);
+    }
+
+    [Fact]
     public void Render_WithRecentEditedFile_UsesEditingActivity()
     {
         var tempFile = Path.Combine(Path.GetTempPath(), "CodexRpcRendererTest.txt");

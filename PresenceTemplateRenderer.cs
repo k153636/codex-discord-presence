@@ -50,7 +50,7 @@ public sealed class PresenceTemplateRenderer
         var projectSizeText = FormatProjectSize(context.Project.ScannedFileCount, context.Project.TotalLineCount);
         var activityLine = !string.IsNullOrWhiteSpace(editingFileName)
             ? $"Editing {editingFileName} ・ {changedFilesText}"
-            : $"{codexState} on {context.Project.Name} ・ {changedFilesText}";
+            : BuildIdleActivityLine(template, context, codexState, changedFilesText);
 
         return new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
         {
@@ -115,6 +115,25 @@ public sealed class PresenceTemplateRenderer
     private static string FormatChangedFiles(int count)
     {
         return count == 1 ? "1 file changed" : $"{count.ToString(CultureInfo.InvariantCulture)} files changed";
+    }
+
+    private static string BuildIdleActivityLine(
+        PresenceTemplateOptions template,
+        PresenceContext context,
+        string codexState,
+        string changedFilesText)
+    {
+        if (!context.Codex.IsRunning)
+        {
+            return $"{codexState} ・ {changedFilesText}";
+        }
+
+        if (context.Codex.IsThinking)
+        {
+            return $"{codexState} on {context.Project.Name} ・ {changedFilesText}";
+        }
+
+        return $"{template.WaitingActivityText} ・ {changedFilesText}";
     }
 
     private static string FormatProjectSize(int fileCount, long lineCount)

@@ -17,6 +17,7 @@ You can also set `Project:Path` directly in `appsettings.json`.
 The app automatically detects the current Codex model name when possible. Use `Presence:ModelName` or `--model <name>` as the fallback name.
 `Project:IgnoredFilePatterns` excludes noisy runtime files such as logs and PID files from the recent editing file detector.
 `Project:MaxProjectFilesToScan` and `Project:MaxLineCountFileBytes` keep project size detection lightweight for large repositories.
+`Presence:WaitingActivityText` controls the idle activity line shown when Codex is running but not currently thinking.
 
 ## Current Display Style
 
