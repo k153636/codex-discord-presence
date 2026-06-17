@@ -1,3 +1,4 @@
+using System.IO;
 using System.Text.Json;
 using System.Text.RegularExpressions;
 
@@ -13,7 +14,7 @@ public sealed class CodexModelNameProvider
     {
         _codexOptions = codexOptions;
         _presenceOptions = presenceOptions;
-        _codexHomePath = ResolveCodexHomePath(codexOptions.HomePath);
+        _codexHomePath = codexOptions.GetResolvedHomePath();
     }
 
     public string GetModelName(string projectPath)
@@ -24,9 +25,43 @@ public sealed class CodexModelNameProvider
         }
 
         return DetectFromEnvironment()
-            ?? DetectFromRecentSessions(projectPath)
-            ?? DetectFromConfig()
+            ?? DetectFromRecentSessionsOrConfig(projectPath)
             ?? FallbackModelName();
+    }
+
+    private string? DetectFromRecentSessionsOrConfig(string projectPath)
+    {
+        var configPath = Path.Combine(_codexHomePath, "config.toml");
+        var configTime = File.Exists(configPath) ? File.GetLastWriteTimeUtc(configPath) : DateTime.MinValue;
+
+        var sessionsPath = Path.Combine(_codexHomePath, "sessions");
+        FileInfo? latestSessionFile = null;
+        if (Directory.Exists(sessionsPath))
+        {
+            try
+            {
+                latestSessionFile = Directory
+                    .EnumerateFiles(sessionsPath, "*.jsonl", SearchOption.AllDirectories)
+                    .Select(path => new FileInfo(path))
+                    .OrderByDescending(file => file.LastWriteTimeUtc)
+                    .FirstOrDefault();
+            }
+            catch
+            {
+                // Ignore
+            }
+        }
+
+        var sessionTime = latestSessionFile?.LastWriteTimeUtc ?? DateTime.MinValue;
+
+        if (configTime > sessionTime)
+        {
+            return DetectFromConfig() ?? DetectFromRecentSessions(projectPath);
+        }
+        else
+        {
+            return DetectFromRecentSessions(projectPath) ?? DetectFromConfig();
+        }
     }
 
     private string FallbackModelName()
@@ -88,7 +123,10 @@ public sealed class CodexModelNameProvider
 
         try
         {
-            foreach (var line in File.ReadLines(path))
+            using var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
+            using var reader = new StreamReader(stream, System.Text.Encoding.UTF8);
+            string? line;
+            while ((line = reader.ReadLine()) != null)
             {
                 if (!line.Contains("\"payload\"", StringComparison.Ordinal) ||
                     (!line.Contains("\"turn_context\"", StringComparison.Ordinal) &&
@@ -173,22 +211,7 @@ public sealed class CodexModelNameProvider
         return true;
     }
 
-    private static string ResolveCodexHomePath(string? configuredPath)
-    {
-        if (!string.IsNullOrWhiteSpace(configuredPath))
-        {
-            return Path.GetFullPath(Environment.ExpandEnvironmentVariables(configuredPath));
-        }
 
-        var envCodexHome = Environment.GetEnvironmentVariable("CODEX_HOME");
-        if (!string.IsNullOrWhiteSpace(envCodexHome))
-        {
-            return Path.GetFullPath(Environment.ExpandEnvironmentVariables(envCodexHome));
-        }
-
-        var userProfile = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
-        return Path.Combine(userProfile, ".codex");
-    }
 
     private static string NormalizePath(string path)
     {

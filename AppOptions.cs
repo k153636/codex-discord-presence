@@ -52,7 +52,7 @@ public sealed class AppOptions
 public sealed class DiscordOptions
 {
     public string ClientId { get; set; } = "1516774220636360784";
-    public string? LargeImageKey { get; set; }
+    public string? LargeImageKey { get; set; } = "codex_logo";
     public string? SmallImageKey { get; set; }
 }
 
@@ -68,6 +68,23 @@ public sealed class CodexDetectionOptions
     public string[] ProcessNameContains { get; set; } = ["codex"];
     public string[] WindowTitleContains { get; set; } = ["Codex"];
     public int RecentSessionFilesToScan { get; set; } = 20;
+
+    public string GetResolvedHomePath()
+    {
+        if (!string.IsNullOrWhiteSpace(HomePath))
+        {
+            return Path.GetFullPath(Environment.ExpandEnvironmentVariables(HomePath));
+        }
+
+        var envCodexHome = Environment.GetEnvironmentVariable("CODEX_HOME");
+        if (!string.IsNullOrWhiteSpace(envCodexHome))
+        {
+            return Path.GetFullPath(Environment.ExpandEnvironmentVariables(envCodexHome));
+        }
+
+        var userProfile = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+        return Path.Combine(userProfile, ".codex");
+    }
 }
 
 public sealed class ProjectOptions
@@ -97,6 +114,10 @@ public sealed class PresenceTemplateOptions
     public string LargeImageText { get; set; } = "{CodexStatus} ・ session {SessionElapsed}";
     public string SmallImageText { get; set; } = "{Tokens} ・ est. {EstimatedCost}";
     public PresenceButtonOptions[] Buttons { get; set; } = [];
+    public string ThinkingText { get; set; } = "Thinking";
+    public string WaitingText { get; set; } = "waiting";
+    public string OfflineText { get; set; } = "Offline";
+    public int ThinkingStaleTimeoutMinutes { get; set; } = 10;
 }
 
 public sealed class PresenceButtonOptions

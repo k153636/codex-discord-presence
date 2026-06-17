@@ -30,7 +30,7 @@ Console.CancelKeyPress += (_, eventArgs) =>
 };
 
 var session = new SessionClock();
-var codexDetector = new CodexProcessDetector(options.Codex);
+var codexDetector = new CodexProcessDetector(options.Codex, options.Presence);
 var modelNameProvider = new CodexModelNameProvider(options.Codex, options.Presence);
 var projectInspector = new ProjectInspector(options.Project);
 var gitInspector = new GitInspector();

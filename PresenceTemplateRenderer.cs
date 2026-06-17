@@ -21,6 +21,31 @@ public sealed class PresenceTemplateRenderer
 
     private static Dictionary<string, string> BuildValues(PresenceTemplateOptions template, PresenceContext context)
     {
+        var hasEditedFile = false;
+        if (context.Project.RecentFilePath != null)
+        {
+            try
+            {
+                var fileInfo = new FileInfo(context.Project.RecentFilePath);
+                if (fileInfo.Exists)
+                {
+                    var sessionStart = context.Session.StartedAt;
+                    if (fileInfo.LastWriteTimeUtc >= sessionStart.AddMinutes(-1))
+                    {
+                        hasEditedFile = true;
+                    }
+                }
+            }
+            catch
+            {
+                // Ignore
+            }
+        }
+
+        var editingText = hasEditedFile && !string.IsNullOrEmpty(context.Project.RecentFileName)
+            ? $"Editing {context.Project.RecentFileName}"
+            : "";
+
         return new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
         {
             ["ModelName"] = context.ModelName,
@@ -28,13 +53,16 @@ public sealed class PresenceTemplateRenderer
             ["CodexProcessName"] = context.Codex.ProcessName ?? "",
             ["ProjectName"] = context.Project.Name,
             ["ProjectPath"] = context.Project.Path,
-            ["EditingFileName"] = context.Project.RecentFileName ?? "No recent file",
+            ["EditingFileName"] = editingText,
             ["EditingFilePath"] = context.Project.RecentFilePath ?? "",
             ["ChangedFileCount"] = context.Git.ChangedFileCount.ToString(CultureInfo.InvariantCulture),
             ["SessionElapsed"] = FormatElapsed(context.Session.Elapsed),
             ["SessionStartedAt"] = context.Session.StartedAt.ToLocalTime().ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture),
             ["Tokens"] = context.TokenUsage.TotalTokens is null ? "tokens pending" : FormatNumber(context.TokenUsage.TotalTokens.Value),
-            ["EstimatedCost"] = context.TokenUsage.EstimatedCostUsd is null ? "cost pending" : "$" + context.TokenUsage.EstimatedCostUsd.Value.ToString("0.00", CultureInfo.InvariantCulture)
+            ["EstimatedCost"] = context.TokenUsage.EstimatedCostUsd is null ? "cost pending" : "$" + context.TokenUsage.EstimatedCostUsd.Value.ToString("0.00", CultureInfo.InvariantCulture),
+            ["CodexState"] = !context.Codex.IsRunning ? template.OfflineText
+                           : context.Codex.IsThinking ? template.ThinkingText
+                           : template.WaitingText
         };
     }
 

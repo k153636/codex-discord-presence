@@ -8,7 +8,7 @@ public sealed record PresenceContext(
     SessionSnapshot Session,
     TokenUsageSnapshot TokenUsage);
 
-public sealed record CodexProcessSnapshot(bool IsRunning, string? ProcessName);
+public sealed record CodexProcessSnapshot(bool IsRunning, string? ProcessName, bool IsThinking);
 
 public sealed record ProjectSnapshot(
     string Name,

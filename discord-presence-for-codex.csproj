@@ -22,4 +22,15 @@
     </None>
   </ItemGroup>
 
+  <ItemGroup>
+    <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleToAttribute">
+      <_Parameter1>CodexDiscordPresence.Tests</_Parameter1>
+    </AssemblyAttribute>
+  </ItemGroup>
+
+  <ItemGroup>
+    <Compile Remove="CodexDiscordPresence.Tests\**" />
+    <None Include="CodexDiscordPresence.Tests\**" />
+  </ItemGroup>
+
 </Project>
