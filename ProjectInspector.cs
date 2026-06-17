@@ -33,7 +33,8 @@ public sealed class ProjectInspector
             inspection.RecentFile?.Name,
             inspection.RecentFile?.FullName,
             inspection.ScannedFileCount,
-            inspection.TotalLineCount);
+            inspection.TotalLineCount,
+            inspection.RecentFiles);
     }
 
     private ProjectInspection InspectProject(DirectoryInfo root)
@@ -41,6 +42,7 @@ public sealed class ProjectInspector
         FileInfo? best = null;
         var scannedFileCount = 0;
         long totalLineCount = 0;
+        var recentFiles = new List<FileInfo>();
         var pending = new Queue<(DirectoryInfo Directory, int Depth)>();
         pending.Enqueue((root, 0));
 
@@ -81,6 +83,8 @@ public sealed class ProjectInspector
                 {
                     best = file;
                 }
+
+                TrackRecentFile(recentFiles, file);
             }
 
             foreach (var child in directories)
@@ -92,7 +96,14 @@ public sealed class ProjectInspector
             }
         }
 
-        return new ProjectInspection(best, scannedFileCount, totalLineCount);
+        return new ProjectInspection(
+            best,
+            scannedFileCount,
+            totalLineCount,
+            recentFiles
+                .OrderByDescending(file => file.LastWriteTimeUtc)
+                .Select(file => new RecentProjectFileSnapshot(file.Name, file.FullName, file.LastWriteTimeUtc))
+                .ToArray());
     }
 
     private bool IsIgnoredFile(string fileName)
@@ -174,8 +185,24 @@ public sealed class ProjectInspector
         }
     }
 
-    private sealed record ProjectInspection(FileInfo? RecentFile, int ScannedFileCount, long TotalLineCount)
+    private void TrackRecentFile(List<FileInfo> recentFiles, FileInfo file)
     {
-        public static ProjectInspection Empty { get; } = new(null, 0, 0);
+        recentFiles.Add(file);
+        recentFiles.Sort((left, right) => right.LastWriteTimeUtc.CompareTo(left.LastWriteTimeUtc));
+
+        var maxTracked = Math.Max(1, _options.MaxRecentEditedFilesToTrack);
+        if (recentFiles.Count > maxTracked)
+        {
+            recentFiles.RemoveRange(maxTracked, recentFiles.Count - maxTracked);
+        }
+    }
+
+    private sealed record ProjectInspection(
+        FileInfo? RecentFile,
+        int ScannedFileCount,
+        long TotalLineCount,
+        IReadOnlyList<RecentProjectFileSnapshot> RecentFiles)
+    {
+        public static ProjectInspection Empty { get; } = new(null, 0, 0, Array.Empty<RecentProjectFileSnapshot>());
     }
 }

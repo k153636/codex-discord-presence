@@ -21,35 +21,19 @@ public sealed class PresenceTemplateRenderer
 
     private static Dictionary<string, string> BuildValues(PresenceTemplateOptions template, PresenceContext context)
     {
-        var hasEditedFile = false;
-        if (context.Project.RecentFilePath != null)
-        {
-            try
-            {
-                var fileInfo = new FileInfo(context.Project.RecentFilePath);
-                if (fileInfo.Exists)
-                {
-                    var age = DateTime.UtcNow - fileInfo.LastWriteTimeUtc;
-                    if (age.TotalSeconds <= Math.Max(5, template.EditingFreshnessSeconds))
-                    {
-                        hasEditedFile = true;
-                    }
-                }
-            }
-            catch
-            {
-                // Ignore
-            }
-        }
-
-        var editingFileName = hasEditedFile ? context.Project.RecentFileName ?? "" : "";
+        var recentEditedFiles = context.Project.RecentFiles
+            .Where(file => DateTime.UtcNow - file.LastWriteTimeUtc <= TimeSpan.FromSeconds(Math.Max(5, template.EditingFreshnessSeconds)))
+            .OrderByDescending(file => file.LastWriteTimeUtc)
+            .ToArray();
+        var editingFileName = recentEditedFiles.FirstOrDefault()?.Name ?? "";
         var codexState = !context.Codex.IsRunning ? template.OfflineText
             : context.Codex.IsThinking ? template.ThinkingText
             : template.WaitingText;
         var changedFilesText = FormatChangedFiles(context.Git.ChangedFileCount);
         var projectSizeText = FormatProjectSize(context.Project.ScannedFileCount, context.Project.TotalLineCount);
-        var activityLine = !string.IsNullOrWhiteSpace(editingFileName)
-            ? $"Editing {editingFileName} ・ {changedFilesText}"
+        var activeEditingText = BuildEditingActivityLine(recentEditedFiles);
+        var activityLine = !string.IsNullOrWhiteSpace(activeEditingText)
+            ? $"{activeEditingText} ・ {changedFilesText}"
             : BuildIdleActivityLine(template, context, codexState, changedFilesText);
 
         return new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
@@ -62,6 +46,8 @@ public sealed class PresenceTemplateRenderer
             ["EditingFileName"] = editingFileName,
             ["EditingFileLabel"] = string.IsNullOrWhiteSpace(editingFileName) ? "" : $"Editing {editingFileName}",
             ["EditingFilePath"] = context.Project.RecentFilePath ?? "",
+            ["ActiveEditedFileCount"] = recentEditedFiles.Length.ToString(CultureInfo.InvariantCulture),
+            ["ActiveEditedFilesText"] = activeEditingText,
             ["ChangedFileCount"] = context.Git.ChangedFileCount.ToString(CultureInfo.InvariantCulture),
             ["ChangedFilesText"] = changedFilesText,
             ["ActivityLine"] = activityLine,
@@ -115,6 +101,26 @@ public sealed class PresenceTemplateRenderer
     private static string FormatChangedFiles(int count)
     {
         return count == 1 ? "1 file changed" : $"{count.ToString(CultureInfo.InvariantCulture)} files changed";
+    }
+
+    private static string BuildEditingActivityLine(IReadOnlyList<RecentProjectFileSnapshot> recentEditedFiles)
+    {
+        if (recentEditedFiles.Count == 0)
+        {
+            return "";
+        }
+
+        if (recentEditedFiles.Count == 1)
+        {
+            return $"Editing {recentEditedFiles[0].Name}";
+        }
+
+        if (recentEditedFiles.Count <= 3)
+        {
+            return $"Editing {recentEditedFiles[0].Name} + {recentEditedFiles.Count - 1} more";
+        }
+
+        return $"Coordinating changes across {recentEditedFiles.Count.ToString(CultureInfo.InvariantCulture)} files";
     }
 
     private static string BuildIdleActivityLine(

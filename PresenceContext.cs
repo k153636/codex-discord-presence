@@ -16,10 +16,13 @@ public sealed record ProjectSnapshot(
     string? RecentFileName,
     string? RecentFilePath,
     int ScannedFileCount,
-    long TotalLineCount);
+    long TotalLineCount,
+    IReadOnlyList<RecentProjectFileSnapshot> RecentFiles);
 
 public sealed record GitSnapshot(bool IsGitRepository, int ChangedFileCount);
 
 public sealed record SessionSnapshot(DateTime StartedAt, TimeSpan Elapsed);
 
 public sealed record TokenUsageSnapshot(long? TotalTokens, decimal? EstimatedCostUsd);
+
+public sealed record RecentProjectFileSnapshot(string Name, string Path, DateTime LastWriteTimeUtc);
