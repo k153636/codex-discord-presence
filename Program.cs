@@ -1,5 +1,10 @@
 using CodexDiscordPresence;
 
+if (args.Any(arg => string.Equals(arg, "--stop", StringComparison.OrdinalIgnoreCase)))
+{
+    return InstanceCoordinator.StopRunningInstance(AppContext.BaseDirectory);
+}
+
 var options = AppOptions.Load(args);
 
 if (string.IsNullOrWhiteSpace(options.Discord.ClientId) ||
@@ -10,6 +15,14 @@ if (string.IsNullOrWhiteSpace(options.Discord.ClientId) ||
 }
 
 using var cts = new CancellationTokenSource();
+using var instance = InstanceCoordinator.TryAcquire(AppContext.BaseDirectory);
+
+if (instance is null)
+{
+    Console.Error.WriteLine("Codex Discord RPC is already running. Use --stop to end the current instance.");
+    return 1;
+}
+
 Console.CancelKeyPress += (_, eventArgs) =>
 {
     eventArgs.Cancel = true;

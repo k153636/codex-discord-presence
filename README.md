@@ -7,13 +7,11 @@ The displayed text is intentionally configurable through `appsettings.json`.
 ## Setup
 
 1. Create an application in the Discord Developer Portal.
-2. Set the application ID in `Discord:ClientId`.
+2. The default `Discord:ClientId` is already set to `1516774220636360784`.
 3. Optionally add Rich Presence assets matching `LargeImageKey` and `SmallImageKey`.
-4. Run the app.
-
-```powershell
-dotnet run -- --project "E:\path\to\your\project"
-```
+4. Build with `build.cmd`.
+5. Start it with `start.cmd`.
+6. Stop it with `stop.cmd`.
 
 You can also set `Project:Path` directly in `appsettings.json`.
 The app automatically detects the current Codex model name when possible. Use `Presence:ModelName` or `--model <name>` as the fallback name.
@@ -29,6 +27,13 @@ The default template uses English text with a clear model-driven agent feel:
 - Button: `GitHub`
 
 Token and cost values are enabled in the template, but automatic Codex usage extraction is still a future integration point. Until then, `TokenUsage:TotalTokens` and `TokenUsage:EstimatedCostUsd` can be filled manually.
+
+## Easy Start And Stop
+
+- `build.cmd` builds the Windows `exe`
+- `start.cmd` launches the app in the background
+- `stop.cmd` shuts down the running instance
+- Only one instance can run at a time
 
 ## Model Detection
 
@@ -55,9 +60,3 @@ When `Presence.AutoDetectModelName` is enabled, the app resolves `{ModelName}` f
 - `{SessionStartedAt}`
 - `{Tokens}`
 - `{EstimatedCost}`
-
-## GitHub Button
-
-The default button points to:
-
-https://github.com/k153636/codex-discord-presence
