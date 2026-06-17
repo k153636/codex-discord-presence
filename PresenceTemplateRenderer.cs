@@ -42,9 +42,14 @@ public sealed class PresenceTemplateRenderer
             }
         }
 
-        var editingText = hasEditedFile && !string.IsNullOrEmpty(context.Project.RecentFileName)
-            ? $"Editing {context.Project.RecentFileName}"
-            : "";
+        var editingFileName = hasEditedFile ? context.Project.RecentFileName ?? "" : "";
+        var codexState = !context.Codex.IsRunning ? template.OfflineText
+            : context.Codex.IsThinking ? template.ThinkingText
+            : template.WaitingText;
+        var changedFilesText = FormatChangedFiles(context.Git.ChangedFileCount);
+        var activityLine = !string.IsNullOrWhiteSpace(editingFileName)
+            ? $"Editing {editingFileName} ・ {changedFilesText}"
+            : $"{codexState} on {context.Project.Name} ・ {changedFilesText}";
 
         return new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
         {
@@ -53,16 +58,17 @@ public sealed class PresenceTemplateRenderer
             ["CodexProcessName"] = context.Codex.ProcessName ?? "",
             ["ProjectName"] = context.Project.Name,
             ["ProjectPath"] = context.Project.Path,
-            ["EditingFileName"] = editingText,
+            ["EditingFileName"] = editingFileName,
+            ["EditingFileLabel"] = string.IsNullOrWhiteSpace(editingFileName) ? "" : $"Editing {editingFileName}",
             ["EditingFilePath"] = context.Project.RecentFilePath ?? "",
             ["ChangedFileCount"] = context.Git.ChangedFileCount.ToString(CultureInfo.InvariantCulture),
+            ["ChangedFilesText"] = changedFilesText,
+            ["ActivityLine"] = activityLine,
             ["SessionElapsed"] = FormatElapsed(context.Session.Elapsed),
             ["SessionStartedAt"] = context.Session.StartedAt.ToLocalTime().ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture),
             ["Tokens"] = context.TokenUsage.TotalTokens is null ? "tokens pending" : FormatNumber(context.TokenUsage.TotalTokens.Value),
             ["EstimatedCost"] = context.TokenUsage.EstimatedCostUsd is null ? "cost pending" : "$" + context.TokenUsage.EstimatedCostUsd.Value.ToString("0.00", CultureInfo.InvariantCulture),
-            ["CodexState"] = !context.Codex.IsRunning ? template.OfflineText
-                           : context.Codex.IsThinking ? template.ThinkingText
-                           : template.WaitingText
+            ["CodexState"] = codexState
         };
     }
 
@@ -100,6 +106,11 @@ public sealed class PresenceTemplateRenderer
         }
 
         return value.ToString(CultureInfo.InvariantCulture);
+    }
+
+    private static string FormatChangedFiles(int count)
+    {
+        return count == 1 ? "1 file changed" : $"{count.ToString(CultureInfo.InvariantCulture)} files changed";
     }
 }
 

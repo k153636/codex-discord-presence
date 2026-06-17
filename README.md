@@ -21,7 +21,7 @@ The app automatically detects the current Codex model name when possible. Use `P
 The default template uses English text with a clear model-driven agent feel:
 
 - `Details`: `{ModelName} working on {ProjectName}`
-- `State`: `Editing {EditingFileName} ・ {ChangedFileCount} files changed`
+- `State`: `{ActivityLine}`
 - `LargeImageText`: `{CodexStatus} ・ session {SessionElapsed}`
 - `SmallImageText`: `{Tokens} ・ est. {EstimatedCost}`
 - Button: `GitHub`
@@ -54,8 +54,11 @@ When `Presence.AutoDetectModelName` is enabled, the app resolves `{ModelName}` f
 - `{ProjectName}`
 - `{ProjectPath}`
 - `{EditingFileName}`
+- `{EditingFileLabel}`
 - `{EditingFilePath}`
 - `{ChangedFileCount}`
+- `{ChangedFilesText}`
+- `{ActivityLine}`
 - `{SessionElapsed}`
 - `{SessionStartedAt}`
 - `{Tokens}`

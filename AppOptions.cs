@@ -110,7 +110,7 @@ public sealed class PresenceTemplateOptions
     public bool AutoDetectModelName { get; set; } = true;
     public string ModelName { get; set; } = "Codex";
     public string Details { get; set; } = "{ModelName} working on {ProjectName}";
-    public string State { get; set; } = "Editing {EditingFileName} ・ {ChangedFileCount} files changed";
+    public string State { get; set; } = "{ActivityLine}";
     public string LargeImageText { get; set; } = "{CodexStatus} ・ session {SessionElapsed}";
     public string SmallImageText { get; set; } = "{Tokens} ・ est. {EstimatedCost}";
     public PresenceButtonOptions[] Buttons { get; set; } = [];
