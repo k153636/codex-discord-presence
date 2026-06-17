@@ -14,7 +14,7 @@ The app is configured as a self-contained `win-x64` single-file publish.
 
 ## Preview
 
-<div align="center">
+<div align="center" style="margin-bottom: 0;">
 <table style="margin: 0 auto;">
   <tr>
     <td><img src="Preview/rpc-preview-1.png" width="330" alt="Preview 1"></td>
@@ -27,7 +27,7 @@ The app is configured as a self-contained `win-x64` single-file publish.
 </table>
 </div>
 
-<div align="center">
+<div align="center" style="margin-top: -8px;">
 <table style="margin: 0 auto;">
   <tr>
     <td><img src="Preview/rpc-preview-5.png" width="330" alt="Preview 5"></td>
