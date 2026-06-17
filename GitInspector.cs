@@ -12,14 +12,17 @@ public sealed class GitInspector
             return new GitSnapshot(false, 0);
         }
 
-        var changedFiles = output
-            .Split(Environment.NewLine, StringSplitOptions.RemoveEmptyEntries)
+        return new GitSnapshot(true, CountChangedFiles(output));
+    }
+
+    internal static int CountChangedFiles(string output)
+    {
+        return output
+            .Split(['\r', '\n'], StringSplitOptions.RemoveEmptyEntries)
             .Select(ParseStatusPath)
             .Where(path => !string.IsNullOrWhiteSpace(path))
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .Count();
-
-        return new GitSnapshot(true, changedFiles);
     }
 
     private static string? RunGit(string projectPath, IReadOnlyList<string> arguments)
