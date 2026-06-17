@@ -22,7 +22,7 @@ The app automatically detects the current Codex model name when possible. Use `P
 
 The default template uses English text with a clear model-driven agent feel:
 
-- `Details`: `{ModelName} is building {ProjectName}`
+- `Details`: `{ModelName} building {ProjectName}`
 - `State`: `Editing {EditingFileName} | {ChangedFileCount} files changed`
 - `LargeImageText`: `{CodexStatus} | session {SessionElapsed}`
 - `SmallImageText`: `{Tokens} | est. {EstimatedCost}`

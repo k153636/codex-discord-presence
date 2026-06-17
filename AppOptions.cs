@@ -92,7 +92,7 @@ public sealed class PresenceTemplateOptions
 {
     public bool AutoDetectModelName { get; set; } = true;
     public string ModelName { get; set; } = "Codex";
-    public string Details { get; set; } = "{ModelName} is building {ProjectName}";
+    public string Details { get; set; } = "{ModelName} building {ProjectName}";
     public string State { get; set; } = "Working on {ProjectName}";
     public string LargeImageText { get; set; } = "{CodexStatus} | {SessionElapsed}";
     public string SmallImageText { get; set; } = "Editing: {EditingFileName}";
