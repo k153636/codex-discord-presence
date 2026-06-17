@@ -16,16 +16,15 @@ The app is configured for a self-contained `win-x64` single-file publish.
 
 <table>
   <tr>
-    <td><img src="Preview/rpc-preview-4.png" width="240" alt="Preview 4"></td>
-    <td><img src="Preview/rpc-preview-2.png" width="240" alt="Preview 2"></td>
+    <td><img src="Preview/rpc-preview-4.png" width="300" alt="Preview 4"></td>
+    <td><img src="Preview/rpc-preview-2.png" width="300" alt="Preview 2"></td>
   </tr>
   <tr>
-    <td><img src="Preview/rpc-preview-3.png" width="240" alt="Preview 3"></td>
-    <td><img src="Preview/rpc-preview-1.png" width="240" alt="Preview 1"></td>
+    <td><img src="Preview/rpc-preview-3.png" width="300" alt="Preview 3"></td>
+    <td><img src="Preview/rpc-preview-1.png" width="300" alt="Preview 1"></td>
   </tr>
   <tr>
-    <td><img src="Preview/rpc-preview-5.png" width="240" alt="Preview 5"></td>
-    <td></td>
+    <td colspan="2" align="center"><img src="Preview/rpc-preview-5.png" width="300" alt="Preview 5"></td>
   </tr>
 </table>
 
