@@ -27,29 +27,37 @@ public sealed class CodexModelNameProvider
         var fallback = FallbackModelName();
         var environmentModel = DetectFromEnvironment();
         var selectedUiModel = DetectFromConfig();
+        var selectedUiModelTime = GetConfigLastWriteTimeUtc();
         var sessionModel = DetectFromRecentSessions(projectPath);
 
         if (!_presenceOptions.AutoDetectModelName)
         {
-            return new ModelNameSnapshot(selectedUiModel, sessionModel, fallback, "fallback");
+            return new ModelNameSnapshot(selectedUiModel, sessionModel?.ModelName, fallback, "fallback");
         }
 
         if (environmentModel != null)
         {
-            return new ModelNameSnapshot(selectedUiModel, sessionModel, environmentModel, "environment");
+            return new ModelNameSnapshot(selectedUiModel, sessionModel?.ModelName, environmentModel, "environment");
+        }
+
+        if (sessionModel is { IsProjectMatch: true } &&
+            sessionModel.LastWriteTimeUtc >= selectedUiModelTime &&
+            sessionModel.ModelName != null)
+        {
+            return new ModelNameSnapshot(selectedUiModel, sessionModel.ModelName, sessionModel.ModelName, "project-session");
         }
 
         if (selectedUiModel != null)
         {
-            return new ModelNameSnapshot(selectedUiModel, sessionModel, selectedUiModel, "selected-ui");
+            return new ModelNameSnapshot(selectedUiModel, sessionModel?.ModelName, selectedUiModel, "selected-ui");
         }
 
-        if (sessionModel != null)
+        if (sessionModel?.ModelName != null)
         {
-            return new ModelNameSnapshot(selectedUiModel, sessionModel, sessionModel, "last-session");
+            return new ModelNameSnapshot(selectedUiModel, sessionModel.ModelName, sessionModel.ModelName, "last-session");
         }
 
-        return new ModelNameSnapshot(selectedUiModel, sessionModel, fallback, "fallback");
+        return new ModelNameSnapshot(selectedUiModel, sessionModel?.ModelName, fallback, "fallback");
     }
 
     private string FallbackModelName()
@@ -73,7 +81,7 @@ public sealed class CodexModelNameProvider
         return null;
     }
 
-    private string? DetectFromRecentSessions(string projectPath)
+    private SessionModelDetection? DetectFromRecentSessions(string projectPath)
     {
         var sessionsPath = Path.Combine(_codexHomePath, "sessions");
         if (!Directory.Exists(sessionsPath))
@@ -88,17 +96,20 @@ public sealed class CodexModelNameProvider
             .OrderByDescending(file => file.LastWriteTimeUtc)
             .Take(Math.Max(1, _codexOptions.RecentSessionFilesToScan));
 
-        string? newestAnyProjectModel = null;
+        SessionModelDetection? newestAnyProjectModel = null;
 
         foreach (var file in files)
         {
             var session = InspectSessionFile(file.FullName, normalizedProjectPath);
             if (session.MatchesProject && IsUsableModelName(session.ModelName))
             {
-                return session.ModelName;
+                return new SessionModelDetection(session.ModelName!, true, file.LastWriteTimeUtc);
             }
 
-            newestAnyProjectModel ??= session.ModelName;
+            if (newestAnyProjectModel is null && IsUsableModelName(session.ModelName))
+            {
+                newestAnyProjectModel = new SessionModelDetection(session.ModelName!, false, file.LastWriteTimeUtc);
+            }
         }
 
         return newestAnyProjectModel;
@@ -186,6 +197,19 @@ public sealed class CodexModelNameProvider
         return null;
     }
 
+    private DateTime GetConfigLastWriteTimeUtc()
+    {
+        var configPath = Path.Combine(_codexHomePath, "config.toml");
+        try
+        {
+            return File.Exists(configPath) ? File.GetLastWriteTimeUtc(configPath) : DateTime.MinValue;
+        }
+        catch
+        {
+            return DateTime.MinValue;
+        }
+    }
+
     private static bool TryGetString(JsonElement element, string propertyName, out string value)
     {
         value = "";
@@ -223,6 +247,7 @@ public sealed class CodexModelNameProvider
     }
 
     private sealed record SessionModelInspection(bool MatchesProject, string? ModelName);
+    private sealed record SessionModelDetection(string ModelName, bool IsProjectMatch, DateTime LastWriteTimeUtc);
 }
 
 public sealed record ModelNameSnapshot(
