@@ -14,19 +14,20 @@ The app is configured for a self-contained `win-x64` single-file publish.
 
 ## Preview
 
-Single-file activity:
-
-![Single-file preview](Preview/rpc-preview-3.png)
-
-![Single-file preview](Preview/rpc-preview-4.png)
-
-![Single-file preview](Preview/rpc-preview-5.png)
-
-Multi-file and command states:
-
-![Multi-file preview](Preview/rpc-preview-1.png)
-
-![Command preview](Preview/rpc-preview-2.png)
+<table>
+  <tr>
+    <td><img src="Preview/rpc-preview-4.png" width="240" alt="Preview 4"></td>
+    <td><img src="Preview/rpc-preview-2.png" width="240" alt="Preview 2"></td>
+  </tr>
+  <tr>
+    <td><img src="Preview/rpc-preview-3.png" width="240" alt="Preview 3"></td>
+    <td><img src="Preview/rpc-preview-1.png" width="240" alt="Preview 1"></td>
+  </tr>
+  <tr>
+    <td><img src="Preview/rpc-preview-5.png" width="240" alt="Preview 5"></td>
+    <td></td>
+  </tr>
+</table>
 
 ## What It Shows
 
