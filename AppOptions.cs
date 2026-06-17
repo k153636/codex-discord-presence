@@ -31,6 +31,9 @@ public sealed class AppOptions
                 case "--interval" when i + 1 < args.Length && int.TryParse(args[++i], out var interval):
                     options.UpdateIntervalSeconds = interval;
                     break;
+                case "--model" when i + 1 < args.Length:
+                    options.Presence.ModelName = args[++i];
+                    break;
             }
         }
 
@@ -79,9 +82,10 @@ public sealed class ProjectOptions
 
 public sealed class PresenceTemplateOptions
 {
-    public string Details { get; set; } = "Codex Agent";
+    public string ModelName { get; set; } = "Codex";
+    public string Details { get; set; } = "{ModelName} is building {ProjectName}";
     public string State { get; set; } = "Working on {ProjectName}";
-    public string LargeImageText { get; set; } = "{CodexStatus} • {SessionElapsed}";
+    public string LargeImageText { get; set; } = "{CodexStatus} | {SessionElapsed}";
     public string SmallImageText { get; set; } = "Editing: {EditingFileName}";
     public PresenceButtonOptions[] Buttons { get; set; } = [];
 }

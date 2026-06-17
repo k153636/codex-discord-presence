@@ -6,7 +6,7 @@ public sealed class PresenceTemplateRenderer
 {
     public RenderedPresence Render(PresenceTemplateOptions template, PresenceContext context)
     {
-        var values = BuildValues(context);
+        var values = BuildValues(template, context);
 
         return new RenderedPresence(
             Apply(template.Details, values),
@@ -19,10 +19,11 @@ public sealed class PresenceTemplateRenderer
             context.Session.StartedAt);
     }
 
-    private static Dictionary<string, string> BuildValues(PresenceContext context)
+    private static Dictionary<string, string> BuildValues(PresenceTemplateOptions template, PresenceContext context)
     {
         return new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
         {
+            ["ModelName"] = template.ModelName,
             ["CodexStatus"] = context.Codex.IsRunning ? "Codex running" : "Codex not detected",
             ["CodexProcessName"] = context.Codex.ProcessName ?? "",
             ["ProjectName"] = context.Project.Name,

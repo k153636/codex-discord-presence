@@ -1,6 +1,6 @@
 # Discord Presence for Codex
 
-Discord Rich Presence for making Codex / an AI agent appear as the active worker, rather than showing the user's current tab or editor state.
+Discord Rich Presence for making Codex / a model agent appear as the active worker, rather than showing the user's current tab or editor state.
 
 The displayed text is intentionally configurable through `appsettings.json`.
 
@@ -16,12 +16,13 @@ dotnet run -- --project "E:\path\to\your\project"
 ```
 
 You can also set `Project:Path` directly in `appsettings.json`.
+Use `Presence:ModelName` or `--model <name>` to choose the model name shown in Discord.
 
 ## Current Display Style
 
-The default template uses English text with a clear AI-agent feel:
+The default template uses English text with a clear model-driven agent feel:
 
-- `Details`: `AI is building {ProjectName}`
+- `Details`: `{ModelName} is building {ProjectName}`
 - `State`: `Editing {EditingFileName} | {ChangedFileCount} files changed`
 - `LargeImageText`: `{CodexStatus} | session {SessionElapsed}`
 - `SmallImageText`: `{Tokens} | est. {EstimatedCost}`
@@ -33,6 +34,7 @@ Token and cost values are enabled in the template, but automatic Codex usage ext
 
 `Presence.Details`, `Presence.State`, `Presence.LargeImageText`, `Presence.SmallImageText`, and button labels/URLs can use these placeholders:
 
+- `{ModelName}`
 - `{CodexStatus}`
 - `{CodexProcessName}`
 - `{ProjectName}`
