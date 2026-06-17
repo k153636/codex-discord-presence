@@ -15,7 +15,7 @@ public sealed class CodexProcessDetector
         _presenceOptions = presenceOptions;
     }
 
-    public CodexProcessSnapshot GetSnapshot()
+    public CodexProcessSnapshot GetSnapshot(string? projectPath = null)
     {
         foreach (var process in Process.GetProcesses())
         {
@@ -24,7 +24,7 @@ public sealed class CodexProcessDetector
                 if (Matches(process.ProcessName, _options.ProcessNameContains) ||
                     Matches(process.MainWindowTitle, _options.WindowTitleContains))
                 {
-                    var isThinking = DetermineIfThinking();
+                    var isThinking = DetermineIfThinking(projectPath);
                     return new CodexProcessSnapshot(true, process.ProcessName, isThinking);
                 }
             }
@@ -41,7 +41,7 @@ public sealed class CodexProcessDetector
         return new CodexProcessSnapshot(false, null, false);
     }
 
-    internal bool DetermineIfThinking()
+    internal bool DetermineIfThinking(string? projectPath = null)
     {
         var resolvedPath = _options.GetResolvedHomePath();
         var sessionsPath = Path.Combine(resolvedPath, "sessions");
@@ -52,18 +52,46 @@ public sealed class CodexProcessDetector
 
         try
         {
-            var latestFile = Directory
+            var files = Directory
                 .EnumerateFiles(sessionsPath, "*.jsonl", SearchOption.AllDirectories)
                 .Select(path => new FileInfo(path))
                 .OrderByDescending(file => file.LastWriteTimeUtc)
-                .FirstOrDefault();
+                .Take(Math.Max(1, _options.RecentSessionFilesToScan))
+                .ToArray();
 
-            if (latestFile == null)
+            if (files.Length == 0)
             {
                 return false;
             }
 
-            return AnalyzeSessionFileForThinking(latestFile.FullName);
+            var normalizedProjectPath = string.IsNullOrWhiteSpace(projectPath)
+                ? null
+                : NormalizePath(projectPath);
+            SessionThinkingInspection? latestAnySession = null;
+            var sawProjectAwareSession = false;
+
+            foreach (var file in files)
+            {
+                var inspection = AnalyzeSessionFileForThinking(file.FullName, normalizedProjectPath);
+                latestAnySession ??= inspection;
+
+                if (inspection.HasProjectPath)
+                {
+                    sawProjectAwareSession = true;
+                }
+
+                if (normalizedProjectPath != null && inspection.MatchesProject)
+                {
+                    return inspection.IsThinking;
+                }
+            }
+
+            if (normalizedProjectPath != null && sawProjectAwareSession)
+            {
+                return false;
+            }
+
+            return latestAnySession?.IsThinking ?? false;
         }
         catch
         {
@@ -71,9 +99,11 @@ public sealed class CodexProcessDetector
         }
     }
 
-    private bool AnalyzeSessionFileForThinking(string path)
+    private SessionThinkingInspection AnalyzeSessionFileForThinking(string path, string? normalizedProjectPath)
     {
         bool isThinking = false;
+        bool hasProjectPath = false;
+        bool matchesProject = false;
         DateTime? lastTaskStartedTime = null;
 
         try
@@ -84,12 +114,24 @@ public sealed class CodexProcessDetector
             string? line;
             while ((line = reader.ReadLine()) != null)
             {
-                if (line.Contains("\"task_started\"", StringComparison.Ordinal))
+                var payloadType = TryReadPayloadTypeAndCwd(line, out var cwd);
+                if (!string.IsNullOrWhiteSpace(cwd))
+                {
+                    hasProjectPath = true;
+                    if (normalizedProjectPath != null && NormalizePath(cwd) == normalizedProjectPath)
+                    {
+                        matchesProject = true;
+                    }
+                }
+
+                if (string.Equals(payloadType, "task_started", StringComparison.Ordinal) ||
+                    line.Contains("\"task_started\"", StringComparison.Ordinal))
                 {
                     isThinking = true;
                     lastTaskStartedTime = ExtractTimestamp(line);
                 }
-                else if (line.Contains("\"task_complete\"", StringComparison.Ordinal))
+                else if (string.Equals(payloadType, "task_complete", StringComparison.Ordinal) ||
+                         line.Contains("\"task_complete\"", StringComparison.Ordinal))
                 {
                     isThinking = false;
                 }
@@ -109,7 +151,43 @@ public sealed class CodexProcessDetector
             }
         }
 
-        return isThinking;
+        return new SessionThinkingInspection(isThinking, hasProjectPath, matchesProject);
+    }
+
+    private static string? TryReadPayloadTypeAndCwd(string line, out string? cwd)
+    {
+        cwd = null;
+        if (!line.Contains("\"payload\"", StringComparison.Ordinal))
+        {
+            return null;
+        }
+
+        try
+        {
+            using var doc = JsonDocument.Parse(line);
+            if (!doc.RootElement.TryGetProperty("payload", out var payload))
+            {
+                return null;
+            }
+
+            if (payload.TryGetProperty("cwd", out var cwdProperty) &&
+                cwdProperty.ValueKind == JsonValueKind.String)
+            {
+                cwd = cwdProperty.GetString();
+            }
+
+            if (payload.TryGetProperty("type", out var typeProperty) &&
+                typeProperty.ValueKind == JsonValueKind.String)
+            {
+                return typeProperty.GetString();
+            }
+        }
+        catch
+        {
+            return null;
+        }
+
+        return null;
     }
 
     private static DateTime? ExtractTimestamp(string line)
@@ -144,4 +222,20 @@ public sealed class CodexProcessDetector
             !string.IsNullOrWhiteSpace(needle) &&
             value.Contains(needle, StringComparison.OrdinalIgnoreCase));
     }
+
+    private static string NormalizePath(string path)
+    {
+        try
+        {
+            return Path.GetFullPath(Environment.ExpandEnvironmentVariables(path))
+                .TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar)
+                .ToUpperInvariant();
+        }
+        catch
+        {
+            return path.Trim().ToUpperInvariant();
+        }
+    }
+
+    private sealed record SessionThinkingInspection(bool IsThinking, bool HasProjectPath, bool MatchesProject);
 }

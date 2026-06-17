@@ -50,7 +50,7 @@ while (!cts.IsCancellationRequested)
 {
     var projectSnapshot = projectInspector.GetSnapshot();
     var gitSnapshot = gitInspector.GetSnapshot(projectInspector.ProjectPath);
-    var codexSnapshot = codexDetector.GetSnapshot();
+    var codexSnapshot = codexDetector.GetSnapshot(projectInspector.ProjectPath);
     var modelName = modelNameProvider.GetModelName(projectInspector.ProjectPath);
     if (!string.Equals(modelName, lastModelName, StringComparison.Ordinal))
     {

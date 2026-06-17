@@ -21,6 +21,12 @@ public class CodexStateTests
         File.WriteAllLines(filePath, lines);
     }
 
+    private void SetSessionWriteTime(string tempPath, string fileName, DateTime timestamp)
+    {
+        var filePath = Path.Combine(tempPath, "sessions", fileName);
+        File.SetLastWriteTimeUtc(filePath, timestamp);
+    }
+
     [Fact]
     public void Test_1_CodexProcessNotRunning_ReturnsOffline()
     {
@@ -171,5 +177,72 @@ public class CodexStateTests
         {
             Directory.Delete(tempPath, true);
         }
+    }
+
+    [Fact]
+    public void Test_7_ProjectMatchedSessionWinsOverNewerOtherProject()
+    {
+        var tempPath = CreateTempSessionDirectory();
+        try
+        {
+            var now = DateTime.UtcNow;
+            var currentProject = Path.Combine(Path.GetTempPath(), "CodexCurrentProject");
+            var otherProject = Path.Combine(Path.GetTempPath(), "CodexOtherProject");
+
+            WriteMockSessionLog(tempPath, "current.jsonl", new[]
+            {
+                $"{{\"timestamp\":\"{now.AddSeconds(-20):yyyy-MM-ddTHH:mm:ss.fffZ}\",\"type\":\"event_msg\",\"payload\":{{\"type\":\"session_meta\",\"cwd\":\"{EscapeJson(currentProject)}\"}}}}",
+                $"{{\"timestamp\":\"{now.AddSeconds(-10):yyyy-MM-ddTHH:mm:ss.fffZ}\",\"type\":\"event_msg\",\"payload\":{{\"type\":\"task_complete\",\"turn_id\":\"current\"}}}}"
+            });
+            WriteMockSessionLog(tempPath, "other.jsonl", new[]
+            {
+                $"{{\"timestamp\":\"{now:yyyy-MM-ddTHH:mm:ss.fffZ}\",\"type\":\"event_msg\",\"payload\":{{\"type\":\"session_meta\",\"cwd\":\"{EscapeJson(otherProject)}\"}}}}",
+                $"{{\"timestamp\":\"{now:yyyy-MM-ddTHH:mm:ss.fffZ}\",\"type\":\"event_msg\",\"payload\":{{\"type\":\"task_started\",\"turn_id\":\"other\"}}}}"
+            });
+            SetSessionWriteTime(tempPath, "current.jsonl", now.AddSeconds(-5));
+            SetSessionWriteTime(tempPath, "other.jsonl", now);
+
+            var options = new CodexDetectionOptions { HomePath = tempPath };
+            var detector = new CodexProcessDetector(options, new PresenceTemplateOptions());
+
+            var isThinking = detector.DetermineIfThinking(currentProject);
+
+            Assert.False(isThinking);
+        }
+        finally
+        {
+            Directory.Delete(tempPath, true);
+        }
+    }
+
+    [Fact]
+    public void Test_8_NoProjectMetadataFallsBackToLatestSession()
+    {
+        var tempPath = CreateTempSessionDirectory();
+        try
+        {
+            var nowStr = DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ss.fffZ");
+            WriteMockSessionLog(tempPath, "session1.jsonl", new[]
+            {
+                $"{{\"timestamp\":\"{nowStr}\",\"type\":\"event_msg\",\"payload\":{{\"type\":\"task_started\",\"turn_id\":\"123\"}}}}"
+            });
+
+            var options = new CodexDetectionOptions { HomePath = tempPath };
+            var presenceOptions = new PresenceTemplateOptions { ThinkingStaleTimeoutMinutes = 10 };
+            var detector = new CodexProcessDetector(options, presenceOptions);
+
+            var isThinking = detector.DetermineIfThinking(Path.Combine(Path.GetTempPath(), "AnyProject"));
+
+            Assert.True(isThinking);
+        }
+        finally
+        {
+            Directory.Delete(tempPath, true);
+        }
+    }
+
+    private static string EscapeJson(string value)
+    {
+        return value.Replace("\\", "\\\\").Replace("\"", "\\\"");
     }
 }
