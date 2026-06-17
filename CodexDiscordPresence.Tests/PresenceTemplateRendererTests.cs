@@ -17,7 +17,7 @@ public sealed class PresenceTemplateRendererTests
 
         var presence = renderer.Render(template, context);
 
-        Assert.Equal("Analyzing project on Nexstrap ・ 1 file changed", presence.State);
+        Assert.Equal("Analyzing project", presence.State);
     }
 
     [Fact]
@@ -32,7 +32,7 @@ public sealed class PresenceTemplateRendererTests
 
         var presence = renderer.Render(template, context);
 
-        Assert.Equal("Ready ・ 0 files changed", presence.State);
+        Assert.Equal("Ready", presence.State);
     }
 
     [Fact]
@@ -63,7 +63,7 @@ public sealed class PresenceTemplateRendererTests
 
             var presence = renderer.Render(template, context);
 
-            Assert.Equal("Applying edits ・ Editing CodexRpcRendererTest.txt ・ 2 files changed", presence.State);
+            Assert.Equal("Editing CodexRpcRendererTest.txt", presence.State);
         }
         finally
         {
@@ -96,7 +96,7 @@ public sealed class PresenceTemplateRendererTests
 
             var presence = renderer.Render(template, context);
 
-            Assert.Equal("Ready ・ 2 files changed", presence.State);
+            Assert.Equal("Ready", presence.State);
         }
         finally
         {
@@ -178,7 +178,7 @@ public sealed class PresenceTemplateRendererTests
 
         var presence = renderer.Render(template, context);
 
-        Assert.Equal("Coordinating changes across 2 files ・ Editing Program.cs + 1 more ・ 2 files changed", presence.State);
+        Assert.Equal("Coordinating changes across 2 files", presence.State);
     }
 
     [Fact]
@@ -197,7 +197,7 @@ public sealed class PresenceTemplateRendererTests
 
         var presence = renderer.Render(template, context);
 
-        Assert.Equal("Running command ・ 0 files changed", presence.State);
+        Assert.Equal("Running command", presence.State);
     }
 
     [Fact]
@@ -230,7 +230,7 @@ public sealed class PresenceTemplateRendererTests
 
         var presence = renderer.Render(template, context);
 
-        Assert.Equal("Refactoring ・ Editing Program.cs + 3 more ・ 4 files changed", presence.State);
+        Assert.Equal("Refactoring", presence.State);
     }
 
     private static PresenceContext CreateContext(

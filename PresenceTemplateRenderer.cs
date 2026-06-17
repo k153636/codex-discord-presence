@@ -29,7 +29,7 @@ public sealed class PresenceTemplateRenderer
         var changedFilesText = FormatChangedFiles(context.Git.ChangedFileCount);
         var projectSizeText = FormatProjectSize(context.Project.ScannedFileCount, context.Project.TotalLineCount);
         var stateLabel = ResolveStateLabel(template, context.Codex.ActivityKind, context.Git.ChangedFileCount);
-        var activityLine = BuildActivityLine(context, recentEditedFiles, changedFilesText, stateLabel);
+        var activityLine = BuildActivityLine(context, recentEditedFiles, stateLabel);
 
         return new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
         {
@@ -65,25 +65,24 @@ public sealed class PresenceTemplateRenderer
     private static string BuildActivityLine(
         PresenceContext context,
         IReadOnlyList<RecentProjectFileSnapshot> recentEditedFiles,
-        string changedFilesText,
         string stateLabel)
     {
         if (!context.Codex.IsRunning)
         {
-            return $"{stateLabel} ・ {changedFilesText}";
+            return stateLabel;
         }
 
         if (context.Codex.ActivityKind == CodexActivityKind.RunningCommand)
         {
-            return $"{stateLabel} ・ {changedFilesText}";
+            return stateLabel;
         }
 
         if (recentEditedFiles.Count > 0)
         {
-            return $"{BuildEditingActivityLine(stateLabel, recentEditedFiles)} ・ {changedFilesText}";
+            return BuildEditingActivityLine(stateLabel, recentEditedFiles);
         }
 
-        return $"{BuildIdleActivityLine(context, stateLabel)} ・ {changedFilesText}";
+        return BuildIdleActivityLine(context, stateLabel);
     }
 
     private static string BuildActiveEditedFilesText(
@@ -106,10 +105,10 @@ public sealed class PresenceTemplateRenderer
     {
         if (recentEditedFiles.Count == 1)
         {
-            return $"{stateLabel} ・ Editing {recentEditedFiles[0].Name}";
+            return $"Editing {recentEditedFiles[0].Name}";
         }
 
-        return $"{stateLabel} ・ Editing {recentEditedFiles[0].Name} + {recentEditedFiles.Count - 1} more";
+        return stateLabel;
     }
 
     private static string BuildIdleActivityLine(
@@ -118,11 +117,11 @@ public sealed class PresenceTemplateRenderer
     {
         return context.Codex.ActivityKind switch
         {
-            CodexActivityKind.Planning => $"{stateLabel} on {context.Project.Name}",
-            CodexActivityKind.ApplyingEdits => $"{stateLabel} on {context.Project.Name}",
-            CodexActivityKind.UpdatingFiles => $"{stateLabel} on {context.Project.Name}",
-            CodexActivityKind.Refactoring => $"{stateLabel} on {context.Project.Name}",
-            CodexActivityKind.AnalyzingProject => $"{stateLabel} on {context.Project.Name}",
+            CodexActivityKind.Planning => stateLabel,
+            CodexActivityKind.ApplyingEdits => stateLabel,
+            CodexActivityKind.UpdatingFiles => stateLabel,
+            CodexActivityKind.Refactoring => stateLabel,
+            CodexActivityKind.AnalyzingProject => stateLabel,
             CodexActivityKind.RunningCommand => stateLabel,
             _ => stateLabel
         };

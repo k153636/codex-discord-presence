@@ -133,7 +133,7 @@ public sealed class PresenceTemplateOptions
     public string Details { get; set; } = "{ModelName}";
     public string State { get; set; } = "{ActivityLine}";
     public string LargeImageText { get; set; } = "{ProjectName} ・ {ProjectSizeText}";
-    public string SmallImageText { get; set; } = "{ActivityLabel} ・ session {SessionElapsed}";
+    public string SmallImageText { get; set; } = "session {SessionElapsed}";
     public PresenceButtonOptions[] Buttons { get; set; } = [];
     public string AnalyzingProjectText { get; set; } = "Analyzing project";
     public string UpdatingFilesText { get; set; } = "Coordinating changes across {n} files";

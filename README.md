@@ -27,7 +27,7 @@ The app is configured for a self-contained `win-x64` single-file publish.
 The presence engine prefers high-confidence labels:
 
 - `Running command`
-- `Updating files`
+- `Coordinating changes across {n} files`
 - `Applying edits`
 - `Analyzing project`
 - `Ready`
@@ -40,7 +40,7 @@ The presence engine prefers high-confidence labels:
 - `Details`: `{ModelName}`
 - `State`: `{ActivityLine}`
 - `LargeImageText`: `{ProjectName} ・ {ProjectSizeText}`
-- `SmallImageText`: `{ActivityLabel} ・ session {SessionElapsed}`
+- `SmallImageText`: `session {SessionElapsed}`
 - Button: `GitHub`
 
 ## Model Detection
