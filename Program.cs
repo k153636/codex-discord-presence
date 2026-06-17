@@ -45,6 +45,8 @@ Console.WriteLine("Press Ctrl+C to stop.");
 await rpc.StartAsync(cts.Token);
 
 ModelNameSnapshot? lastModelSnapshot = null;
+string? lastPresenceDetails = null;
+string? lastPresenceState = null;
 
 while (!cts.IsCancellationRequested)
 {
@@ -79,6 +81,14 @@ while (!cts.IsCancellationRequested)
             tokenSnapshot);
 
         var presence = renderer.Render(options.Presence, context);
+        if (!string.Equals(presence.Details, lastPresenceDetails, StringComparison.Ordinal) ||
+            !string.Equals(presence.State, lastPresenceState, StringComparison.Ordinal))
+        {
+            Console.WriteLine($"Presence rendered: Details={presence.Details}; State={presence.State}");
+            lastPresenceDetails = presence.Details;
+            lastPresenceState = presence.State;
+        }
+
         rpc.Update(presence);
     }
     catch (Exception ex)
