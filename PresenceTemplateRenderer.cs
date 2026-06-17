@@ -29,8 +29,8 @@ public sealed class PresenceTemplateRenderer
                 var fileInfo = new FileInfo(context.Project.RecentFilePath);
                 if (fileInfo.Exists)
                 {
-                    var sessionStart = context.Session.StartedAt;
-                    if (fileInfo.LastWriteTimeUtc >= sessionStart.AddMinutes(-1))
+                    var age = DateTime.UtcNow - fileInfo.LastWriteTimeUtc;
+                    if (age.TotalSeconds <= Math.Max(5, template.EditingFreshnessSeconds))
                     {
                         hasEditedFile = true;
                     }

@@ -61,6 +61,32 @@ public sealed class PresenceTemplateRendererTests
     }
 
     [Fact]
+    public void Render_WithStaleEditedFile_FallsBackToReadyActivity()
+    {
+        var tempFile = Path.Combine(Path.GetTempPath(), "CodexRpcRendererStaleTest.txt");
+        File.WriteAllText(tempFile, "test");
+        File.SetLastWriteTimeUtc(tempFile, DateTime.UtcNow.AddMinutes(-5));
+
+        try
+        {
+            var renderer = new PresenceTemplateRenderer();
+            var template = new PresenceTemplateOptions { State = "{ActivityLine}", EditingFreshnessSeconds = 45 };
+            var context = CreateContext(
+                new CodexProcessSnapshot(true, "codex", false),
+                new ProjectSnapshot("Nexstrap", Path.GetTempPath(), Path.GetFileName(tempFile), tempFile, 128, 42000),
+                new GitSnapshot(true, 2));
+
+            var presence = renderer.Render(template, context);
+
+            Assert.Equal("Ready for next task ・ 2 files changed", presence.State);
+        }
+        finally
+        {
+            File.Delete(tempFile);
+        }
+    }
+
+    [Fact]
     public void Render_EditingFileName_IsRawFileName()
     {
         var tempFile = Path.Combine(Path.GetTempPath(), "CodexRpcRendererRawNameTest.txt");

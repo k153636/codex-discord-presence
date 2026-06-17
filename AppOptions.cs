@@ -139,6 +139,7 @@ public sealed class PresenceTemplateOptions
     public string WaitingActivityText { get; set; } = "Ready for next task";
     public string OfflineText { get; set; } = "Offline";
     public int ThinkingStaleTimeoutMinutes { get; set; } = 10;
+    public int EditingFreshnessSeconds { get; set; } = 45;
 }
 
 public sealed class PresenceButtonOptions
