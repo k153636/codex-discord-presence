@@ -14,7 +14,8 @@ The app is configured for a self-contained `win-x64` single-file publish.
 
 ## Preview
 
-<table>
+<div align="center">
+<table style="margin: 0 auto;">
   <tr>
     <td><img src="Preview/rpc-preview-1.png" width="330" alt="Preview 1"></td>
     <td><img src="Preview/rpc-preview-2.png" width="330" alt="Preview 2"></td>
@@ -24,9 +25,10 @@ The app is configured for a self-contained `win-x64` single-file publish.
     <td><img src="Preview/rpc-preview-4.png" width="330" alt="Preview 4"></td>
   </tr>
   <tr>
-    <td colspan="2" align="center"><img src="Preview/rpc-preview-5.png" width="330" alt="Preview 5"></td>
+    <td colspan="2"><img src="Preview/rpc-preview-5.png" width="330" alt="Preview 5"></td>
   </tr>
 </table>
+</div>
 
 ## What It Shows
 
