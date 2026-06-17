@@ -1,4 +1,4 @@
-# Discord Presence for Codex
+﻿# Discord Presence for Codex
 
 Discord Rich Presence for showing Codex as the active worker instead of the user's current tab or editor state.
 
@@ -11,6 +11,22 @@ Presence text is template-driven through `appsettings.json`, so you can adjust t
 3. Use `stop.cmd` to shut it down.
 
 The app is configured for a self-contained `win-x64` single-file publish.
+
+## Preview
+
+Single-file activity:
+
+![Single-file preview](Preview/rpc-preview-3.png)
+
+![Single-file preview](Preview/rpc-preview-4.png)
+
+![Single-file preview](Preview/rpc-preview-5.png)
+
+Multi-file and command states:
+
+![Multi-file preview](Preview/rpc-preview-1.png)
+
+![Command preview](Preview/rpc-preview-2.png)
 
 ## What It Shows
 
@@ -34,11 +50,13 @@ The presence engine prefers high-confidence labels:
 
 `Planning` and `Refactoring` are still supported, but they are treated as low-confidence labels and only appear when the local evidence is explicit enough.
 
+For quiet idle periods, the app shows `Hold on` for the first 5 minutes, then switches to `Idling`.
+
 ## Default Presence
 
 - `Details`: `{ModelName} working on {ProjectName}`
 - `State`: `{ActivityLine}`
-- `LargeImageText`: `{ProjectName} ・ {ProjectSizeText}`
+- `LargeImageText`: `{ProjectFileCount} files`
 - `SmallImageText`: `session {SessionElapsed}`
 - Button: `GitHub`
 
@@ -87,6 +105,11 @@ Common settings live in `appsettings.json`:
 - `Presence.PlanningText`
 - `Presence.ApplyingEditsText`
 - `Presence.RefactoringText`
+- `Presence.ReadyText`
+- `Presence.ActiveUpdateIntervalSeconds`
+- `Presence.RunningCommandUpdateIntervalSeconds`
+- `Presence.IdleUpdateIntervalSeconds`
+- `Presence.ReadyIdleGraceMinutes`
 
 ## Template Values
 
@@ -97,7 +120,7 @@ These placeholders can be used in `Presence.Details`, `Presence.State`, `Presenc
 - `{CodexProcessName}`
 - `{ProjectName}`
 - `{ProjectPath}`
-- `{ProjectFileCount}`
+- `{ProjectFileCount}` - total included files in the workspace tree
 - `{ProjectLineCount}`
 - `{ProjectSizeText}`
 - `{EditingFileName}`
@@ -131,3 +154,4 @@ The default large image key is:
 - `start.cmd` launches the published exe in the background
 - `stop.cmd` stops the running instance
 - `git diff` and recent file writes are used together to infer active work
+
