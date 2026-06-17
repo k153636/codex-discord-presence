@@ -37,7 +37,7 @@ The presence engine prefers high-confidence labels:
 
 ## Default Presence
 
-- `Details`: `{ModelName}`
+- `Details`: `{ModelName} working on {ProjectName}`
 - `State`: `{ActivityLine}`
 - `LargeImageText`: `{ProjectName} ・ {ProjectSizeText}`
 - `SmallImageText`: `session {SessionElapsed}`

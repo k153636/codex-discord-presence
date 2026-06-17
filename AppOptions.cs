@@ -130,7 +130,7 @@ public sealed class PresenceTemplateOptions
 {
     public bool AutoDetectModelName { get; set; } = true;
     public string ModelName { get; set; } = "Codex";
-    public string Details { get; set; } = "{ModelName}";
+    public string Details { get; set; } = "{ModelName} working on {ProjectName}";
     public string State { get; set; } = "{ActivityLine}";
     public string LargeImageText { get; set; } = "{ProjectName} ・ {ProjectSizeText}";
     public string SmallImageText { get; set; } = "session {SessionElapsed}";
@@ -145,8 +145,8 @@ public sealed class PresenceTemplateOptions
     public string AnalyzingText { get; set; } = "Analyzing project";
     public string ThinkingText { get; set; } = "Analyzing project";
     public string WaitingText { get; set; } = "Ready";
-    public string ReadyActivityText { get; set; } = "Ready for next task";
-    public string WaitingActivityText { get; set; } = "Ready for next task";
+    public string ReadyActivityText { get; set; } = "Ready";
+    public string WaitingActivityText { get; set; } = "Ready";
     public string OfflineText { get; set; } = "Offline";
     public int ThinkingStaleTimeoutMinutes { get; set; } = 10;
     public int EditingFreshnessSeconds { get; set; } = 45;

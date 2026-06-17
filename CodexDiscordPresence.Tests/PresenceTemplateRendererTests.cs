@@ -63,7 +63,7 @@ public sealed class PresenceTemplateRendererTests
 
             var presence = renderer.Render(template, context);
 
-            Assert.Equal("Editing CodexRpcRendererTest.txt", presence.State);
+            Assert.Equal("Applying edits ・ Editing CodexRpcRendererTest.txt", presence.State);
         }
         finally
         {

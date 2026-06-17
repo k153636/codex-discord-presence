@@ -105,7 +105,7 @@ public sealed class PresenceTemplateRenderer
     {
         if (recentEditedFiles.Count == 1)
         {
-            return $"Editing {recentEditedFiles[0].Name}";
+            return $"{stateLabel} ・ Editing {recentEditedFiles[0].Name}";
         }
 
         return stateLabel;
