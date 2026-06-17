@@ -178,7 +178,7 @@ public sealed class PresenceTemplateRendererTests
 
         var presence = renderer.Render(template, context);
 
-        Assert.Equal("Updating files ・ Editing Program.cs + 1 more ・ 2 files changed", presence.State);
+        Assert.Equal("Coordinating changes across 2 files ・ Editing Program.cs + 1 more ・ 2 files changed", presence.State);
     }
 
     [Fact]

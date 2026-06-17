@@ -1,32 +1,46 @@
 # Discord Presence for Codex
 
-Discord Rich Presence for making Codex look like the active worker, not the user's current tab or editor state.
+Discord Rich Presence for showing Codex as the active worker instead of the user's current tab or editor state.
 
-The displayed text is template-driven through `appsettings.json`, so the copy can be changed without code edits.
+Presence text is template-driven through `appsettings.json`, so you can adjust the copy without changing code.
 
-## Setup
+## Quick Start
 
-1. Build with `build.cmd`.
-2. Start with `start.cmd`.
-3. Stop with `stop.cmd`.
-4. Set `Discord:ClientId` only if you want to use a different Discord application.
+1. Run `build.cmd`.
+2. Run `start.cmd`.
+3. Use `stop.cmd` to shut it down.
 
-## What It Detects
+The app is configured for a self-contained `win-x64` single-file publish.
+
+## What It Shows
 
 - Current Codex model when available
 - Project name and project size
-- Recent edited file and multi-file editing bursts
+- Recent edited file name
 - Git changed-file count
 - Session elapsed time
 - Token count and estimated cost placeholders
-- AI activity labels inferred from session logs, file writes, and Git diff behavior
+- Discord buttons
+
+## Activity Labels
+
+The presence engine prefers high-confidence labels:
+
+- `Running command`
+- `Updating files`
+- `Applying edits`
+- `Analyzing project`
+- `Ready`
+- `Offline`
+
+`Planning` and `Refactoring` are still supported, but they are treated as low-confidence labels and only appear when the local evidence is explicit enough.
 
 ## Default Presence
 
-- `Details`: `{ModelName} working on {ProjectName}`
+- `Details`: `{ModelName}`
 - `State`: `{ActivityLine}`
-- `LargeImageText`: `{ProjectSizeText} ・ session {SessionElapsed}`
-- `SmallImageText`: `{Tokens} ・ est. {EstimatedCost}`
+- `LargeImageText`: `{ProjectName} ・ {ProjectSizeText}`
+- `SmallImageText`: `{ActivityLabel} ・ session {SessionElapsed}`
 - Button: `GitHub`
 
 ## Model Detection
@@ -38,37 +52,46 @@ When `Presence.AutoDetectModelName` is enabled, the app resolves `{ModelName}` f
 - `%USERPROFILE%\.codex\config.toml`
 - `Presence.ModelName` as the fallback
 
-The app also logs:
+The app logs these values for debugging:
 
 - Selected UI model
 - Last used session model
 - Final displayed model
 
-## Activity Labels
+## Logging
 
-The current state engine prefers these labels:
+The activity logger includes:
 
-- `Running command`
-- `Updating files`
-- `Applying edits`
-- `Analyzing project`
-- `Ready`
+- the chosen activity label
+- `confidence=high` or `confidence=low`
+- the reason the label was selected
 
-`Planning` and `Refactoring` are still supported, but they are treated as low-confidence labels and only appear when the local evidence is explicit enough.
+That makes it easier to verify why Discord is showing a specific state.
 
-The labels and their surrounding copy stay configurable in `appsettings.json`.
+## Configuration
 
-## Ready-to-Run Build
+Common settings live in `appsettings.json`:
 
-The project is configured for a self-contained `win-x64` single-file publish.
-
-- `build.cmd` publishes the app
-- `start.cmd` launches the published exe in the background
-- `stop.cmd` shuts down the running instance
+- `Discord.ClientId`
+- `Discord.LargeImageKey`
+- `Project.Path`
+- `Project.DisplayName`
+- `Presence.ModelName`
+- `Presence.Details`
+- `Presence.State`
+- `Presence.LargeImageText`
+- `Presence.SmallImageText`
+- `Presence.Buttons`
+- `Presence.AnalyzingProjectText`
+- `Presence.UpdatingFilesText`
+- `Presence.RunningCommandText`
+- `Presence.PlanningText`
+- `Presence.ApplyingEditsText`
+- `Presence.RefactoringText`
 
 ## Template Values
 
-`Presence.Details`, `Presence.State`, `Presence.LargeImageText`, `Presence.SmallImageText`, and button labels/URLs can use these placeholders:
+These placeholders can be used in `Presence.Details`, `Presence.State`, `Presence.LargeImageText`, `Presence.SmallImageText`, and button labels/URLs:
 
 - `{ModelName}`
 - `{CodexStatus}`
@@ -93,3 +116,19 @@ The project is configured for a self-contained `win-x64` single-file publish.
 - `{SessionStartedAt}`
 - `{Tokens}`
 - `{EstimatedCost}`
+
+## Discord App
+
+The default Discord application id is:
+
+`1516846793873424474`
+
+The default large image key is:
+
+`codex_logo`
+
+## Notes
+
+- `start.cmd` launches the published exe in the background
+- `stop.cmd` stops the running instance
+- `git diff` and recent file writes are used together to infer active work

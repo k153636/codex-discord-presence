@@ -130,13 +130,13 @@ public sealed class PresenceTemplateOptions
 {
     public bool AutoDetectModelName { get; set; } = true;
     public string ModelName { get; set; } = "Codex";
-    public string Details { get; set; } = "{ModelName} working on {ProjectName}";
+    public string Details { get; set; } = "{ModelName}";
     public string State { get; set; } = "{ActivityLine}";
-    public string LargeImageText { get; set; } = "{ProjectSizeText} ・ session {SessionElapsed}";
-    public string SmallImageText { get; set; } = "{Tokens} ・ est. {EstimatedCost}";
+    public string LargeImageText { get; set; } = "{ProjectName} ・ {ProjectSizeText}";
+    public string SmallImageText { get; set; } = "{ActivityLabel} ・ session {SessionElapsed}";
     public PresenceButtonOptions[] Buttons { get; set; } = [];
     public string AnalyzingProjectText { get; set; } = "Analyzing project";
-    public string UpdatingFilesText { get; set; } = "Updating files";
+    public string UpdatingFilesText { get; set; } = "Coordinating changes across {n} files";
     public string RunningCommandText { get; set; } = "Running command";
     public string PlanningText { get; set; } = "Planning";
     public string ApplyingEditsText { get; set; } = "Applying edits";

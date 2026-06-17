@@ -28,7 +28,7 @@ public sealed class PresenceTemplateRenderer
         var editingFileName = recentEditedFiles.FirstOrDefault()?.Name ?? "";
         var changedFilesText = FormatChangedFiles(context.Git.ChangedFileCount);
         var projectSizeText = FormatProjectSize(context.Project.ScannedFileCount, context.Project.TotalLineCount);
-        var stateLabel = ResolveStateLabel(template, context.Codex.ActivityKind);
+        var stateLabel = ResolveStateLabel(template, context.Codex.ActivityKind, context.Git.ChangedFileCount);
         var activityLine = BuildActivityLine(context, recentEditedFiles, changedFilesText, stateLabel);
 
         return new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
@@ -96,7 +96,7 @@ public sealed class PresenceTemplateRenderer
             return "";
         }
 
-        var stateLabel = ResolveStateLabel(template, context.Codex.ActivityKind);
+        var stateLabel = ResolveStateLabel(template, context.Codex.ActivityKind, context.Git.ChangedFileCount);
         return BuildEditingActivityLine(stateLabel, recentEditedFiles);
     }
 
@@ -128,9 +128,9 @@ public sealed class PresenceTemplateRenderer
         };
     }
 
-    private static string ResolveStateLabel(PresenceTemplateOptions template, CodexActivityKind activityKind)
+    private static string ResolveStateLabel(PresenceTemplateOptions template, CodexActivityKind activityKind, int changedFileCount)
     {
-        return activityKind switch
+        var label = activityKind switch
         {
             CodexActivityKind.Planning => FirstNonEmpty(template.PlanningText, "Planning"),
             CodexActivityKind.ApplyingEdits => FirstNonEmpty(template.ApplyingEditsText, "Applying edits"),
@@ -142,6 +142,8 @@ public sealed class PresenceTemplateRenderer
             CodexActivityKind.Offline => FirstNonEmpty(template.OfflineText, "Offline"),
             _ => FirstNonEmpty(template.ReadyText, "Ready")
         };
+
+        return label.Replace("{n}", changedFileCount.ToString(CultureInfo.InvariantCulture), StringComparison.Ordinal);
     }
 
     private static string FirstNonEmpty(params string[] values)
