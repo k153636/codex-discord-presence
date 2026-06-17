@@ -24,10 +24,11 @@ The app is configured for a self-contained `win-x64` single-file publish.
     <td><img src="Preview/rpc-preview-3.png" width="330" alt="Preview 3"></td>
     <td><img src="Preview/rpc-preview-4.png" width="330" alt="Preview 4"></td>
   </tr>
-  <tr>
-    <td colspan="2" align="center"><img src="Preview/rpc-preview-5.png" width="330" alt="Preview 5"></td>
-  </tr>
 </table>
+</div>
+
+<div align="center">
+  <img src="Preview/rpc-preview-5.png" width="330" alt="Preview 5">
 </div>
 
 ## What It Shows
