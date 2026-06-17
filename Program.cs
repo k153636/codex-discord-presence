@@ -79,6 +79,7 @@ while (!cts.IsCancellationRequested)
             Console.WriteLine(
                 "Activity detection: " +
                 $"state={codexSnapshot.ActivityKind}, " +
+                $"confidence={codexSnapshot.Confidence}, " +
                 $"provenance={codexSnapshot.ActivityProvenance}, " +
                 $"reason={codexSnapshot.ActivityReason}");
             lastActivitySnapshot = codexSnapshot;

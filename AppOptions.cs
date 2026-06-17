@@ -135,12 +135,15 @@ public sealed class PresenceTemplateOptions
     public string LargeImageText { get; set; } = "{ProjectSizeText} ・ session {SessionElapsed}";
     public string SmallImageText { get; set; } = "{Tokens} ・ est. {EstimatedCost}";
     public PresenceButtonOptions[] Buttons { get; set; } = [];
-    public string AnalyzingText { get; set; } = "Analyzing";
+    public string AnalyzingProjectText { get; set; } = "Analyzing project";
+    public string UpdatingFilesText { get; set; } = "Updating files";
+    public string RunningCommandText { get; set; } = "Running command";
     public string PlanningText { get; set; } = "Planning";
     public string ApplyingEditsText { get; set; } = "Applying edits";
     public string RefactoringText { get; set; } = "Refactoring";
     public string ReadyText { get; set; } = "Ready";
-    public string ThinkingText { get; set; } = "Analyzing";
+    public string AnalyzingText { get; set; } = "Analyzing project";
+    public string ThinkingText { get; set; } = "Analyzing project";
     public string WaitingText { get; set; } = "Ready";
     public string ReadyActivityText { get; set; } = "Ready for next task";
     public string WaitingActivityText { get; set; } = "Ready for next task";

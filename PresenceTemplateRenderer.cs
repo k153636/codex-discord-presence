@@ -29,7 +29,7 @@ public sealed class PresenceTemplateRenderer
         var changedFilesText = FormatChangedFiles(context.Git.ChangedFileCount);
         var projectSizeText = FormatProjectSize(context.Project.ScannedFileCount, context.Project.TotalLineCount);
         var stateLabel = ResolveStateLabel(template, context.Codex.ActivityKind);
-        var activityLine = BuildActivityLine(template, context, recentEditedFiles, changedFilesText, stateLabel);
+        var activityLine = BuildActivityLine(context, recentEditedFiles, changedFilesText, stateLabel);
 
         return new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
         {
@@ -47,6 +47,7 @@ public sealed class PresenceTemplateRenderer
             ["ChangedFilesText"] = changedFilesText,
             ["ActivityLabel"] = stateLabel,
             ["ActivityKind"] = context.Codex.ActivityKind.ToString(),
+            ["ActivityConfidence"] = context.Codex.Confidence.ToString(),
             ["ActivityProvenance"] = context.Codex.ActivityProvenance.ToString(),
             ["ActivityReason"] = context.Codex.ActivityReason,
             ["ActivityLine"] = activityLine,
@@ -62,7 +63,6 @@ public sealed class PresenceTemplateRenderer
     }
 
     private static string BuildActivityLine(
-        PresenceTemplateOptions template,
         PresenceContext context,
         IReadOnlyList<RecentProjectFileSnapshot> recentEditedFiles,
         string changedFilesText,
@@ -70,15 +70,20 @@ public sealed class PresenceTemplateRenderer
     {
         if (!context.Codex.IsRunning)
         {
-            return $"{template.OfflineText} ・ {changedFilesText}";
+            return $"{stateLabel} ・ {changedFilesText}";
+        }
+
+        if (context.Codex.ActivityKind == CodexActivityKind.RunningCommand)
+        {
+            return $"{stateLabel} ・ {changedFilesText}";
         }
 
         if (recentEditedFiles.Count > 0)
         {
-            return $"{BuildEditingActivityLine(template, context.Codex.ActivityKind, recentEditedFiles)} ・ {changedFilesText}";
+            return $"{BuildEditingActivityLine(stateLabel, recentEditedFiles)} ・ {changedFilesText}";
         }
 
-        return $"{BuildIdleActivityLine(template, context, stateLabel)} ・ {changedFilesText}";
+        return $"{BuildIdleActivityLine(context, stateLabel)} ・ {changedFilesText}";
     }
 
     private static string BuildActiveEditedFilesText(
@@ -91,31 +96,23 @@ public sealed class PresenceTemplateRenderer
             return "";
         }
 
-        return BuildEditingActivityLine(template, context.Codex.ActivityKind, recentEditedFiles);
+        var stateLabel = ResolveStateLabel(template, context.Codex.ActivityKind);
+        return BuildEditingActivityLine(stateLabel, recentEditedFiles);
     }
 
     private static string BuildEditingActivityLine(
-        PresenceTemplateOptions template,
-        CodexActivityKind activityKind,
+        string stateLabel,
         IReadOnlyList<RecentProjectFileSnapshot> recentEditedFiles)
     {
         if (recentEditedFiles.Count == 1)
         {
-            return $"Editing {recentEditedFiles[0].Name}";
+            return $"{stateLabel} ・ Editing {recentEditedFiles[0].Name}";
         }
 
-        if (recentEditedFiles.Count <= 3)
-        {
-            return $"Editing {recentEditedFiles[0].Name} + {recentEditedFiles.Count - 1} more";
-        }
-
-        return activityKind == CodexActivityKind.Refactoring
-            ? $"{ResolveStateLabel(template, CodexActivityKind.Refactoring)} across {recentEditedFiles.Count.ToString(CultureInfo.InvariantCulture)} files"
-            : $"Editing {recentEditedFiles[0].Name} + {recentEditedFiles.Count - 1} more";
+        return $"{stateLabel} ・ Editing {recentEditedFiles[0].Name} + {recentEditedFiles.Count - 1} more";
     }
 
     private static string BuildIdleActivityLine(
-        PresenceTemplateOptions template,
         PresenceContext context,
         string stateLabel)
     {
@@ -123,9 +120,11 @@ public sealed class PresenceTemplateRenderer
         {
             CodexActivityKind.Planning => $"{stateLabel} on {context.Project.Name}",
             CodexActivityKind.ApplyingEdits => $"{stateLabel} on {context.Project.Name}",
+            CodexActivityKind.UpdatingFiles => $"{stateLabel} on {context.Project.Name}",
             CodexActivityKind.Refactoring => $"{stateLabel} on {context.Project.Name}",
-            CodexActivityKind.Analyzing => $"{stateLabel} on {context.Project.Name}",
-            _ => FirstNonEmpty(template.ReadyActivityText, template.WaitingActivityText, "Ready for next task"),
+            CodexActivityKind.AnalyzingProject => $"{stateLabel} on {context.Project.Name}",
+            CodexActivityKind.RunningCommand => stateLabel,
+            _ => stateLabel
         };
     }
 
@@ -133,11 +132,13 @@ public sealed class PresenceTemplateRenderer
     {
         return activityKind switch
         {
-            CodexActivityKind.Planning => FirstNonEmpty(template.PlanningText, template.WaitingText, "Planning"),
-            CodexActivityKind.ApplyingEdits => FirstNonEmpty(template.ApplyingEditsText, template.ThinkingText, "Applying edits"),
+            CodexActivityKind.Planning => FirstNonEmpty(template.PlanningText, "Planning"),
+            CodexActivityKind.ApplyingEdits => FirstNonEmpty(template.ApplyingEditsText, "Applying edits"),
+            CodexActivityKind.UpdatingFiles => FirstNonEmpty(template.UpdatingFilesText, "Updating files"),
+            CodexActivityKind.RunningCommand => FirstNonEmpty(template.RunningCommandText, "Running command"),
             CodexActivityKind.Refactoring => FirstNonEmpty(template.RefactoringText, "Refactoring"),
-            CodexActivityKind.Analyzing => FirstNonEmpty(template.AnalyzingText, template.ThinkingText, "Analyzing"),
-            CodexActivityKind.Ready => FirstNonEmpty(template.ReadyText, template.WaitingText, "Ready"),
+            CodexActivityKind.AnalyzingProject => FirstNonEmpty(template.AnalyzingProjectText, template.AnalyzingText, template.ThinkingText, "Analyzing project"),
+            CodexActivityKind.Ready => FirstNonEmpty(template.ReadyText, "Ready"),
             CodexActivityKind.Offline => FirstNonEmpty(template.OfflineText, "Offline"),
             _ => FirstNonEmpty(template.ReadyText, "Ready")
         };

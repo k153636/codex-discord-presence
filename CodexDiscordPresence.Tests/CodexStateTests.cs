@@ -47,6 +47,7 @@ public class CodexStateTests
             Assert.False(snapshot.IsRunning);
             Assert.False(snapshot.IsThinking);
             Assert.Equal(CodexActivityKind.Offline, snapshot.ActivityKind);
+            Assert.Equal(ActivityConfidence.High, snapshot.Confidence);
         }
         finally
         {
@@ -55,7 +56,7 @@ public class CodexStateTests
     }
 
     [Fact]
-    public void Test_2_NoTaskStartedInSession_ReturnsWaiting()
+    public void Test_2_NoTaskStartedInSession_ReturnsReady()
     {
         var tempPath = CreateTempSessionDirectory();
         try
@@ -68,8 +69,10 @@ public class CodexStateTests
             var detector = new CodexProcessDetector(new CodexDetectionOptions { HomePath = tempPath }, new PresenceTemplateOptions());
 
             var isThinking = detector.DetermineIfThinking();
+            var snapshot = detector.GetSnapshot();
 
             Assert.False(isThinking);
+            Assert.Equal(CodexActivityKind.Ready, snapshot.ActivityKind);
         }
         finally
         {
@@ -78,7 +81,7 @@ public class CodexStateTests
     }
 
     [Fact]
-    public void Test_3_LatestSessionHasTaskStarted_ReturnsThinking()
+    public void Test_3_LatestSessionHasTaskStarted_ReturnsAnalyzingProject()
     {
         var tempPath = CreateTempSessionDirectory();
         try
@@ -91,9 +94,11 @@ public class CodexStateTests
 
             var detector = new CodexProcessDetector(new CodexDetectionOptions { HomePath = tempPath }, new PresenceTemplateOptions { ThinkingStaleTimeoutMinutes = 10 });
 
-            var isThinking = detector.DetermineIfThinking();
+            var snapshot = detector.GetSnapshot();
 
-            Assert.True(isThinking);
+            Assert.True(snapshot.IsThinking);
+            Assert.Equal(CodexActivityKind.AnalyzingProject, snapshot.ActivityKind);
+            Assert.Equal(ActivityConfidence.High, snapshot.Confidence);
         }
         finally
         {
@@ -102,7 +107,7 @@ public class CodexStateTests
     }
 
     [Fact]
-    public void Test_4_LatestSessionHasTaskComplete_ReturnsWaiting()
+    public void Test_4_LatestSessionHasTaskComplete_ReturnsReady()
     {
         var tempPath = CreateTempSessionDirectory();
         try
@@ -118,9 +123,10 @@ public class CodexStateTests
 
             var detector = new CodexProcessDetector(new CodexDetectionOptions { HomePath = tempPath }, new PresenceTemplateOptions());
 
-            var isThinking = detector.DetermineIfThinking();
+            var snapshot = detector.GetSnapshot();
 
-            Assert.False(isThinking);
+            Assert.False(snapshot.IsThinking);
+            Assert.Equal(CodexActivityKind.Ready, snapshot.ActivityKind);
         }
         finally
         {
@@ -129,7 +135,7 @@ public class CodexStateTests
     }
 
     [Fact]
-    public void Test_5_TaskStartedStaleTimeout_ReturnsWaiting()
+    public void Test_5_TaskStartedStaleTimeout_ReturnsReady()
     {
         var tempPath = CreateTempSessionDirectory();
         try
@@ -142,9 +148,10 @@ public class CodexStateTests
 
             var detector = new CodexProcessDetector(new CodexDetectionOptions { HomePath = tempPath }, new PresenceTemplateOptions { ThinkingStaleTimeoutMinutes = 10 });
 
-            var isThinking = detector.DetermineIfThinking();
+            var snapshot = detector.GetSnapshot();
 
-            Assert.False(isThinking);
+            Assert.False(snapshot.IsThinking);
+            Assert.Equal(CodexActivityKind.Ready, snapshot.ActivityKind);
         }
         finally
         {
@@ -153,7 +160,7 @@ public class CodexStateTests
     }
 
     [Fact]
-    public void Test_6_NewTaskStartedAfterStale_ReturnsThinking()
+    public void Test_6_NewTaskStartedAfterStale_ReturnsAnalyzingProject()
     {
         var tempPath = CreateTempSessionDirectory();
         try
@@ -168,9 +175,10 @@ public class CodexStateTests
 
             var detector = new CodexProcessDetector(new CodexDetectionOptions { HomePath = tempPath }, new PresenceTemplateOptions { ThinkingStaleTimeoutMinutes = 10 });
 
-            var isThinking = detector.DetermineIfThinking();
+            var snapshot = detector.GetSnapshot();
 
-            Assert.True(isThinking);
+            Assert.True(snapshot.IsThinking);
+            Assert.Equal(CodexActivityKind.AnalyzingProject, snapshot.ActivityKind);
         }
         finally
         {
@@ -203,9 +211,10 @@ public class CodexStateTests
 
             var detector = new CodexProcessDetector(new CodexDetectionOptions { HomePath = tempPath }, new PresenceTemplateOptions());
 
-            var isThinking = detector.DetermineIfThinking(currentProject);
+            var snapshot = detector.GetSnapshot(currentProject);
 
-            Assert.False(isThinking);
+            Assert.False(snapshot.IsThinking);
+            Assert.Equal(CodexActivityKind.Ready, snapshot.ActivityKind);
         }
         finally
         {
@@ -227,9 +236,10 @@ public class CodexStateTests
 
             var detector = new CodexProcessDetector(new CodexDetectionOptions { HomePath = tempPath }, new PresenceTemplateOptions { ThinkingStaleTimeoutMinutes = 10 });
 
-            var isThinking = detector.DetermineIfThinking(Path.Combine(Path.GetTempPath(), "AnyProject"));
+            var snapshot = detector.GetSnapshot(Path.Combine(Path.GetTempPath(), "AnyProject"));
 
-            Assert.True(isThinking);
+            Assert.True(snapshot.IsThinking);
+            Assert.Equal(CodexActivityKind.AnalyzingProject, snapshot.ActivityKind);
         }
         finally
         {
@@ -238,7 +248,7 @@ public class CodexStateTests
     }
 
     [Fact]
-    public void Test_9_PlanModeSession_ReturnsPlanning()
+    public void Test_9_PlanModeSession_ReturnsPlanningLowConfidence()
     {
         var tempPath = CreateTempSessionDirectory();
         try
@@ -259,11 +269,12 @@ public class CodexStateTests
                 200,
                 []);
 
-            var snapshot = detector.GetSnapshot(@"E:\tool\discord-presence-for-codex", projectSnapshot, new GitSnapshot(false, 0));
+            var snapshot = detector.GetSnapshot(@"E:\tool\discord-presence-for-codex", projectSnapshot, new GitSnapshot(false, 0, null));
 
             Assert.True(snapshot.IsRunning);
             Assert.Equal(CodexActivityKind.Planning, snapshot.ActivityKind);
             Assert.True(snapshot.IsThinking);
+            Assert.Equal(ActivityConfidence.Low, snapshot.Confidence);
             Assert.Equal(ActivityProvenance.Observed, snapshot.ActivityProvenance);
         }
         finally
@@ -273,7 +284,7 @@ public class CodexStateTests
     }
 
     [Fact]
-    public void Test_10_MultiFileEdits_ReturnRefactoring()
+    public void Test_10_MultiFileEdits_ReturnUpdatingFiles()
     {
         var tempPath = CreateTempSessionDirectory();
         try
@@ -284,7 +295,7 @@ public class CodexStateTests
                 $"{{\"timestamp\":\"{now:yyyy-MM-ddTHH:mm:ss.fffZ}\",\"type\":\"event_msg\",\"payload\":{{\"type\":\"task_started\",\"turn_id\":\"123\",\"cwd\":\"E:\\\\tool\\\\discord-presence-for-codex\"}}}}"
             });
 
-            var projectRoot = Path.Combine(Path.GetTempPath(), "CodexRefactorProject_" + Guid.NewGuid());
+            var projectRoot = Path.Combine(Path.GetTempPath(), "CodexEditingProject_" + Guid.NewGuid());
             Directory.CreateDirectory(projectRoot);
 
             try
@@ -317,17 +328,80 @@ public class CodexStateTests
                     ]);
 
                 var detector = new CodexProcessDetector(new CodexDetectionOptions { HomePath = tempPath }, new PresenceTemplateOptions { EditingFreshnessSeconds = 120 });
-                var snapshot = detector.GetSnapshot(projectRoot, projectSnapshot, new GitSnapshot(true, 4));
+                var snapshot = detector.GetSnapshot(projectRoot, projectSnapshot, new GitSnapshot(true, 4, null));
 
                 Assert.True(snapshot.IsRunning);
-                Assert.Equal(CodexActivityKind.Refactoring, snapshot.ActivityKind);
+                Assert.Equal(CodexActivityKind.UpdatingFiles, snapshot.ActivityKind);
                 Assert.True(snapshot.IsThinking);
-                Assert.Equal(ActivityProvenance.Observed, snapshot.ActivityProvenance);
+                Assert.Equal(ActivityConfidence.High, snapshot.Confidence);
             }
             finally
             {
                 Directory.Delete(projectRoot, true);
             }
+        }
+        finally
+        {
+            Directory.Delete(tempPath, true);
+        }
+    }
+
+    [Fact]
+    public void Test_11_CommandInSession_ReturnsRunningCommand()
+    {
+        var tempPath = CreateTempSessionDirectory();
+        try
+        {
+            var now = DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ss.fffZ");
+            WriteMockSessionLog(tempPath, "session1.jsonl", new[]
+            {
+                $"{{\"timestamp\":\"{now}\",\"type\":\"response_item\",\"payload\":{{\"type\":\"function_call\",\"name\":\"shell_command\",\"call_id\":\"call_123\"}}}}"
+            });
+
+            var detector = new CodexProcessDetector(new CodexDetectionOptions { HomePath = tempPath }, new PresenceTemplateOptions());
+
+            var snapshot = detector.GetSnapshot();
+
+            Assert.True(snapshot.IsRunning);
+            Assert.Equal(CodexActivityKind.RunningCommand, snapshot.ActivityKind);
+            Assert.Equal(ActivityConfidence.High, snapshot.Confidence);
+        }
+        finally
+        {
+            Directory.Delete(tempPath, true);
+        }
+    }
+
+    [Fact]
+    public void Test_12_CommitMessageWithRefactorHint_ReturnsRefactoringLowConfidence()
+    {
+        var tempPath = CreateTempSessionDirectory();
+        try
+        {
+            var now = DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ss.fffZ");
+            WriteMockSessionLog(tempPath, "session1.jsonl", new[]
+            {
+                $"{{\"timestamp\":\"{now}\",\"type\":\"event_msg\",\"payload\":{{\"type\":\"task_started\",\"turn_id\":\"123\"}}}}"
+            });
+
+            var detector = new CodexProcessDetector(new CodexDetectionOptions { HomePath = tempPath }, new PresenceTemplateOptions { EditingFreshnessSeconds = 120 });
+            var projectSnapshot = new ProjectSnapshot(
+                "discord-presence-for-codex",
+                @"E:\tool\discord-presence-for-codex",
+                "RefactorProgram.cs",
+                @"E:\tool\discord-presence-for-codex\RefactorProgram.cs",
+                12,
+                500,
+                [new RecentProjectFileSnapshot("RefactorProgram.cs", @"E:\tool\discord-presence-for-codex\RefactorProgram.cs", DateTime.UtcNow)]);
+
+            var snapshot = detector.GetSnapshot(
+                @"E:\tool\discord-presence-for-codex",
+                projectSnapshot,
+                new GitSnapshot(true, 1, "refactor: split editor state from transport"));
+
+            Assert.True(snapshot.IsRunning);
+            Assert.Equal(CodexActivityKind.Refactoring, snapshot.ActivityKind);
+            Assert.Equal(ActivityConfidence.Low, snapshot.Confidence);
         }
         finally
         {

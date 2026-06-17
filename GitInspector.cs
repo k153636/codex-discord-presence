@@ -9,10 +9,12 @@ public sealed class GitInspector
         var output = RunGit(projectPath, ["-C", projectPath, "status", "--porcelain=v1"]);
         if (output is null)
         {
-            return new GitSnapshot(false, 0);
+            return new GitSnapshot(false, 0, null);
         }
 
-        return new GitSnapshot(true, CountChangedFiles(output));
+        var latestCommitMessage = RunGit(projectPath, ["-C", projectPath, "log", "-1", "--pretty=%s"])?.Trim();
+
+        return new GitSnapshot(true, CountChangedFiles(output), string.IsNullOrWhiteSpace(latestCommitMessage) ? null : latestCommitMessage);
     }
 
     internal static int CountChangedFiles(string output)

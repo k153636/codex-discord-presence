@@ -48,11 +48,13 @@ The app also logs:
 
 The current state engine prefers these labels:
 
-- `Analyzing`
-- `Planning`
+- `Running command`
+- `Updating files`
 - `Applying edits`
-- `Refactoring`
+- `Analyzing project`
 - `Ready`
+
+`Planning` and `Refactoring` are still supported, but they are treated as low-confidence labels and only appear when the local evidence is explicit enough.
 
 The labels and their surrounding copy stay configurable in `appsettings.json`.
 
@@ -83,6 +85,7 @@ The project is configured for a self-contained `win-x64` single-file publish.
 - `{ChangedFilesText}`
 - `{ActivityLabel}`
 - `{ActivityKind}`
+- `{ActivityConfidence}`
 - `{ActivityProvenance}`
 - `{ActivityReason}`
 - `{ActivityLine}`

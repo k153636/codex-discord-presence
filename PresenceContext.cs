@@ -14,10 +14,18 @@ public enum CodexActivityKind
 {
     Offline = 0,
     Ready = 1,
-    Analyzing = 2,
-    Planning = 3,
-    ApplyingEdits = 4,
-    Refactoring = 5
+    AnalyzingProject = 2,
+    ApplyingEdits = 3,
+    UpdatingFiles = 4,
+    RunningCommand = 5,
+    Planning = 6,
+    Refactoring = 7
+}
+
+public enum ActivityConfidence
+{
+    High = 0,
+    Low = 1
 }
 
 public enum ActivityProvenance
@@ -38,6 +46,7 @@ public static class CodexActivityKindExtensions
 public sealed partial record CodexProcessSnapshot
 {
     public CodexActivityKind? DetectedActivityKind { get; init; }
+    public ActivityConfidence Confidence { get; init; } = ActivityConfidence.High;
     public ActivityProvenance ActivityProvenance { get; init; } = ActivityProvenance.Inferred;
     public string ActivityReason { get; init; } = "";
     public DateTime? LastObservedAt { get; init; }
@@ -45,7 +54,7 @@ public sealed partial record CodexProcessSnapshot
     public CodexActivityKind ActivityKind =>
         DetectedActivityKind ??
         (IsRunning
-            ? (IsThinking ? CodexActivityKind.Analyzing : CodexActivityKind.Ready)
+            ? (IsThinking ? CodexActivityKind.AnalyzingProject : CodexActivityKind.Ready)
             : CodexActivityKind.Offline);
 }
 
@@ -58,7 +67,7 @@ public sealed record ProjectSnapshot(
     long TotalLineCount,
     IReadOnlyList<RecentProjectFileSnapshot> RecentFiles);
 
-public sealed record GitSnapshot(bool IsGitRepository, int ChangedFileCount);
+public sealed record GitSnapshot(bool IsGitRepository, int ChangedFileCount, string? LatestCommitMessage);
 
 public sealed record SessionSnapshot(DateTime StartedAt, TimeSpan Elapsed);
 

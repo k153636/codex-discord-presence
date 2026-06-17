@@ -31,6 +31,7 @@ public sealed class CodexProcessDetector
             {
                 DetectedActivityKind = CodexActivityKind.Offline,
                 ActivityProvenance = ActivityProvenance.Observed,
+                Confidence = ActivityConfidence.High,
                 ActivityReason = "Codex process, window, and recent session activity were not detected."
             };
         }
@@ -41,7 +42,9 @@ public sealed class CodexProcessDetector
             recentEditedFiles,
             changedFileCount,
             sessionInspection,
+            gitSnapshot,
             out var provenance,
+            out var confidence,
             out var reason,
             out var lastObservedAt);
 
@@ -49,6 +52,7 @@ public sealed class CodexProcessDetector
         {
             DetectedActivityKind = activity,
             ActivityProvenance = provenance,
+            Confidence = confidence,
             ActivityReason = reason,
             LastObservedAt = lastObservedAt
         };
@@ -78,68 +82,185 @@ public sealed class CodexProcessDetector
         IReadOnlyList<RecentProjectFileSnapshot> recentEditedFiles,
         int changedFileCount,
         SessionInspection? sessionInspection,
+        GitSnapshot? gitSnapshot,
         out ActivityProvenance provenance,
+        out ActivityConfidence confidence,
         out string reason,
         out DateTime? lastObservedAt)
     {
-        lastObservedAt = sessionInspection?.LastObservedAt ?? recentEditedFiles.FirstOrDefault()?.LastWriteTimeUtc;
+        lastObservedAt = MaxTimestamp(
+            sessionInspection?.LastObservedAt,
+            recentEditedFiles.FirstOrDefault()?.LastWriteTimeUtc);
+
         var hasFreshSession = sessionInspection is not null &&
             sessionInspection.HasRecentActivity(_presenceOptions.ThinkingStaleTimeoutMinutes);
+        var hasRecentEdits = recentEditedFiles.Count > 0;
+        var hasMultipleRecentEdits = recentEditedFiles.Count >= 2 || changedFileCount >= 2;
+        var hasRefactorEvidence = HasRefactorEvidence(recentEditedFiles, sessionInspection, gitSnapshot);
+
+        if (sessionInspection?.HasRunningCommand == true && hasFreshSession)
+        {
+            provenance = ActivityProvenance.Observed;
+            confidence = ActivityConfidence.High;
+            reason = sessionInspection.RunningCommandReason ?? "pending shell_command function call in session log";
+            return CodexActivityKind.RunningCommand;
+        }
+
+        if (hasRefactorEvidence)
+        {
+            provenance = ActivityProvenance.Observed;
+            confidence = ActivityConfidence.Low;
+            reason = BuildRefactorReason(recentEditedFiles, sessionInspection, gitSnapshot);
+            return CodexActivityKind.Refactoring;
+        }
+
+        if (hasRecentEdits)
+        {
+            provenance = ActivityProvenance.Observed;
+            confidence = ActivityConfidence.High;
+            if (hasMultipleRecentEdits)
+            {
+                reason = $"recent edits={recentEditedFiles.Count}, git changed files={changedFileCount}";
+                return CodexActivityKind.UpdatingFiles;
+            }
+
+            reason = $"recent edit={recentEditedFiles[0].Name}, git changed files={changedFileCount}";
+            return CodexActivityKind.ApplyingEdits;
+        }
 
         if (sessionInspection?.CollaborationMode is "plan" && hasFreshSession)
         {
             provenance = ActivityProvenance.Observed;
+            confidence = ActivityConfidence.Low;
             reason = "turn_context collaboration_mode=plan";
             return CodexActivityKind.Planning;
         }
 
-        if (recentEditedFiles.Count >= 4 ||
-            changedFileCount >= 4 ||
-            (recentEditedFiles.Count >= 2 && changedFileCount >= 2))
+        if (sessionInspection?.HasTaskCompleted == true && !sessionInspection.HasTaskStarted)
         {
             provenance = ActivityProvenance.Observed;
-            reason = $"recent edits={recentEditedFiles.Count}, git changed files={changedFileCount}";
-            return CodexActivityKind.Refactoring;
-        }
-
-        if (recentEditedFiles.Count > 0 || changedFileCount > 0)
-        {
-            provenance = ActivityProvenance.Observed;
-            reason = $"recent edits={recentEditedFiles.Count}, git changed files={changedFileCount}";
-            return CodexActivityKind.ApplyingEdits;
-        }
-
-        if (hasFreshSession && sessionInspection?.HasTaskCompleted == true && !sessionInspection.HasTaskStarted)
-        {
-            provenance = ActivityProvenance.Observed;
+            confidence = ActivityConfidence.High;
             reason = "task_complete without task_started";
             return CodexActivityKind.Ready;
         }
 
-        if (hasFreshSession && sessionInspection?.HasTaskCompletedSinceStart == true)
+        if (sessionInspection?.HasTaskCompletedSinceStart == true)
         {
             provenance = ActivityProvenance.Observed;
+            confidence = ActivityConfidence.High;
             reason = "task_complete without file writes";
             return CodexActivityKind.Ready;
         }
 
-        if (hasFreshSession && sessionInspection?.HasTaskStarted == true && !sessionInspection.HasTaskCompletedSinceStart)
+        if (hasFreshSession && sessionInspection?.HasTaskStarted == true)
         {
             provenance = ActivityProvenance.Inferred;
-            reason = "task_started without file writes";
-            return CodexActivityKind.Analyzing;
+            confidence = ActivityConfidence.High;
+            reason = "task_started without recent file writes";
+            return CodexActivityKind.AnalyzingProject;
         }
 
         if (hasFreshSession)
         {
             provenance = ActivityProvenance.Inferred;
+            confidence = ActivityConfidence.High;
             reason = "recent Codex activity without file writes";
-            return CodexActivityKind.Analyzing;
+            return CodexActivityKind.AnalyzingProject;
         }
 
         provenance = ActivityProvenance.Inferred;
+        confidence = ActivityConfidence.High;
         reason = "Codex running but idle";
         return CodexActivityKind.Ready;
+    }
+
+    private static DateTime? MaxTimestamp(params DateTime?[] timestamps)
+    {
+        DateTime? max = null;
+        foreach (var timestamp in timestamps)
+        {
+            if (!timestamp.HasValue)
+            {
+                continue;
+            }
+
+            if (!max.HasValue || timestamp.Value > max.Value)
+            {
+                max = timestamp;
+            }
+        }
+
+        return max;
+    }
+
+    private static string BuildRefactorReason(
+        IReadOnlyList<RecentProjectFileSnapshot> recentEditedFiles,
+        SessionInspection? sessionInspection,
+        GitSnapshot? gitSnapshot)
+    {
+        if (gitSnapshot?.LatestCommitMessage is { Length: > 0 } commitMessage && ContainsAny(commitMessage, RefactorKeywords))
+        {
+            return $"git commit message suggests refactor: {commitMessage}";
+        }
+
+        var recentFile = recentEditedFiles.FirstOrDefault(file =>
+            ContainsAny(file.Name, RefactorKeywords) || ContainsAny(file.Path, RefactorKeywords));
+        if (recentFile is not null)
+        {
+            return $"recent file name suggests refactor: {recentFile.Name}";
+        }
+
+        if (!string.IsNullOrWhiteSpace(sessionInspection?.RefactorEvidenceReason))
+        {
+            return sessionInspection.RefactorEvidenceReason!;
+        }
+
+        return "refactor hint detected in session or git metadata";
+    }
+
+    private static bool HasRefactorEvidence(
+        IReadOnlyList<RecentProjectFileSnapshot> recentEditedFiles,
+        SessionInspection? sessionInspection,
+        GitSnapshot? gitSnapshot)
+    {
+        if (gitSnapshot?.LatestCommitMessage is { Length: > 0 } commitMessage &&
+            ContainsAny(commitMessage, RefactorKeywords))
+        {
+            return true;
+        }
+
+        if (recentEditedFiles.Any(file =>
+                ContainsAny(file.Name, RefactorKeywords) ||
+                ContainsAny(file.Path, RefactorKeywords)))
+        {
+            return true;
+        }
+
+        if (!string.IsNullOrWhiteSpace(sessionInspection?.RefactorEvidenceReason))
+        {
+            return true;
+        }
+
+        return false;
+    }
+
+    private static readonly string[] RefactorKeywords =
+    [
+        "refactor",
+        "refactoring",
+        "restructure",
+        "reorganize",
+        "cleanup",
+        "clean up",
+        "rename",
+        "extract",
+        "split",
+        "migrate"
+    ];
+
+    private static bool ContainsAny(string value, IEnumerable<string> needles)
+    {
+        return needles.Any(needle => value.Contains(needle, StringComparison.OrdinalIgnoreCase));
     }
 
     private SessionInspection? InspectRecentSessions(string? projectPath)
@@ -197,6 +318,10 @@ public sealed class CodexProcessDetector
         DateTime? lastTaskCompletedAt = null;
         DateTime? lastObservedAt = null;
         string? collaborationMode = null;
+        var pendingShellCommands = new HashSet<string>(StringComparer.Ordinal);
+        var completedShellCommands = new HashSet<string>(StringComparer.Ordinal);
+        string? runningCommandReason = null;
+        string? refactorEvidenceReason = null;
 
         try
         {
@@ -266,11 +391,44 @@ public sealed class CodexProcessDetector
                         collaborationMode = mode;
                     }
                 }
+
+                if (payloadType is "function_call" &&
+                    TryGetString(payload, "name", out var functionName) &&
+                    string.Equals(functionName, "shell_command", StringComparison.OrdinalIgnoreCase) &&
+                    TryGetString(payload, "call_id", out var callId))
+                {
+                    pendingShellCommands.Add(callId);
+                }
+
+                if (payloadType is "function_call_output" &&
+                    TryGetString(payload, "call_id", out var outputCallId))
+                {
+                    completedShellCommands.Add(outputCallId);
+                }
+
+                if (refactorEvidenceReason is null && ContainsAny(line, RefactorKeywords))
+                {
+                    refactorEvidenceReason = $"session log hint: {CompactLine(line)}";
+                }
+
+                if (runningCommandReason is null &&
+                    payloadType is "function_call" &&
+                    TryGetString(payload, "name", out var callName) &&
+                    string.Equals(callName, "shell_command", StringComparison.OrdinalIgnoreCase))
+                {
+                    runningCommandReason = "pending shell_command function call in session log";
+                }
             }
         }
         catch
         {
             // Fall through with what we were able to infer.
+        }
+
+        var hasRunningCommand = pendingShellCommands.Except(completedShellCommands).Any();
+        if (hasRunningCommand && runningCommandReason is null)
+        {
+            runningCommandReason = "pending shell_command function call in session log";
         }
 
         return new SessionInspection(
@@ -281,7 +439,16 @@ public sealed class CodexProcessDetector
             lastTaskStartedAt,
             lastTaskCompletedAt,
             lastObservedAt,
-            collaborationMode);
+            collaborationMode,
+            hasRunningCommand,
+            runningCommandReason,
+            refactorEvidenceReason);
+    }
+
+    private static string CompactLine(string line)
+    {
+        var trimmed = line.Trim();
+        return trimmed.Length <= 120 ? trimmed : trimmed[..117] + "...";
     }
 
     private static string? TryGetCollaborationMode(JsonElement payload)
@@ -395,7 +562,10 @@ public sealed class CodexProcessDetector
         DateTime? LastTaskStartedAt,
         DateTime? LastTaskCompletedAt,
         DateTime? LastObservedAt,
-        string? CollaborationMode)
+        string? CollaborationMode,
+        bool HasRunningCommand,
+        string? RunningCommandReason,
+        string? RefactorEvidenceReason)
     {
         public bool HasRecentActivity(int staleTimeoutMinutes)
         {
