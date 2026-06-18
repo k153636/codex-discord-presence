@@ -1,17 +1,18 @@
-using System.Diagnostics;
 namespace CodexDiscordPresence;
 
 public sealed class CodexProcessDetector
 {
     private readonly CodexDetectionOptions _options;
     private readonly PresenceTemplateOptions _presenceOptions;
+    private readonly CodexProcessNameMatcher _processNameMatcher;
     private readonly CodexSessionLogParser _sessionLogParser;
-    private readonly Dictionary<string, DateTime> _lastObservedEditedFiles = new(StringComparer.OrdinalIgnoreCase);
+    private readonly RecentEditedFileTracker _recentEditedFileTracker = new();
 
     public CodexProcessDetector(CodexDetectionOptions options, PresenceTemplateOptions presenceOptions)
     {
         _options = options;
         _presenceOptions = presenceOptions;
+        _processNameMatcher = new CodexProcessNameMatcher(options);
         _sessionLogParser = new CodexSessionLogParser(options);
     }
 
@@ -22,7 +23,7 @@ public sealed class CodexProcessDetector
         CodexActivityKind? previousActivityKind = null)
     {
         var sessionInspection = InspectRecentSessions(projectPath);
-        var matchedProcessName = FindMatchingProcessName();
+        var matchedProcessName = _processNameMatcher.FindMatchingProcessName();
         var isRunning = matchedProcessName is not null ||
             (sessionInspection is not null &&
              sessionInspection.HasRecentActivity(_presenceOptions.ThinkingStaleTimeoutMinutes));
@@ -38,7 +39,7 @@ public sealed class CodexProcessDetector
             };
         }
 
-        var recentEditedFiles = GetRecentEditedFiles(projectSnapshot);
+        var recentEditedFiles = _recentEditedFileTracker.GetRecentEditedFiles(projectSnapshot);
         var changedFileCount = gitSnapshot?.ChangedFileCount ?? 0;
         var activity = DetermineActivity(
             recentEditedFiles,
@@ -66,38 +67,6 @@ public sealed class CodexProcessDetector
     public bool DetermineIfThinking(string? projectPath = null)
     {
         return GetSnapshot(projectPath).IsThinking;
-    }
-
-    private IReadOnlyList<RecentProjectFileSnapshot> GetRecentEditedFiles(ProjectSnapshot? projectSnapshot)
-    {
-        if (projectSnapshot is null)
-        {
-            return Array.Empty<RecentProjectFileSnapshot>();
-        }
-
-        var now = DateTime.UtcNow;
-        var startupWindow = TimeSpan.FromSeconds(5);
-        var changedFiles = new List<RecentProjectFileSnapshot>();
-        foreach (var file in projectSnapshot.RecentFiles.OrderByDescending(file => file.LastWriteTimeUtc))
-        {
-            var normalizedPath = NormalizePath(file.Path);
-            var isVeryRecent = now - file.LastWriteTimeUtc <= startupWindow;
-            if (!_lastObservedEditedFiles.TryGetValue(normalizedPath, out var lastSeen))
-            {
-                if (isVeryRecent)
-                {
-                    changedFiles.Add(file);
-                }
-            }
-            else if (file.LastWriteTimeUtc > lastSeen)
-            {
-                changedFiles.Add(file);
-            }
-
-            _lastObservedEditedFiles[normalizedPath] = file.LastWriteTimeUtc;
-        }
-
-        return changedFiles;
     }
 
     private CodexActivityKind DetermineActivity(
@@ -260,60 +229,8 @@ public sealed class CodexProcessDetector
         return max;
     }
 
-    private static string NormalizePath(string path)
-    {
-        try
-        {
-            return Path.GetFullPath(path)
-                .TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar)
-                .ToUpperInvariant();
-        }
-        catch
-        {
-            return path.Trim().ToUpperInvariant();
-        }
-    }
-
     private SessionInspection? InspectRecentSessions(string? projectPath)
     {
         return _sessionLogParser.InspectRecentSessions(projectPath);
     }
-
-    private string? FindMatchingProcessName()
-    {
-        foreach (var process in Process.GetProcesses())
-        {
-            try
-            {
-                if (Matches(process.ProcessName, _options.ProcessNameContains) ||
-                    Matches(process.MainWindowTitle, _options.WindowTitleContains))
-                {
-                    return process.ProcessName;
-                }
-            }
-            catch
-            {
-                // Some system processes deny metadata access. They are irrelevant for Codex detection.
-            }
-            finally
-            {
-                process.Dispose();
-            }
-        }
-
-        return null;
-    }
-
-    private static bool Matches(string? value, IEnumerable<string> needles)
-    {
-        if (string.IsNullOrWhiteSpace(value))
-        {
-            return false;
-        }
-
-        return needles.Any(needle =>
-            !string.IsNullOrWhiteSpace(needle) &&
-            value.Contains(needle, StringComparison.OrdinalIgnoreCase));
-    }
-
 }
