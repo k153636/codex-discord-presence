@@ -1,4 +1,5 @@
 using DiscordRPC;
+using RpcButton = DiscordRPC.Button;
 
 namespace CodexDiscordPresence;
 
@@ -38,7 +39,7 @@ public sealed class DiscordPresenceClient : IDisposable
         {
             var buttons = presence.Buttons
                 .Where(button => !string.IsNullOrWhiteSpace(button.Label) && !string.IsNullOrWhiteSpace(button.Url))
-                .Select(button => new Button { Label = button.Label, Url = button.Url })
+                .Select(button => new RpcButton { Label = button.Label, Url = button.Url })
                 .Take(2)
                 .ToArray();
 

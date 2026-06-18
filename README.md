@@ -11,6 +11,7 @@ Presence text is template-driven through `appsettings.json`, so you can change t
 3. Run `stop.cmd` to shut it down.
 
 The app is configured as a self-contained `win-x64` single-file publish.
+It runs in the background with a system tray icon, where you can toggle `Enable`, open `appsettings.json`, or `Quit`.
 
 ## Preview
 

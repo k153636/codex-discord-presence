@@ -1,4 +1,4 @@
-using CodexDiscordPresence;
+using System.Windows.Forms;
 
 namespace CodexDiscordPresence;
 
@@ -29,242 +29,43 @@ public static class PresenceApplication
             return 1;
         }
 
+        TrayIconHost? trayHost = null;
         Console.CancelKeyPress += (_, eventArgs) =>
         {
             eventArgs.Cancel = true;
             cts.Cancel();
+            trayHost?.RequestExit();
         };
 
-        var session = new SessionClock();
-        var codexDetector = new CodexProcessDetector(options.Codex, options.Presence);
-        var modelNameProvider = new CodexModelNameProvider(options.Codex, options.Presence);
-        var projectInspector = new ProjectInspector(options.Project);
-        var gitInspector = new GitInspector();
-        var tokenUsageProvider = new TokenUsageProvider(options.Codex, options.TokenUsage);
-        var renderer = new PresenceTemplateRenderer();
-        var rpc = new DiscordPresenceClient(options.Discord);
-        var projectSwitchDetectionInterval = TimeSpan.FromSeconds(3);
+        var runtimeState = new PresenceRuntimeState();
+        var runtime = new PresenceRuntime(options, runtimeState, cts.Token);
+        var runtimeTask = runtime.RunAsync();
 
-        Console.WriteLine("Starting Codex Discord RPC.");
-        var activeProjectPath = projectInspector.ProjectPath;
-        Console.WriteLine($"Project path: {activeProjectPath}");
-        Console.WriteLine("Press Ctrl+C to stop.");
+        var settingsPath = Path.Combine(AppContext.BaseDirectory, "appsettings.json");
+        trayHost = new TrayIconHost(runtimeState, settingsPath, () => cts.Cancel());
+        _ = runtimeTask.ContinueWith(_ => trayHost?.RequestExit(), TaskScheduler.Default);
 
-        await rpc.StartAsync(cts.Token);
+        Console.WriteLine("Codex Discord RPC is running in the background.");
+        Console.WriteLine("Right-click the tray icon for Enable, Edit Discord RPC, and Quit.");
 
-        ModelNameSnapshot? lastModelSnapshot = null;
-        CodexProcessSnapshot? lastActivitySnapshot = null;
-        string? lastPresenceDetails = null;
-        string? lastPresenceState = null;
-        string? stableCostModelName = null;
-        var lastActivityKind = CodexActivityKind.Ready;
-        var lastAnalyzingRepeatCount = 1;
-        DateTime? lastAnalyzingTaskStartedAt = null;
-        DateTime? lastAnalyzingStartedAt = null;
-        DateTime? lastActivityStartedAt = null;
-        string? lastPresenceSignature = null;
-        var lastSuccessfulUpdateUtc = DateTime.MinValue;
-        var keepAliveInterval = TimeSpan.FromSeconds(15);
-        var lastLoggedProjectPath = activeProjectPath;
+        Application.Run(trayHost);
 
-        while (!cts.IsCancellationRequested)
+        cts.Cancel();
+        trayHost.RequestExit();
+
+        try
         {
-            try
-            {
-                var observedProjectPath = codexDetector.GetObservedProjectPath(activeProjectPath);
-                if (!string.IsNullOrWhiteSpace(observedProjectPath))
-                {
-                    activeProjectPath = projectInspector.NormalizeProjectPath(observedProjectPath);
-                }
-
-                if (!string.Equals(activeProjectPath, lastLoggedProjectPath, StringComparison.OrdinalIgnoreCase))
-                {
-                    Console.WriteLine($"Project switched: {lastLoggedProjectPath} -> {activeProjectPath}");
-                    lastLoggedProjectPath = activeProjectPath;
-                    lastModelSnapshot = null;
-                    lastActivitySnapshot = null;
-                    stableCostModelName = null;
-                    lastPresenceSignature = null;
-                    lastPresenceDetails = null;
-                    lastPresenceState = null;
-                    lastAnalyzingRepeatCount = 1;
-                    lastAnalyzingTaskStartedAt = null;
-                    lastAnalyzingStartedAt = null;
-                    lastActivityStartedAt = null;
-                    lastActivityKind = CodexActivityKind.Ready;
-                }
-
-                var projectSnapshot = projectInspector.GetSnapshot(activeProjectPath);
-                var gitSnapshot = gitInspector.GetSnapshot(activeProjectPath);
-                var codexSnapshot = codexDetector.GetSnapshot(activeProjectPath, projectSnapshot, gitSnapshot, lastActivityKind);
-                var analyzingRepeatCount = ActivityRepeatCountTracker.GetAnalyzingRepeatCount(
-                    codexSnapshot.ActivityKind,
-                    lastActivityKind,
-                    codexSnapshot.LastTaskStartedAt,
-                    lastAnalyzingTaskStartedAt,
-                    lastAnalyzingRepeatCount);
-                codexSnapshot = codexSnapshot with { ActivityRepeatCount = analyzingRepeatCount };
-                codexSnapshot = codexSnapshot with
-                {
-                    ActivityStartedAt = ResolveActivityStartedAt(
-                        codexSnapshot.ActivityKind,
-                        lastActivityKind,
-                        lastActivityStartedAt,
-                        lastAnalyzingStartedAt,
-                        codexSnapshot.LastObservedAt,
-                        options.Presence.RunningCommandHoldSeconds)
-                };
-                var modelSnapshot = modelNameProvider.GetSnapshot(activeProjectPath);
-                if (lastModelSnapshot is null ||
-                    !string.Equals(modelSnapshot.SelectedUiModel, lastModelSnapshot.SelectedUiModel, StringComparison.Ordinal) ||
-                    !string.Equals(modelSnapshot.LastUsedSessionModel, lastModelSnapshot.LastUsedSessionModel, StringComparison.Ordinal) ||
-                    !string.Equals(modelSnapshot.FinalDisplayedModel, lastModelSnapshot.FinalDisplayedModel, StringComparison.Ordinal))
-                {
-                    Console.WriteLine(
-                        "Model detection: " +
-                        $"Selected UI model={FormatLogValue(modelSnapshot.SelectedUiModel)}, " +
-                        $"Last used session model={FormatLogValue(modelSnapshot.LastUsedSessionModel)}, " +
-                        $"Final displayed model={FormatLogValue(modelSnapshot.FinalDisplayedModel)} " +
-                        $"(source={modelSnapshot.Source})");
-                    lastModelSnapshot = modelSnapshot;
-                }
-
-                if (stableCostModelName is null &&
-                    !string.IsNullOrWhiteSpace(modelSnapshot.FinalDisplayedModel))
-                {
-                    stableCostModelName = modelSnapshot.FinalDisplayedModel;
-                }
-
-                if (lastActivitySnapshot is null ||
-                    lastActivitySnapshot.ActivityKind != codexSnapshot.ActivityKind ||
-                    lastActivitySnapshot.ActivityProvenance != codexSnapshot.ActivityProvenance ||
-                    !string.Equals(lastActivitySnapshot.ActivityReason, codexSnapshot.ActivityReason, StringComparison.Ordinal))
-                {
-                    Console.WriteLine(
-                        "Activity detection: " +
-                        $"state={codexSnapshot.ActivityKind}, " +
-                        $"confidence={codexSnapshot.Confidence}, " +
-                        $"provenance={codexSnapshot.ActivityProvenance}, " +
-                        $"reason={codexSnapshot.ActivityReason}");
-                    lastActivitySnapshot = codexSnapshot;
-                }
-
-                var context = new PresenceContext(
-                    modelSnapshot.FinalDisplayedModel,
-                    codexSnapshot,
-                    projectSnapshot,
-                    gitSnapshot,
-                    session.GetSnapshot(),
-                    tokenUsageProvider.GetSnapshot(activeProjectPath, stableCostModelName));
-
-                var presence = renderer.Render(options.Presence, context);
-                var presenceSignature = BuildPresenceSignature(presence);
-                var keepAliveDue = PresenceUpdatePolicy.ShouldSendKeepAlive(lastSuccessfulUpdateUtc, DateTime.UtcNow, keepAliveInterval);
-                if (!string.Equals(presence.Details, lastPresenceDetails, StringComparison.Ordinal) ||
-                    !string.Equals(presence.State, lastPresenceState, StringComparison.Ordinal))
-                {
-                    Console.WriteLine(
-                        $"Presence rendered: Details={FormatLogValueForMultiline(presence.Details)}; " +
-                        $"State={FormatLogValueForMultiline(presence.State)}");
-                    lastPresenceDetails = presence.Details;
-                    lastPresenceState = presence.State;
-                }
-
-                if (!string.Equals(presenceSignature, lastPresenceSignature, StringComparison.Ordinal) || keepAliveDue)
-                {
-                    if (rpc.Update(presence))
-                    {
-                        lastPresenceSignature = presenceSignature;
-                        lastSuccessfulUpdateUtc = DateTime.UtcNow;
-                    }
-                }
-
-                lastAnalyzingRepeatCount = analyzingRepeatCount;
-                lastAnalyzingTaskStartedAt = codexSnapshot.ActivityKind == CodexActivityKind.AnalyzingProject
-                    ? codexSnapshot.LastTaskStartedAt
-                    : null;
-                if (codexSnapshot.ActivityKind == CodexActivityKind.AnalyzingProject)
-                {
-                    lastAnalyzingStartedAt = codexSnapshot.ActivityStartedAt;
-                }
-                lastActivityStartedAt = codexSnapshot.ActivityStartedAt;
-                lastActivityKind = codexSnapshot.ActivityKind;
-            }
-            catch (Exception ex)
-            {
-                Console.Error.WriteLine($"Presence update loop failed: {ex.Message}");
-            }
-
-            var delay = PresenceRefreshPolicy.GetNextDelay(options.Presence, lastActivityKind, options.UpdateIntervalSeconds);
-            if (delay > projectSwitchDetectionInterval)
-            {
-                delay = projectSwitchDetectionInterval;
-            }
-
-            await Task.Delay(delay, cts.Token)
-                .ContinueWith(_ => { }, CancellationToken.None);
+            await runtimeTask;
+        }
+        catch (OperationCanceledException)
+        {
+        }
+        catch (Exception ex)
+        {
+            Console.Error.WriteLine($"Presence runtime failed: {ex.Message}");
+            return 1;
         }
 
-        rpc.Clear();
-        Console.WriteLine("Stopped Codex Discord RPC.");
         return 0;
-    }
-
-    private static string FormatLogValue(string? value)
-    {
-        return string.IsNullOrWhiteSpace(value) ? "<none>" : value;
-    }
-
-    private static string FormatLogValueForMultiline(string? value)
-    {
-        return string.IsNullOrWhiteSpace(value)
-            ? "<none>"
-            : value.ReplaceLineEndings("\\n");
-    }
-
-    private static string BuildPresenceSignature(RenderedPresence presence)
-    {
-        var buttons = string.Join(
-            "|",
-            presence.Buttons.Select(button => $"{button.Label}=>{button.Url}"));
-
-        return string.Join(
-            "\u001f",
-            presence.Details,
-            presence.State,
-            presence.LargeImageText,
-            presence.SmallImageText,
-            buttons);
-    }
-
-    private static DateTime? ResolveActivityStartedAt(
-        CodexActivityKind currentActivityKind,
-        CodexActivityKind lastActivityKind,
-        DateTime? lastActivityStartedAt,
-        DateTime? lastAnalyzingStartedAt,
-        DateTime? currentObservedAt,
-        int runningCommandHoldSeconds)
-    {
-        if (!currentActivityKind.IsActive())
-        {
-            return null;
-        }
-
-        if (currentActivityKind == CodexActivityKind.AnalyzingProject &&
-            lastAnalyzingStartedAt.HasValue &&
-            lastActivityKind == CodexActivityKind.RunningCommand &&
-            lastActivityStartedAt.HasValue &&
-            (!currentObservedAt.HasValue ||
-             currentObservedAt.Value - lastActivityStartedAt.Value <= TimeSpan.FromSeconds(Math.Max(1, runningCommandHoldSeconds))))
-        {
-            return lastAnalyzingStartedAt;
-        }
-
-        if (currentActivityKind == lastActivityKind && lastActivityStartedAt.HasValue)
-        {
-            return lastActivityStartedAt;
-        }
-
-        return currentObservedAt ?? DateTime.UtcNow;
     }
 }
