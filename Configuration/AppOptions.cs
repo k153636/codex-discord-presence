@@ -22,7 +22,7 @@ public sealed class AppOptions
 
     public static AppOptions Load(string[] args, AppPaths paths)
     {
-        var cliSettingsPath = Path.Combine(paths.BaseDirectory, "appsettings.cli.json");
+        var cliSettingsPath = Path.Combine(paths.BaseDirectory, SettingsFileNames.Cli);
         var options = LoadMerged(paths.ExecutableSettingsPath, cliSettingsPath, paths.UserSettingsPath);
 
         for (var i = 0; i < args.Length; i++)

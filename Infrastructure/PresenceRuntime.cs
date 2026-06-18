@@ -19,7 +19,7 @@ public sealed class PresenceRuntime
         _paths = paths;
         _timingSettings = RuntimeTimingSettings.From(options);
         _executableSettingsLastWriteTimeUtc = GetSettingsLastWriteTimeUtc(_paths.ExecutableSettingsPath);
-        _cliSettingsLastWriteTimeUtc = GetSettingsLastWriteTimeUtc(Path.Combine(_paths.BaseDirectory, "appsettings.cli.json"));
+        _cliSettingsLastWriteTimeUtc = GetSettingsLastWriteTimeUtc(Path.Combine(_paths.BaseDirectory, SettingsFileNames.Cli));
         _userSettingsLastWriteTimeUtc = GetSettingsLastWriteTimeUtc(_paths.UserSettingsPath);
     }
 
@@ -327,7 +327,7 @@ public sealed class PresenceRuntime
     private void RefreshTimingSettingsIfNeeded()
     {
         var executableLastWriteTimeUtc = GetSettingsLastWriteTimeUtc(_paths.ExecutableSettingsPath);
-        var cliLastWriteTimeUtc = GetSettingsLastWriteTimeUtc(Path.Combine(_paths.BaseDirectory, "appsettings.cli.json"));
+        var cliLastWriteTimeUtc = GetSettingsLastWriteTimeUtc(Path.Combine(_paths.BaseDirectory, SettingsFileNames.Cli));
         var userLastWriteTimeUtc = GetSettingsLastWriteTimeUtc(_paths.UserSettingsPath);
         if (executableLastWriteTimeUtc == _executableSettingsLastWriteTimeUtc &&
             cliLastWriteTimeUtc == _cliSettingsLastWriteTimeUtc &&
@@ -344,7 +344,7 @@ public sealed class PresenceRuntime
         {
             var reloadedOptions = AppOptions.LoadMerged(
                 _paths.ExecutableSettingsPath,
-                Path.Combine(_paths.BaseDirectory, "appsettings.cli.json"),
+                Path.Combine(_paths.BaseDirectory, SettingsFileNames.Cli),
                 _paths.UserSettingsPath);
             var reloadedTiming = RuntimeTimingSettings.From(reloadedOptions);
 
