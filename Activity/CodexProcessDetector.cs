@@ -75,7 +75,8 @@ public sealed class CodexProcessDetector
 
     public string? GetObservedProjectPath(string? projectPath = null)
     {
-        return InspectRecentSessions(projectPath)?.ProjectPath;
+        return _sessionLogParser.GetLatestObservedProjectPath()
+            ?? InspectRecentSessions(projectPath)?.ProjectPath;
     }
 
     public bool DetermineIfThinking(string? projectPath = null)

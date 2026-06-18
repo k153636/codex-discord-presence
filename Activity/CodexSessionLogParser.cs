@@ -56,6 +56,40 @@ internal sealed class CodexSessionLogParser
         }
     }
 
+    public string? GetLatestObservedProjectPath()
+    {
+        var resolvedPath = _options.GetResolvedHomePath();
+        var sessionsPath = Path.Combine(resolvedPath, "sessions");
+        if (!Directory.Exists(sessionsPath))
+        {
+            return null;
+        }
+
+        try
+        {
+            var files = Directory
+                .EnumerateFiles(sessionsPath, "*.jsonl", SearchOption.AllDirectories)
+                .Select(path => new FileInfo(path))
+                .OrderByDescending(file => file.LastWriteTimeUtc)
+                .Take(Math.Max(1, _options.RecentSessionFilesToScan));
+
+            foreach (var file in files)
+            {
+                var inspection = AnalyzeSessionFile(file.FullName, normalizedProjectPath: null);
+                if (!string.IsNullOrWhiteSpace(inspection.ProjectPath))
+                {
+                    return inspection.ProjectPath;
+                }
+            }
+        }
+        catch
+        {
+            return null;
+        }
+
+        return null;
+    }
+
     private SessionInspection AnalyzeSessionFile(string path, string? normalizedProjectPath)
     {
         var hasProjectPath = false;
