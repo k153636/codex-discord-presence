@@ -594,6 +594,42 @@ public class CodexStateTests
     }
 
     [Fact]
+    public void Test_14b_SplitCommitMessage_DoesNotForceRefactoring()
+    {
+        var tempPath = CreateTempSessionDirectory();
+        try
+        {
+            var now = DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ss.fffZ");
+            WriteMockSessionLog(tempPath, "session1.jsonl", new[]
+            {
+                $"{{\"timestamp\":\"{now}\",\"type\":\"event_msg\",\"payload\":{{\"type\":\"task_started\",\"turn_id\":\"123\"}}}}"
+            });
+
+            var detector = new CodexProcessDetector(new CodexDetectionOptions { HomePath = tempPath }, new PresenceTemplateOptions { EditingFreshnessSeconds = 120 });
+            var projectSnapshot = new ProjectSnapshot(
+                "discord-presence-for-codex",
+                @"E:\tool\discord-presence-for-codex",
+                null,
+                null,
+                12,
+                12,
+                500,
+                []);
+
+            var snapshot = detector.GetSnapshot(
+                @"E:\tool\discord-presence-for-codex",
+                projectSnapshot,
+                new GitSnapshot(true, 1, "Split detector process and edit tracking"));
+
+            Assert.NotEqual(CodexActivityKind.Refactoring, snapshot.ActivityKind);
+        }
+        finally
+        {
+            Directory.Delete(tempPath, true);
+        }
+    }
+
+    [Fact]
     public void Test_15_StaleRecentEdit_FallsBackToAnalyzingProject()
     {
         var tempPath = CreateTempSessionDirectory();

@@ -61,11 +61,7 @@ internal static class CodexActivityEvidence
         "restructure",
         "reorganize",
         "cleanup",
-        "clean up",
-        "rename",
-        "extract",
-        "split",
-        "migrate"
+        "clean up"
     ];
 
     private static bool ContainsAny(string value, IEnumerable<string> needles)
