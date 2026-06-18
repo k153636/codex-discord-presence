@@ -6,22 +6,22 @@ namespace CodexDiscordPresence.Tests;
 public sealed class ActivityRepeatCountTrackerTests
 {
     [Fact]
-    public void GetAnalyzingRepeatCount_DoesNotIncreaseWithoutNewObservation()
+    public void GetAnalyzingRepeatCount_DoesNotIncreaseWithoutNewTaskStart()
     {
-        var observedAt = DateTime.UtcNow;
+        var taskStartedAt = DateTime.UtcNow;
 
         var repeatCount = ActivityRepeatCountTracker.GetAnalyzingRepeatCount(
             CodexActivityKind.AnalyzingProject,
             CodexActivityKind.AnalyzingProject,
-            observedAt,
-            observedAt,
+            taskStartedAt,
+            taskStartedAt,
             4);
 
         Assert.Equal(4, repeatCount);
     }
 
     [Fact]
-    public void GetAnalyzingRepeatCount_IncreasesWhenObservationChanges()
+    public void GetAnalyzingRepeatCount_IncreasesWhenTaskStartChanges()
     {
         var repeatCount = ActivityRepeatCountTracker.GetAnalyzingRepeatCount(
             CodexActivityKind.AnalyzingProject,
@@ -34,7 +34,7 @@ public sealed class ActivityRepeatCountTrackerTests
     }
 
     [Fact]
-    public void GetAnalyzingRepeatCount_CapsAtTwo()
+    public void GetAnalyzingRepeatCount_AllowsUnlimitedGrowth()
     {
         var repeatCount = ActivityRepeatCountTracker.GetAnalyzingRepeatCount(
             CodexActivityKind.AnalyzingProject,
@@ -43,7 +43,7 @@ public sealed class ActivityRepeatCountTrackerTests
             DateTime.UtcNow.AddSeconds(-3),
             18);
 
-        Assert.Equal(2, repeatCount);
+        Assert.Equal(19, repeatCount);
     }
 
     [Fact]
@@ -57,5 +57,31 @@ public sealed class ActivityRepeatCountTrackerTests
             4);
 
         Assert.Equal(1, repeatCount);
+    }
+
+    [Fact]
+    public void GetAnalyzingRepeatCount_DoesNotIncreaseWithoutTaskStartEvidence()
+    {
+        var repeatCount = ActivityRepeatCountTracker.GetAnalyzingRepeatCount(
+            CodexActivityKind.AnalyzingProject,
+            CodexActivityKind.AnalyzingProject,
+            null,
+            DateTime.UtcNow.AddSeconds(-3),
+            4);
+
+        Assert.Equal(4, repeatCount);
+    }
+
+    [Fact]
+    public void GetAnalyzingRepeatCount_IncreasesWhenTaskStartAppearsAfterUnknownState()
+    {
+        var repeatCount = ActivityRepeatCountTracker.GetAnalyzingRepeatCount(
+            CodexActivityKind.AnalyzingProject,
+            CodexActivityKind.AnalyzingProject,
+            DateTime.UtcNow,
+            null,
+            4);
+
+        Assert.Equal(5, repeatCount);
     }
 }

@@ -5,8 +5,8 @@ internal static class ActivityRepeatCountTracker
     public static int GetAnalyzingRepeatCount(
         CodexActivityKind currentActivityKind,
         CodexActivityKind lastActivityKind,
-        DateTime? currentObservedAt,
-        DateTime? lastAnalyzingObservedAt,
+        DateTime? currentTaskStartedAt,
+        DateTime? lastAnalyzingTaskStartedAt,
         int lastAnalyzingRepeatCount)
     {
         if (currentActivityKind != CodexActivityKind.AnalyzingProject)
@@ -19,16 +19,21 @@ internal static class ActivityRepeatCountTracker
             return 1;
         }
 
-        if (!currentObservedAt.HasValue || !lastAnalyzingObservedAt.HasValue)
+        if (!currentTaskStartedAt.HasValue)
         {
             return lastAnalyzingRepeatCount;
         }
 
-        if (currentObservedAt.Value == lastAnalyzingObservedAt.Value)
+        if (!lastAnalyzingTaskStartedAt.HasValue)
+        {
+            return lastAnalyzingRepeatCount + 1;
+        }
+
+        if (currentTaskStartedAt.Value <= lastAnalyzingTaskStartedAt.Value)
         {
             return lastAnalyzingRepeatCount;
         }
 
-        return Math.Min(lastAnalyzingRepeatCount + 1, 2);
+        return lastAnalyzingRepeatCount + 1;
     }
 }

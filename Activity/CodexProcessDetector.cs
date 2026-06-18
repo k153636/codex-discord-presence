@@ -66,6 +66,7 @@ public sealed class CodexProcessDetector
             Confidence = confidence,
             ActivityReason = reason,
             CollaborationMode = sessionInspection?.CollaborationMode,
+            LastTaskStartedAt = sessionInspection?.LastTaskStartedAt,
             LastObservedAt = lastObservedAt,
             RecentEditedFiles = recentEditedFiles
         };

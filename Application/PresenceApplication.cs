@@ -57,7 +57,8 @@ public static class PresenceApplication
         string? stableCostModelName = null;
         var lastActivityKind = CodexActivityKind.Ready;
         var lastAnalyzingRepeatCount = 1;
-        DateTime? lastAnalyzingObservedAt = null;
+        DateTime? lastAnalyzingTaskStartedAt = null;
+        DateTime? lastAnalyzingStartedAt = null;
         DateTime? lastActivityStartedAt = null;
         string? lastPresenceSignature = null;
         var lastSuccessfulUpdateUtc = DateTime.MinValue;
@@ -73,8 +74,8 @@ public static class PresenceApplication
                 var analyzingRepeatCount = ActivityRepeatCountTracker.GetAnalyzingRepeatCount(
                     codexSnapshot.ActivityKind,
                     lastActivityKind,
-                    codexSnapshot.LastObservedAt,
-                    lastAnalyzingObservedAt,
+                    codexSnapshot.LastTaskStartedAt,
+                    lastAnalyzingTaskStartedAt,
                     lastAnalyzingRepeatCount);
                 codexSnapshot = codexSnapshot with { ActivityRepeatCount = analyzingRepeatCount };
                 codexSnapshot = codexSnapshot with
@@ -83,7 +84,9 @@ public static class PresenceApplication
                         codexSnapshot.ActivityKind,
                         lastActivityKind,
                         lastActivityStartedAt,
-                        codexSnapshot.LastObservedAt)
+                        lastAnalyzingStartedAt,
+                        codexSnapshot.LastObservedAt,
+                        options.Presence.RunningCommandHoldSeconds)
                 };
                 var modelSnapshot = modelNameProvider.GetSnapshot(projectInspector.ProjectPath);
                 if (lastModelSnapshot is null ||
@@ -151,9 +154,13 @@ public static class PresenceApplication
                 }
 
                 lastAnalyzingRepeatCount = analyzingRepeatCount;
-                lastAnalyzingObservedAt = codexSnapshot.ActivityKind == CodexActivityKind.AnalyzingProject
-                    ? codexSnapshot.LastObservedAt
+                lastAnalyzingTaskStartedAt = codexSnapshot.ActivityKind == CodexActivityKind.AnalyzingProject
+                    ? codexSnapshot.LastTaskStartedAt
                     : null;
+                if (codexSnapshot.ActivityKind == CodexActivityKind.AnalyzingProject)
+                {
+                    lastAnalyzingStartedAt = codexSnapshot.ActivityStartedAt;
+                }
                 lastActivityStartedAt = codexSnapshot.ActivityStartedAt;
                 lastActivityKind = codexSnapshot.ActivityKind;
             }
@@ -204,11 +211,23 @@ public static class PresenceApplication
         CodexActivityKind currentActivityKind,
         CodexActivityKind lastActivityKind,
         DateTime? lastActivityStartedAt,
-        DateTime? currentObservedAt)
+        DateTime? lastAnalyzingStartedAt,
+        DateTime? currentObservedAt,
+        int runningCommandHoldSeconds)
     {
         if (!currentActivityKind.IsActive())
         {
             return null;
+        }
+
+        if (currentActivityKind == CodexActivityKind.AnalyzingProject &&
+            lastAnalyzingStartedAt.HasValue &&
+            lastActivityKind == CodexActivityKind.RunningCommand &&
+            lastActivityStartedAt.HasValue &&
+            (!currentObservedAt.HasValue ||
+             currentObservedAt.Value - lastActivityStartedAt.Value <= TimeSpan.FromSeconds(Math.Max(1, runningCommandHoldSeconds))))
+        {
+            return lastAnalyzingStartedAt;
         }
 
         if (currentActivityKind == lastActivityKind && lastActivityStartedAt.HasValue)
