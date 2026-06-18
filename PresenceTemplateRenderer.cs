@@ -30,7 +30,7 @@ public sealed class PresenceTemplateRenderer
         var editingFileLabel = BuildEditingFileLabel(context, editingFileName);
         var changedFilesText = FormatChangedFiles(context.Git.ChangedFileCount);
         var projectSizeText = FormatProjectSize(context.Project.TotalFileCount, context.Project.TotalLineCount);
-        var goalModePrefix = FormatGoalModePrefix(context.Codex.CollaborationMode);
+        var goalModePrefix = FormatGoalModePrefix(context);
         var stateLabel = ResolveStateLabel(template, context, context.Codex.ActivityKind, context.Git.ChangedFileCount);
         if (context.Codex.ActivityKind == CodexActivityKind.AnalyzingProject &&
             context.Codex.ActivityRepeatCount > 1)
@@ -229,8 +229,9 @@ public sealed class PresenceTemplateRenderer
         return $"{files} \u2022 {lines}";
     }
 
-    private static string FormatGoalModePrefix(string? collaborationMode)
+    private static string FormatGoalModePrefix(PresenceContext context)
     {
+        var collaborationMode = context.Codex.CollaborationMode;
         if (string.IsNullOrWhiteSpace(collaborationMode))
         {
             return "";
@@ -238,10 +239,22 @@ public sealed class PresenceTemplateRenderer
 
         return collaborationMode.Trim().ToLowerInvariant() switch
         {
+            "plan" when IsImplementationActivity(context.Codex.ActivityKind) => "Code mode:",
             "plan" => "Plan mode:",
+            "goal" when IsImplementationActivity(context.Codex.ActivityKind) => "Code mode:",
             "goal" => "Goal mode:",
             _ => ""
         };
+    }
+
+    private static bool IsImplementationActivity(CodexActivityKind activityKind)
+    {
+        return activityKind is CodexActivityKind.ApplyingEdits
+            or CodexActivityKind.UpdatingFiles
+            or CodexActivityKind.CreatingFiles
+            or CodexActivityKind.DeletingFiles
+            or CodexActivityKind.RunningCommand
+            or CodexActivityKind.Refactoring;
     }
 }
 
