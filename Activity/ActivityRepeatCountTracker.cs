@@ -29,6 +29,6 @@ internal static class ActivityRepeatCountTracker
             return lastAnalyzingRepeatCount;
         }
 
-        return lastAnalyzingRepeatCount + 1;
+        return Math.Min(lastAnalyzingRepeatCount + 1, 2);
     }
 }

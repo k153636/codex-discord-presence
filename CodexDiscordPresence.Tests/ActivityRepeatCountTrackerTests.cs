@@ -28,9 +28,22 @@ public sealed class ActivityRepeatCountTrackerTests
             CodexActivityKind.AnalyzingProject,
             DateTime.UtcNow,
             DateTime.UtcNow.AddSeconds(-3),
-            4);
+            1);
 
-        Assert.Equal(5, repeatCount);
+        Assert.Equal(2, repeatCount);
+    }
+
+    [Fact]
+    public void GetAnalyzingRepeatCount_CapsAtTwo()
+    {
+        var repeatCount = ActivityRepeatCountTracker.GetAnalyzingRepeatCount(
+            CodexActivityKind.AnalyzingProject,
+            CodexActivityKind.AnalyzingProject,
+            DateTime.UtcNow,
+            DateTime.UtcNow.AddSeconds(-3),
+            18);
+
+        Assert.Equal(2, repeatCount);
     }
 
     [Fact]
