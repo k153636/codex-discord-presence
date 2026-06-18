@@ -6,7 +6,7 @@ public static class PresenceApplication
 {
     public static async Task<int> RunAsync(string[] args)
     {
-        var profile = IsCliProfileRequested(args) ? AppProfileKind.CodexCli : AppProfileKind.Codex;
+        var profile = AppOptions.ResolveProfile(args);
 
         if (args.Any(arg => string.Equals(arg, "--stop", StringComparison.OrdinalIgnoreCase)))
         {
@@ -105,27 +105,6 @@ public static class PresenceApplication
         }
 
         return 0;
-    }
-
-    private static bool IsCliProfileRequested(IEnumerable<string> args)
-    {
-        var argList = args as string[] ?? args.ToArray();
-        for (var i = 0; i < argList.Length; i++)
-        {
-            if (string.Equals(argList[i], "--cli", StringComparison.OrdinalIgnoreCase))
-            {
-                return true;
-            }
-
-            if (string.Equals(argList[i], "--profile", StringComparison.OrdinalIgnoreCase) &&
-                i + 1 < argList.Length &&
-                string.Equals(argList[i + 1], "cli", StringComparison.OrdinalIgnoreCase))
-            {
-                return true;
-            }
-        }
-
-        return false;
     }
 
     private static bool IsMissingDiscordClientId(string? clientId)

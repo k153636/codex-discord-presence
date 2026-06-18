@@ -24,11 +24,12 @@ public sealed class PresenceRuntime
     public async Task RunAsync()
     {
         var session = new SessionClock();
-        var codexDetector = new CodexProcessDetector(_options.Codex, _options.Presence);
-        var modelNameProvider = new CodexModelNameProvider(_options.Codex, _options.Presence);
+        var codexOptions = _options.GetCodexDetectionOptions(_paths.Profile);
+        var codexDetector = new CodexProcessDetector(codexOptions, _options.Presence);
+        var modelNameProvider = new CodexModelNameProvider(codexOptions, _options.Presence);
         var projectInspector = new ProjectInspector(_options.Project);
         var gitInspector = new GitInspector();
-        var tokenUsageProvider = new TokenUsageProvider(_options.Codex, _options.TokenUsage);
+        var tokenUsageProvider = new TokenUsageProvider(codexOptions, _options.TokenUsage);
         var renderer = new PresenceTemplateRenderer();
         var rpc = new DiscordPresenceClient(_options.Discord);
         var projectSwitchDetectionInterval = TimeSpan.FromSeconds(3);

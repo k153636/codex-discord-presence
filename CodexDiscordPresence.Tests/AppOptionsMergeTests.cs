@@ -79,6 +79,9 @@ public sealed class AppOptionsMergeTests
   "Discord": {
     "ClientId": "cli-client"
   },
+  "CodexCli": {
+    "ProcessNameContains": [ "codex-cli" ]
+  },
   "Presence": {
     "Details": "Test"
   }
@@ -107,6 +110,10 @@ public sealed class AppOptionsMergeTests
             Assert.Equal("cli-client", options.Discord.ClientId);
             Assert.Equal("Test", options.Presence.Details);
             Assert.Equal(4, options.UpdateIntervalSeconds);
+            Assert.NotNull(options.CodexCli);
+            Assert.Contains("codex-cli", options.CodexCli!.ProcessNameContains);
+            Assert.Contains("codex", options.Codex.ProcessNameContains);
+            Assert.Same(options.CodexCli, options.GetCodexDetectionOptions(AppProfileKind.CodexCli));
         }
         finally
         {
