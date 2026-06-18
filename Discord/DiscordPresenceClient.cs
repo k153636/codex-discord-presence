@@ -8,6 +8,7 @@ public sealed class DiscordPresenceClient : IDisposable
     private readonly DiscordOptions _options;
     private DiscordRpcClient? _client;
     private bool _isReady;
+    private bool _needsPresenceRefresh = true;
     private DateTime _nextInitializeAttemptUtc = DateTime.MinValue;
     private int _failedInitializeAttempts;
 
@@ -21,6 +22,8 @@ public sealed class DiscordPresenceClient : IDisposable
         TryInitialize(logSuccess: true);
         return Task.CompletedTask;
     }
+
+    public bool NeedsPresenceRefresh => _needsPresenceRefresh;
 
     public bool Update(RenderedPresence presence)
     {
@@ -57,11 +60,14 @@ public sealed class DiscordPresenceClient : IDisposable
                 Buttons = buttons.Length == 0 ? null : buttons,
                 Timestamps = presence.StartedAt is null ? null : new Timestamps(presence.StartedAt.Value)
             });
+            _needsPresenceRefresh = false;
             return true;
         }
         catch (Exception ex)
         {
             _isReady = false;
+            ResetClient();
+            _needsPresenceRefresh = true;
             _failedInitializeAttempts = Math.Min(_failedInitializeAttempts + 1, int.MaxValue);
             var delay = DiscordReconnectBackoff.GetDelay(_failedInitializeAttempts);
             Console.Error.WriteLine($"Discord RPC update failed: {ex.Message}. Reconnecting in {delay.TotalSeconds:0}s.");
@@ -79,6 +85,10 @@ public sealed class DiscordPresenceClient : IDisposable
         catch (Exception ex)
         {
             Console.Error.WriteLine($"Discord RPC clear failed: {ex.Message}");
+        }
+        finally
+        {
+            _needsPresenceRefresh = true;
         }
     }
 
@@ -101,25 +111,33 @@ public sealed class DiscordPresenceClient : IDisposable
     {
         try
         {
-            _client?.Dispose();
+            ResetClient();
             _client = new DiscordRpcClient(_options.ClientId);
             _isReady = _client.Initialize();
 
-            if (_isReady && logSuccess)
+            if (_isReady)
             {
-                Console.WriteLine("Discord RPC initialized.");
                 _failedInitializeAttempts = 0;
+                _needsPresenceRefresh = true;
+                if (logSuccess)
+                {
+                    Console.WriteLine("Discord RPC initialized.");
+                }
             }
             else if (!_isReady)
             {
+                ResetClient();
                 _failedInitializeAttempts = Math.Min(_failedInitializeAttempts + 1, int.MaxValue);
                 var delay = DiscordReconnectBackoff.GetDelay(_failedInitializeAttempts);
                 Console.Error.WriteLine($"Discord RPC is not ready. Reconnecting in {delay.TotalSeconds:0}s.");
+                _needsPresenceRefresh = true;
             }
         }
         catch (Exception ex)
         {
             _isReady = false;
+            ResetClient();
+            _needsPresenceRefresh = true;
             _failedInitializeAttempts = Math.Min(_failedInitializeAttempts + 1, int.MaxValue);
             var delay = DiscordReconnectBackoff.GetDelay(_failedInitializeAttempts);
             Console.Error.WriteLine($"Discord RPC initialization failed: {ex.Message}. Reconnecting in {delay.TotalSeconds:0}s.");
@@ -129,5 +147,11 @@ public sealed class DiscordPresenceClient : IDisposable
             ? DateTime.MinValue
             : DateTime.UtcNow.Add(DiscordReconnectBackoff.GetDelay(_failedInitializeAttempts));
         return _isReady;
+    }
+
+    private void ResetClient()
+    {
+        _client?.Dispose();
+        _client = null;
     }
 }

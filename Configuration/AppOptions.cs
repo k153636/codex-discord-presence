@@ -13,10 +13,7 @@ public sealed class AppOptions
 
     public static AppOptions Load(string[] args)
     {
-        var path = "appsettings.json";
-        var options = File.Exists(path)
-            ? JsonSerializer.Deserialize<AppOptions>(File.ReadAllText(path), JsonOptions()) ?? new AppOptions()
-            : new AppOptions();
+        var options = LoadFromFile("appsettings.json");
 
         for (var i = 0; i < args.Length; i++)
         {
@@ -38,6 +35,13 @@ public sealed class AppOptions
         }
 
         return options;
+    }
+
+    public static AppOptions LoadFromFile(string path)
+    {
+        return File.Exists(path)
+            ? JsonSerializer.Deserialize<AppOptions>(File.ReadAllText(path), JsonOptions()) ?? new AppOptions()
+            : new AppOptions();
     }
 
     private static JsonSerializerOptions JsonOptions() => new()

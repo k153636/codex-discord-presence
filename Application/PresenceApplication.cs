@@ -40,10 +40,11 @@ public static class PresenceApplication
         var stateStore = new PresenceStateStore();
         var statePath = PresenceStateStore.GetDefaultPath();
         var runtimeState = stateStore.Load(statePath);
-        var runtime = new PresenceRuntime(options, runtimeState, cts.Token);
+        var projectRoot = Path.GetFullPath(Environment.ExpandEnvironmentVariables(options.Project.Path));
+        var settingsPath = Path.Combine(projectRoot, "appsettings.json");
+        var runtime = new PresenceRuntime(options, runtimeState, cts.Token, settingsPath);
         var runtimeTask = runtime.RunAsync();
 
-        var settingsPath = Path.Combine(AppContext.BaseDirectory, "appsettings.json");
         trayHost = new TrayIconHost(runtimeState, stateStore, statePath, settingsPath, () => cts.Cancel());
         _ = runtimeTask.ContinueWith(_ => trayHost?.RequestExit(), TaskScheduler.Default);
 

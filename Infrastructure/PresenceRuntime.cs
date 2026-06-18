@@ -5,12 +5,18 @@ public sealed class PresenceRuntime
     private readonly AppOptions _options;
     private readonly PresenceRuntimeState _state;
     private readonly CancellationToken _cancellationToken;
+    private readonly string _settingsPath;
+    private RuntimeTimingSettings _timingSettings;
+    private DateTime _settingsLastWriteTimeUtc;
 
-    public PresenceRuntime(AppOptions options, PresenceRuntimeState state, CancellationToken cancellationToken)
+    public PresenceRuntime(AppOptions options, PresenceRuntimeState state, CancellationToken cancellationToken, string settingsPath)
     {
         _options = options;
         _state = state;
         _cancellationToken = cancellationToken;
+        _settingsPath = settingsPath;
+        _timingSettings = RuntimeTimingSettings.From(options);
+        _settingsLastWriteTimeUtc = GetSettingsLastWriteTimeUtc();
     }
 
     public async Task RunAsync()
@@ -52,6 +58,8 @@ public sealed class PresenceRuntime
         {
             try
             {
+                RefreshTimingSettingsIfNeeded();
+
                 if (!_state.Enabled)
                 {
                     if (!wasDisabled)
@@ -171,6 +179,11 @@ public sealed class PresenceRuntime
                 var presence = renderer.Render(_options.Presence, context);
                 var presenceSignature = BuildPresenceSignature(presence);
                 var keepAliveDue = PresenceUpdatePolicy.ShouldSendKeepAlive(lastSuccessfulUpdateUtc, DateTime.UtcNow, keepAliveInterval);
+                var shouldSendPresence = PresenceDispatchPolicy.ShouldSendPresence(
+                    presenceSignature,
+                    lastPresenceSignature,
+                    keepAliveDue,
+                    rpc.NeedsPresenceRefresh);
                 if (!string.Equals(presence.Details, lastPresenceDetails, StringComparison.Ordinal) ||
                     !string.Equals(presence.State, lastPresenceState, StringComparison.Ordinal))
                 {
@@ -181,7 +194,7 @@ public sealed class PresenceRuntime
                     lastPresenceState = presence.State;
                 }
 
-                if (!string.Equals(presenceSignature, lastPresenceSignature, StringComparison.Ordinal) || keepAliveDue)
+                if (shouldSendPresence)
                 {
                     if (rpc.Update(presence))
                     {
@@ -290,5 +303,53 @@ public sealed class PresenceRuntime
         }
 
         return currentObservedAt ?? DateTime.UtcNow;
+    }
+
+    private void RefreshTimingSettingsIfNeeded()
+    {
+        var lastWriteTimeUtc = GetSettingsLastWriteTimeUtc();
+        if (lastWriteTimeUtc == _settingsLastWriteTimeUtc)
+        {
+            return;
+        }
+
+        _settingsLastWriteTimeUtc = lastWriteTimeUtc;
+
+        try
+        {
+            var reloadedOptions = AppOptions.LoadFromFile(_settingsPath);
+            var reloadedTiming = RuntimeTimingSettings.From(reloadedOptions);
+
+            if (!reloadedTiming.Equals(_timingSettings))
+            {
+                _timingSettings = reloadedTiming;
+                _timingSettings.ApplyTo(_options);
+                Console.WriteLine(
+                    "Timing settings reloaded: " +
+                    $"UpdateIntervalSeconds={_options.UpdateIntervalSeconds}, " +
+                    $"ActiveUpdateIntervalSeconds={_options.Presence.ActiveUpdateIntervalSeconds}, " +
+                    $"RunningCommandUpdateIntervalSeconds={_options.Presence.RunningCommandUpdateIntervalSeconds}, " +
+                    $"RunningCommandUpdateIntervalMilliseconds={_options.Presence.RunningCommandUpdateIntervalMilliseconds}, " +
+                    $"IdleUpdateIntervalSeconds={_options.Presence.IdleUpdateIntervalSeconds}");
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.Error.WriteLine($"Failed to reload timing settings: {ex.Message}");
+        }
+    }
+
+    private DateTime GetSettingsLastWriteTimeUtc()
+    {
+        try
+        {
+            return File.Exists(_settingsPath)
+                ? File.GetLastWriteTimeUtc(_settingsPath)
+                : DateTime.MinValue;
+        }
+        catch
+        {
+            return DateTime.MinValue;
+        }
     }
 }
