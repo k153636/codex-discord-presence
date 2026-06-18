@@ -30,8 +30,7 @@ public sealed class PresenceTemplateRenderer
         var editingFileLabel = BuildEditingFileLabel(context, editingFileName);
         var changedFilesText = FormatChangedFiles(context.Git.ChangedFileCount);
         var projectSizeText = FormatProjectSize(context.Project.TotalFileCount, context.Project.TotalLineCount);
-        var goalModeText = FormatGoalMode(context.Codex.CollaborationMode);
-        var goalModeSuffix = string.IsNullOrWhiteSpace(goalModeText) ? "" : $" • Goal mode: {goalModeText}";
+        var goalModePrefix = FormatGoalModePrefix(context.Codex.CollaborationMode);
         var stateLabel = ResolveStateLabel(template, context, context.Codex.ActivityKind, context.Git.ChangedFileCount);
         if (context.Codex.ActivityKind == CodexActivityKind.AnalyzingProject &&
             context.Codex.ActivityRepeatCount > 1)
@@ -48,8 +47,7 @@ public sealed class PresenceTemplateRenderer
             ["CodexProcessName"] = context.Codex.ProcessName ?? "",
             ["ProjectName"] = context.Project.Name,
             ["ProjectPath"] = context.Project.Path,
-            ["GoalMode"] = goalModeText,
-            ["GoalModeSuffix"] = goalModeSuffix,
+            ["GoalModePrefix"] = goalModePrefix,
             ["EditingFileName"] = editingFileName,
             ["EditingFileLabel"] = editingFileLabel,
             ["EditingFilePath"] = context.Project.RecentFilePath ?? "",
@@ -231,7 +229,7 @@ public sealed class PresenceTemplateRenderer
         return $"{files} \u2022 {lines}";
     }
 
-    private static string FormatGoalMode(string? collaborationMode)
+    private static string FormatGoalModePrefix(string? collaborationMode)
     {
         if (string.IsNullOrWhiteSpace(collaborationMode))
         {
@@ -240,9 +238,9 @@ public sealed class PresenceTemplateRenderer
 
         return collaborationMode.Trim() switch
         {
-            "plan" => "Plan",
-            "goal" => "Goal",
-            var value => char.ToUpperInvariant(value[0]) + value[1..]
+            "plan" => "Plan mode:",
+            "goal" => "Goal mode:",
+            var value => $"{char.ToUpperInvariant(value[0]) + value[1..]} mode:"
         };
     }
 }

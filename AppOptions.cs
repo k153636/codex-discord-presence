@@ -130,9 +130,9 @@ public sealed class PresenceTemplateOptions
 {
     public bool AutoDetectModelName { get; set; } = true;
     public string ModelName { get; set; } = "Codex";
-    public string Details { get; set; } = "{ModelName} \u2022 {Tokens}";
+    public string Details { get; set; } = "{GoalModePrefix} {ModelName} \u2022 {Tokens}";
     public string State { get; set; } = "{ActivityLine}";
-    public string LargeImageText { get; set; } = "working on {ProjectName}{GoalModeSuffix}";
+    public string LargeImageText { get; set; } = "working on {ProjectName}";
     public string SmallImageText { get; set; } = "{ProjectFileCount} files \u2022 session {SessionElapsed}";
     public PresenceButtonOptions[] Buttons { get; set; } = [];
     public string AnalyzingProjectText { get; set; } = "Thinking";

@@ -18,7 +18,8 @@ public sealed class CodexProcessDetector
     public CodexProcessSnapshot GetSnapshot(
         string? projectPath = null,
         ProjectSnapshot? projectSnapshot = null,
-        GitSnapshot? gitSnapshot = null)
+        GitSnapshot? gitSnapshot = null,
+        CodexActivityKind? previousActivityKind = null)
     {
         var sessionInspection = InspectRecentSessions(projectPath);
         var matchedProcessName = FindMatchingProcessName();
@@ -44,6 +45,7 @@ public sealed class CodexProcessDetector
             changedFileCount,
             sessionInspection,
             gitSnapshot,
+            previousActivityKind,
             out var provenance,
             out var confidence,
             out var reason,
@@ -103,6 +105,7 @@ public sealed class CodexProcessDetector
         int changedFileCount,
         SessionInspection? sessionInspection,
         GitSnapshot? gitSnapshot,
+        CodexActivityKind? previousActivityKind,
         out ActivityProvenance provenance,
         out ActivityConfidence confidence,
         out string reason,
@@ -184,6 +187,20 @@ public sealed class CodexProcessDetector
             confidence = ActivityConfidence.Low;
             reason = CodexActivityEvidence.BuildRefactorReason(sessionInspection, gitSnapshot);
             return CodexActivityKind.Refactoring;
+        }
+
+        if (previousActivityKind == CodexActivityKind.AnalyzingProject &&
+            hasFreshSession &&
+            sessionInspection?.HasTaskStarted == true &&
+            changedFileCount > 0 &&
+            recentEditedFiles.Count == 0)
+        {
+            provenance = ActivityProvenance.Mixed;
+            confidence = ActivityConfidence.High;
+            reason = $"task_started with git changed files={changedFileCount}";
+            return changedFileCount > 1
+                ? CodexActivityKind.UpdatingFiles
+                : CodexActivityKind.ApplyingEdits;
         }
 
         if (sessionInspection?.HasTaskCompleted == true && !sessionInspection.HasTaskStarted)

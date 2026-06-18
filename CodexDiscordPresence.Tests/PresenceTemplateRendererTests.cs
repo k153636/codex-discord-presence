@@ -57,10 +57,34 @@ public sealed class PresenceTemplateRendererTests
         var renderer = new PresenceTemplateRenderer();
         var template = new PresenceTemplateOptions
         {
-            Details = "{ModelName} • {Tokens}",
+            Details = "{GoalModePrefix} {ModelName} • {Tokens}",
             State = "{ActivityLine}",
-            LargeImageText = "working on {ProjectName}{GoalModeSuffix}",
+            LargeImageText = "working on {ProjectName}",
             SmallImageText = "{ProjectFileCount} files • session {SessionElapsed}"
+        };
+        var context = CreateContext(
+            new CodexProcessSnapshot(true, "codex", true)
+            {
+                CollaborationMode = "goal"
+            },
+            new ProjectSnapshot("Nexstrap", @"E:\tool\Nexstrap", null, null, 128, 128, 42000, []),
+            new GitSnapshot(true, 1, null));
+
+        var presence = renderer.Render(template, context);
+
+        Assert.Equal("Goal mode: gpt-5-codex • Tokens pending", presence.Details);
+        Assert.Equal("Thinking • 5m", presence.State);
+        Assert.Equal("working on Nexstrap", presence.LargeImageText);
+        Assert.Equal("128 files • session 5m", presence.SmallImageText);
+    }
+
+    [Fact]
+    public void Render_Details_UsesPlanModePrefix()
+    {
+        var renderer = new PresenceTemplateRenderer();
+        var template = new PresenceTemplateOptions
+        {
+            Details = "{GoalModePrefix} {ModelName} • {Tokens}"
         };
         var context = CreateContext(
             new CodexProcessSnapshot(true, "codex", true)
@@ -72,10 +96,7 @@ public sealed class PresenceTemplateRendererTests
 
         var presence = renderer.Render(template, context);
 
-        Assert.Equal("gpt-5-codex • Tokens pending", presence.Details);
-        Assert.Equal("Thinking • 5m", presence.State);
-        Assert.Equal("working on Nexstrap • Goal mode: Plan", presence.LargeImageText);
-        Assert.Equal("128 files • session 5m", presence.SmallImageText);
+        Assert.Equal("Plan mode: gpt-5-codex • Tokens pending", presence.Details);
     }
 
     [Fact]

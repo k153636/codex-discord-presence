@@ -67,7 +67,7 @@ For quiet idle periods, the app shows `Hold on` for the first 5 minutes, then sw
 
 - `Details`: `{ModelName} &bull; {Tokens}`
 - `State`: `{ActivityLine}`
-- `LargeImageText`: `working on {ProjectName}{GoalModeSuffix}`
+- `LargeImageText`: `working on {ProjectName}`
 - `SmallImageText`: `{ProjectFileCount} files &bull; session {SessionElapsed}`
 - Button: `GitHub`
 
@@ -75,7 +75,7 @@ For quiet idle periods, the app shows `Hold on` for the first 5 minutes, then sw
 That timer is anchored to the start of the current thinking streak so it does not jump back to `0s` just because a new observation arrived.
 When the same thinking state is observed again after new Codex activity, it can render as `Thinking x2`, `Thinking x3`, and so on.
 Use `{ActivityLabel}` if you want the file name omitted for a cleaner one-line status.
-Use `{GoalModeSuffix}` if you want the current collaboration mode to appear without changing the main state line.
+Use `{GoalModePrefix}` if you want `Goal mode:` or `Plan mode:` to appear without changing the main state line.
 
 ## Model Detection
 
@@ -158,8 +158,7 @@ These placeholders can be used in `Presence.Details`, `Presence.State`, `Presenc
 - `{ProjectFileCount}`
 - `{ProjectLineCount}`
 - `{ProjectSizeText}`
-- `{GoalMode}`
-- `{GoalModeSuffix}`
+- `{GoalModePrefix}`
 - `{EditingFileName}`
 - `{EditingFileLabel}`
 - `{EditingFilePath}`

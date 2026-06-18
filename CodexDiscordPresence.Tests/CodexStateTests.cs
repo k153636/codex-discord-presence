@@ -336,6 +336,55 @@ public class CodexStateTests
     }
 
     [Fact]
+    public void Test_10b_TaskStartedWithDiffButNoFreshEdit_ReturnsApplyingEditsSooner()
+    {
+        var tempPath = CreateTempSessionDirectory();
+        try
+        {
+            var now = DateTime.UtcNow;
+            WriteMockSessionLog(tempPath, "session1.jsonl", new[]
+            {
+                $"{{\"timestamp\":\"{now:yyyy-MM-ddTHH:mm:ss.fffZ}\",\"type\":\"event_msg\",\"payload\":{{\"type\":\"task_started\",\"turn_id\":\"123\",\"cwd\":\"E:\\\\tool\\\\discord-presence-for-codex\"}}}}"
+            });
+
+            var projectRoot = Path.Combine(Path.GetTempPath(), "CodexSingleEditProject_" + Guid.NewGuid());
+            Directory.CreateDirectory(projectRoot);
+
+            try
+            {
+                var detector = new CodexProcessDetector(new CodexDetectionOptions { HomePath = tempPath }, new PresenceTemplateOptions { EditingFreshnessSeconds = 120 });
+                var projectSnapshot = new ProjectSnapshot(
+                    Path.GetFileName(projectRoot),
+                    projectRoot,
+                    null,
+                    null,
+                    1,
+                    1,
+                    1,
+                    []);
+
+                var snapshot = detector.GetSnapshot(
+                    projectRoot,
+                    projectSnapshot,
+                    new GitSnapshot(true, 1, null),
+                    CodexActivityKind.AnalyzingProject);
+
+                Assert.True(snapshot.IsRunning);
+                Assert.Equal(CodexActivityKind.ApplyingEdits, snapshot.ActivityKind);
+                Assert.Equal(ActivityConfidence.High, snapshot.Confidence);
+            }
+            finally
+            {
+                Directory.Delete(projectRoot, true);
+            }
+        }
+        finally
+        {
+            Directory.Delete(tempPath, true);
+        }
+    }
+
+    [Fact]
     public void Test_11_MultiFileEdits_ReturnUpdatingFiles()
     {
         var tempPath = CreateTempSessionDirectory();

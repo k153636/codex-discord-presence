@@ -63,7 +63,7 @@ while (!cts.IsCancellationRequested)
     {
         var projectSnapshot = projectInspector.GetSnapshot();
         var gitSnapshot = gitInspector.GetSnapshot(projectInspector.ProjectPath);
-        var codexSnapshot = codexDetector.GetSnapshot(projectInspector.ProjectPath, projectSnapshot, gitSnapshot);
+        var codexSnapshot = codexDetector.GetSnapshot(projectInspector.ProjectPath, projectSnapshot, gitSnapshot, lastActivityKind);
         var analyzingRepeatCount = ActivityRepeatCountTracker.GetAnalyzingRepeatCount(
             codexSnapshot.ActivityKind,
             lastActivityKind,
