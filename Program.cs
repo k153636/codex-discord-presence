@@ -51,6 +51,7 @@ string? lastPresenceState = null;
 string? stableCostModelName = null;
 var lastActivityKind = CodexActivityKind.Ready;
 var lastAnalyzingRepeatCount = 1;
+DateTime? lastAnalyzingObservedAt = null;
 string? lastPresenceSignature = null;
 var lastSuccessfulUpdateUtc = DateTime.MinValue;
 var keepAliveInterval = TimeSpan.FromSeconds(15);
@@ -62,10 +63,12 @@ while (!cts.IsCancellationRequested)
         var projectSnapshot = projectInspector.GetSnapshot();
         var gitSnapshot = gitInspector.GetSnapshot(projectInspector.ProjectPath);
         var codexSnapshot = codexDetector.GetSnapshot(projectInspector.ProjectPath, projectSnapshot, gitSnapshot);
-        var analyzingRepeatCount = codexSnapshot.ActivityKind == CodexActivityKind.AnalyzingProject &&
-                                   lastActivityKind == CodexActivityKind.AnalyzingProject
-            ? Math.Min(9, lastAnalyzingRepeatCount + 1)
-            : 1;
+        var analyzingRepeatCount = ActivityRepeatCountTracker.GetAnalyzingRepeatCount(
+            codexSnapshot.ActivityKind,
+            lastActivityKind,
+            codexSnapshot.LastObservedAt,
+            lastAnalyzingObservedAt,
+            lastAnalyzingRepeatCount);
         codexSnapshot = codexSnapshot with { ActivityRepeatCount = analyzingRepeatCount };
         var modelSnapshot = modelNameProvider.GetSnapshot(projectInspector.ProjectPath);
         if (lastModelSnapshot is null ||
@@ -133,6 +136,9 @@ while (!cts.IsCancellationRequested)
         }
 
         lastAnalyzingRepeatCount = analyzingRepeatCount;
+        lastAnalyzingObservedAt = codexSnapshot.ActivityKind == CodexActivityKind.AnalyzingProject
+            ? codexSnapshot.LastObservedAt
+            : null;
         lastActivityKind = codexSnapshot.ActivityKind;
     }
     catch (Exception ex)
