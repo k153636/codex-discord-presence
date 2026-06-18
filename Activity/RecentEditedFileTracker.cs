@@ -2,20 +2,18 @@ namespace CodexDiscordPresence;
 
 internal sealed class RecentEditedFileTracker
 {
-    private readonly TimeSpan _retentionWindow;
     private readonly Func<DateTime> _utcNow;
     private readonly Dictionary<string, DateTime> _lastObservedEditedFiles = new(StringComparer.OrdinalIgnoreCase);
     private IReadOnlyList<RecentProjectFileSnapshot> _lastStableEditedFiles = Array.Empty<RecentProjectFileSnapshot>();
-    private DateTime _lastChangedAtUtc = DateTime.MinValue;
+    private string? _lastProjectPath;
 
     public RecentEditedFileTracker()
-        : this(TimeSpan.FromSeconds(15))
+        : this(() => DateTime.UtcNow)
     {
     }
 
-    internal RecentEditedFileTracker(TimeSpan retentionWindow, Func<DateTime>? utcNow = null)
+    internal RecentEditedFileTracker(Func<DateTime>? utcNow = null)
     {
-        _retentionWindow = retentionWindow > TimeSpan.Zero ? retentionWindow : TimeSpan.FromSeconds(15);
         _utcNow = utcNow ?? (() => DateTime.UtcNow);
     }
 
@@ -27,6 +25,14 @@ internal sealed class RecentEditedFileTracker
         }
 
         var now = _utcNow();
+        var currentProjectPath = NormalizePath(projectSnapshot.Path);
+        if (!string.Equals(currentProjectPath, _lastProjectPath, StringComparison.OrdinalIgnoreCase))
+        {
+            _lastProjectPath = currentProjectPath;
+            _lastObservedEditedFiles.Clear();
+            _lastStableEditedFiles = Array.Empty<RecentProjectFileSnapshot>();
+        }
+
         var startupWindow = TimeSpan.FromSeconds(5);
         var changedFiles = new List<RecentProjectFileSnapshot>();
         foreach (var file in projectSnapshot.RecentFiles.OrderByDescending(file => file.LastWriteTimeUtc))
@@ -51,18 +57,10 @@ internal sealed class RecentEditedFileTracker
         if (changedFiles.Count > 0)
         {
             _lastStableEditedFiles = changedFiles;
-            _lastChangedAtUtc = now;
             return changedFiles;
         }
 
-        if (_lastStableEditedFiles.Count > 0 &&
-            now - _lastChangedAtUtc <= _retentionWindow)
-        {
-            return _lastStableEditedFiles;
-        }
-
-        _lastStableEditedFiles = Array.Empty<RecentProjectFileSnapshot>();
-        return Array.Empty<RecentProjectFileSnapshot>();
+        return _lastStableEditedFiles;
     }
 
     private static string NormalizePath(string path)
