@@ -511,6 +511,57 @@ public class CodexStateTests
         }
     }
 
+    [Fact]
+    public void Test_15_StaleRecentEdit_FallsBackToAnalyzingProject()
+    {
+        var tempPath = CreateTempSessionDirectory();
+        try
+        {
+            var now = DateTime.UtcNow;
+            WriteMockSessionLog(tempPath, "session1.jsonl", new[]
+            {
+                $"{{\"timestamp\":\"{now:yyyy-MM-ddTHH:mm:ss.fffZ}\",\"type\":\"event_msg\",\"payload\":{{\"type\":\"task_started\",\"turn_id\":\"123\"}}}}"
+            });
+
+            var projectRoot = Path.Combine(Path.GetTempPath(), "CodexStaleEditProject_" + Guid.NewGuid());
+            Directory.CreateDirectory(projectRoot);
+
+            try
+            {
+                var file = Path.Combine(projectRoot, "Stale.cs");
+                File.WriteAllText(file, "1");
+                File.SetLastWriteTimeUtc(file, now.AddSeconds(-30));
+
+                var projectSnapshot = new ProjectSnapshot(
+                    Path.GetFileName(projectRoot),
+                    projectRoot,
+                    "Stale.cs",
+                    file,
+                    1,
+                    1,
+                    2,
+                    [new RecentProjectFileSnapshot("Stale.cs", file, File.GetLastWriteTimeUtc(file))]);
+
+                var detector = new CodexProcessDetector(
+                    new CodexDetectionOptions { HomePath = tempPath },
+                    new PresenceTemplateOptions { EditingFreshnessSeconds = 12 });
+
+                var snapshot = detector.GetSnapshot(projectRoot, projectSnapshot, new GitSnapshot(true, 1, null));
+
+                Assert.True(snapshot.IsRunning);
+                Assert.Equal(CodexActivityKind.AnalyzingProject, snapshot.ActivityKind);
+            }
+            finally
+            {
+                Directory.Delete(projectRoot, true);
+            }
+        }
+        finally
+        {
+            Directory.Delete(tempPath, true);
+        }
+    }
+
     private static string EscapeJson(string value)
     {
         return value.Replace("\\", "\\\\").Replace("\"", "\\\"");

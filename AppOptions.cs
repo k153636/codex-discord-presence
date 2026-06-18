@@ -153,7 +153,7 @@ public sealed class PresenceTemplateOptions
     public string OfflineText { get; set; } = "Idling";
     public int ThinkingStaleTimeoutMinutes { get; set; } = 10;
     public int ReadyIdleGraceMinutes { get; set; } = 5;
-    public int EditingFreshnessSeconds { get; set; } = 45;
+    public int EditingFreshnessSeconds { get; set; } = 12;
     public int ActiveUpdateIntervalSeconds { get; set; } = 1;
     public int RunningCommandUpdateIntervalSeconds { get; set; } = 1;
     public int RunningCommandUpdateIntervalMilliseconds { get; set; } = 500;

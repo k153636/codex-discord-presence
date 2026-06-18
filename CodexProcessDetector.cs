@@ -115,7 +115,7 @@ public sealed class CodexProcessDetector
         var deletedFileCount = gitSnapshot?.DeletedFileCount ?? 0;
         var hasFreshSession = sessionInspection is not null &&
             sessionInspection.HasRecentActivity(_presenceOptions.ThinkingStaleTimeoutMinutes);
-        var hasRecentEdits = recentEditedFiles.Count > 0;
+        var hasFreshRecentEdits = HasFreshRecentEdits(recentEditedFiles, _presenceOptions.EditingFreshnessSeconds);
         var hasBurstRecentEdits = HasBurstRecentEdits(recentEditedFiles, changedFileCount);
         var hasRefactorEvidence = HasRefactorEvidence(recentEditedFiles, sessionInspection, gitSnapshot);
         var hasCreatingEvidence = createdFileCount > 0 &&
@@ -149,7 +149,7 @@ public sealed class CodexProcessDetector
             return CodexActivityKind.DeletingFiles;
         }
 
-        if (hasRecentEdits)
+        if (hasFreshRecentEdits)
         {
             provenance = ActivityProvenance.Observed;
             confidence = ActivityConfidence.High;
@@ -294,6 +294,20 @@ public sealed class CodexProcessDetector
         var newest = recentEditedFiles[0].LastWriteTimeUtc;
         var oldest = recentEditedFiles[^1].LastWriteTimeUtc;
         return newest - oldest <= TimeSpan.FromSeconds(3);
+    }
+
+    private static bool HasFreshRecentEdits(
+        IReadOnlyList<RecentProjectFileSnapshot> recentEditedFiles,
+        int editingFreshnessSeconds)
+    {
+        if (recentEditedFiles.Count == 0)
+        {
+            return false;
+        }
+
+        var freshnessWindow = TimeSpan.FromSeconds(Math.Max(1, editingFreshnessSeconds));
+        var freshest = recentEditedFiles[0].LastWriteTimeUtc;
+        return DateTime.UtcNow - freshest <= freshnessWindow;
     }
 
     private static readonly string[] RefactorKeywords =
