@@ -7,15 +7,24 @@ namespace CodexDiscordPresence;
 public sealed class TrayIconHost : ApplicationContext
 {
     private readonly PresenceRuntimeState _state;
+    private readonly PresenceStateStore _stateStore;
+    private readonly string _statePath;
     private readonly string _settingsPath;
     private readonly Action _quitCallback;
     private readonly NotifyIcon _notifyIcon;
     private readonly ToolStripMenuItem _enableMenuItem;
     private bool _exitRequested;
 
-    public TrayIconHost(PresenceRuntimeState state, string settingsPath, Action quitCallback)
+    public TrayIconHost(
+        PresenceRuntimeState state,
+        PresenceStateStore stateStore,
+        string statePath,
+        string settingsPath,
+        Action quitCallback)
     {
         _state = state;
+        _stateStore = stateStore;
+        _statePath = statePath;
         _settingsPath = settingsPath;
         _quitCallback = quitCallback;
 
@@ -54,6 +63,7 @@ public sealed class TrayIconHost : ApplicationContext
         }
 
         _exitRequested = true;
+        _stateStore.Save(_statePath, _state);
         _notifyIcon.Visible = false;
         _notifyIcon.Dispose();
         _quitCallback();
@@ -63,6 +73,7 @@ public sealed class TrayIconHost : ApplicationContext
     private void ToggleEnabled()
     {
         _state.Enabled = !_state.Enabled;
+        _stateStore.Save(_statePath, _state);
         UpdateMenu();
     }
 

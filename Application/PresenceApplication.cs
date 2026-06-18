@@ -37,12 +37,14 @@ public static class PresenceApplication
             trayHost?.RequestExit();
         };
 
-        var runtimeState = new PresenceRuntimeState();
+        var stateStore = new PresenceStateStore();
+        var statePath = PresenceStateStore.GetDefaultPath();
+        var runtimeState = stateStore.Load(statePath);
         var runtime = new PresenceRuntime(options, runtimeState, cts.Token);
         var runtimeTask = runtime.RunAsync();
 
         var settingsPath = Path.Combine(AppContext.BaseDirectory, "appsettings.json");
-        trayHost = new TrayIconHost(runtimeState, settingsPath, () => cts.Cancel());
+        trayHost = new TrayIconHost(runtimeState, stateStore, statePath, settingsPath, () => cts.Cancel());
         _ = runtimeTask.ContinueWith(_ => trayHost?.RequestExit(), TaskScheduler.Default);
 
         Console.WriteLine("Codex Discord RPC is running in the background.");

@@ -13,6 +13,7 @@ Presence text is template-driven through `appsettings.json`, so you can change t
 The app is configured as a self-contained `win-x64` single-file publish.
 It runs in the background with a system tray icon, where you can toggle `Enable`, open `appsettings.json`, or `Quit`.
 `start.cmd` rebuilds before launching so the tray app stays in sync with the current source.
+The tray `Enable` state is saved under `%LOCALAPPDATA%\CodexDiscordPresence\presence-state.json`.
 
 ## Preview
 
