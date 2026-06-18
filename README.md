@@ -99,6 +99,7 @@ The activity logger includes:
 - the chosen activity label
 - `confidence=high` or `confidence=low`
 - the reason the label was selected
+- recent edited file labels are held briefly so the state line does not flicker between empty and populated
 
 That makes it easier to verify why Discord is showing a specific state.
 
