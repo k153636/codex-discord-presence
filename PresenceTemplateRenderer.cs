@@ -83,7 +83,7 @@ public sealed class PresenceTemplateRenderer
 
         if (context.Codex.ActivityKind == CodexActivityKind.UpdatingFiles)
         {
-            return stateLabel;
+            return BuildUpdatingFilesActivityLine(stateLabel, recentEditedFiles, context.Session.Elapsed);
         }
 
         if (context.Codex.ActivityKind is CodexActivityKind.ApplyingEdits or CodexActivityKind.CreatingFiles or CodexActivityKind.DeletingFiles &&
@@ -143,6 +143,19 @@ public sealed class PresenceTemplateRenderer
         }
 
         return stateLabel;
+    }
+
+    private static string BuildUpdatingFilesActivityLine(
+        string stateLabel,
+        IReadOnlyList<RecentProjectFileSnapshot> recentEditedFiles,
+        TimeSpan elapsed)
+    {
+        if (recentEditedFiles.Count == 0)
+        {
+            return stateLabel;
+        }
+
+        return $"{stateLabel} \u2022 {FormatShortDuration(elapsed)}";
     }
 
     private static string BuildIdleActivityLine(
@@ -233,6 +246,21 @@ public sealed class PresenceTemplateRenderer
         }
 
         return $"{Math.Max(1, elapsed.Minutes)}m";
+    }
+
+    private static string FormatShortDuration(TimeSpan elapsed)
+    {
+        if (elapsed.TotalHours >= 1)
+        {
+            return $"{(int)elapsed.TotalHours}h {elapsed.Minutes}m";
+        }
+
+        if (elapsed.TotalMinutes >= 1)
+        {
+            return $"{(int)elapsed.TotalMinutes}m {elapsed.Seconds}s";
+        }
+
+        return $"{Math.Max(1, (int)elapsed.TotalSeconds)}s";
     }
 
     private static string FormatNumber(long value)

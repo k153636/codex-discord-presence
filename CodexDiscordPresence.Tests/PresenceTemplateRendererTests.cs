@@ -234,6 +234,7 @@ public sealed class PresenceTemplateRendererTests
                     42000,
                     []),
             new GitSnapshot(true, 2, null),
+            sessionAge: TimeSpan.FromSeconds(12),
             recentEditedFiles: [
                 new RecentProjectFileSnapshot("Program.cs", @"E:\tool\Nexstrap\Program.cs", now),
                 new RecentProjectFileSnapshot("AppOptions.cs", @"E:\tool\Nexstrap\AppOptions.cs", now.AddSeconds(-5))
@@ -241,7 +242,7 @@ public sealed class PresenceTemplateRendererTests
 
         var presence = renderer.Render(template, context);
 
-        Assert.Equal("Coordinating changes across 2 files", presence.State);
+        Assert.Equal("Coordinating changes across 2 files \u2022 12s", presence.State);
     }
 
     [Fact]

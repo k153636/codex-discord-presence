@@ -51,6 +51,8 @@ string? lastPresenceState = null;
 string? stableCostModelName = null;
 var lastActivityKind = CodexActivityKind.Ready;
 string? lastPresenceSignature = null;
+var lastSuccessfulUpdateUtc = DateTime.MinValue;
+var keepAliveInterval = TimeSpan.FromSeconds(15);
 
 while (!cts.IsCancellationRequested)
 {
@@ -104,6 +106,7 @@ while (!cts.IsCancellationRequested)
 
         var presence = renderer.Render(options.Presence, context);
         var presenceSignature = BuildPresenceSignature(presence);
+        var keepAliveDue = PresenceUpdatePolicy.ShouldSendKeepAlive(lastSuccessfulUpdateUtc, DateTime.UtcNow, keepAliveInterval);
         if (!string.Equals(presence.Details, lastPresenceDetails, StringComparison.Ordinal) ||
             !string.Equals(presence.State, lastPresenceState, StringComparison.Ordinal))
         {
@@ -114,10 +117,13 @@ while (!cts.IsCancellationRequested)
             lastPresenceState = presence.State;
         }
 
-        if (!string.Equals(presenceSignature, lastPresenceSignature, StringComparison.Ordinal))
+        if (!string.Equals(presenceSignature, lastPresenceSignature, StringComparison.Ordinal) || keepAliveDue)
         {
-            rpc.Update(presence);
-            lastPresenceSignature = presenceSignature;
+            if (rpc.Update(presence))
+            {
+                lastPresenceSignature = presenceSignature;
+                lastSuccessfulUpdateUtc = DateTime.UtcNow;
+            }
         }
 
         lastActivityKind = codexSnapshot.ActivityKind;
