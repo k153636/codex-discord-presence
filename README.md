@@ -66,7 +66,7 @@ For quiet idle periods, the app shows `Hold on` for the first 5 minutes, then sw
 
 - `Details`: `{ModelName} &bull; {Tokens}`
 - `State`: `{ActivityLine}`
-- `LargeImageText`: `working on {ProjectName}`
+- `LargeImageText`: `{ProjectName}`
 - `SmallImageText`: `{ProjectFileCount} files &bull; session {SessionElapsed}`
 - Button: `GitHub`
 
