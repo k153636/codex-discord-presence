@@ -72,6 +72,7 @@ For quiet idle periods, the app shows `Hold on` for the first 5 minutes, then sw
 - Button: `GitHub`
 
 `ActivityLine` already carries the 3-second freshness suffix for active states.
+When the same thinking state repeats across refreshes, it can render as `Thinking x2`, `Thinking x3`, and so on.
 Use `{ActivityLabel}` if you want the file name omitted for a cleaner one-line status.
 
 ## Model Detection
@@ -190,5 +191,6 @@ The default large image key is:
 - `stop.cmd` stops the running instance
 - `git diff`, recent file writes, and session logs are used together to infer active work
 - Project scanning ignores common build, cache, and binary folders
+- Activity and evidence helpers live under `Modules/` to keep the main entrypoints smaller
 - The default refresh cadence is shortened so activity changes surface faster in Discord
 

@@ -115,9 +115,9 @@ public sealed class CodexProcessDetector
         var deletedFileCount = gitSnapshot?.DeletedFileCount ?? 0;
         var hasFreshSession = sessionInspection is not null &&
             sessionInspection.HasRecentActivity(_presenceOptions.ThinkingStaleTimeoutMinutes);
-        var hasFreshRecentEdits = HasFreshRecentEdits(recentEditedFiles, _presenceOptions.EditingFreshnessSeconds);
-        var hasBurstRecentEdits = HasBurstRecentEdits(recentEditedFiles, changedFileCount);
-        var hasRefactorEvidence = HasRefactorEvidence(recentEditedFiles, sessionInspection, gitSnapshot);
+        var hasFreshRecentEdits = CodexActivityEvidence.HasFreshRecentEdits(recentEditedFiles, _presenceOptions.EditingFreshnessSeconds);
+        var hasBurstRecentEdits = CodexActivityEvidence.HasBurstRecentEdits(recentEditedFiles, changedFileCount);
+        var hasRefactorEvidence = CodexActivityEvidence.HasRefactorEvidence(gitSnapshot);
         var hasCreatingEvidence = createdFileCount > 0 &&
             deletedFileCount == 0 &&
             changedFileCount == createdFileCount;
@@ -181,7 +181,7 @@ public sealed class CodexProcessDetector
         {
             provenance = ActivityProvenance.Observed;
             confidence = ActivityConfidence.Low;
-            reason = BuildRefactorReason(sessionInspection, gitSnapshot);
+            reason = CodexActivityEvidence.BuildRefactorReason(sessionInspection, gitSnapshot);
             return CodexActivityKind.Refactoring;
         }
 
@@ -254,79 +254,6 @@ public sealed class CodexProcessDetector
         {
             return path.Trim().ToUpperInvariant();
         }
-    }
-
-    private static string BuildRefactorReason(
-        SessionInspection? sessionInspection,
-        GitSnapshot? gitSnapshot)
-    {
-        if (gitSnapshot?.LatestCommitMessage is { Length: > 0 } commitMessage && ContainsAny(commitMessage, RefactorKeywords))
-        {
-            return $"git commit message suggests refactor: {commitMessage}";
-        }
-
-        return sessionInspection?.RefactorEvidenceReason ?? "git metadata suggests refactor";
-    }
-
-    private static bool HasRefactorEvidence(
-        IReadOnlyList<RecentProjectFileSnapshot> recentEditedFiles,
-        SessionInspection? sessionInspection,
-        GitSnapshot? gitSnapshot)
-    {
-        if (gitSnapshot?.LatestCommitMessage is { Length: > 0 } commitMessage &&
-            ContainsAny(commitMessage, RefactorKeywords))
-        {
-            return true;
-        }
-
-        return false;
-    }
-
-    private static bool HasBurstRecentEdits(
-        IReadOnlyList<RecentProjectFileSnapshot> recentEditedFiles,
-        int changedFileCount)
-    {
-        if (recentEditedFiles.Count < 2 || changedFileCount < 2)
-        {
-            return false;
-        }
-
-        var newest = recentEditedFiles[0].LastWriteTimeUtc;
-        var oldest = recentEditedFiles[^1].LastWriteTimeUtc;
-        return newest - oldest <= TimeSpan.FromSeconds(3);
-    }
-
-    private static bool HasFreshRecentEdits(
-        IReadOnlyList<RecentProjectFileSnapshot> recentEditedFiles,
-        int editingFreshnessSeconds)
-    {
-        if (recentEditedFiles.Count == 0)
-        {
-            return false;
-        }
-
-        var freshnessWindow = TimeSpan.FromSeconds(Math.Max(1, editingFreshnessSeconds));
-        var freshest = recentEditedFiles[0].LastWriteTimeUtc;
-        return DateTime.UtcNow - freshest <= freshnessWindow;
-    }
-
-    private static readonly string[] RefactorKeywords =
-    [
-        "refactor",
-        "refactoring",
-        "restructure",
-        "reorganize",
-        "cleanup",
-        "clean up",
-        "rename",
-        "extract",
-        "split",
-        "migrate"
-    ];
-
-    private static bool ContainsAny(string value, IEnumerable<string> needles)
-    {
-        return needles.Any(needle => value.Contains(needle, StringComparison.OrdinalIgnoreCase));
     }
 
     private SessionInspection? InspectRecentSessions(string? projectPath)
@@ -594,35 +521,4 @@ public sealed class CodexProcessDetector
             value.Contains(needle, StringComparison.OrdinalIgnoreCase));
     }
 
-    private sealed record SessionInspection(
-        bool HasProjectPath,
-        bool MatchesProject,
-        bool HasTaskStarted,
-        bool HasTaskCompleted,
-        DateTime? LastTaskStartedAt,
-        DateTime? LastTaskCompletedAt,
-        DateTime? LastObservedAt,
-        string? CollaborationMode,
-        bool HasRunningCommand,
-        string? RunningCommandReason,
-        string? RefactorEvidenceReason)
-    {
-        public bool HasRecentActivity(int staleTimeoutMinutes)
-        {
-            var freshest = LastObservedAt ?? LastTaskStartedAt ?? LastTaskCompletedAt;
-            if (!freshest.HasValue)
-            {
-                return false;
-            }
-
-            return DateTime.UtcNow - freshest.Value <= TimeSpan.FromMinutes(staleTimeoutMinutes);
-        }
-
-        public bool HasTaskCompletedSinceStart =>
-            HasTaskStarted &&
-            HasTaskCompleted &&
-            LastTaskStartedAt.HasValue &&
-            LastTaskCompletedAt.HasValue &&
-            LastTaskCompletedAt >= LastTaskStartedAt;
-    }
 }

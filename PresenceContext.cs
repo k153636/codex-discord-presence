@@ -53,6 +53,7 @@ public sealed partial record CodexProcessSnapshot
     public string ActivityReason { get; init; } = "";
     public DateTime? LastObservedAt { get; init; }
     public IReadOnlyList<RecentProjectFileSnapshot> RecentEditedFiles { get; init; } = Array.Empty<RecentProjectFileSnapshot>();
+    public int ActivityRepeatCount { get; init; } = 1;
 
     public CodexActivityKind ActivityKind =>
         DetectedActivityKind ??
