@@ -4,6 +4,6 @@ public static class PresenceRefreshPolicy
 {
     public static TimeSpan GetNextDelay(PresenceTemplateOptions options, CodexActivityKind activityKind)
     {
-        return TimeSpan.FromMilliseconds(250);
+        return TimeSpan.FromSeconds(1);
     }
 }
