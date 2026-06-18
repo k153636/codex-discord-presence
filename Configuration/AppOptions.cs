@@ -6,6 +6,7 @@ namespace CodexDiscordPresence;
 public sealed class AppOptions
 {
     public DiscordOptions Discord { get; set; } = new();
+    public DiscordOptions? DiscordCli { get; set; }
     public CodexDetectionOptions Codex { get; set; } = new();
     public CodexDetectionOptions? CodexCli { get; set; }
     public ProjectOptions Project { get; set; } = new();
@@ -21,7 +22,8 @@ public sealed class AppOptions
 
     public static AppOptions Load(string[] args, AppPaths paths)
     {
-        var options = LoadMerged(paths.ExecutableSettingsPath, paths.UserSettingsPath);
+        var cliSettingsPath = Path.Combine(paths.BaseDirectory, "appsettings.cli.json");
+        var options = LoadMerged(paths.ExecutableSettingsPath, cliSettingsPath, paths.UserSettingsPath);
 
         for (var i = 0; i < args.Length; i++)
         {
@@ -95,6 +97,13 @@ public sealed class AppOptions
         return profile == AppProfileKind.CodexCli && CodexCli is not null
             ? CodexCli
             : Codex;
+    }
+
+    public DiscordOptions GetDiscordOptions(AppProfileKind profile)
+    {
+        return profile == AppProfileKind.CodexCli && DiscordCli is not null
+            ? DiscordCli
+            : Discord;
     }
 
     private static bool TryLoadJsonObject(string path, out JsonObject node)

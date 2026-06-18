@@ -33,10 +33,7 @@ public sealed class InstanceCoordinator : IDisposable
         var pidFilePath = GetPidFilePath(paths);
         if (!File.Exists(pidFilePath))
         {
-            Console.WriteLine(
-                paths.Profile == AppProfileKind.CodexCli
-                    ? "No running Codex CLI Discord RPC instance was found."
-                    : "No running Codex Discord RPC instance was found.");
+            Console.WriteLine("No running Codex Discord RPC instance was found.");
             return 0;
         }
 
@@ -53,10 +50,7 @@ public sealed class InstanceCoordinator : IDisposable
             using var process = Process.GetProcessById(pid);
             process.Kill(entireProcessTree: false);
             process.WaitForExit(5000);
-            Console.WriteLine(
-                paths.Profile == AppProfileKind.CodexCli
-                    ? $"Stopped Codex CLI Discord RPC (PID {pid})."
-                    : $"Stopped Codex Discord RPC (PID {pid}).");
+            Console.WriteLine($"Stopped Codex Discord RPC (PID {pid}).");
         }
         catch (ArgumentException)
         {
@@ -93,17 +87,13 @@ public sealed class InstanceCoordinator : IDisposable
 
     private static string GetPidFilePath(AppPaths paths)
     {
-        return Path.Combine(paths.AppDataDirectory, paths.Profile == AppProfileKind.CodexCli
-            ? "codex-discord-presence-cli.pid"
-            : "codex-discord-presence.pid");
+        return Path.Combine(paths.AppDataDirectory, "codex-discord-presence.pid");
     }
 
     private static string GetMutexName(AppPaths paths)
     {
         var normalized = Path.GetFullPath(paths.AppDataDirectory).ToUpperInvariant();
         var hash = SHA256.HashData(Encoding.UTF8.GetBytes(normalized));
-        return paths.Profile == AppProfileKind.CodexCli
-            ? @"Local\CodexDiscordPresenceCli_" + Convert.ToHexString(hash[..8])
-            : @"Local\CodexDiscordPresence_" + Convert.ToHexString(hash[..8]);
+        return @"Local\CodexDiscordPresence_" + Convert.ToHexString(hash[..8]);
     }
 }

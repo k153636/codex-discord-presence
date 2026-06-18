@@ -76,11 +76,12 @@ public sealed class AppOptionsMergeTests
                 Path.Combine(exeDir, "appsettings.cli.json"),
                 """
 {
-  "Discord": {
-    "ClientId": "cli-client"
-  },
   "CodexCli": {
     "ProcessNameContains": [ "codex-cli" ]
+  },
+  "DiscordCli": {
+    "ClientId": "cli-client",
+    "LargeImageKey": "CodexCLI_logo"
   },
   "Presence": {
     "Details": "Test"
@@ -107,13 +108,17 @@ public sealed class AppOptionsMergeTests
 
             var options = AppOptions.Load(Array.Empty<string>(), paths);
 
-            Assert.Equal("cli-client", options.Discord.ClientId);
+            Assert.Equal("1516846793873424474", options.Discord.ClientId);
+            Assert.NotNull(options.DiscordCli);
+            Assert.Equal("cli-client", options.DiscordCli!.ClientId);
+            Assert.Equal("CodexCLI_logo", options.DiscordCli.LargeImageKey);
             Assert.Equal("Test", options.Presence.Details);
             Assert.Equal(4, options.UpdateIntervalSeconds);
             Assert.NotNull(options.CodexCli);
             Assert.Contains("codex-cli", options.CodexCli!.ProcessNameContains);
             Assert.Contains("codex", options.Codex.ProcessNameContains);
             Assert.Same(options.CodexCli, options.GetCodexDetectionOptions(AppProfileKind.CodexCli));
+            Assert.Same(options.DiscordCli, options.GetDiscordOptions(AppProfileKind.CodexCli));
         }
         finally
         {

@@ -8,4 +8,4 @@ if not exist "%APP_EXE%" (
   if errorlevel 1 exit /b 1
 )
 
-powershell -NoProfile -ExecutionPolicy Bypass -Command "Start-Process -FilePath '%APP_EXE%' -ArgumentList '--cli','--stop' -WorkingDirectory '%ROOT_DIR%' -WindowStyle Hidden"
+powershell -NoProfile -ExecutionPolicy Bypass -Command "Start-Process -FilePath '%APP_EXE%' -ArgumentList '--stop' -WorkingDirectory '%ROOT_DIR%' -WindowStyle Hidden"

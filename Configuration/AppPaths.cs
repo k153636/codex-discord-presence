@@ -20,24 +20,14 @@ public sealed record AppPaths(
         baseDirectory ??= AppContext.BaseDirectory;
         var appDataDirectory = Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-            profile == AppProfileKind.CodexCli
-                ? "CodexDiscordPresenceCli"
-                : "CodexDiscordPresence");
-
-        var settingsFileName = profile == AppProfileKind.CodexCli
-            ? "appsettings.cli.json"
-            : "appsettings.json";
-
-        var userSettingsFileName = profile == AppProfileKind.CodexCli
-            ? "user-settings.cli.json"
-            : "user-settings.json";
+            "CodexDiscordPresence");
 
         return new AppPaths(
             Path.GetFullPath(baseDirectory),
-            Path.Combine(Path.GetFullPath(baseDirectory), settingsFileName),
+            Path.Combine(Path.GetFullPath(baseDirectory), "appsettings.json"),
             appDataDirectory,
             Path.Combine(appDataDirectory, "logs"),
-            Path.Combine(appDataDirectory, userSettingsFileName),
+            Path.Combine(appDataDirectory, "user-settings.json"),
             Path.Combine(appDataDirectory, "presence-state.json"),
             profile);
     }

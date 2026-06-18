@@ -5,7 +5,7 @@ namespace CodexDiscordPresence;
 
 public sealed class DiscordPresenceClient : IDisposable
 {
-    private readonly DiscordOptions _options;
+    private DiscordOptions _options;
     private DiscordRpcClient? _client;
     private bool _isReady;
     private bool _needsPresenceRefresh = true;
@@ -24,6 +24,29 @@ public sealed class DiscordPresenceClient : IDisposable
     }
 
     public bool NeedsPresenceRefresh => _needsPresenceRefresh;
+
+    public void UpdateOptions(DiscordOptions options)
+    {
+        if (string.Equals(_options.ClientId, options.ClientId, StringComparison.Ordinal) &&
+            string.Equals(_options.LargeImageKey, options.LargeImageKey, StringComparison.Ordinal) &&
+            string.Equals(_options.SmallImageKey, options.SmallImageKey, StringComparison.Ordinal))
+        {
+            return;
+        }
+
+        var clientIdChanged = !string.Equals(_options.ClientId, options.ClientId, StringComparison.Ordinal);
+        _options = options;
+
+        if (clientIdChanged)
+        {
+            _isReady = false;
+            ResetClient();
+            _failedInitializeAttempts = 0;
+            _nextInitializeAttemptUtc = DateTime.MinValue;
+        }
+
+        _needsPresenceRefresh = true;
+    }
 
     public bool Update(RenderedPresence presence)
     {
@@ -111,6 +134,17 @@ public sealed class DiscordPresenceClient : IDisposable
     {
         try
         {
+            if (IsMissingClientId(_options.ClientId))
+            {
+                _isReady = false;
+                _needsPresenceRefresh = true;
+                _failedInitializeAttempts = Math.Min(_failedInitializeAttempts + 1, int.MaxValue);
+                var delay = DiscordReconnectBackoff.GetDelay(_failedInitializeAttempts);
+                Console.Error.WriteLine($"Discord RPC client id is not configured for the current profile. Reconnecting in {delay.TotalSeconds:0}s.");
+                _nextInitializeAttemptUtc = DateTime.UtcNow.Add(delay);
+                return false;
+            }
+
             ResetClient();
             _client = new DiscordRpcClient(_options.ClientId);
             _isReady = _client.Initialize();
@@ -153,5 +187,11 @@ public sealed class DiscordPresenceClient : IDisposable
     {
         _client?.Dispose();
         _client = null;
+    }
+
+    private static bool IsMissingClientId(string? clientId)
+    {
+        return string.IsNullOrWhiteSpace(clientId) ||
+            clientId.StartsWith("YOUR_", StringComparison.OrdinalIgnoreCase);
     }
 }
