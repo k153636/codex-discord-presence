@@ -126,7 +126,7 @@ public sealed class PresenceTemplateRenderer
             CodexActivityKind.DeletingFiles => FirstNonEmpty(template.DeletingFilesText, "Deleting files"),
             CodexActivityKind.RunningCommand => FirstNonEmpty(template.RunningCommandText, "Running command"),
             CodexActivityKind.Refactoring => FirstNonEmpty(template.RefactoringText, "Refactoring"),
-            CodexActivityKind.AnalyzingProject => context.Codex.LastTaskStartedAt.HasValue
+            CodexActivityKind.AnalyzingProject => ShouldUseWorkingLabel(context)
                 ? FirstNonEmpty(template.WorkingText, template.AnalyzingProjectText, template.AnalyzingText, template.ThinkingText, "Analyzing project")
                 : FirstNonEmpty(template.AnalyzingProjectText, template.AnalyzingText, template.ThinkingText, "Analyzing project"),
             CodexActivityKind.Ready => ResolveReadyLabel(template, context),
@@ -149,6 +149,12 @@ public sealed class PresenceTemplateRenderer
         }
 
         return FirstNonEmpty(template.IdlingText, "Idling");
+    }
+
+    private static bool ShouldUseWorkingLabel(PresenceContext context)
+    {
+        return context.Codex.ActivityKind == CodexActivityKind.AnalyzingProject &&
+            context.Codex.LastTaskStartedAt.HasValue;
     }
 
     private static string FirstNonEmpty(params string[] values)

@@ -71,6 +71,26 @@ public sealed class PresenceTemplateRendererTests
     }
 
     [Fact]
+    public void Render_RunningCommandWithTaskStart_StillUsesRunningCommandLabel()
+    {
+        var renderer = new PresenceTemplateRenderer();
+        var template = new PresenceTemplateOptions { State = "{ActivityLine}" };
+        var now = DateTime.UtcNow;
+        var context = CreateContext(
+            new CodexProcessSnapshot(true, "codex", true)
+            {
+                DetectedActivityKind = CodexActivityKind.RunningCommand,
+                LastTaskStartedAt = now
+            },
+            new ProjectSnapshot("Nexstrap", @"E:\tool\Nexstrap", null, null, 128, 128, 42000, []),
+            new GitSnapshot(true, 1, null));
+
+        var presence = renderer.Render(template, context);
+
+        Assert.Equal("Running command", presence.State);
+    }
+
+    [Fact]
     public void Render_DefaultPresence_UsesModel()
     {
         var renderer = new PresenceTemplateRenderer();
