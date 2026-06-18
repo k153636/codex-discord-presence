@@ -250,9 +250,9 @@ public sealed class PresenceTemplateOptions
     public string IdlingText { get; set; } = "Idling";
     public string ReadyText { get; set; } = "Hold on";
     public string AnalyzingText { get; set; } = "Thinking";
-    public string WaitingText { get; set; } = "Idling";
+    public string WaitingText { get; set; } = "Waiting";
     public string ReadyActivityText { get; set; } = "Idling";
-    public string WaitingActivityText { get; set; } = "Idling";
+    public string WaitingActivityText { get; set; } = "Waiting";
     public string OfflineText { get; set; } = "Idling";
     public int ThinkingStaleTimeoutMinutes { get; set; } = 10;
     public int ReadyIdleGraceMinutes { get; set; } = 5;
