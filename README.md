@@ -76,6 +76,7 @@ That timer is anchored to the start of the current thinking streak so it does no
 When the same thinking state is observed again after new Codex activity, it can render as `Thinking x2`, `Thinking x3`, and so on.
 Use `{ActivityLabel}` if you want the file name omitted for a cleaner one-line status.
 Use `{GoalModePrefix}` if you want `Plan mode:` to appear without changing the main state line.
+`goalmode` is normalized to `plan`, so both values render the same plan label.
 During active implementation work, it can switch to `Code mode:` so planning and coding are visually distinct.
 It stays blank for normal operation and for any other collaboration mode values.
 

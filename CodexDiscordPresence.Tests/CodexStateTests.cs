@@ -285,7 +285,7 @@ public class CodexStateTests
     }
 
     [Fact]
-    public void Test_9b_GoalModeAliasNormalizesToGoal()
+    public void Test_9b_GoalModeAliasNormalizesToPlan()
     {
         var tempPath = CreateTempSessionDirectory();
         try
@@ -309,7 +309,7 @@ public class CodexStateTests
 
             var snapshot = detector.GetSnapshot(@"E:\tool\discord-presence-for-codex", projectSnapshot, new GitSnapshot(false, 0, null));
 
-            Assert.Equal("goal", snapshot.CollaborationMode);
+            Assert.Equal("plan", snapshot.CollaborationMode);
         }
         finally
         {
