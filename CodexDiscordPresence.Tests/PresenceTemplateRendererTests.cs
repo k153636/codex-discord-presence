@@ -72,7 +72,7 @@ public sealed class PresenceTemplateRendererTests
 
         var presence = renderer.Render(template, context);
 
-        Assert.Equal("Goal mode: gpt-5-codex • Tokens pending", presence.Details);
+        Assert.Equal("Plan mode: gpt-5-codex • Tokens pending", presence.Details);
         Assert.Equal("Thinking • 5m", presence.State);
         Assert.Equal("working on Nexstrap", presence.LargeImageText);
         Assert.Equal("128 files • session 5m", presence.SmallImageText);

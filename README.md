@@ -75,7 +75,7 @@ For quiet idle periods, the app shows `Hold on` for the first 5 minutes, then sw
 That timer is anchored to the start of the current thinking streak so it does not jump back to `0s` just because a new observation arrived.
 When the same thinking state is observed again after new Codex activity, it can render as `Thinking x2`, `Thinking x3`, and so on.
 Use `{ActivityLabel}` if you want the file name omitted for a cleaner one-line status.
-Use `{GoalModePrefix}` if you want `Goal mode:` or `Plan mode:` to appear without changing the main state line.
+Use `{GoalModePrefix}` if you want `Plan mode:` to appear without changing the main state line.
 During active implementation work, it can switch to `Code mode:` so planning and coding are visually distinct.
 It stays blank for normal operation and for any other collaboration mode values.
 

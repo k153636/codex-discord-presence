@@ -242,7 +242,7 @@ public sealed class PresenceTemplateRenderer
             "plan" when IsImplementationActivity(context.Codex.ActivityKind) => "Code mode:",
             "plan" => "Plan mode:",
             "goal" when IsImplementationActivity(context.Codex.ActivityKind) => "Code mode:",
-            "goal" => "Goal mode:",
+            "goal" => "Plan mode:",
             _ => ""
         };
     }
