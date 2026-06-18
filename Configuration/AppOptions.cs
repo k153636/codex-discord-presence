@@ -251,7 +251,6 @@ public sealed class PresenceTemplateOptions
     public string ReadyText { get; set; } = "Hold on";
     public string AnalyzingText { get; set; } = "Thinking";
     public string WaitingText { get; set; } = "Waiting";
-    public string AwaitingInputText { get; set; } = "Input";
     public string ReadyActivityText { get; set; } = "Idling";
     public string WaitingActivityText { get; set; } = "Waiting";
     public string OfflineText { get; set; } = "Idling";

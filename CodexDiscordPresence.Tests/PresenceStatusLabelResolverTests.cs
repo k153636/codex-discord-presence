@@ -62,22 +62,6 @@ public sealed class PresenceStatusLabelResolverTests
     }
 
     [Fact]
-    public void ResolveStateLabel_ReadyAfterTaskCompleted_ReturnsInput()
-    {
-        var resolver = new PresenceStatusLabelResolver();
-        var context = CreateContext(
-            new CodexProcessSnapshot(true, "codex", false)
-            {
-                ActivityReason = "task_complete without file writes",
-                LastObservedAt = DateTime.UtcNow.AddMinutes(-1)
-            });
-
-        var label = resolver.ResolveStateLabel(new PresenceTemplateOptions(), context, CodexActivityKind.Ready, 0);
-
-        Assert.Equal("Input", label);
-    }
-
-    [Fact]
     public void ResolveStateLabel_Offline_ReturnsIdling()
     {
         var resolver = new PresenceStatusLabelResolver();

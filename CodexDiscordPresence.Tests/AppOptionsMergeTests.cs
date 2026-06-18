@@ -116,7 +116,6 @@ public sealed class AppOptionsMergeTests
             Assert.Equal("{GoalModePrefix} {ModelName} \u2022 {Tokens}", options.Presence.Details);
             Assert.Equal("Working", options.Presence.WorkingText);
             Assert.Equal("Waiting", options.Presence.WaitingText);
-            Assert.Equal("Input", options.Presence.AwaitingInputText);
             Assert.Equal("Waiting", options.Presence.WaitingActivityText);
             Assert.Equal(4, options.UpdateIntervalSeconds);
             Assert.NotNull(options.CodexCli);
