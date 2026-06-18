@@ -100,6 +100,27 @@ public sealed class PresenceTemplateRendererTests
     }
 
     [Fact]
+    public void Render_Details_OmitsModePrefixWhenModeIsOther()
+    {
+        var renderer = new PresenceTemplateRenderer();
+        var template = new PresenceTemplateOptions
+        {
+            Details = "{GoalModePrefix} {ModelName} • {Tokens}"
+        };
+        var context = CreateContext(
+            new CodexProcessSnapshot(true, "codex", true)
+            {
+                CollaborationMode = "draft"
+            },
+            new ProjectSnapshot("Nexstrap", @"E:\tool\Nexstrap", null, null, 128, 128, 42000, []),
+            new GitSnapshot(true, 1, null));
+
+        var presence = renderer.Render(template, context);
+
+        Assert.Equal("gpt-5-codex • Tokens pending", presence.Details);
+    }
+
+    [Fact]
     public void Render_ThinkingElapsed_UsesActivityStartTime()
     {
         var renderer = new PresenceTemplateRenderer();

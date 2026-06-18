@@ -236,11 +236,11 @@ public sealed class PresenceTemplateRenderer
             return "";
         }
 
-        return collaborationMode.Trim() switch
+        return collaborationMode.Trim().ToLowerInvariant() switch
         {
             "plan" => "Plan mode:",
             "goal" => "Goal mode:",
-            var value => $"{char.ToUpperInvariant(value[0]) + value[1..]} mode:"
+            _ => ""
         };
     }
 }
