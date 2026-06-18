@@ -31,10 +31,10 @@ public sealed class PresenceTemplateRenderer
         var changedFilesText = FormatChangedFiles(context.Git.ChangedFileCount);
         var projectSizeText = FormatProjectSize(context.Project.TotalFileCount, context.Project.TotalLineCount);
         var stateLabel = ResolveStateLabel(template, context, context.Codex.ActivityKind, context.Git.ChangedFileCount);
-        var activityElapsedText = BuildActivityElapsedText(context);
-        var activityLine = BuildActivityLine(context, recentEditedFiles, stateLabel, editingFile, activityElapsedText);
+        var activityLine = BuildActivityLine(context, recentEditedFiles, stateLabel, editingFile);
+        var freshnessElapsedText = BuildFreshnessElapsedText(context, template.FreshnessUpdateIntervalSeconds);
 
-        return new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+        var values = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
         {
             ["ModelName"] = context.ModelName,
             ["CodexStatus"] = context.Codex.IsRunning ? "Codex running" : "Codex not detected",
@@ -62,16 +62,19 @@ public sealed class PresenceTemplateRenderer
             ["Tokens"] = context.TokenUsage.TotalTokens is null ? "Tokens pending" : $"{FormatNumber(context.TokenUsage.TotalTokens.Value)} Token",
             ["Cost"] = "",
             ["EstimatedCost"] = "",
-            ["CodexState"] = stateLabel
+            ["CodexState"] = stateLabel,
+            ["FreshnessElapsed"] = freshnessElapsedText
         };
+
+        values["FreshnessText"] = Apply(template.FreshnessText, values);
+        return values;
     }
 
     private static string BuildActivityLine(
         PresenceContext context,
         IReadOnlyList<RecentProjectFileSnapshot> recentEditedFiles,
         string stateLabel,
-        RecentProjectFileSnapshot? editingFile,
-        string activityElapsedText)
+        RecentProjectFileSnapshot? editingFile)
     {
         if (!context.Codex.IsRunning)
         {
@@ -80,18 +83,16 @@ public sealed class PresenceTemplateRenderer
 
         if (context.Codex.ActivityKind == CodexActivityKind.UpdatingFiles)
         {
-            return AppendActivityElapsed(stateLabel, activityElapsedText);
+            return stateLabel;
         }
 
         if (context.Codex.ActivityKind is CodexActivityKind.ApplyingEdits or CodexActivityKind.CreatingFiles or CodexActivityKind.DeletingFiles &&
             recentEditedFiles.Count > 0)
         {
-            return AppendActivityElapsed(BuildEditingActivityLine(stateLabel, recentEditedFiles, editingFile), activityElapsedText);
+            return BuildEditingActivityLine(stateLabel, recentEditedFiles, editingFile);
         }
 
-        return context.Codex.ActivityKind.IsActive()
-            ? AppendActivityElapsed(BuildIdleActivityLine(context, stateLabel), activityElapsedText)
-            : BuildIdleActivityLine(context, stateLabel);
+        return BuildIdleActivityLine(context, stateLabel);
     }
 
     private static string BuildActiveEditedFilesText(
@@ -162,23 +163,24 @@ public sealed class PresenceTemplateRenderer
         };
     }
 
-    private static string BuildActivityElapsedText(PresenceContext context)
+    private static string BuildFreshnessElapsedText(PresenceContext context, int freshnessIntervalSeconds)
     {
         var referenceUtc = context.Codex.LastObservedAt ?? context.Session.StartedAt;
         var elapsed = DateTime.UtcNow - referenceUtc;
-        return FormatShortDuration(elapsed);
+        var bucketedElapsed = BucketDuration(elapsed, freshnessIntervalSeconds);
+        return FormatShortDuration(bucketedElapsed, allowZero: true);
     }
 
-    private static string AppendActivityElapsed(string baseLine, string elapsedText)
+    private static TimeSpan BucketDuration(TimeSpan elapsed, int intervalSeconds)
     {
-        if (string.IsNullOrWhiteSpace(baseLine))
+        if (elapsed <= TimeSpan.Zero)
         {
-            return baseLine;
+            return TimeSpan.Zero;
         }
 
-        return string.IsNullOrWhiteSpace(elapsedText)
-            ? baseLine
-            : $"{baseLine} \u2022 {elapsedText}";
+        var interval = TimeSpan.FromSeconds(Math.Max(1, intervalSeconds));
+        var bucketCount = Math.Floor(elapsed.TotalSeconds / interval.TotalSeconds);
+        return TimeSpan.FromSeconds(bucketCount * interval.TotalSeconds);
     }
 
     private static string ResolveStateLabel(
@@ -253,7 +255,7 @@ public sealed class PresenceTemplateRenderer
         return $"{Math.Max(1, elapsed.Minutes)}m";
     }
 
-    private static string FormatShortDuration(TimeSpan elapsed)
+    private static string FormatShortDuration(TimeSpan elapsed, bool allowZero = false)
     {
         if (elapsed.TotalHours >= 1)
         {
@@ -269,7 +271,8 @@ public sealed class PresenceTemplateRenderer
                 : $"{(int)elapsed.TotalMinutes}m {elapsed.Seconds}s";
         }
 
-        return $"{Math.Max(1, (int)elapsed.TotalSeconds)}s";
+        var seconds = (int)elapsed.TotalSeconds;
+        return $"{Math.Max(allowZero ? 0 : 1, seconds)}s";
     }
 
     private static string FormatNumber(long value)

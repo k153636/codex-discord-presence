@@ -17,7 +17,7 @@ public sealed class PresenceTemplateRendererTests
 
         var presence = renderer.Render(template, context);
 
-        Assert.Equal("Thinking • 5m", presence.State);
+        Assert.Equal("Thinking", presence.State);
     }
 
     [Fact]
@@ -44,7 +44,7 @@ public sealed class PresenceTemplateRendererTests
             new CodexProcessSnapshot(true, "codex", false),
             new ProjectSnapshot("Nexstrap", @"E:\tool\Nexstrap", null, null, 128, 128, 42000, []),
             new GitSnapshot(true, 0, null),
-            TimeSpan.FromMinutes(4));
+            sessionAge: TimeSpan.FromMinutes(4));
 
         var presence = renderer.Render(template, context);
 
@@ -52,15 +52,15 @@ public sealed class PresenceTemplateRendererTests
     }
 
     [Fact]
-    public void Render_DefaultPresence_UsesModelAndActivityLine()
+    public void Render_DefaultPresence_UsesModelAndFreshnessText()
     {
         var renderer = new PresenceTemplateRenderer();
         var template = new PresenceTemplateOptions
         {
-            Details = "{ModelName} \u2022 {Tokens}",
+            Details = "{ModelName} • {Tokens}",
             State = "{ActivityLine}",
             LargeImageText = "working on {ProjectName}",
-            SmallImageText = "{ProjectFileCount} files \u2022 session {SessionElapsed}"
+            SmallImageText = "{ProjectFileCount} files • {FreshnessText}"
         };
         var context = CreateContext(
             new CodexProcessSnapshot(true, "codex", true),
@@ -69,10 +69,10 @@ public sealed class PresenceTemplateRendererTests
 
         var presence = renderer.Render(template, context);
 
-        Assert.Equal("gpt-5-codex \u2022 Tokens pending", presence.Details);
-        Assert.Equal("Thinking • 5m", presence.State);
+        Assert.Equal("gpt-5-codex • Tokens pending", presence.Details);
+        Assert.Equal("Thinking", presence.State);
         Assert.Equal("working on Nexstrap", presence.LargeImageText);
-        Assert.Equal("128 files \u2022 session 5m", presence.SmallImageText);
+        Assert.Equal("128 files • updated 5m ago", presence.SmallImageText);
     }
 
     [Fact]
@@ -85,11 +85,13 @@ public sealed class PresenceTemplateRendererTests
         {
             var renderer = new PresenceTemplateRenderer();
             var template = new PresenceTemplateOptions { State = "{ActivityLine}" };
+            var now = DateTime.UtcNow;
             var context = CreateContext(
                 new CodexProcessSnapshot(true, "codex", false)
                 {
                     DetectedActivityKind = CodexActivityKind.ApplyingEdits,
-                    ActivityProvenance = ActivityProvenance.Observed
+                    ActivityProvenance = ActivityProvenance.Observed,
+                    LastObservedAt = now
                 },
                 new ProjectSnapshot(
                     "Nexstrap",
@@ -102,11 +104,12 @@ public sealed class PresenceTemplateRendererTests
                     [new RecentProjectFileSnapshot(Path.GetFileName(tempFile), tempFile, File.GetLastWriteTimeUtc(tempFile))]),
                 new GitSnapshot(true, 2, null),
                 sessionAge: TimeSpan.FromSeconds(12),
+                lastObservedAt: now,
                 recentEditedFiles: [new RecentProjectFileSnapshot(Path.GetFileName(tempFile), tempFile, File.GetLastWriteTimeUtc(tempFile))]);
 
             var presence = renderer.Render(template, context);
 
-            Assert.Equal("Applying edits \u2022 CodexRpcRendererTest.txt \u2022 12s", presence.State);
+            Assert.Equal("Applying edits • CodexRpcRendererTest.txt", presence.State);
         }
         finally
         {
@@ -195,7 +198,7 @@ public sealed class PresenceTemplateRendererTests
 
         var presence = renderer.Render(template, context);
 
-        Assert.Equal("1.5K files \u2022 142.4K lines", presence.LargeImageText);
+        Assert.Equal("1.5K files • 142.4K lines", presence.LargeImageText);
     }
 
     [Fact]
@@ -219,11 +222,12 @@ public sealed class PresenceTemplateRendererTests
         var now = DateTime.UtcNow;
         var renderer = new PresenceTemplateRenderer();
         var template = new PresenceTemplateOptions { State = "{ActivityLine}" };
-            var context = CreateContext(
-                new CodexProcessSnapshot(true, "codex", false)
-                {
-                    DetectedActivityKind = CodexActivityKind.UpdatingFiles,
-                    ActivityProvenance = ActivityProvenance.Observed
+        var context = CreateContext(
+            new CodexProcessSnapshot(true, "codex", false)
+            {
+                DetectedActivityKind = CodexActivityKind.UpdatingFiles,
+                ActivityProvenance = ActivityProvenance.Observed,
+                LastObservedAt = now
             },
             new ProjectSnapshot(
                 "Nexstrap",
@@ -232,18 +236,20 @@ public sealed class PresenceTemplateRendererTests
                 @"E:\tool\Nexstrap\Program.cs",
                 2,
                 2,
-                    42000,
-                    []),
+                42000,
+                []),
             new GitSnapshot(true, 2, null),
             sessionAge: TimeSpan.FromSeconds(12),
-            recentEditedFiles: [
+            lastObservedAt: now,
+            recentEditedFiles:
+            [
                 new RecentProjectFileSnapshot("Program.cs", @"E:\tool\Nexstrap\Program.cs", now),
                 new RecentProjectFileSnapshot("AppOptions.cs", @"E:\tool\Nexstrap\AppOptions.cs", now.AddSeconds(-5))
             ]);
 
         var presence = renderer.Render(template, context);
 
-        Assert.Equal("Coordinating changes across 2 files \u2022 12s", presence.State);
+        Assert.Equal("Coordinating changes across 2 files", presence.State);
     }
 
     [Fact]
@@ -252,11 +258,12 @@ public sealed class PresenceTemplateRendererTests
         var now = DateTime.UtcNow;
         var renderer = new PresenceTemplateRenderer();
         var template = new PresenceTemplateOptions { State = "{ActivityLine}" };
-            var context = CreateContext(
-                new CodexProcessSnapshot(true, "codex", false)
-                {
-                    DetectedActivityKind = CodexActivityKind.CreatingFiles,
-                    ActivityProvenance = ActivityProvenance.Observed
+        var context = CreateContext(
+            new CodexProcessSnapshot(true, "codex", false)
+            {
+                DetectedActivityKind = CodexActivityKind.CreatingFiles,
+                ActivityProvenance = ActivityProvenance.Observed,
+                LastObservedAt = now
             },
             new ProjectSnapshot(
                 "Nexstrap",
@@ -269,23 +276,26 @@ public sealed class PresenceTemplateRendererTests
                 []),
             new GitSnapshot(true, 1, null, CreatedFileCount: 1),
             sessionAge: TimeSpan.FromSeconds(12),
+            lastObservedAt: now,
             recentEditedFiles: [new RecentProjectFileSnapshot("NewFile.cs", @"E:\tool\Nexstrap\NewFile.cs", now)]);
 
         var presence = renderer.Render(template, context);
 
-        Assert.Equal("Creating files \u2022 NewFile.cs \u2022 12s", presence.State);
+        Assert.Equal("Creating files • NewFile.cs", presence.State);
     }
 
     [Fact]
     public void Render_WithDeletedFilesActivity_UsesDeletingFilesLabel()
     {
+        var now = DateTime.UtcNow;
         var renderer = new PresenceTemplateRenderer();
         var template = new PresenceTemplateOptions { State = "{ActivityLine}" };
         var context = CreateContext(
             new CodexProcessSnapshot(true, "codex", false)
             {
                 DetectedActivityKind = CodexActivityKind.DeletingFiles,
-                ActivityProvenance = ActivityProvenance.Observed
+                ActivityProvenance = ActivityProvenance.Observed,
+                LastObservedAt = now
             },
             new ProjectSnapshot(
                 "Nexstrap",
@@ -296,11 +306,13 @@ public sealed class PresenceTemplateRendererTests
                 0,
                 42000,
                 []),
-            new GitSnapshot(true, 1, null, DeletedFileCount: 1));
+            new GitSnapshot(true, 1, null, DeletedFileCount: 1),
+            sessionAge: TimeSpan.FromSeconds(12),
+            lastObservedAt: now);
 
         var presence = renderer.Render(template, context);
 
-        Assert.Equal("Deleting files • 5m", presence.State);
+        Assert.Equal("Deleting files", presence.State);
     }
 
     [Fact]
@@ -309,11 +321,12 @@ public sealed class PresenceTemplateRendererTests
         var now = DateTime.UtcNow;
         var renderer = new PresenceTemplateRenderer();
         var template = new PresenceTemplateOptions { State = "{ActiveEditedFilesText}" };
-            var context = CreateContext(
-                new CodexProcessSnapshot(true, "codex", false)
-                {
-                    DetectedActivityKind = CodexActivityKind.UpdatingFiles,
-                    ActivityProvenance = ActivityProvenance.Observed
+        var context = CreateContext(
+            new CodexProcessSnapshot(true, "codex", false)
+            {
+                DetectedActivityKind = CodexActivityKind.UpdatingFiles,
+                ActivityProvenance = ActivityProvenance.Observed,
+                LastObservedAt = now
             },
             new ProjectSnapshot(
                 "Nexstrap",
@@ -322,10 +335,12 @@ public sealed class PresenceTemplateRendererTests
                 @"E:\tool\Nexstrap\Program.cs",
                 2,
                 2,
-                    42000,
-                    []),
+                42000,
+                []),
             new GitSnapshot(true, 2, null),
-            recentEditedFiles: [
+            lastObservedAt: now,
+            recentEditedFiles:
+            [
                 new RecentProjectFileSnapshot("Program.cs", @"E:\tool\Nexstrap\Program.cs", now),
                 new RecentProjectFileSnapshot("AppOptions.cs", @"E:\tool\Nexstrap\AppOptions.cs", now.AddSeconds(-1))
             ]);
@@ -340,19 +355,22 @@ public sealed class PresenceTemplateRendererTests
     {
         var renderer = new PresenceTemplateRenderer();
         var template = new PresenceTemplateOptions { State = "{ActivityLine}" };
+        var now = DateTime.UtcNow;
         var context = CreateContext(
             new CodexProcessSnapshot(true, "codex", false)
             {
                 DetectedActivityKind = CodexActivityKind.RunningCommand,
-                ActivityProvenance = ActivityProvenance.Observed
+                ActivityProvenance = ActivityProvenance.Observed,
+                LastObservedAt = now
             },
-                new ProjectSnapshot("Nexstrap", @"E:\tool\Nexstrap", null, null, 128, 128, 42000, []),
-                new GitSnapshot(true, 0, null),
-                sessionAge: TimeSpan.FromSeconds(12));
+            new ProjectSnapshot("Nexstrap", @"E:\tool\Nexstrap", null, null, 128, 128, 42000, []),
+            new GitSnapshot(true, 0, null),
+            sessionAge: TimeSpan.FromSeconds(12),
+            lastObservedAt: now);
 
         var presence = renderer.Render(template, context);
 
-        Assert.Equal("Running command \u2022 12s", presence.State);
+        Assert.Equal("Running command", presence.State);
     }
 
     [Fact]
@@ -361,13 +379,14 @@ public sealed class PresenceTemplateRendererTests
         var now = DateTime.UtcNow;
         var renderer = new PresenceTemplateRenderer();
         var template = new PresenceTemplateOptions { State = "{ActivityLine}" };
-            var context = CreateContext(
-                new CodexProcessSnapshot(true, "codex", false)
-                {
-                    DetectedActivityKind = CodexActivityKind.Refactoring,
-                    ActivityProvenance = ActivityProvenance.Observed,
-                    Confidence = ActivityConfidence.Low
-                },
+        var context = CreateContext(
+            new CodexProcessSnapshot(true, "codex", false)
+            {
+                DetectedActivityKind = CodexActivityKind.Refactoring,
+                ActivityProvenance = ActivityProvenance.Observed,
+                Confidence = ActivityConfidence.Low,
+                LastObservedAt = now
+            },
             new ProjectSnapshot(
                 "Nexstrap",
                 @"E:\tool\Nexstrap",
@@ -375,11 +394,13 @@ public sealed class PresenceTemplateRendererTests
                 @"E:\tool\Nexstrap\Program.cs",
                 4,
                 4,
-                    42000,
-                    []),
+                42000,
+                []),
             new GitSnapshot(true, 4, "refactor: split editor state from transport"),
             sessionAge: TimeSpan.FromSeconds(12),
-            recentEditedFiles: [
+            lastObservedAt: now,
+            recentEditedFiles:
+            [
                 new RecentProjectFileSnapshot("Program.cs", @"E:\tool\Nexstrap\Program.cs", now),
                 new RecentProjectFileSnapshot("AppOptions.cs", @"E:\tool\Nexstrap\AppOptions.cs", now.AddSeconds(-5)),
                 new RecentProjectFileSnapshot("PresenceTemplateRenderer.cs", @"E:\tool\Nexstrap\PresenceTemplateRenderer.cs", now.AddSeconds(-10)),
@@ -388,7 +409,27 @@ public sealed class PresenceTemplateRendererTests
 
         var presence = renderer.Render(template, context);
 
-        Assert.Equal("Refactoring \u2022 12s", presence.State);
+        Assert.Equal("Refactoring", presence.State);
+    }
+
+    [Fact]
+    public void Render_FreshnessText_BucketsToThreeSecondSteps()
+    {
+        var renderer = new PresenceTemplateRenderer();
+        var template = new PresenceTemplateOptions
+        {
+            SmallImageText = "{FreshnessText}",
+            FreshnessUpdateIntervalSeconds = 3
+        };
+        var context = CreateContext(
+            new CodexProcessSnapshot(true, "codex", true),
+            new ProjectSnapshot("Nexstrap", @"E:\tool\Nexstrap", null, null, 128, 128, 42000, []),
+            new GitSnapshot(true, 1, null),
+            lastObservedAt: DateTime.UtcNow.AddSeconds(-4));
+
+        var presence = renderer.Render(template, context);
+
+        Assert.Equal("updated 3s ago", presence.SmallImageText);
     }
 
     private static PresenceContext CreateContext(
@@ -396,6 +437,7 @@ public sealed class PresenceTemplateRendererTests
         ProjectSnapshot project,
         GitSnapshot git,
         TimeSpan? sessionAge = null,
+        DateTime? lastObservedAt = null,
         IReadOnlyList<RecentProjectFileSnapshot>? recentEditedFiles = null)
     {
         var startedAt = DateTime.UtcNow - (sessionAge ?? TimeSpan.FromMinutes(5));
@@ -403,7 +445,8 @@ public sealed class PresenceTemplateRendererTests
             "gpt-5-codex",
             codex with
             {
-                RecentEditedFiles = recentEditedFiles ?? Array.Empty<RecentProjectFileSnapshot>()
+                RecentEditedFiles = recentEditedFiles ?? Array.Empty<RecentProjectFileSnapshot>(),
+                LastObservedAt = lastObservedAt
             },
             project,
             git,
@@ -411,4 +454,3 @@ public sealed class PresenceTemplateRendererTests
             new TokenUsageSnapshot(null, null));
     }
 }
-
