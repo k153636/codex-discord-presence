@@ -43,9 +43,11 @@ public static class PresenceApplication
         var tokenUsageProvider = new TokenUsageProvider(options.Codex, options.TokenUsage);
         var renderer = new PresenceTemplateRenderer();
         var rpc = new DiscordPresenceClient(options.Discord);
+        var projectSwitchDetectionInterval = TimeSpan.FromSeconds(3);
 
         Console.WriteLine("Starting Codex Discord RPC.");
-        Console.WriteLine($"Project path: {projectInspector.ProjectPath}");
+        var activeProjectPath = projectInspector.ProjectPath;
+        Console.WriteLine($"Project path: {activeProjectPath}");
         Console.WriteLine("Press Ctrl+C to stop.");
 
         await rpc.StartAsync(cts.Token);
@@ -63,14 +65,38 @@ public static class PresenceApplication
         string? lastPresenceSignature = null;
         var lastSuccessfulUpdateUtc = DateTime.MinValue;
         var keepAliveInterval = TimeSpan.FromSeconds(15);
+        var lastLoggedProjectPath = activeProjectPath;
 
         while (!cts.IsCancellationRequested)
         {
             try
             {
-                var projectSnapshot = projectInspector.GetSnapshot();
-                var gitSnapshot = gitInspector.GetSnapshot(projectInspector.ProjectPath);
-                var codexSnapshot = codexDetector.GetSnapshot(projectInspector.ProjectPath, projectSnapshot, gitSnapshot, lastActivityKind);
+                var observedProjectPath = codexDetector.GetObservedProjectPath(activeProjectPath);
+                if (!string.IsNullOrWhiteSpace(observedProjectPath))
+                {
+                    activeProjectPath = projectInspector.ResolveProjectPath(observedProjectPath);
+                }
+
+                if (!string.Equals(activeProjectPath, lastLoggedProjectPath, StringComparison.OrdinalIgnoreCase))
+                {
+                    Console.WriteLine($"Project switched: {lastLoggedProjectPath} -> {activeProjectPath}");
+                    lastLoggedProjectPath = activeProjectPath;
+                    lastModelSnapshot = null;
+                    lastActivitySnapshot = null;
+                    stableCostModelName = null;
+                    lastPresenceSignature = null;
+                    lastPresenceDetails = null;
+                    lastPresenceState = null;
+                    lastAnalyzingRepeatCount = 1;
+                    lastAnalyzingTaskStartedAt = null;
+                    lastAnalyzingStartedAt = null;
+                    lastActivityStartedAt = null;
+                    lastActivityKind = CodexActivityKind.Ready;
+                }
+
+                var projectSnapshot = projectInspector.GetSnapshot(activeProjectPath);
+                var gitSnapshot = gitInspector.GetSnapshot(activeProjectPath);
+                var codexSnapshot = codexDetector.GetSnapshot(activeProjectPath, projectSnapshot, gitSnapshot, lastActivityKind);
                 var analyzingRepeatCount = ActivityRepeatCountTracker.GetAnalyzingRepeatCount(
                     codexSnapshot.ActivityKind,
                     lastActivityKind,
@@ -88,7 +114,7 @@ public static class PresenceApplication
                         codexSnapshot.LastObservedAt,
                         options.Presence.RunningCommandHoldSeconds)
                 };
-                var modelSnapshot = modelNameProvider.GetSnapshot(projectInspector.ProjectPath);
+                var modelSnapshot = modelNameProvider.GetSnapshot(activeProjectPath);
                 if (lastModelSnapshot is null ||
                     !string.Equals(modelSnapshot.SelectedUiModel, lastModelSnapshot.SelectedUiModel, StringComparison.Ordinal) ||
                     !string.Equals(modelSnapshot.LastUsedSessionModel, lastModelSnapshot.LastUsedSessionModel, StringComparison.Ordinal) ||
@@ -129,7 +155,7 @@ public static class PresenceApplication
                     projectSnapshot,
                     gitSnapshot,
                     session.GetSnapshot(),
-                    tokenUsageProvider.GetSnapshot(projectInspector.ProjectPath, stableCostModelName));
+                    tokenUsageProvider.GetSnapshot(activeProjectPath, stableCostModelName));
 
                 var presence = renderer.Render(options.Presence, context);
                 var presenceSignature = BuildPresenceSignature(presence);
@@ -170,6 +196,10 @@ public static class PresenceApplication
             }
 
             var delay = PresenceRefreshPolicy.GetNextDelay(options.Presence, lastActivityKind, options.UpdateIntervalSeconds);
+            if (delay > projectSwitchDetectionInterval)
+            {
+                delay = projectSwitchDetectionInterval;
+            }
 
             await Task.Delay(delay, cts.Token)
                 .ContinueWith(_ => { }, CancellationToken.None);

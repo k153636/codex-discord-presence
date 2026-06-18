@@ -9,18 +9,23 @@ public sealed class ProjectInspector
     public ProjectInspector(ProjectOptions options)
     {
         _options = options;
-        ProjectPath = ResolveProjectPath(options);
         _ignoredDirectories = options.IgnoredDirectories.ToHashSet(StringComparer.OrdinalIgnoreCase);
         _ignoredFilePatterns = options.IgnoredFilePatterns
             .Where(pattern => !string.IsNullOrWhiteSpace(pattern))
             .ToArray();
     }
 
-    public string ProjectPath { get; }
+    public string ProjectPath => ResolveProjectPath(_options.Path);
 
-    public ProjectSnapshot GetSnapshot()
+    public string ResolveProjectPath(string? projectPath = null)
     {
-        var directory = new DirectoryInfo(ProjectPath);
+        return ResolveProjectPath(projectPath ?? _options.Path, _options.PreferGitRootForProjectPath);
+    }
+
+    public ProjectSnapshot GetSnapshot(string? projectPath = null)
+    {
+        var resolvedProjectPath = ResolveProjectPath(projectPath);
+        var directory = new DirectoryInfo(resolvedProjectPath);
         var projectName = string.IsNullOrWhiteSpace(_options.DisplayName)
             ? directory.Name
             : _options.DisplayName;
@@ -29,7 +34,7 @@ public sealed class ProjectInspector
 
         return new ProjectSnapshot(
             projectName,
-            ProjectPath,
+            resolvedProjectPath,
             inspection.RecentFile?.Name,
             inspection.RecentFile?.FullName,
             inspection.TotalFileCount,
@@ -124,10 +129,10 @@ public sealed class ProjectInspector
         return false;
     }
 
-    private static string ResolveProjectPath(ProjectOptions options)
+    private static string ResolveProjectPath(string path, bool preferGitRootForProjectPath)
     {
-        var resolvedPath = Path.GetFullPath(Environment.ExpandEnvironmentVariables(options.Path));
-        if (!options.PreferGitRootForProjectPath)
+        var resolvedPath = Path.GetFullPath(Environment.ExpandEnvironmentVariables(path));
+        if (!preferGitRootForProjectPath)
         {
             return resolvedPath;
         }

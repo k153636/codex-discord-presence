@@ -193,5 +193,6 @@ The default large image key is:
 - `git diff`, recent file writes, and session logs are used together to infer active work
 - Project scanning ignores common build, cache, and binary folders
 - Activity and evidence helpers live under `Modules/` to keep the main entrypoints smaller
+- The app re-checks the active project at most every 3 seconds so project switches surface quickly
 - The default refresh cadence is shortened so activity changes surface faster in Discord
 

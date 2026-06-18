@@ -81,6 +81,38 @@ public class CodexStateTests
     }
 
     [Fact]
+    public void Test_2b_ObservedProjectPath_UsesLatestSessionCwd()
+    {
+        var tempPath = CreateTempSessionDirectory();
+        try
+        {
+            var firstProject = @"E:\tool\ProjectOne";
+            var secondProject = @"E:\tool\ProjectTwo";
+
+            WriteMockSessionLog(tempPath, "session1.jsonl", new[]
+            {
+                $"{{\"timestamp\":\"2026-06-17T13:00:00.000Z\",\"type\":\"event_msg\",\"payload\":{{\"type\":\"session_meta\",\"cwd\":\"{firstProject.Replace("\\", "\\\\")}\"}}}}"
+            });
+            WriteMockSessionLog(tempPath, "session2.jsonl", new[]
+            {
+                $"{{\"timestamp\":\"2026-06-17T13:00:10.000Z\",\"type\":\"event_msg\",\"payload\":{{\"type\":\"turn_context\",\"cwd\":\"{secondProject.Replace("\\", "\\\\")}\"}}}}"
+            });
+            SetSessionWriteTime(tempPath, "session1.jsonl", DateTime.UtcNow.AddSeconds(-10));
+            SetSessionWriteTime(tempPath, "session2.jsonl", DateTime.UtcNow);
+
+            var detector = new CodexProcessDetector(new CodexDetectionOptions { HomePath = tempPath }, new PresenceTemplateOptions());
+
+            var observedProjectPath = detector.GetObservedProjectPath();
+
+            Assert.Equal(secondProject, observedProjectPath);
+        }
+        finally
+        {
+            Directory.Delete(tempPath, true);
+        }
+    }
+
+    [Fact]
     public void Test_3_LatestSessionHasTaskStarted_ReturnsAnalyzingProject()
     {
         var tempPath = CreateTempSessionDirectory();

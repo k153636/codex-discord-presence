@@ -60,6 +60,7 @@ internal sealed class CodexSessionLogParser
     {
         var hasProjectPath = false;
         var matchesProject = false;
+        string? latestProjectPath = null;
         var hasTaskStarted = false;
         var hasTaskCompleted = false;
         DateTime? lastTaskStartedAt = null;
@@ -98,6 +99,7 @@ internal sealed class CodexSessionLogParser
                 if (TryGetString(payload, "cwd", out var cwd))
                 {
                     hasProjectPath = true;
+                    latestProjectPath = cwd;
                     if (normalizedProjectPath != null && NormalizePath(cwd) == normalizedProjectPath)
                     {
                         matchesProject = true;
@@ -184,7 +186,10 @@ internal sealed class CodexSessionLogParser
             collaborationMode,
             hasRunningCommand,
             runningCommandReason,
-            null);
+            null)
+        {
+            ProjectPath = latestProjectPath
+        };
     }
 
     private static string? TryGetCollaborationMode(JsonElement payload)

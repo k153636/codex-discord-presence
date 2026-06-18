@@ -68,8 +68,14 @@ public sealed class CodexProcessDetector
             CollaborationMode = sessionInspection?.CollaborationMode,
             LastTaskStartedAt = sessionInspection?.LastTaskStartedAt,
             LastObservedAt = lastObservedAt,
+            ObservedProjectPath = sessionInspection?.ProjectPath,
             RecentEditedFiles = recentEditedFiles
         };
+    }
+
+    public string? GetObservedProjectPath(string? projectPath = null)
+    {
+        return InspectRecentSessions(projectPath)?.ProjectPath;
     }
 
     public bool DetermineIfThinking(string? projectPath = null)

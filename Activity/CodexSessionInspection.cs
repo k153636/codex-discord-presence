@@ -13,6 +13,8 @@ internal sealed record SessionInspection(
     string? RunningCommandReason,
     string? RefactorEvidenceReason)
 {
+    public string? ProjectPath { get; init; }
+
     public bool HasRecentActivity(int staleTimeoutMinutes)
     {
         var freshest = LastObservedAt ?? LastTaskStartedAt ?? LastTaskCompletedAt;

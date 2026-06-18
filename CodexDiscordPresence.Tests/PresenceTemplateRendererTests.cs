@@ -536,12 +536,18 @@ public sealed class PresenceTemplateRendererTests
         var presence = renderer.Render(template, context);
 
         Assert.Equal("Refactoring", presence.State);
-    };
+    }
+
+    [Fact]
+    public void Render_SessionElapsed_UsesSecondsWhenUnderOneMinute()
+    {
+        var renderer = new PresenceTemplateRenderer();
+        var template = new PresenceTemplateOptions { State = "{SessionElapsed}" };
         var context = CreateContext(
             new CodexProcessSnapshot(true, "codex", true),
             new ProjectSnapshot("Nexstrap", @"E:\tool\Nexstrap", null, null, 128, 128, 42000, []),
             new GitSnapshot(true, 1, null),
-            lastObservedAt: DateTime.UtcNow.AddSeconds(-4));
+            sessionAge: TimeSpan.FromSeconds(3));
 
         var presence = renderer.Render(template, context);
 
