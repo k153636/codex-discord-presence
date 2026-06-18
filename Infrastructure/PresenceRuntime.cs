@@ -57,15 +57,9 @@ public sealed class PresenceRuntime
             {
                 RefreshTimingSettingsIfNeeded();
 
-                if (!_state.Enabled)
+                if (!HandleDisabledState(rpc, wasDisabled))
                 {
-                    if (!wasDisabled)
-                    {
-                        rpc.Clear();
-                        wasDisabled = true;
-                        Console.WriteLine("Presence disabled.");
-                    }
-
+                    wasDisabled = true;
                     await Delay(TimeSpan.FromSeconds(1));
                     continue;
                 }
@@ -74,18 +68,10 @@ public sealed class PresenceRuntime
                 {
                     Console.WriteLine("Presence enabled.");
                     wasDisabled = false;
-                    foreach (var profileState in profileStates.Values)
-                    {
-                        profileState.ResetPresenceCache();
-                    }
+                    ResetAllProfilePresenceCaches(profileStates);
                 }
 
-                var codexProfileSnapshot = profileStates[AppProfileKind.Codex].Detector.GetSnapshot(activeProjectPath);
-                var cliProfileSnapshot = profileStates[AppProfileKind.CodexCli].Detector.GetSnapshot(activeProjectPath);
-                var selectedProfile = AppProfileSelectionPolicy.Select(
-                    currentProfile,
-                    new AppProfileSelectionCandidate(AppProfileKind.Codex, codexProfileSnapshot, profileStates[AppProfileKind.Codex].DiscordOptions),
-                    new AppProfileSelectionCandidate(AppProfileKind.CodexCli, cliProfileSnapshot, profileStates[AppProfileKind.CodexCli].DiscordOptions));
+                var selectedProfile = SelectProfile(profileStates, activeProjectPath, currentProfile);
                 var selectedProfileState = profileStates[selectedProfile];
 
                 rpc.UpdateOptions(selectedProfileState.DiscordOptions);
@@ -96,123 +82,37 @@ public sealed class PresenceRuntime
                     currentProfile = selectedProfile;
                 }
 
-                var observedProjectPath = selectedProfileState.Detector.GetObservedProjectPath(activeProjectPath);
-                if (!string.IsNullOrWhiteSpace(observedProjectPath))
-                {
-                    activeProjectPath = projectInspector.NormalizeProjectPath(observedProjectPath);
-                }
-
-                if (!string.Equals(activeProjectPath, lastLoggedProjectPath, StringComparison.OrdinalIgnoreCase))
-                {
-                    Console.WriteLine($"Project switched: {lastLoggedProjectPath} -> {activeProjectPath}");
-                    lastLoggedProjectPath = activeProjectPath;
-                    selectedProfileState.ResetPresenceCache();
-                }
+                activeProjectPath = UpdateActiveProjectPath(
+                    projectInspector,
+                    activeProjectPath,
+                    selectedProfileState,
+                    ref lastLoggedProjectPath);
 
                 var projectSnapshot = projectInspector.GetSnapshot(activeProjectPath);
                 var gitSnapshot = gitInspector.GetSnapshot(activeProjectPath);
-                var codexSnapshot = selectedProfileState.Detector.GetSnapshot(
+                var codexSnapshot = BuildCodexSnapshot(
                     activeProjectPath,
                     projectSnapshot,
                     gitSnapshot,
-                    selectedProfileState.LastActivityKind);
-                var analyzingRepeatCount = ActivityRepeatCountTracker.GetAnalyzingRepeatCount(
-                    codexSnapshot.ActivityKind,
-                    selectedProfileState.LastActivityKind,
-                    codexSnapshot.LastTaskStartedAt,
-                    selectedProfileState.LastAnalyzingTaskStartedAt,
-                    selectedProfileState.LastAnalyzingRepeatCount);
-                codexSnapshot = codexSnapshot with { ActivityRepeatCount = analyzingRepeatCount };
-                codexSnapshot = codexSnapshot with
-                {
-                    ActivityStartedAt = ResolveActivityStartedAt(
-                        codexSnapshot.ActivityKind,
-                        selectedProfileState.LastActivityKind,
-                        selectedProfileState.LastActivityStartedAt,
-                        selectedProfileState.LastAnalyzingStartedAt,
-                        codexSnapshot.LastObservedAt,
-                        _options.Presence.RunningCommandHoldSeconds)
-                };
-                var modelSnapshot = selectedProfileState.ModelNameProvider.GetSnapshot(activeProjectPath);
-                if (selectedProfileState.LastModelSnapshot is null ||
-                    !string.Equals(modelSnapshot.SelectedUiModel, selectedProfileState.LastModelSnapshot.SelectedUiModel, StringComparison.Ordinal) ||
-                    !string.Equals(modelSnapshot.LastUsedSessionModel, selectedProfileState.LastModelSnapshot.LastUsedSessionModel, StringComparison.Ordinal) ||
-                    !string.Equals(modelSnapshot.FinalDisplayedModel, selectedProfileState.LastModelSnapshot.FinalDisplayedModel, StringComparison.Ordinal))
-                {
-                    Console.WriteLine(
-                        "Model detection: " +
-                        $"Selected UI model={FormatLogValue(modelSnapshot.SelectedUiModel)}, " +
-                        $"Last used session model={FormatLogValue(modelSnapshot.LastUsedSessionModel)}, " +
-                        $"Final displayed model={FormatLogValue(modelSnapshot.FinalDisplayedModel)} " +
-                        $"(source={modelSnapshot.Source})");
-                    selectedProfileState.LastModelSnapshot = modelSnapshot;
-                }
-
-                if (selectedProfileState.StableCostModelName is null &&
-                    !string.IsNullOrWhiteSpace(modelSnapshot.FinalDisplayedModel))
-                {
-                    selectedProfileState.StableCostModelName = modelSnapshot.FinalDisplayedModel;
-                }
-
-                if (selectedProfileState.LastActivitySnapshot is null ||
-                    selectedProfileState.LastActivitySnapshot.ActivityKind != codexSnapshot.ActivityKind ||
-                    selectedProfileState.LastActivitySnapshot.ActivityProvenance != codexSnapshot.ActivityProvenance ||
-                    !string.Equals(selectedProfileState.LastActivitySnapshot.ActivityReason, codexSnapshot.ActivityReason, StringComparison.Ordinal))
-                {
-                    Console.WriteLine(
-                        "Activity detection: " +
-                        $"state={codexSnapshot.ActivityKind}, " +
-                        $"confidence={codexSnapshot.Confidence}, " +
-                        $"provenance={codexSnapshot.ActivityProvenance}, " +
-                        $"reason={codexSnapshot.ActivityReason}");
-                    selectedProfileState.LastActivitySnapshot = codexSnapshot;
-                }
-
-                var context = new PresenceContext(
-                    modelSnapshot.FinalDisplayedModel,
-                    codexSnapshot,
+                    selectedProfileState);
+                var modelSnapshot = UpdateModelSnapshot(activeProjectPath, selectedProfileState);
+                var context = BuildPresenceContext(
+                    session,
+                    activeProjectPath,
+                    selectedProfileState,
+                    modelSnapshot,
                     projectSnapshot,
                     gitSnapshot,
-                    session.GetSnapshot(),
-                    selectedProfileState.TokenUsageProvider.GetSnapshot(activeProjectPath, selectedProfileState.StableCostModelName));
+                    codexSnapshot);
 
                 var presence = renderer.Render(_options.Presence, context);
-                var presenceSignature = BuildPresenceSignature(presence);
-                var keepAliveDue = PresenceUpdatePolicy.ShouldSendKeepAlive(selectedProfileState.LastSuccessfulUpdateUtc, DateTime.UtcNow, keepAliveInterval);
-                var shouldSendPresence = PresenceDispatchPolicy.ShouldSendPresence(
-                    presenceSignature,
-                    selectedProfileState.LastPresenceSignature,
-                    keepAliveDue,
-                    rpc.NeedsPresenceRefresh);
-                if (!string.Equals(presence.Details, selectedProfileState.LastPresenceDetails, StringComparison.Ordinal) ||
-                    !string.Equals(presence.State, selectedProfileState.LastPresenceState, StringComparison.Ordinal))
-                {
-                    Console.WriteLine(
-                        $"Presence rendered: Details={FormatLogValueForMultiline(presence.Details)}; " +
-                        $"State={FormatLogValueForMultiline(presence.State)}");
-                    selectedProfileState.LastPresenceDetails = presence.Details;
-                    selectedProfileState.LastPresenceState = presence.State;
-                }
+                UpdateDiscordPresence(
+                    rpc,
+                    keepAliveInterval,
+                    selectedProfileState,
+                    presence);
 
-                if (shouldSendPresence)
-                {
-                    if (rpc.Update(presence))
-                    {
-                        selectedProfileState.LastPresenceSignature = presenceSignature;
-                        selectedProfileState.LastSuccessfulUpdateUtc = DateTime.UtcNow;
-                    }
-                }
-
-                selectedProfileState.LastAnalyzingRepeatCount = analyzingRepeatCount;
-                selectedProfileState.LastAnalyzingTaskStartedAt = codexSnapshot.ActivityKind == CodexActivityKind.AnalyzingProject
-                    ? codexSnapshot.LastTaskStartedAt
-                    : null;
-                if (codexSnapshot.ActivityKind == CodexActivityKind.AnalyzingProject)
-                {
-                    selectedProfileState.LastAnalyzingStartedAt = codexSnapshot.ActivityStartedAt;
-                }
-                selectedProfileState.LastActivityStartedAt = codexSnapshot.ActivityStartedAt;
-                selectedProfileState.LastActivityKind = codexSnapshot.ActivityKind;
+                UpdateProfileActivityState(selectedProfileState, codexSnapshot);
             }
             catch (OperationCanceledException) when (_cancellationToken.IsCancellationRequested)
             {
@@ -234,6 +134,198 @@ public sealed class PresenceRuntime
 
         rpc.Clear();
         Console.WriteLine("Stopped Codex Discord RPC.");
+    }
+
+    private bool HandleDisabledState(DiscordPresenceClient rpc, bool wasDisabled)
+    {
+        if (_state.Enabled)
+        {
+            return true;
+        }
+
+        if (!wasDisabled)
+        {
+            rpc.Clear();
+            Console.WriteLine("Presence disabled.");
+        }
+
+        return false;
+    }
+
+    private static void ResetAllProfilePresenceCaches(Dictionary<AppProfileKind, ProfileRuntimeState> profileStates)
+    {
+        foreach (var profileState in profileStates.Values)
+        {
+            profileState.ResetPresenceCache();
+        }
+    }
+
+    private static AppProfileKind SelectProfile(
+        Dictionary<AppProfileKind, ProfileRuntimeState> profileStates,
+        string activeProjectPath,
+        AppProfileKind currentProfile)
+    {
+        var codexProfileSnapshot = profileStates[AppProfileKind.Codex].Detector.GetSnapshot(activeProjectPath);
+        var cliProfileSnapshot = profileStates[AppProfileKind.CodexCli].Detector.GetSnapshot(activeProjectPath);
+        return AppProfileSelectionPolicy.Select(
+            currentProfile,
+            new AppProfileSelectionCandidate(AppProfileKind.Codex, codexProfileSnapshot, profileStates[AppProfileKind.Codex].DiscordOptions),
+            new AppProfileSelectionCandidate(AppProfileKind.CodexCli, cliProfileSnapshot, profileStates[AppProfileKind.CodexCli].DiscordOptions));
+    }
+
+    private string UpdateActiveProjectPath(
+        ProjectInspector projectInspector,
+        string activeProjectPath,
+        ProfileRuntimeState selectedProfileState,
+        ref string lastLoggedProjectPath)
+    {
+        var observedProjectPath = selectedProfileState.Detector.GetObservedProjectPath(activeProjectPath);
+        if (!string.IsNullOrWhiteSpace(observedProjectPath))
+        {
+            activeProjectPath = projectInspector.NormalizeProjectPath(observedProjectPath);
+        }
+
+        if (!string.Equals(activeProjectPath, lastLoggedProjectPath, StringComparison.OrdinalIgnoreCase))
+        {
+            Console.WriteLine($"Project switched: {lastLoggedProjectPath} -> {activeProjectPath}");
+            lastLoggedProjectPath = activeProjectPath;
+            selectedProfileState.ResetPresenceCache();
+        }
+
+        return activeProjectPath;
+    }
+
+    private CodexProcessSnapshot BuildCodexSnapshot(
+        string activeProjectPath,
+        ProjectSnapshot projectSnapshot,
+        GitSnapshot gitSnapshot,
+        ProfileRuntimeState selectedProfileState)
+    {
+        var codexSnapshot = selectedProfileState.Detector.GetSnapshot(
+            activeProjectPath,
+            projectSnapshot,
+            gitSnapshot,
+            selectedProfileState.LastActivityKind);
+        var analyzingRepeatCount = ActivityRepeatCountTracker.GetAnalyzingRepeatCount(
+            codexSnapshot.ActivityKind,
+            selectedProfileState.LastActivityKind,
+            codexSnapshot.LastTaskStartedAt,
+            selectedProfileState.LastAnalyzingTaskStartedAt,
+            selectedProfileState.LastAnalyzingRepeatCount);
+        codexSnapshot = codexSnapshot with { ActivityRepeatCount = analyzingRepeatCount };
+        return codexSnapshot with
+        {
+            ActivityStartedAt = ResolveActivityStartedAt(
+                codexSnapshot.ActivityKind,
+                selectedProfileState.LastActivityKind,
+                selectedProfileState.LastActivityStartedAt,
+                selectedProfileState.LastAnalyzingStartedAt,
+                codexSnapshot.LastObservedAt,
+                _options.Presence.RunningCommandHoldSeconds)
+        };
+    }
+
+    private ModelNameSnapshot UpdateModelSnapshot(string activeProjectPath, ProfileRuntimeState selectedProfileState)
+    {
+        var modelSnapshot = selectedProfileState.ModelNameProvider.GetSnapshot(activeProjectPath);
+        if (selectedProfileState.LastModelSnapshot is null ||
+            !string.Equals(modelSnapshot.SelectedUiModel, selectedProfileState.LastModelSnapshot.SelectedUiModel, StringComparison.Ordinal) ||
+            !string.Equals(modelSnapshot.LastUsedSessionModel, selectedProfileState.LastModelSnapshot.LastUsedSessionModel, StringComparison.Ordinal) ||
+            !string.Equals(modelSnapshot.FinalDisplayedModel, selectedProfileState.LastModelSnapshot.FinalDisplayedModel, StringComparison.Ordinal))
+        {
+            Console.WriteLine(
+                "Model detection: " +
+                $"Selected UI model={FormatLogValue(modelSnapshot.SelectedUiModel)}, " +
+                $"Last used session model={FormatLogValue(modelSnapshot.LastUsedSessionModel)}, " +
+                $"Final displayed model={FormatLogValue(modelSnapshot.FinalDisplayedModel)} " +
+                $"(source={modelSnapshot.Source})");
+            selectedProfileState.LastModelSnapshot = modelSnapshot;
+        }
+
+        if (selectedProfileState.StableCostModelName is null &&
+            !string.IsNullOrWhiteSpace(modelSnapshot.FinalDisplayedModel))
+        {
+            selectedProfileState.StableCostModelName = modelSnapshot.FinalDisplayedModel;
+        }
+
+        return modelSnapshot;
+    }
+
+    private PresenceContext BuildPresenceContext(
+        SessionClock session,
+        string activeProjectPath,
+        ProfileRuntimeState selectedProfileState,
+        ModelNameSnapshot modelSnapshot,
+        ProjectSnapshot projectSnapshot,
+        GitSnapshot gitSnapshot,
+        CodexProcessSnapshot codexSnapshot)
+    {
+        return new PresenceContext(
+            modelSnapshot.FinalDisplayedModel,
+            codexSnapshot,
+            projectSnapshot,
+            gitSnapshot,
+            session.GetSnapshot(),
+            selectedProfileState.TokenUsageProvider.GetSnapshot(activeProjectPath, selectedProfileState.StableCostModelName));
+    }
+
+    private void UpdateDiscordPresence(
+        DiscordPresenceClient rpc,
+        TimeSpan keepAliveInterval,
+        ProfileRuntimeState selectedProfileState,
+        RenderedPresence presence)
+    {
+        var presenceSignature = BuildPresenceSignature(presence);
+        var keepAliveDue = PresenceUpdatePolicy.ShouldSendKeepAlive(selectedProfileState.LastSuccessfulUpdateUtc, DateTime.UtcNow, keepAliveInterval);
+        var shouldSendPresence = PresenceDispatchPolicy.ShouldSendPresence(
+            presenceSignature,
+            selectedProfileState.LastPresenceSignature,
+            keepAliveDue,
+            rpc.NeedsPresenceRefresh);
+
+        if (!string.Equals(presence.Details, selectedProfileState.LastPresenceDetails, StringComparison.Ordinal) ||
+            !string.Equals(presence.State, selectedProfileState.LastPresenceState, StringComparison.Ordinal))
+        {
+            Console.WriteLine(
+                $"Presence rendered: Details={FormatLogValueForMultiline(presence.Details)}; " +
+                $"State={FormatLogValueForMultiline(presence.State)}");
+            selectedProfileState.LastPresenceDetails = presence.Details;
+            selectedProfileState.LastPresenceState = presence.State;
+        }
+
+        if (shouldSendPresence && rpc.Update(presence))
+        {
+            selectedProfileState.LastPresenceSignature = presenceSignature;
+            selectedProfileState.LastSuccessfulUpdateUtc = DateTime.UtcNow;
+        }
+    }
+
+    private void UpdateProfileActivityState(ProfileRuntimeState selectedProfileState, CodexProcessSnapshot codexSnapshot)
+    {
+        if (selectedProfileState.LastActivitySnapshot is null ||
+            selectedProfileState.LastActivitySnapshot.ActivityKind != codexSnapshot.ActivityKind ||
+            selectedProfileState.LastActivitySnapshot.ActivityProvenance != codexSnapshot.ActivityProvenance ||
+            !string.Equals(selectedProfileState.LastActivitySnapshot.ActivityReason, codexSnapshot.ActivityReason, StringComparison.Ordinal))
+        {
+            Console.WriteLine(
+                "Activity detection: " +
+                $"state={codexSnapshot.ActivityKind}, " +
+                $"confidence={codexSnapshot.Confidence}, " +
+                $"provenance={codexSnapshot.ActivityProvenance}, " +
+                $"reason={codexSnapshot.ActivityReason}");
+            selectedProfileState.LastActivitySnapshot = codexSnapshot;
+        }
+
+        selectedProfileState.LastAnalyzingRepeatCount = codexSnapshot.ActivityRepeatCount;
+        selectedProfileState.LastAnalyzingTaskStartedAt = codexSnapshot.ActivityKind == CodexActivityKind.AnalyzingProject
+            ? codexSnapshot.LastTaskStartedAt
+            : null;
+        if (codexSnapshot.ActivityKind == CodexActivityKind.AnalyzingProject)
+        {
+            selectedProfileState.LastAnalyzingStartedAt = codexSnapshot.ActivityStartedAt;
+        }
+        selectedProfileState.LastActivityStartedAt = codexSnapshot.ActivityStartedAt;
+        selectedProfileState.LastActivityKind = codexSnapshot.ActivityKind;
     }
 
     private Dictionary<AppProfileKind, ProfileRuntimeState> BuildProfileStates()
