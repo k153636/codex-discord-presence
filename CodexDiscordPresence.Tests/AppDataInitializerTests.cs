@@ -20,7 +20,8 @@ public sealed class AppDataInitializerTests
                 appDataDir,
                 Path.Combine(appDataDir, "logs"),
                 Path.Combine(appDataDir, "user-settings.json"),
-                Path.Combine(appDataDir, "presence-state.json"));
+                Path.Combine(appDataDir, "presence-state.json"),
+                AppProfileKind.Codex);
 
             AppDataInitializer.EnsureInitialized(paths);
 

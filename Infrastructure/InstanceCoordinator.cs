@@ -16,24 +16,27 @@ public sealed class InstanceCoordinator : IDisposable
         File.WriteAllText(_pidFilePath, Environment.ProcessId.ToString());
     }
 
-    public static InstanceCoordinator? TryAcquire(string baseDirectory)
+    public static InstanceCoordinator? TryAcquire(AppPaths paths)
     {
-        var mutex = new Mutex(true, GetMutexName(baseDirectory), out var createdNew);
+        var mutex = new Mutex(true, GetMutexName(paths), out var createdNew);
         if (!createdNew)
         {
             mutex.Dispose();
             return null;
         }
 
-        return new InstanceCoordinator(GetPidFilePath(baseDirectory), mutex);
+        return new InstanceCoordinator(GetPidFilePath(paths), mutex);
     }
 
-    public static int StopRunningInstance(string baseDirectory)
+    public static int StopRunningInstance(AppPaths paths)
     {
-        var pidFilePath = GetPidFilePath(baseDirectory);
+        var pidFilePath = GetPidFilePath(paths);
         if (!File.Exists(pidFilePath))
         {
-            Console.WriteLine("No running Codex Discord RPC instance was found.");
+            Console.WriteLine(
+                paths.Profile == AppProfileKind.CodexCli
+                    ? "No running Codex CLI Discord RPC instance was found."
+                    : "No running Codex Discord RPC instance was found.");
             return 0;
         }
 
@@ -50,7 +53,10 @@ public sealed class InstanceCoordinator : IDisposable
             using var process = Process.GetProcessById(pid);
             process.Kill(entireProcessTree: false);
             process.WaitForExit(5000);
-            Console.WriteLine($"Stopped Codex Discord RPC (PID {pid}).");
+            Console.WriteLine(
+                paths.Profile == AppProfileKind.CodexCli
+                    ? $"Stopped Codex CLI Discord RPC (PID {pid})."
+                    : $"Stopped Codex Discord RPC (PID {pid}).");
         }
         catch (ArgumentException)
         {
@@ -85,15 +91,19 @@ public sealed class InstanceCoordinator : IDisposable
         _mutex.Dispose();
     }
 
-    private static string GetPidFilePath(string baseDirectory)
+    private static string GetPidFilePath(AppPaths paths)
     {
-        return Path.Combine(baseDirectory, "codex-discord-presence.pid");
+        return Path.Combine(paths.AppDataDirectory, paths.Profile == AppProfileKind.CodexCli
+            ? "codex-discord-presence-cli.pid"
+            : "codex-discord-presence.pid");
     }
 
-    private static string GetMutexName(string baseDirectory)
+    private static string GetMutexName(AppPaths paths)
     {
-        var normalized = Path.GetFullPath(baseDirectory).ToUpperInvariant();
+        var normalized = Path.GetFullPath(paths.AppDataDirectory).ToUpperInvariant();
         var hash = SHA256.HashData(Encoding.UTF8.GetBytes(normalized));
-        return @"Local\CodexDiscordPresence_" + Convert.ToHexString(hash[..8]);
+        return paths.Profile == AppProfileKind.CodexCli
+            ? @"Local\CodexDiscordPresenceCli_" + Convert.ToHexString(hash[..8])
+            : @"Local\CodexDiscordPresence_" + Convert.ToHexString(hash[..8]);
     }
 }

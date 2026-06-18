@@ -6,29 +6,35 @@ public static class PresenceApplication
 {
     public static async Task<int> RunAsync(string[] args)
     {
+        var profile = IsCliProfileRequested(args) ? AppProfileKind.CodexCli : AppProfileKind.Codex;
+
         if (args.Any(arg => string.Equals(arg, "--stop", StringComparison.OrdinalIgnoreCase)))
         {
-            return InstanceCoordinator.StopRunningInstance(AppContext.BaseDirectory);
+            return InstanceCoordinator.StopRunningInstance(AppPaths.Create(profile, AppContext.BaseDirectory));
         }
 
-        var appPaths = AppPaths.Create(AppContext.BaseDirectory);
+        var appPaths = AppPaths.Create(profile, AppContext.BaseDirectory);
         AppDataInitializer.EnsureInitialized(appPaths);
 
         var options = AppOptions.Load(args, appPaths);
 
-        if (string.IsNullOrWhiteSpace(options.Discord.ClientId) ||
-            options.Discord.ClientId == "YOUR_DISCORD_APPLICATION_CLIENT_ID")
+        if (IsMissingDiscordClientId(options.Discord.ClientId))
         {
-            Console.Error.WriteLine("Set Discord:ClientId in appsettings.json or pass --client-id <id>.");
-            return 1;
+            Console.Error.WriteLine(
+                profile == AppProfileKind.CodexCli
+                    ? "Set Discord:ClientId in appsettings.cli.json or pass --client-id <id>."
+                    : "Set Discord:ClientId in appsettings.json or pass --client-id <id>.");
         }
 
         using var cts = new CancellationTokenSource();
-        using var instance = InstanceCoordinator.TryAcquire(AppContext.BaseDirectory);
+        using var instance = InstanceCoordinator.TryAcquire(appPaths);
 
         if (instance is null)
         {
-            Console.Error.WriteLine("Codex Discord RPC is already running. Use --stop to end the current instance.");
+            Console.Error.WriteLine(
+                profile == AppProfileKind.CodexCli
+                    ? "Codex CLI Discord RPC is already running. Use --stop to end the current instance."
+                    : "Codex Discord RPC is already running. Use --stop to end the current instance.");
             return 1;
         }
 
@@ -74,7 +80,10 @@ public static class PresenceApplication
         trayHost = new TrayIconHost(runtimeState, stateStore, statePath, settingsPath, () => cts.Cancel());
         _ = runtimeTask.ContinueWith(_ => trayHost?.RequestExit(), TaskScheduler.Default);
 
-        Console.WriteLine("Codex Discord RPC is running in the background.");
+        Console.WriteLine(
+            profile == AppProfileKind.CodexCli
+                ? "Codex CLI Discord RPC is running in the background."
+                : "Codex Discord RPC is running in the background.");
         Console.WriteLine("Right-click the tray icon for Enable, Edit Discord RPC, and Quit.");
 
         Application.Run(trayHost);
@@ -96,5 +105,32 @@ public static class PresenceApplication
         }
 
         return 0;
+    }
+
+    private static bool IsCliProfileRequested(IEnumerable<string> args)
+    {
+        var argList = args as string[] ?? args.ToArray();
+        for (var i = 0; i < argList.Length; i++)
+        {
+            if (string.Equals(argList[i], "--cli", StringComparison.OrdinalIgnoreCase))
+            {
+                return true;
+            }
+
+            if (string.Equals(argList[i], "--profile", StringComparison.OrdinalIgnoreCase) &&
+                i + 1 < argList.Length &&
+                string.Equals(argList[i + 1], "cli", StringComparison.OrdinalIgnoreCase))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static bool IsMissingDiscordClientId(string? clientId)
+    {
+        return string.IsNullOrWhiteSpace(clientId) ||
+            clientId.StartsWith("YOUR_", StringComparison.OrdinalIgnoreCase);
     }
 }

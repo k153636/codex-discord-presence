@@ -15,7 +15,7 @@ public sealed class AppOptions
 
     public static AppOptions Load(string[] args)
     {
-        return Load(args, AppPaths.Create());
+        return Load(args, AppPaths.Create(AppProfileKind.Codex));
     }
 
     public static AppOptions Load(string[] args, AppPaths paths)
