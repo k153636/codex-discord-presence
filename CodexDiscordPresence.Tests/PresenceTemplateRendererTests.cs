@@ -59,11 +59,14 @@ public sealed class PresenceTemplateRendererTests
         {
             Details = "{ModelName} • {Tokens}",
             State = "{ActivityLine}",
-            LargeImageText = "working on {ProjectName}",
+            LargeImageText = "working on {ProjectName}{GoalModeSuffix}",
             SmallImageText = "{ProjectFileCount} files • session {SessionElapsed}"
         };
         var context = CreateContext(
-            new CodexProcessSnapshot(true, "codex", true),
+            new CodexProcessSnapshot(true, "codex", true)
+            {
+                CollaborationMode = "plan"
+            },
             new ProjectSnapshot("Nexstrap", @"E:\tool\Nexstrap", null, null, 128, 128, 42000, []),
             new GitSnapshot(true, 1, null));
 
@@ -71,8 +74,29 @@ public sealed class PresenceTemplateRendererTests
 
         Assert.Equal("gpt-5-codex • Tokens pending", presence.Details);
         Assert.Equal("Thinking • 5m", presence.State);
-        Assert.Equal("working on Nexstrap", presence.LargeImageText);
+        Assert.Equal("working on Nexstrap • Goal mode: Plan", presence.LargeImageText);
         Assert.Equal("128 files • session 5m", presence.SmallImageText);
+    }
+
+    [Fact]
+    public void Render_ThinkingElapsed_UsesActivityStartTime()
+    {
+        var renderer = new PresenceTemplateRenderer();
+        var template = new PresenceTemplateOptions { State = "{ActivityLine}" };
+        var startedAt = DateTime.UtcNow.AddSeconds(-19);
+        var context = CreateContext(
+            new CodexProcessSnapshot(true, "codex", true)
+            {
+                ActivityStartedAt = startedAt,
+                LastObservedAt = DateTime.UtcNow
+            },
+            new ProjectSnapshot("Nexstrap", @"E:\tool\Nexstrap", null, null, 128, 128, 42000, []),
+            new GitSnapshot(true, 1, null),
+            lastObservedAt: DateTime.UtcNow);
+
+        var presence = renderer.Render(template, context);
+
+        Assert.Equal("Thinking • 18s", presence.State);
     }
 
     [Fact]
@@ -127,7 +151,7 @@ public sealed class PresenceTemplateRendererTests
 
             var presence = renderer.Render(template, context);
 
-            Assert.Equal("Applying edits • CodexRpcRendererTest.txt • 12s", presence.State);
+            Assert.Equal("Applying edits • CodexRpcRendererTest.txt", presence.State);
         }
         finally
         {
@@ -267,7 +291,7 @@ public sealed class PresenceTemplateRendererTests
 
         var presence = renderer.Render(template, context);
 
-        Assert.Equal("Coordinating changes across 2 files • 12s", presence.State);
+        Assert.Equal("Coordinating changes across 2 files", presence.State);
     }
 
     [Fact]
@@ -299,7 +323,7 @@ public sealed class PresenceTemplateRendererTests
 
         var presence = renderer.Render(template, context);
 
-        Assert.Equal("Creating files • NewFile.cs • 12s", presence.State);
+        Assert.Equal("Creating files • NewFile.cs", presence.State);
     }
 
     [Fact]
@@ -330,7 +354,7 @@ public sealed class PresenceTemplateRendererTests
 
         var presence = renderer.Render(template, context);
 
-        Assert.Equal("Deleting files • 12s", presence.State);
+        Assert.Equal("Deleting files", presence.State);
     }
 
     [Fact]
@@ -388,7 +412,7 @@ public sealed class PresenceTemplateRendererTests
 
         var presence = renderer.Render(template, context);
 
-        Assert.Equal("Running command • 12s", presence.State);
+        Assert.Equal("Running command", presence.State);
     }
 
     [Fact]
@@ -427,7 +451,7 @@ public sealed class PresenceTemplateRendererTests
 
         var presence = renderer.Render(template, context);
 
-        Assert.Equal("Refactoring • 12s", presence.State);
+        Assert.Equal("Refactoring", presence.State);
     }
 
     [Fact]

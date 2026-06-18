@@ -52,6 +52,7 @@ string? stableCostModelName = null;
 var lastActivityKind = CodexActivityKind.Ready;
 var lastAnalyzingRepeatCount = 1;
 DateTime? lastAnalyzingObservedAt = null;
+DateTime? lastActivityStartedAt = null;
 string? lastPresenceSignature = null;
 var lastSuccessfulUpdateUtc = DateTime.MinValue;
 var keepAliveInterval = TimeSpan.FromSeconds(15);
@@ -70,6 +71,14 @@ while (!cts.IsCancellationRequested)
             lastAnalyzingObservedAt,
             lastAnalyzingRepeatCount);
         codexSnapshot = codexSnapshot with { ActivityRepeatCount = analyzingRepeatCount };
+        codexSnapshot = codexSnapshot with
+        {
+            ActivityStartedAt = ResolveActivityStartedAt(
+                codexSnapshot.ActivityKind,
+                lastActivityKind,
+                lastActivityStartedAt,
+                codexSnapshot.LastObservedAt)
+        };
         var modelSnapshot = modelNameProvider.GetSnapshot(projectInspector.ProjectPath);
         if (lastModelSnapshot is null ||
             !string.Equals(modelSnapshot.SelectedUiModel, lastModelSnapshot.SelectedUiModel, StringComparison.Ordinal) ||
@@ -139,6 +148,7 @@ while (!cts.IsCancellationRequested)
         lastAnalyzingObservedAt = codexSnapshot.ActivityKind == CodexActivityKind.AnalyzingProject
             ? codexSnapshot.LastObservedAt
             : null;
+        lastActivityStartedAt = codexSnapshot.ActivityStartedAt;
         lastActivityKind = codexSnapshot.ActivityKind;
     }
     catch (Exception ex)
@@ -181,4 +191,23 @@ static string BuildPresenceSignature(RenderedPresence presence)
         presence.LargeImageText,
         presence.SmallImageText,
         buttons);
+}
+
+static DateTime? ResolveActivityStartedAt(
+    CodexActivityKind currentActivityKind,
+    CodexActivityKind lastActivityKind,
+    DateTime? lastActivityStartedAt,
+    DateTime? currentObservedAt)
+{
+    if (!currentActivityKind.IsActive())
+    {
+        return null;
+    }
+
+    if (currentActivityKind == lastActivityKind && lastActivityStartedAt.HasValue)
+    {
+        return lastActivityStartedAt;
+    }
+
+    return currentObservedAt ?? DateTime.UtcNow;
 }

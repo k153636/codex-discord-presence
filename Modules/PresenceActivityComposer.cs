@@ -16,25 +16,28 @@ internal static class PresenceActivityComposer
             return stateLabel;
         }
 
+        if (context.Codex.ActivityKind == CodexActivityKind.AnalyzingProject)
+        {
+            return AppendActivityElapsed(BuildIdleActivityLine(context, stateLabel), freshnessElapsedText);
+        }
+
         if (context.Codex.ActivityKind == CodexActivityKind.UpdatingFiles)
         {
-            return AppendActivityElapsed(stateLabel, freshnessElapsedText);
+            return stateLabel;
         }
 
         if (context.Codex.ActivityKind is CodexActivityKind.ApplyingEdits or CodexActivityKind.CreatingFiles or CodexActivityKind.DeletingFiles &&
             recentEditedFiles.Count > 0)
         {
-            return AppendActivityElapsed(BuildEditingActivityLine(stateLabel, recentEditedFiles, editingFile), freshnessElapsedText);
+            return BuildEditingActivityLine(stateLabel, recentEditedFiles, editingFile);
         }
 
-        return context.Codex.ActivityKind.IsActive()
-            ? AppendActivityElapsed(BuildIdleActivityLine(context, stateLabel), freshnessElapsedText)
-            : BuildIdleActivityLine(context, stateLabel);
+        return BuildIdleActivityLine(context, stateLabel);
     }
 
     public static string BuildFreshnessElapsedText(PresenceContext context, int freshnessIntervalSeconds)
     {
-        var referenceUtc = context.Codex.LastObservedAt ?? context.Session.StartedAt;
+        var referenceUtc = context.Codex.ActivityStartedAt ?? context.Codex.LastObservedAt ?? context.Session.StartedAt;
         var elapsed = DateTime.UtcNow - referenceUtc;
         var bucketedElapsed = BucketDuration(elapsed, freshnessIntervalSeconds);
         return FormatShortDuration(bucketedElapsed, allowZero: true);

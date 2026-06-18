@@ -51,6 +51,8 @@ public sealed partial record CodexProcessSnapshot
     public ActivityConfidence Confidence { get; init; } = ActivityConfidence.High;
     public ActivityProvenance ActivityProvenance { get; init; } = ActivityProvenance.Inferred;
     public string ActivityReason { get; init; } = "";
+    public string? CollaborationMode { get; init; }
+    public DateTime? ActivityStartedAt { get; init; }
     public DateTime? LastObservedAt { get; init; }
     public IReadOnlyList<RecentProjectFileSnapshot> RecentEditedFiles { get; init; } = Array.Empty<RecentProjectFileSnapshot>();
     public int ActivityRepeatCount { get; init; } = 1;

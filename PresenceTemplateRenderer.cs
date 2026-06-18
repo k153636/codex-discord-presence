@@ -30,6 +30,8 @@ public sealed class PresenceTemplateRenderer
         var editingFileLabel = BuildEditingFileLabel(context, editingFileName);
         var changedFilesText = FormatChangedFiles(context.Git.ChangedFileCount);
         var projectSizeText = FormatProjectSize(context.Project.TotalFileCount, context.Project.TotalLineCount);
+        var goalModeText = FormatGoalMode(context.Codex.CollaborationMode);
+        var goalModeSuffix = string.IsNullOrWhiteSpace(goalModeText) ? "" : $" • Goal mode: {goalModeText}";
         var stateLabel = ResolveStateLabel(template, context, context.Codex.ActivityKind, context.Git.ChangedFileCount);
         if (context.Codex.ActivityKind == CodexActivityKind.AnalyzingProject &&
             context.Codex.ActivityRepeatCount > 1)
@@ -46,6 +48,8 @@ public sealed class PresenceTemplateRenderer
             ["CodexProcessName"] = context.Codex.ProcessName ?? "",
             ["ProjectName"] = context.Project.Name,
             ["ProjectPath"] = context.Project.Path,
+            ["GoalMode"] = goalModeText,
+            ["GoalModeSuffix"] = goalModeSuffix,
             ["EditingFileName"] = editingFileName,
             ["EditingFileLabel"] = editingFileLabel,
             ["EditingFilePath"] = context.Project.RecentFilePath ?? "",
@@ -225,6 +229,21 @@ public sealed class PresenceTemplateRenderer
         var files = fileCount == 1 ? "1 file" : $"{FormatNumber(fileCount)} files";
         var lines = lineCount == 1 ? "1 line" : $"{FormatNumber(lineCount)} lines";
         return $"{files} \u2022 {lines}";
+    }
+
+    private static string FormatGoalMode(string? collaborationMode)
+    {
+        if (string.IsNullOrWhiteSpace(collaborationMode))
+        {
+            return "";
+        }
+
+        return collaborationMode.Trim() switch
+        {
+            "plan" => "Plan",
+            "goal" => "Goal",
+            var value => char.ToUpperInvariant(value[0]) + value[1..]
+        };
     }
 }
 

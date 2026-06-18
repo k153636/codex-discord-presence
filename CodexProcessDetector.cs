@@ -55,6 +55,7 @@ public sealed class CodexProcessDetector
             ActivityProvenance = provenance,
             Confidence = confidence,
             ActivityReason = reason,
+            CollaborationMode = sessionInspection?.CollaborationMode,
             LastObservedAt = lastObservedAt,
             RecentEditedFiles = recentEditedFiles
         };
