@@ -16,7 +16,7 @@ public enum CodexActivityKind
     Ready = 1,
     AnalyzingProject = 2,
     ApplyingEdits = 3,
-    UpdatingFiles = 4,
+    CoordinatingChanges = 4,
     CreatingFiles = 5,
     DeletingFiles = 6,
     RunningCommand = 7,

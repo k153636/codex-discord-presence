@@ -343,7 +343,7 @@ public sealed class PresenceTemplateRendererTests
     }
 
     [Fact]
-    public void Render_WithTwoRecentEditedFiles_UsesUpdatingFilesActivity()
+    public void Render_WithTwoRecentEditedFiles_UsesCoordinatingChangesActivity()
     {
         var now = DateTime.UtcNow.AddSeconds(-12);
         var renderer = new PresenceTemplateRenderer();
@@ -351,7 +351,7 @@ public sealed class PresenceTemplateRendererTests
         var context = CreateContext(
             new CodexProcessSnapshot(true, "codex", false)
             {
-                DetectedActivityKind = CodexActivityKind.UpdatingFiles,
+                DetectedActivityKind = CodexActivityKind.CoordinatingChanges,
                 ActivityProvenance = ActivityProvenance.Observed,
                 LastObservedAt = now
             },
@@ -450,7 +450,7 @@ public sealed class PresenceTemplateRendererTests
         var context = CreateContext(
             new CodexProcessSnapshot(true, "codex", false)
             {
-                DetectedActivityKind = CodexActivityKind.UpdatingFiles,
+                DetectedActivityKind = CodexActivityKind.CoordinatingChanges,
                 ActivityProvenance = ActivityProvenance.Observed,
                 LastObservedAt = now
             },

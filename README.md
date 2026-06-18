@@ -43,7 +43,6 @@ The app is configured as a self-contained `win-x64` single-file publish.
 - Git changed-file count
 - Session elapsed time
 - Token count placeholder
-- Freshness text on the state line that updates in 3-second steps
 - Discord buttons
 
 ## Activity Labels
@@ -71,8 +70,6 @@ For quiet idle periods, the app shows `Hold on` for the first 5 minutes, then sw
 - `SmallImageText`: `{ProjectFileCount} files &bull; session {SessionElapsed}`
 - Button: `GitHub`
 
-`ActivityLine` carries the 3-second freshness suffix for `Thinking` only.
-That timer is anchored to the start of the current thinking streak so it does not jump back to `0s` just because a new observation arrived.
 When the same thinking state is observed again after new Codex activity, it can render as `Thinking x2`, `Thinking x3`, and so on.
 Use `{ActivityLabel}` if you want the file name omitted for a cleaner one-line status.
 Use `{GoalModePrefix}` if you want `Plan mode:` to appear without changing the main state line.
@@ -129,7 +126,7 @@ Common settings live in `appsettings.json`:
 - `Presence.SmallImageText`
 - `Presence.Buttons`
 - `Presence.AnalyzingProjectText`
-- `Presence.UpdatingFilesText`
+- `Presence.CoordinatingChangesText`
 - `Presence.CreatingFilesText`
 - `Presence.DeletingFilesText`
 - `Presence.RunningCommandText`
@@ -142,7 +139,6 @@ Common settings live in `appsettings.json`:
 - `Presence.ThinkingStaleTimeoutMinutes`
 - `Presence.ReadyIdleGraceMinutes`
 - `Presence.EditingFreshnessSeconds`
-- `Presence.FreshnessUpdateIntervalSeconds`
 - `Presence.ActiveUpdateIntervalSeconds`
 - `Presence.RunningCommandUpdateIntervalSeconds`
 - `Presence.RunningCommandHoldSeconds`
@@ -177,7 +173,6 @@ These placeholders can be used in `Presence.Details`, `Presence.State`, `Presenc
 - `{ActivityLine}`
 - `{SessionElapsed}`
 - `{SessionStartedAt}`
-- `{FreshnessElapsed}`
 - `{Tokens}`
 - `{Cost}`
 

@@ -136,7 +136,7 @@ public sealed class PresenceTemplateOptions
     public string SmallImageText { get; set; } = "{ProjectFileCount} files \u2022 session {SessionElapsed}";
     public PresenceButtonOptions[] Buttons { get; set; } = [];
     public string AnalyzingProjectText { get; set; } = "Thinking";
-    public string UpdatingFilesText { get; set; } = "Coordinating changes across {n} files";
+    public string CoordinatingChangesText { get; set; } = "Coordinating changes across {n} files";
     public string CreatingFilesText { get; set; } = "Creating files";
     public string DeletingFilesText { get; set; } = "Deleting files";
     public string RunningCommandText { get; set; } = "Running command";
@@ -154,7 +154,6 @@ public sealed class PresenceTemplateOptions
     public int ThinkingStaleTimeoutMinutes { get; set; } = 10;
     public int ReadyIdleGraceMinutes { get; set; } = 5;
     public int EditingFreshnessSeconds { get; set; } = 12;
-    public int FreshnessUpdateIntervalSeconds { get; set; } = 3;
     public int ActiveUpdateIntervalSeconds { get; set; } = 1;
     public int RunningCommandUpdateIntervalSeconds { get; set; } = 1;
     public int RunningCommandUpdateIntervalMilliseconds { get; set; } = 500;

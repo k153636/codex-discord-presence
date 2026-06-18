@@ -31,7 +31,7 @@ public sealed class PresenceRefreshPolicyTests
         };
 
         Assert.Equal(TimeSpan.FromSeconds(2), PresenceRefreshPolicy.GetNextDelay(options, CodexActivityKind.ApplyingEdits, 2));
-        Assert.Equal(TimeSpan.FromSeconds(2), PresenceRefreshPolicy.GetNextDelay(options, CodexActivityKind.UpdatingFiles, 2));
+        Assert.Equal(TimeSpan.FromSeconds(2), PresenceRefreshPolicy.GetNextDelay(options, CodexActivityKind.CoordinatingChanges, 2));
         Assert.Equal(TimeSpan.FromSeconds(3), PresenceRefreshPolicy.GetNextDelay(options, CodexActivityKind.AnalyzingProject, 2));
     }
 

@@ -418,7 +418,7 @@ public class CodexStateTests
     }
 
     [Fact]
-    public void Test_11_MultiFileEdits_ReturnUpdatingFiles()
+    public void Test_11_MultiFileEdits_ReturnCoordinatingChanges()
     {
         var tempPath = CreateTempSessionDirectory();
         try
@@ -466,7 +466,7 @@ public class CodexStateTests
                 var snapshot = detector.GetSnapshot(projectRoot, projectSnapshot, new GitSnapshot(true, 4, null));
 
                 Assert.True(snapshot.IsRunning);
-                Assert.Equal(CodexActivityKind.UpdatingFiles, snapshot.ActivityKind);
+                Assert.Equal(CodexActivityKind.CoordinatingChanges, snapshot.ActivityKind);
                 Assert.True(snapshot.IsThinking);
                 Assert.Equal(ActivityConfidence.High, snapshot.Confidence);
             }

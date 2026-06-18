@@ -8,8 +8,7 @@ internal static class PresenceActivityComposer
         PresenceContext context,
         IReadOnlyList<RecentProjectFileSnapshot> recentEditedFiles,
         string stateLabel,
-        RecentProjectFileSnapshot? editingFile,
-        string freshnessElapsedText)
+        RecentProjectFileSnapshot? editingFile)
     {
         if (!context.Codex.IsRunning)
         {
@@ -18,10 +17,10 @@ internal static class PresenceActivityComposer
 
         if (context.Codex.ActivityKind == CodexActivityKind.AnalyzingProject)
         {
-            return AppendActivityElapsed(BuildIdleActivityLine(context, stateLabel), freshnessElapsedText);
+            return BuildIdleActivityLine(context, stateLabel);
         }
 
-        if (context.Codex.ActivityKind == CodexActivityKind.UpdatingFiles)
+        if (context.Codex.ActivityKind == CodexActivityKind.CoordinatingChanges)
         {
             return stateLabel;
         }
@@ -33,14 +32,6 @@ internal static class PresenceActivityComposer
         }
 
         return BuildIdleActivityLine(context, stateLabel);
-    }
-
-    public static string BuildFreshnessElapsedText(PresenceContext context, int freshnessIntervalSeconds)
-    {
-        var referenceUtc = context.Codex.ActivityStartedAt ?? context.Codex.LastObservedAt ?? context.Session.StartedAt;
-        var elapsed = DateTime.UtcNow - referenceUtc;
-        var bucketedElapsed = BucketDuration(elapsed, freshnessIntervalSeconds);
-        return FormatShortDuration(bucketedElapsed, allowZero: true);
     }
 
     private static string BuildEditingActivityLine(
@@ -64,7 +55,6 @@ internal static class PresenceActivityComposer
         {
             CodexActivityKind.Planning => stateLabel,
             CodexActivityKind.ApplyingEdits => stateLabel,
-            CodexActivityKind.UpdatingFiles => stateLabel,
             CodexActivityKind.CreatingFiles => stateLabel,
             CodexActivityKind.DeletingFiles => stateLabel,
             CodexActivityKind.Refactoring => stateLabel,
@@ -74,52 +64,4 @@ internal static class PresenceActivityComposer
         };
     }
 
-    private static string AppendActivityElapsed(string baseLine, string elapsedText)
-    {
-        if (string.IsNullOrWhiteSpace(baseLine))
-        {
-            return baseLine;
-        }
-
-        if (string.Equals(elapsedText, "0s", StringComparison.Ordinal))
-        {
-            return baseLine;
-        }
-
-        return string.IsNullOrWhiteSpace(elapsedText)
-            ? baseLine
-            : $"{baseLine} • {elapsedText}";
-    }
-
-    private static TimeSpan BucketDuration(TimeSpan elapsed, int intervalSeconds)
-    {
-        if (elapsed <= TimeSpan.Zero)
-        {
-            return TimeSpan.Zero;
-        }
-
-        var interval = TimeSpan.FromSeconds(Math.Max(1, intervalSeconds));
-        var bucketCount = Math.Floor(elapsed.TotalSeconds / interval.TotalSeconds);
-        return TimeSpan.FromSeconds(bucketCount * interval.TotalSeconds);
-    }
-
-    private static string FormatShortDuration(TimeSpan elapsed, bool allowZero = false)
-    {
-        if (elapsed.TotalHours >= 1)
-        {
-            return elapsed.Minutes == 0
-                ? $"{(int)elapsed.TotalHours}h"
-                : $"{(int)elapsed.TotalHours}h {elapsed.Minutes}m";
-        }
-
-        if (elapsed.TotalMinutes >= 1)
-        {
-            return elapsed.Seconds == 0
-                ? $"{(int)elapsed.TotalMinutes}m"
-                : $"{(int)elapsed.TotalMinutes}m {elapsed.Seconds}s";
-        }
-
-        var seconds = (int)elapsed.TotalSeconds;
-        return $"{Math.Max(allowZero ? 0 : 1, seconds)}s";
-    }
 }

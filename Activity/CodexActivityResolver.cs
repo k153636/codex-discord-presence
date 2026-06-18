@@ -45,16 +45,10 @@ internal sealed class CodexActivityResolver
         {
             provenance = ActivityProvenance.Observed;
             confidence = ActivityConfidence.High;
-            if (hasBurstRecentEdits)
-            {
-                reason = $"recent edits burst={recentEditedFiles.Count}, git changed files={changedFileCount}";
-                return CodexActivityKind.UpdatingFiles;
-            }
-
             if (hasBurstRecentEdits || recentEditedFiles.Count > 1)
             {
                 reason = $"recent edits={recentEditedFiles.Count}, git changed files={changedFileCount}";
-                return CodexActivityKind.UpdatingFiles;
+                return CodexActivityKind.CoordinatingChanges;
             }
 
             reason = $"recent edit={recentEditedFiles[0].Name}, git changed files={changedFileCount}";
@@ -102,9 +96,7 @@ internal sealed class CodexActivityResolver
             provenance = ActivityProvenance.Mixed;
             confidence = ActivityConfidence.High;
             reason = $"task_started with git changed files={changedFileCount}";
-            return changedFileCount > 1
-                ? CodexActivityKind.UpdatingFiles
-                : CodexActivityKind.ApplyingEdits;
+            return CodexActivityKind.ApplyingEdits;
         }
 
         if (sessionInspection?.HasTaskCompleted == true && !sessionInspection.HasTaskStarted)

@@ -10,7 +10,6 @@ public static class PresenceRefreshPolicy
         var defaultInterval = TimeSpan.FromSeconds(Math.Max(1, defaultUpdateIntervalSeconds));
         var activeInterval = TimeSpan.FromSeconds(Math.Max(1, options.ActiveUpdateIntervalSeconds));
         var idleInterval = TimeSpan.FromSeconds(Math.Max(1, options.IdleUpdateIntervalSeconds));
-        var freshnessInterval = TimeSpan.FromSeconds(Math.Max(1, options.FreshnessUpdateIntervalSeconds));
         var runningCommandInterval = options.RunningCommandUpdateIntervalMilliseconds > 0
             ? TimeSpan.FromMilliseconds(options.RunningCommandUpdateIntervalMilliseconds)
             : TimeSpan.FromSeconds(Math.Max(1, options.RunningCommandUpdateIntervalSeconds));
@@ -18,8 +17,8 @@ public static class PresenceRefreshPolicy
         return activityKind switch
         {
             CodexActivityKind.RunningCommand => runningCommandInterval,
-            CodexActivityKind.AnalyzingProject => freshnessInterval,
-            CodexActivityKind.ApplyingEdits or CodexActivityKind.UpdatingFiles or CodexActivityKind.CreatingFiles or CodexActivityKind.DeletingFiles => activeInterval,
+            CodexActivityKind.AnalyzingProject => activeInterval,
+            CodexActivityKind.ApplyingEdits or CodexActivityKind.CoordinatingChanges or CodexActivityKind.CreatingFiles or CodexActivityKind.DeletingFiles => activeInterval,
             CodexActivityKind.Planning or CodexActivityKind.Refactoring => activeInterval,
             CodexActivityKind.Ready or CodexActivityKind.Offline => idleInterval,
             _ => defaultInterval

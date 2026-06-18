@@ -26,7 +26,7 @@ public sealed class CodexActivityResolverTests
     }
 
     [Fact]
-    public void Resolve_MultiFileRecentEdits_ReturnsUpdatingFiles()
+    public void Resolve_MultiFileRecentEdits_ReturnsCoordinatingChanges()
     {
         var resolver = new CodexActivityResolver();
         var now = DateTime.UtcNow;
@@ -42,7 +42,7 @@ public sealed class CodexActivityResolverTests
 
         var activity = resolver.Resolve(context, out var provenance, out var confidence, out var reason, out _);
 
-        Assert.Equal(CodexActivityKind.UpdatingFiles, activity);
+        Assert.Equal(CodexActivityKind.CoordinatingChanges, activity);
         Assert.Equal(ActivityProvenance.Observed, provenance);
         Assert.Equal(ActivityConfidence.High, confidence);
         Assert.Contains("recent edits", reason);
