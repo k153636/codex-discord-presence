@@ -60,10 +60,11 @@ public sealed class DiscordPresenceClient : IDisposable
         }
         catch (Exception ex)
         {
-            Console.Error.WriteLine($"Discord RPC update failed: {ex.Message}");
             _isReady = false;
             _failedInitializeAttempts = Math.Min(_failedInitializeAttempts + 1, int.MaxValue);
-            _nextInitializeAttemptUtc = DateTime.UtcNow.Add(DiscordReconnectBackoff.GetDelay(_failedInitializeAttempts));
+            var delay = DiscordReconnectBackoff.GetDelay(_failedInitializeAttempts);
+            Console.Error.WriteLine($"Discord RPC update failed: {ex.Message}. Reconnecting in {delay.TotalSeconds:0}s.");
+            _nextInitializeAttemptUtc = DateTime.UtcNow.Add(delay);
             return false;
         }
     }
@@ -110,15 +111,17 @@ public sealed class DiscordPresenceClient : IDisposable
             }
             else if (!_isReady)
             {
-                Console.Error.WriteLine("Discord RPC is not ready. Updates will retry.");
                 _failedInitializeAttempts = Math.Min(_failedInitializeAttempts + 1, int.MaxValue);
+                var delay = DiscordReconnectBackoff.GetDelay(_failedInitializeAttempts);
+                Console.Error.WriteLine($"Discord RPC is not ready. Reconnecting in {delay.TotalSeconds:0}s.");
             }
         }
         catch (Exception ex)
         {
             _isReady = false;
-            Console.Error.WriteLine($"Discord RPC initialization failed: {ex.Message}");
             _failedInitializeAttempts = Math.Min(_failedInitializeAttempts + 1, int.MaxValue);
+            var delay = DiscordReconnectBackoff.GetDelay(_failedInitializeAttempts);
+            Console.Error.WriteLine($"Discord RPC initialization failed: {ex.Message}. Reconnecting in {delay.TotalSeconds:0}s.");
         }
 
         _nextInitializeAttemptUtc = _isReady

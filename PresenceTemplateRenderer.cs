@@ -31,7 +31,8 @@ public sealed class PresenceTemplateRenderer
         var changedFilesText = FormatChangedFiles(context.Git.ChangedFileCount);
         var projectSizeText = FormatProjectSize(context.Project.TotalFileCount, context.Project.TotalLineCount);
         var stateLabel = ResolveStateLabel(template, context, context.Codex.ActivityKind, context.Git.ChangedFileCount);
-        var activityLine = BuildActivityLine(context, recentEditedFiles, stateLabel, editingFile);
+        var activityElapsedText = BuildActivityElapsedText(context);
+        var activityLine = BuildActivityLine(context, recentEditedFiles, stateLabel, editingFile, activityElapsedText);
 
         return new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
         {
@@ -69,30 +70,28 @@ public sealed class PresenceTemplateRenderer
         PresenceContext context,
         IReadOnlyList<RecentProjectFileSnapshot> recentEditedFiles,
         string stateLabel,
-        RecentProjectFileSnapshot? editingFile)
+        RecentProjectFileSnapshot? editingFile,
+        string activityElapsedText)
     {
         if (!context.Codex.IsRunning)
         {
             return stateLabel;
         }
 
-        if (context.Codex.ActivityKind == CodexActivityKind.RunningCommand)
-        {
-            return stateLabel;
-        }
-
         if (context.Codex.ActivityKind == CodexActivityKind.UpdatingFiles)
         {
-            return BuildUpdatingFilesActivityLine(stateLabel, recentEditedFiles, context.Session.Elapsed);
+            return AppendActivityElapsed(stateLabel, activityElapsedText);
         }
 
         if (context.Codex.ActivityKind is CodexActivityKind.ApplyingEdits or CodexActivityKind.CreatingFiles or CodexActivityKind.DeletingFiles &&
             recentEditedFiles.Count > 0)
         {
-            return BuildEditingActivityLine(stateLabel, recentEditedFiles, editingFile);
+            return AppendActivityElapsed(BuildEditingActivityLine(stateLabel, recentEditedFiles, editingFile), activityElapsedText);
         }
 
-        return BuildIdleActivityLine(context, stateLabel);
+        return context.Codex.ActivityKind.IsActive()
+            ? AppendActivityElapsed(BuildIdleActivityLine(context, stateLabel), activityElapsedText)
+            : BuildIdleActivityLine(context, stateLabel);
     }
 
     private static string BuildActiveEditedFilesText(
@@ -145,19 +144,6 @@ public sealed class PresenceTemplateRenderer
         return stateLabel;
     }
 
-    private static string BuildUpdatingFilesActivityLine(
-        string stateLabel,
-        IReadOnlyList<RecentProjectFileSnapshot> recentEditedFiles,
-        TimeSpan elapsed)
-    {
-        if (recentEditedFiles.Count == 0)
-        {
-            return stateLabel;
-        }
-
-        return $"{stateLabel} \u2022 {FormatShortDuration(elapsed)}";
-    }
-
     private static string BuildIdleActivityLine(
         PresenceContext context,
         string stateLabel)
@@ -174,6 +160,25 @@ public sealed class PresenceTemplateRenderer
             CodexActivityKind.RunningCommand => stateLabel,
             _ => stateLabel
         };
+    }
+
+    private static string BuildActivityElapsedText(PresenceContext context)
+    {
+        var referenceUtc = context.Codex.LastObservedAt ?? context.Session.StartedAt;
+        var elapsed = DateTime.UtcNow - referenceUtc;
+        return FormatShortDuration(elapsed);
+    }
+
+    private static string AppendActivityElapsed(string baseLine, string elapsedText)
+    {
+        if (string.IsNullOrWhiteSpace(baseLine))
+        {
+            return baseLine;
+        }
+
+        return string.IsNullOrWhiteSpace(elapsedText)
+            ? baseLine
+            : $"{baseLine} \u2022 {elapsedText}";
     }
 
     private static string ResolveStateLabel(
@@ -252,12 +257,16 @@ public sealed class PresenceTemplateRenderer
     {
         if (elapsed.TotalHours >= 1)
         {
-            return $"{(int)elapsed.TotalHours}h {elapsed.Minutes}m";
+            return elapsed.Minutes == 0
+                ? $"{(int)elapsed.TotalHours}h"
+                : $"{(int)elapsed.TotalHours}h {elapsed.Minutes}m";
         }
 
         if (elapsed.TotalMinutes >= 1)
         {
-            return $"{(int)elapsed.TotalMinutes}m {elapsed.Seconds}s";
+            return elapsed.Seconds == 0
+                ? $"{(int)elapsed.TotalMinutes}m"
+                : $"{(int)elapsed.TotalMinutes}m {elapsed.Seconds}s";
         }
 
         return $"{Math.Max(1, (int)elapsed.TotalSeconds)}s";

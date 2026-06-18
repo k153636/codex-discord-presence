@@ -17,7 +17,7 @@ public sealed class PresenceTemplateRendererTests
 
         var presence = renderer.Render(template, context);
 
-        Assert.Equal("Thinking", presence.State);
+        Assert.Equal("Thinking • 5m", presence.State);
     }
 
     [Fact]
@@ -70,7 +70,7 @@ public sealed class PresenceTemplateRendererTests
         var presence = renderer.Render(template, context);
 
         Assert.Equal("gpt-5-codex \u2022 Tokens pending", presence.Details);
-        Assert.Equal("Thinking", presence.State);
+        Assert.Equal("Thinking • 5m", presence.State);
         Assert.Equal("working on Nexstrap", presence.LargeImageText);
         Assert.Equal("128 files \u2022 session 5m", presence.SmallImageText);
     }
@@ -101,11 +101,12 @@ public sealed class PresenceTemplateRendererTests
                     42000,
                     [new RecentProjectFileSnapshot(Path.GetFileName(tempFile), tempFile, File.GetLastWriteTimeUtc(tempFile))]),
                 new GitSnapshot(true, 2, null),
+                sessionAge: TimeSpan.FromSeconds(12),
                 recentEditedFiles: [new RecentProjectFileSnapshot(Path.GetFileName(tempFile), tempFile, File.GetLastWriteTimeUtc(tempFile))]);
 
             var presence = renderer.Render(template, context);
 
-            Assert.Equal("Applying edits \u2022 CodexRpcRendererTest.txt", presence.State);
+            Assert.Equal("Applying edits \u2022 CodexRpcRendererTest.txt \u2022 12s", presence.State);
         }
         finally
         {
@@ -264,14 +265,15 @@ public sealed class PresenceTemplateRendererTests
                 @"E:\tool\Nexstrap\NewFile.cs",
                 1,
                 1,
-                    42000,
-                    []),
+                42000,
+                []),
             new GitSnapshot(true, 1, null, CreatedFileCount: 1),
+            sessionAge: TimeSpan.FromSeconds(12),
             recentEditedFiles: [new RecentProjectFileSnapshot("NewFile.cs", @"E:\tool\Nexstrap\NewFile.cs", now)]);
 
         var presence = renderer.Render(template, context);
 
-        Assert.Equal("Creating files \u2022 NewFile.cs", presence.State);
+        Assert.Equal("Creating files \u2022 NewFile.cs \u2022 12s", presence.State);
     }
 
     [Fact]
@@ -298,7 +300,7 @@ public sealed class PresenceTemplateRendererTests
 
         var presence = renderer.Render(template, context);
 
-        Assert.Equal("Deleting files", presence.State);
+        Assert.Equal("Deleting files • 5m", presence.State);
     }
 
     [Fact]
@@ -338,18 +340,19 @@ public sealed class PresenceTemplateRendererTests
     {
         var renderer = new PresenceTemplateRenderer();
         var template = new PresenceTemplateOptions { State = "{ActivityLine}" };
-            var context = CreateContext(
-                new CodexProcessSnapshot(true, "codex", false)
-                {
-                    DetectedActivityKind = CodexActivityKind.RunningCommand,
-                    ActivityProvenance = ActivityProvenance.Observed
+        var context = CreateContext(
+            new CodexProcessSnapshot(true, "codex", false)
+            {
+                DetectedActivityKind = CodexActivityKind.RunningCommand,
+                ActivityProvenance = ActivityProvenance.Observed
             },
                 new ProjectSnapshot("Nexstrap", @"E:\tool\Nexstrap", null, null, 128, 128, 42000, []),
-                new GitSnapshot(true, 0, null));
+                new GitSnapshot(true, 0, null),
+                sessionAge: TimeSpan.FromSeconds(12));
 
         var presence = renderer.Render(template, context);
 
-        Assert.Equal("Running command", presence.State);
+        Assert.Equal("Running command \u2022 12s", presence.State);
     }
 
     [Fact]
@@ -363,8 +366,8 @@ public sealed class PresenceTemplateRendererTests
                 {
                     DetectedActivityKind = CodexActivityKind.Refactoring,
                     ActivityProvenance = ActivityProvenance.Observed,
-                Confidence = ActivityConfidence.Low
-            },
+                    Confidence = ActivityConfidence.Low
+                },
             new ProjectSnapshot(
                 "Nexstrap",
                 @"E:\tool\Nexstrap",
@@ -375,6 +378,7 @@ public sealed class PresenceTemplateRendererTests
                     42000,
                     []),
             new GitSnapshot(true, 4, "refactor: split editor state from transport"),
+            sessionAge: TimeSpan.FromSeconds(12),
             recentEditedFiles: [
                 new RecentProjectFileSnapshot("Program.cs", @"E:\tool\Nexstrap\Program.cs", now),
                 new RecentProjectFileSnapshot("AppOptions.cs", @"E:\tool\Nexstrap\AppOptions.cs", now.AddSeconds(-5)),
@@ -384,7 +388,7 @@ public sealed class PresenceTemplateRendererTests
 
         var presence = renderer.Render(template, context);
 
-        Assert.Equal("Refactoring", presence.State);
+        Assert.Equal("Refactoring \u2022 12s", presence.State);
     }
 
     private static PresenceContext CreateContext(
