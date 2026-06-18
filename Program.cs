@@ -34,7 +34,7 @@ var codexDetector = new CodexProcessDetector(options.Codex, options.Presence);
 var modelNameProvider = new CodexModelNameProvider(options.Codex, options.Presence);
 var projectInspector = new ProjectInspector(options.Project);
 var gitInspector = new GitInspector();
-var tokenUsageProvider = new TokenUsageProvider(options.TokenUsage);
+var tokenUsageProvider = new TokenUsageProvider(options.Codex, options.TokenUsage);
 var renderer = new PresenceTemplateRenderer();
 var rpc = new DiscordPresenceClient(options.Discord);
 
@@ -48,6 +48,9 @@ ModelNameSnapshot? lastModelSnapshot = null;
 CodexProcessSnapshot? lastActivitySnapshot = null;
 string? lastPresenceDetails = null;
 string? lastPresenceState = null;
+string? stableCostModelName = null;
+var lastActivityKind = CodexActivityKind.Ready;
+string? lastPresenceSignature = null;
 
 while (!cts.IsCancellationRequested)
 {
@@ -71,6 +74,12 @@ while (!cts.IsCancellationRequested)
             lastModelSnapshot = modelSnapshot;
         }
 
+        if (stableCostModelName is null &&
+            !string.IsNullOrWhiteSpace(modelSnapshot.FinalDisplayedModel))
+        {
+            stableCostModelName = modelSnapshot.FinalDisplayedModel;
+        }
+
         if (lastActivitySnapshot is null ||
             lastActivitySnapshot.ActivityKind != codexSnapshot.ActivityKind ||
             lastActivitySnapshot.ActivityProvenance != codexSnapshot.ActivityProvenance ||
@@ -85,33 +94,42 @@ while (!cts.IsCancellationRequested)
             lastActivitySnapshot = codexSnapshot;
         }
 
-        var tokenSnapshot = tokenUsageProvider.GetSnapshot();
-
         var context = new PresenceContext(
             modelSnapshot.FinalDisplayedModel,
             codexSnapshot,
             projectSnapshot,
             gitSnapshot,
             session.GetSnapshot(),
-            tokenSnapshot);
+            tokenUsageProvider.GetSnapshot(projectInspector.ProjectPath, stableCostModelName));
 
         var presence = renderer.Render(options.Presence, context);
+        var presenceSignature = BuildPresenceSignature(presence);
         if (!string.Equals(presence.Details, lastPresenceDetails, StringComparison.Ordinal) ||
             !string.Equals(presence.State, lastPresenceState, StringComparison.Ordinal))
         {
-            Console.WriteLine($"Presence rendered: Details={presence.Details}; State={presence.State}");
+            Console.WriteLine(
+                $"Presence rendered: Details={FormatLogValueForMultiline(presence.Details)}; " +
+                $"State={FormatLogValueForMultiline(presence.State)}");
             lastPresenceDetails = presence.Details;
             lastPresenceState = presence.State;
         }
 
-        rpc.Update(presence);
+        if (!string.Equals(presenceSignature, lastPresenceSignature, StringComparison.Ordinal))
+        {
+            rpc.Update(presence);
+            lastPresenceSignature = presenceSignature;
+        }
+
+        lastActivityKind = codexSnapshot.ActivityKind;
     }
     catch (Exception ex)
     {
         Console.Error.WriteLine($"Presence update loop failed: {ex.Message}");
     }
 
-    await Task.Delay(TimeSpan.FromSeconds(Math.Max(5, options.UpdateIntervalSeconds)), cts.Token)
+    var delay = PresenceRefreshPolicy.GetNextDelay(options.Presence, lastActivityKind);
+
+    await Task.Delay(delay, cts.Token)
         .ContinueWith(_ => { }, CancellationToken.None);
 }
 
@@ -122,4 +140,26 @@ return 0;
 static string FormatLogValue(string? value)
 {
     return string.IsNullOrWhiteSpace(value) ? "<none>" : value;
+}
+
+static string FormatLogValueForMultiline(string? value)
+{
+    return string.IsNullOrWhiteSpace(value)
+        ? "<none>"
+        : value.ReplaceLineEndings("\\n");
+}
+
+static string BuildPresenceSignature(RenderedPresence presence)
+{
+    var buttons = string.Join(
+        "|",
+        presence.Buttons.Select(button => $"{button.Label}=>{button.Url}"));
+
+    return string.Join(
+        "\u001f",
+        presence.Details,
+        presence.State,
+        presence.LargeImageText,
+        presence.SmallImageText,
+        buttons);
 }

@@ -17,9 +17,11 @@ public enum CodexActivityKind
     AnalyzingProject = 2,
     ApplyingEdits = 3,
     UpdatingFiles = 4,
-    RunningCommand = 5,
-    Planning = 6,
-    Refactoring = 7
+    CreatingFiles = 5,
+    DeletingFiles = 6,
+    RunningCommand = 7,
+    Planning = 8,
+    Refactoring = 9
 }
 
 public enum ActivityConfidence
@@ -50,6 +52,7 @@ public sealed partial record CodexProcessSnapshot
     public ActivityProvenance ActivityProvenance { get; init; } = ActivityProvenance.Inferred;
     public string ActivityReason { get; init; } = "";
     public DateTime? LastObservedAt { get; init; }
+    public IReadOnlyList<RecentProjectFileSnapshot> RecentEditedFiles { get; init; } = Array.Empty<RecentProjectFileSnapshot>();
 
     public CodexActivityKind ActivityKind =>
         DetectedActivityKind ??
@@ -63,11 +66,17 @@ public sealed record ProjectSnapshot(
     string Path,
     string? RecentFileName,
     string? RecentFilePath,
+    int TotalFileCount,
     int ScannedFileCount,
     long TotalLineCount,
     IReadOnlyList<RecentProjectFileSnapshot> RecentFiles);
 
-public sealed record GitSnapshot(bool IsGitRepository, int ChangedFileCount, string? LatestCommitMessage);
+public sealed record GitSnapshot(
+    bool IsGitRepository,
+    int ChangedFileCount,
+    string? LatestCommitMessage,
+    int CreatedFileCount = 0,
+    int DeletedFileCount = 0);
 
 public sealed record SessionSnapshot(DateTime StartedAt, TimeSpan Elapsed);
 

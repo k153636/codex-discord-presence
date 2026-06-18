@@ -9,7 +9,7 @@ public sealed class AppOptions
     public ProjectOptions Project { get; set; } = new();
     public PresenceTemplateOptions Presence { get; set; } = new();
     public TokenUsageOptions TokenUsage { get; set; } = new();
-    public int UpdateIntervalSeconds { get; set; } = 15;
+    public int UpdateIntervalSeconds { get; set; } = 2;
 
     public static AppOptions Load(string[] args)
     {
@@ -130,27 +130,35 @@ public sealed class PresenceTemplateOptions
 {
     public bool AutoDetectModelName { get; set; } = true;
     public string ModelName { get; set; } = "Codex";
-    public string Details { get; set; } = "{ModelName} working on {ProjectName}";
+    public string Details { get; set; } = "{ModelName} \u2022 {Tokens}";
     public string State { get; set; } = "{ActivityLine}";
-    public string LargeImageText { get; set; } = "{ProjectName} ・ {ProjectSizeText}";
-    public string SmallImageText { get; set; } = "session {SessionElapsed}";
+    public string LargeImageText { get; set; } = "working on {ProjectName}";
+    public string SmallImageText { get; set; } = "{ProjectFileCount} files \u2022 session {SessionElapsed}";
     public PresenceButtonOptions[] Buttons { get; set; } = [];
-    public string AnalyzingProjectText { get; set; } = "Analyzing project";
+    public string AnalyzingProjectText { get; set; } = "Thinking";
     public string UpdatingFilesText { get; set; } = "Coordinating changes across {n} files";
+    public string CreatingFilesText { get; set; } = "Creating files";
+    public string DeletingFilesText { get; set; } = "Deleting files";
     public string RunningCommandText { get; set; } = "Running command";
     public string PlanningText { get; set; } = "Planning";
     public string ApplyingEditsText { get; set; } = "Applying edits";
     public string RefactoringText { get; set; } = "Refactoring";
     public string ThinkingText { get; set; } = "Thinking";
     public string IdlingText { get; set; } = "Idling";
-    public string ReadyText { get; set; } = "Thinking";
+    public string ReadyText { get; set; } = "Hold on";
     public string AnalyzingText { get; set; } = "Thinking";
     public string WaitingText { get; set; } = "Idling";
     public string ReadyActivityText { get; set; } = "Idling";
     public string WaitingActivityText { get; set; } = "Idling";
     public string OfflineText { get; set; } = "Idling";
     public int ThinkingStaleTimeoutMinutes { get; set; } = 10;
+    public int ReadyIdleGraceMinutes { get; set; } = 5;
     public int EditingFreshnessSeconds { get; set; } = 45;
+    public int ActiveUpdateIntervalSeconds { get; set; } = 1;
+    public int RunningCommandUpdateIntervalSeconds { get; set; } = 1;
+    public int RunningCommandUpdateIntervalMilliseconds { get; set; } = 500;
+    public int RunningCommandHoldSeconds { get; set; } = 2;
+    public int IdleUpdateIntervalSeconds { get; set; } = 8;
 }
 
 public sealed class PresenceButtonOptions
@@ -161,7 +169,9 @@ public sealed class PresenceButtonOptions
 
 public sealed class TokenUsageOptions
 {
-    public bool Enabled { get; set; }
+    public bool Enabled { get; set; } = true;
     public long? TotalTokens { get; set; }
     public decimal? EstimatedCostUsd { get; set; }
 }
+
+

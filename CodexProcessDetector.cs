@@ -7,6 +7,7 @@ public sealed class CodexProcessDetector
 {
     private readonly CodexDetectionOptions _options;
     private readonly PresenceTemplateOptions _presenceOptions;
+    private readonly Dictionary<string, DateTime> _lastObservedEditedFiles = new(StringComparer.OrdinalIgnoreCase);
 
     public CodexProcessDetector(CodexDetectionOptions options, PresenceTemplateOptions presenceOptions)
     {
@@ -54,7 +55,8 @@ public sealed class CodexProcessDetector
             ActivityProvenance = provenance,
             Confidence = confidence,
             ActivityReason = reason,
-            LastObservedAt = lastObservedAt
+            LastObservedAt = lastObservedAt,
+            RecentEditedFiles = recentEditedFiles
         };
     }
 
@@ -70,12 +72,29 @@ public sealed class CodexProcessDetector
             return Array.Empty<RecentProjectFileSnapshot>();
         }
 
-        var freshnessSeconds = Math.Max(5, _presenceOptions.EditingFreshnessSeconds);
-        var cutoff = DateTime.UtcNow - TimeSpan.FromSeconds(freshnessSeconds);
-        return projectSnapshot.RecentFiles
-            .Where(file => file.LastWriteTimeUtc >= cutoff)
-            .OrderByDescending(file => file.LastWriteTimeUtc)
-            .ToArray();
+        var now = DateTime.UtcNow;
+        var startupWindow = TimeSpan.FromSeconds(5);
+        var changedFiles = new List<RecentProjectFileSnapshot>();
+        foreach (var file in projectSnapshot.RecentFiles.OrderByDescending(file => file.LastWriteTimeUtc))
+        {
+            var normalizedPath = NormalizePath(file.Path);
+            var isVeryRecent = now - file.LastWriteTimeUtc <= startupWindow;
+            if (!_lastObservedEditedFiles.TryGetValue(normalizedPath, out var lastSeen))
+            {
+                if (isVeryRecent)
+                {
+                    changedFiles.Add(file);
+                }
+            }
+            else if (file.LastWriteTimeUtc > lastSeen)
+            {
+                changedFiles.Add(file);
+            }
+
+            _lastObservedEditedFiles[normalizedPath] = file.LastWriteTimeUtc;
+        }
+
+        return changedFiles;
     }
 
     private CodexActivityKind DetermineActivity(
@@ -92,11 +111,19 @@ public sealed class CodexProcessDetector
             sessionInspection?.LastObservedAt,
             recentEditedFiles.FirstOrDefault()?.LastWriteTimeUtc);
 
+        var createdFileCount = gitSnapshot?.CreatedFileCount ?? 0;
+        var deletedFileCount = gitSnapshot?.DeletedFileCount ?? 0;
         var hasFreshSession = sessionInspection is not null &&
             sessionInspection.HasRecentActivity(_presenceOptions.ThinkingStaleTimeoutMinutes);
         var hasRecentEdits = recentEditedFiles.Count > 0;
-        var hasMultipleRecentEdits = recentEditedFiles.Count >= 2 || changedFileCount >= 2;
+        var hasBurstRecentEdits = HasBurstRecentEdits(recentEditedFiles, changedFileCount);
         var hasRefactorEvidence = HasRefactorEvidence(recentEditedFiles, sessionInspection, gitSnapshot);
+        var hasCreatingEvidence = createdFileCount > 0 &&
+            deletedFileCount == 0 &&
+            changedFileCount == createdFileCount;
+        var hasDeletingEvidence = deletedFileCount > 0 &&
+            createdFileCount == 0 &&
+            changedFileCount == deletedFileCount;
 
         if (sessionInspection?.HasRunningCommand == true && hasFreshSession)
         {
@@ -106,11 +133,33 @@ public sealed class CodexProcessDetector
             return CodexActivityKind.RunningCommand;
         }
 
+        if (hasCreatingEvidence)
+        {
+            provenance = ActivityProvenance.Observed;
+            confidence = ActivityConfidence.High;
+            reason = $"created files={createdFileCount}, git changed files={changedFileCount}";
+            return CodexActivityKind.CreatingFiles;
+        }
+
+        if (hasDeletingEvidence)
+        {
+            provenance = ActivityProvenance.Observed;
+            confidence = ActivityConfidence.High;
+            reason = $"deleted files={deletedFileCount}, git changed files={changedFileCount}";
+            return CodexActivityKind.DeletingFiles;
+        }
+
         if (hasRecentEdits)
         {
             provenance = ActivityProvenance.Observed;
             confidence = ActivityConfidence.High;
-            if (hasMultipleRecentEdits)
+            if (hasBurstRecentEdits)
+            {
+                reason = $"recent edits burst={recentEditedFiles.Count}, git changed files={changedFileCount}";
+                return CodexActivityKind.UpdatingFiles;
+            }
+
+            if (hasBurstRecentEdits || recentEditedFiles.Count > 1)
             {
                 reason = $"recent edits={recentEditedFiles.Count}, git changed files={changedFileCount}";
                 return CodexActivityKind.UpdatingFiles;
@@ -193,6 +242,20 @@ public sealed class CodexProcessDetector
         return max;
     }
 
+    private static string NormalizePath(string path)
+    {
+        try
+        {
+            return Path.GetFullPath(path)
+                .TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar)
+                .ToUpperInvariant();
+        }
+        catch
+        {
+            return path.Trim().ToUpperInvariant();
+        }
+    }
+
     private static string BuildRefactorReason(
         SessionInspection? sessionInspection,
         GitSnapshot? gitSnapshot)
@@ -217,6 +280,20 @@ public sealed class CodexProcessDetector
         }
 
         return false;
+    }
+
+    private static bool HasBurstRecentEdits(
+        IReadOnlyList<RecentProjectFileSnapshot> recentEditedFiles,
+        int changedFileCount)
+    {
+        if (recentEditedFiles.Count < 2 || changedFileCount < 2)
+        {
+            return false;
+        }
+
+        var newest = recentEditedFiles[0].LastWriteTimeUtc;
+        var oldest = recentEditedFiles[^1].LastWriteTimeUtc;
+        return newest - oldest <= TimeSpan.FromSeconds(3);
     }
 
     private static readonly string[] RefactorKeywords =
@@ -501,20 +578,6 @@ public sealed class CodexProcessDetector
         return needles.Any(needle =>
             !string.IsNullOrWhiteSpace(needle) &&
             value.Contains(needle, StringComparison.OrdinalIgnoreCase));
-    }
-
-    private static string NormalizePath(string path)
-    {
-        try
-        {
-            return Path.GetFullPath(Environment.ExpandEnvironmentVariables(path))
-                .TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar)
-                .ToUpperInvariant();
-        }
-        catch
-        {
-            return path.Trim().ToUpperInvariant();
-        }
     }
 
     private sealed record SessionInspection(

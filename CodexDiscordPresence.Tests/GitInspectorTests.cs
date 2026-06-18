@@ -24,4 +24,24 @@ public sealed class GitInspectorTests
 
         Assert.Equal(1, count);
     }
+
+    [Fact]
+    public void CountCreatedFiles_CountsUntrackedAndAddedFiles()
+    {
+        var output = "?? NewFile.cs\nA  AddedFile.cs\n";
+
+        var count = GitInspector.CountCreatedFiles(output);
+
+        Assert.Equal(2, count);
+    }
+
+    [Fact]
+    public void CountDeletedFiles_CountsDeletedFiles()
+    {
+        var output = " D DeletedFile.cs\nD  StagedDelete.cs\n";
+
+        var count = GitInspector.CountDeletedFiles(output);
+
+        Assert.Equal(2, count);
+    }
 }

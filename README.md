@@ -42,7 +42,7 @@ The app is configured as a self-contained `win-x64` single-file publish.
 - Recent edited file name
 - Git changed-file count
 - Session elapsed time
-- Token count and estimated cost placeholders
+- Token count placeholder
 - Discord buttons
 
 ## Activity Labels
@@ -52,6 +52,8 @@ The presence engine prefers observable, high-confidence labels first:
 - `Running command`
 - `Coordinating changes across {n} files`
 - `Applying edits`
+- `Creating files`
+- `Deleting files`
 - `Thinking`
 - `Hold on`
 - `Idling`
@@ -62,11 +64,13 @@ For quiet idle periods, the app shows `Hold on` for the first 5 minutes, then sw
 
 ## Default Presence
 
-- `Details`: `{ModelName} working on {ProjectName}`
+- `Details`: `{ModelName} &bull; {Tokens}`
 - `State`: `{ActivityLine}`
-- `LargeImageText`: `{ProjectFileCount} files`
-- `SmallImageText`: `session {SessionElapsed}`
+- `LargeImageText`: `working on {ProjectName}`
+- `SmallImageText`: `{ProjectFileCount} files &bull; session {SessionElapsed}`
 - Button: `GitHub`
+
+Use `{ActivityLabel}` if you want the file name omitted for a cleaner one-line status.
 
 ## Model Detection
 
@@ -118,6 +122,8 @@ Common settings live in `appsettings.json`:
 - `Presence.Buttons`
 - `Presence.AnalyzingProjectText`
 - `Presence.UpdatingFilesText`
+- `Presence.CreatingFilesText`
+- `Presence.DeletingFilesText`
 - `Presence.RunningCommandText`
 - `Presence.PlanningText`
 - `Presence.ApplyingEditsText`
@@ -162,7 +168,7 @@ These placeholders can be used in `Presence.Details`, `Presence.State`, `Presenc
 - `{SessionElapsed}`
 - `{SessionStartedAt}`
 - `{Tokens}`
-- `{EstimatedCost}`
+- `{Cost}`
 
 ## Discord App
 
@@ -180,3 +186,5 @@ The default large image key is:
 - `stop.cmd` stops the running instance
 - `git diff`, recent file writes, and session logs are used together to infer active work
 - Project scanning ignores common build, cache, and binary folders
+- The default refresh cadence is shortened so activity changes surface faster in Discord
+

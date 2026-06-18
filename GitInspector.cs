@@ -13,8 +13,15 @@ public sealed class GitInspector
         }
 
         var latestCommitMessage = RunGit(projectPath, ["-C", projectPath, "log", "-1", "--pretty=%s"])?.Trim();
+        var createdFileCount = CountCreatedFiles(output);
+        var deletedFileCount = CountDeletedFiles(output);
 
-        return new GitSnapshot(true, CountChangedFiles(output), string.IsNullOrWhiteSpace(latestCommitMessage) ? null : latestCommitMessage);
+        return new GitSnapshot(
+            true,
+            CountChangedFiles(output),
+            string.IsNullOrWhiteSpace(latestCommitMessage) ? null : latestCommitMessage,
+            createdFileCount,
+            deletedFileCount);
     }
 
     internal static int CountChangedFiles(string output)
@@ -25,6 +32,20 @@ public sealed class GitInspector
             .Where(path => !string.IsNullOrWhiteSpace(path))
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .Count();
+    }
+
+    public static int CountCreatedFiles(string output)
+    {
+        return output
+            .Split(['\r', '\n'], StringSplitOptions.RemoveEmptyEntries)
+            .Count(IsCreatedStatusLine);
+    }
+
+    public static int CountDeletedFiles(string output)
+    {
+        return output
+            .Split(['\r', '\n'], StringSplitOptions.RemoveEmptyEntries)
+            .Count(IsDeletedStatusLine);
     }
 
     private static string? RunGit(string projectPath, IReadOnlyList<string> arguments)
@@ -90,5 +111,21 @@ public sealed class GitInspector
         var path = line[3..].Trim();
         var renameArrow = path.IndexOf(" -> ", StringComparison.Ordinal);
         return renameArrow >= 0 ? path[(renameArrow + 4)..] : path;
+    }
+
+    private static bool IsCreatedStatusLine(string line)
+    {
+        return HasStatus(line, 'A') || HasStatus(line, '?') || HasStatus(line, 'C');
+    }
+
+    private static bool IsDeletedStatusLine(string line)
+    {
+        return HasStatus(line, 'D');
+    }
+
+    private static bool HasStatus(string line, char status)
+    {
+        return line.Length >= 2 &&
+            (line[0] == status || line[1] == status);
     }
 }

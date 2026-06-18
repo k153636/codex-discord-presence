@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.IO;
 using CodexDiscordPresence;
 using Xunit;
@@ -266,6 +266,7 @@ public class CodexStateTests
                 null,
                 null,
                 10,
+                10,
                 200,
                 []);
 
@@ -284,7 +285,58 @@ public class CodexStateTests
     }
 
     [Fact]
-    public void Test_10_MultiFileEdits_ReturnUpdatingFiles()
+    public void Test_10_SingleRecentEdit_ReturnsApplyingEdits()
+    {
+        var tempPath = CreateTempSessionDirectory();
+        try
+        {
+            var now = DateTime.UtcNow;
+            WriteMockSessionLog(tempPath, "session1.jsonl", new[]
+            {
+                $"{{\"timestamp\":\"{now:yyyy-MM-ddTHH:mm:ss.fffZ}\",\"type\":\"event_msg\",\"payload\":{{\"type\":\"task_started\",\"turn_id\":\"123\",\"cwd\":\"E:\\\\tool\\\\discord-presence-for-codex\"}}}}"
+            });
+
+            var projectRoot = Path.Combine(Path.GetTempPath(), "CodexSingleEditProject_" + Guid.NewGuid());
+            Directory.CreateDirectory(projectRoot);
+
+            try
+            {
+                var file = Path.Combine(projectRoot, "README.md");
+                File.WriteAllText(file, "hello");
+                File.SetLastWriteTimeUtc(file, now);
+
+                var projectSnapshot = new ProjectSnapshot(
+                    Path.GetFileName(projectRoot),
+                    projectRoot,
+                    "README.md",
+                    file,
+                    1,
+                    1,
+                    1,
+                    [
+                        new RecentProjectFileSnapshot("README.md", file, File.GetLastWriteTimeUtc(file))
+                    ]);
+
+                var detector = new CodexProcessDetector(new CodexDetectionOptions { HomePath = tempPath }, new PresenceTemplateOptions { EditingFreshnessSeconds = 120 });
+                var snapshot = detector.GetSnapshot(projectRoot, projectSnapshot, new GitSnapshot(true, 12, null));
+
+                Assert.True(snapshot.IsRunning);
+                Assert.Equal(CodexActivityKind.ApplyingEdits, snapshot.ActivityKind);
+                Assert.Equal(ActivityConfidence.High, snapshot.Confidence);
+            }
+            finally
+            {
+                Directory.Delete(projectRoot, true);
+            }
+        }
+        finally
+        {
+            Directory.Delete(tempPath, true);
+        }
+    }
+
+    [Fact]
+    public void Test_11_MultiFileEdits_ReturnUpdatingFiles()
     {
         var tempPath = CreateTempSessionDirectory();
         try
@@ -309,9 +361,9 @@ public class CodexStateTests
                 File.WriteAllText(file3, "3");
                 File.WriteAllText(file4, "4");
                 File.SetLastWriteTimeUtc(file1, now);
-                File.SetLastWriteTimeUtc(file2, now.AddSeconds(-5));
-                File.SetLastWriteTimeUtc(file3, now.AddSeconds(-10));
-                File.SetLastWriteTimeUtc(file4, now.AddSeconds(-15));
+                File.SetLastWriteTimeUtc(file2, now.AddSeconds(-1));
+                File.SetLastWriteTimeUtc(file3, now.AddSeconds(-2));
+                File.SetLastWriteTimeUtc(file4, now.AddSeconds(-3));
 
                 var projectSnapshot = new ProjectSnapshot(
                     Path.GetFileName(projectRoot),
@@ -320,6 +372,7 @@ public class CodexStateTests
                     file1,
                     4,
                     4,
+                    42000,
                     [
                         new RecentProjectFileSnapshot("One.cs", file1, File.GetLastWriteTimeUtc(file1)),
                         new RecentProjectFileSnapshot("Two.cs", file2, File.GetLastWriteTimeUtc(file2)),
@@ -347,7 +400,7 @@ public class CodexStateTests
     }
 
     [Fact]
-    public void Test_11_CommandInSession_ReturnsRunningCommand()
+    public void Test_12_CommandInSession_ReturnsRunningCommand()
     {
         var tempPath = CreateTempSessionDirectory();
         try
@@ -373,7 +426,7 @@ public class CodexStateTests
     }
 
     [Fact]
-    public void Test_12_CommitMessageWithRefactorHint_ReturnsRefactoringLowConfidence()
+    public void Test_13_CommitMessageWithRefactorHint_ReturnsRefactoringLowConfidence()
     {
         var tempPath = CreateTempSessionDirectory();
         try
@@ -390,6 +443,7 @@ public class CodexStateTests
                 @"E:\tool\discord-presence-for-codex",
                 null,
                 null,
+                12,
                 12,
                 500,
                 []);
@@ -410,7 +464,7 @@ public class CodexStateTests
     }
 
     [Fact]
-    public void Test_13_RefactorWordInSessionText_DoesNotForceRefactoring()
+    public void Test_14_RefactorWordInSessionText_DoesNotForceRefactoring()
     {
         var tempPath = CreateTempSessionDirectory();
         try
@@ -427,28 +481,23 @@ public class CodexStateTests
             try
             {
                 var file1 = Path.Combine(projectRoot, "Alpha.cs");
-                var file2 = Path.Combine(projectRoot, "Beta.cs");
                 File.WriteAllText(file1, "1");
-                File.WriteAllText(file2, "2");
                 File.SetLastWriteTimeUtc(file1, now);
-                File.SetLastWriteTimeUtc(file2, now.AddSeconds(-5));
 
                 var projectSnapshot = new ProjectSnapshot(
                     Path.GetFileName(projectRoot),
                     projectRoot,
                     "Alpha.cs",
                     file1,
+                    1,
+                    1,
                     2,
-                    2,
-                    [
-                        new RecentProjectFileSnapshot("Alpha.cs", file1, File.GetLastWriteTimeUtc(file1)),
-                        new RecentProjectFileSnapshot("Beta.cs", file2, File.GetLastWriteTimeUtc(file2))
-                    ]);
+                    [ new RecentProjectFileSnapshot("Alpha.cs", file1, File.GetLastWriteTimeUtc(file1)) ]);
 
                 var detector = new CodexProcessDetector(new CodexDetectionOptions { HomePath = tempPath }, new PresenceTemplateOptions { EditingFreshnessSeconds = 120 });
                 var snapshot = detector.GetSnapshot(projectRoot, projectSnapshot, new GitSnapshot(true, 2, null));
 
-                Assert.Equal(CodexActivityKind.UpdatingFiles, snapshot.ActivityKind);
+                Assert.Equal(CodexActivityKind.ApplyingEdits, snapshot.ActivityKind);
                 Assert.Equal(ActivityConfidence.High, snapshot.Confidence);
             }
             finally
@@ -467,3 +516,4 @@ public class CodexStateTests
         return value.Replace("\\", "\\\\").Replace("\"", "\\\"");
     }
 }
+

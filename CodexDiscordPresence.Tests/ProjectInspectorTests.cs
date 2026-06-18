@@ -29,6 +29,7 @@ public sealed class ProjectInspectorTests
             var snapshot = inspector.GetSnapshot();
 
             Assert.Equal("Feature.cs", snapshot.RecentFileName);
+            Assert.Equal(1, snapshot.TotalFileCount);
             Assert.Equal(1, snapshot.ScannedFileCount);
             Assert.Equal(1, snapshot.TotalLineCount);
             Assert.Single(snapshot.RecentFiles);
@@ -62,6 +63,7 @@ public sealed class ProjectInspectorTests
 
             var snapshot = inspector.GetSnapshot();
 
+            Assert.Equal(2, snapshot.TotalFileCount);
             Assert.Equal(2, snapshot.ScannedFileCount);
             Assert.Equal(5, snapshot.TotalLineCount);
             Assert.Equal(2, snapshot.RecentFiles.Count);

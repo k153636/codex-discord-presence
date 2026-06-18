@@ -21,15 +21,17 @@ public sealed class PresenceTemplateRenderer
 
     private static Dictionary<string, string> BuildValues(PresenceTemplateOptions template, PresenceContext context)
     {
-        var recentEditedFiles = context.Project.RecentFiles
-            .Where(file => DateTime.UtcNow - file.LastWriteTimeUtc <= TimeSpan.FromSeconds(Math.Max(5, template.EditingFreshnessSeconds)))
+        var recentEditedFiles = context.Codex.RecentEditedFiles
             .OrderByDescending(file => file.LastWriteTimeUtc)
             .ToArray();
-        var editingFileName = recentEditedFiles.FirstOrDefault()?.Name ?? "";
+
+        var editingFile = SelectEditingFile(context, recentEditedFiles);
+        var editingFileName = editingFile?.Name ?? "";
+        var editingFileLabel = BuildEditingFileLabel(context, editingFileName);
         var changedFilesText = FormatChangedFiles(context.Git.ChangedFileCount);
-        var projectSizeText = FormatProjectSize(context.Project.ScannedFileCount, context.Project.TotalLineCount);
-        var stateLabel = ResolveStateLabel(template, context.Codex.ActivityKind, context.Git.ChangedFileCount);
-        var activityLine = BuildActivityLine(context, recentEditedFiles, stateLabel);
+        var projectSizeText = FormatProjectSize(context.Project.TotalFileCount, context.Project.TotalLineCount);
+        var stateLabel = ResolveStateLabel(template, context, context.Codex.ActivityKind, context.Git.ChangedFileCount);
+        var activityLine = BuildActivityLine(context, recentEditedFiles, stateLabel, editingFile);
 
         return new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
         {
@@ -39,7 +41,7 @@ public sealed class PresenceTemplateRenderer
             ["ProjectName"] = context.Project.Name,
             ["ProjectPath"] = context.Project.Path,
             ["EditingFileName"] = editingFileName,
-            ["EditingFileLabel"] = string.IsNullOrWhiteSpace(editingFileName) ? "" : $"Editing {editingFileName}",
+            ["EditingFileLabel"] = editingFileLabel,
             ["EditingFilePath"] = context.Project.RecentFilePath ?? "",
             ["ActiveEditedFileCount"] = recentEditedFiles.Length.ToString(CultureInfo.InvariantCulture),
             ["ActiveEditedFilesText"] = BuildActiveEditedFilesText(template, context, recentEditedFiles),
@@ -51,13 +53,14 @@ public sealed class PresenceTemplateRenderer
             ["ActivityProvenance"] = context.Codex.ActivityProvenance.ToString(),
             ["ActivityReason"] = context.Codex.ActivityReason,
             ["ActivityLine"] = activityLine,
-            ["ProjectFileCount"] = context.Project.ScannedFileCount.ToString(CultureInfo.InvariantCulture),
+            ["ProjectFileCount"] = context.Project.TotalFileCount.ToString(CultureInfo.InvariantCulture),
             ["ProjectLineCount"] = context.Project.TotalLineCount.ToString(CultureInfo.InvariantCulture),
             ["ProjectSizeText"] = projectSizeText,
             ["SessionElapsed"] = FormatElapsed(context.Session.Elapsed),
             ["SessionStartedAt"] = context.Session.StartedAt.ToLocalTime().ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture),
-            ["Tokens"] = context.TokenUsage.TotalTokens is null ? "tokens pending" : FormatNumber(context.TokenUsage.TotalTokens.Value),
-            ["EstimatedCost"] = context.TokenUsage.EstimatedCostUsd is null ? "cost pending" : "$" + context.TokenUsage.EstimatedCostUsd.Value.ToString("0.00", CultureInfo.InvariantCulture),
+            ["Tokens"] = context.TokenUsage.TotalTokens is null ? "Tokens pending" : $"{FormatNumber(context.TokenUsage.TotalTokens.Value)} Token",
+            ["Cost"] = "",
+            ["EstimatedCost"] = "",
             ["CodexState"] = stateLabel
         };
     }
@@ -65,7 +68,8 @@ public sealed class PresenceTemplateRenderer
     private static string BuildActivityLine(
         PresenceContext context,
         IReadOnlyList<RecentProjectFileSnapshot> recentEditedFiles,
-        string stateLabel)
+        string stateLabel,
+        RecentProjectFileSnapshot? editingFile)
     {
         if (!context.Codex.IsRunning)
         {
@@ -77,9 +81,10 @@ public sealed class PresenceTemplateRenderer
             return stateLabel;
         }
 
-        if (recentEditedFiles.Count > 0)
+        if (context.Codex.ActivityKind is CodexActivityKind.ApplyingEdits or CodexActivityKind.UpdatingFiles or CodexActivityKind.CreatingFiles or CodexActivityKind.DeletingFiles &&
+            recentEditedFiles.Count > 0)
         {
-            return BuildEditingActivityLine(stateLabel, recentEditedFiles);
+            return BuildEditingActivityLine(stateLabel, recentEditedFiles, editingFile);
         }
 
         return BuildIdleActivityLine(context, stateLabel);
@@ -90,22 +95,46 @@ public sealed class PresenceTemplateRenderer
         PresenceContext context,
         IReadOnlyList<RecentProjectFileSnapshot> recentEditedFiles)
     {
-        if (recentEditedFiles.Count == 0)
+        if (recentEditedFiles.Count != 1)
         {
             return "";
         }
 
-        var stateLabel = ResolveStateLabel(template, context.Codex.ActivityKind, context.Git.ChangedFileCount);
-        return BuildEditingActivityLine(stateLabel, recentEditedFiles);
+        var stateLabel = ResolveStateLabel(template, context, context.Codex.ActivityKind, context.Git.ChangedFileCount);
+        var editingFile = SelectEditingFile(context, recentEditedFiles);
+        if (editingFile is null)
+        {
+            return "";
+        }
+
+        return $"{stateLabel} \u2022 {editingFile.Name}";
+    }
+
+    private static string BuildEditingFileLabel(
+        PresenceContext context,
+        string editingFileName)
+    {
+        if (string.IsNullOrWhiteSpace(editingFileName))
+        {
+            return "";
+        }
+
+        if (context.Codex.ActivityKind is not (CodexActivityKind.ApplyingEdits or CodexActivityKind.UpdatingFiles or CodexActivityKind.CreatingFiles or CodexActivityKind.DeletingFiles))
+        {
+            return "";
+        }
+
+        return $"Editing {editingFileName}";
     }
 
     private static string BuildEditingActivityLine(
         string stateLabel,
-        IReadOnlyList<RecentProjectFileSnapshot> recentEditedFiles)
+        IReadOnlyList<RecentProjectFileSnapshot> recentEditedFiles,
+        RecentProjectFileSnapshot? editingFile)
     {
-        if (recentEditedFiles.Count == 1)
+        if (editingFile is not null && recentEditedFiles.Count <= 4)
         {
-            return $"{stateLabel} ・ Editing {recentEditedFiles[0].Name}";
+            return $"{stateLabel} \u2022 {editingFile.Name}";
         }
 
         return stateLabel;
@@ -120,6 +149,8 @@ public sealed class PresenceTemplateRenderer
             CodexActivityKind.Planning => stateLabel,
             CodexActivityKind.ApplyingEdits => stateLabel,
             CodexActivityKind.UpdatingFiles => stateLabel,
+            CodexActivityKind.CreatingFiles => stateLabel,
+            CodexActivityKind.DeletingFiles => stateLabel,
             CodexActivityKind.Refactoring => stateLabel,
             CodexActivityKind.AnalyzingProject => stateLabel,
             CodexActivityKind.RunningCommand => stateLabel,
@@ -127,22 +158,42 @@ public sealed class PresenceTemplateRenderer
         };
     }
 
-    private static string ResolveStateLabel(PresenceTemplateOptions template, CodexActivityKind activityKind, int changedFileCount)
+    private static string ResolveStateLabel(
+        PresenceTemplateOptions template,
+        PresenceContext context,
+        CodexActivityKind activityKind,
+        int changedFileCount)
     {
         var label = activityKind switch
         {
             CodexActivityKind.Planning => FirstNonEmpty(template.PlanningText, "Planning"),
             CodexActivityKind.ApplyingEdits => FirstNonEmpty(template.ApplyingEditsText, "Applying edits"),
             CodexActivityKind.UpdatingFiles => FirstNonEmpty(template.UpdatingFilesText, "Updating files"),
+            CodexActivityKind.CreatingFiles => FirstNonEmpty(template.CreatingFilesText, "Creating files"),
+            CodexActivityKind.DeletingFiles => FirstNonEmpty(template.DeletingFilesText, "Deleting files"),
             CodexActivityKind.RunningCommand => FirstNonEmpty(template.RunningCommandText, "Running command"),
             CodexActivityKind.Refactoring => FirstNonEmpty(template.RefactoringText, "Refactoring"),
-            CodexActivityKind.AnalyzingProject => FirstNonEmpty(template.ThinkingText, template.AnalyzingProjectText, template.AnalyzingText, "Thinking"),
-            CodexActivityKind.Ready => FirstNonEmpty(template.IdlingText, template.ReadyText, "Idling"),
+            CodexActivityKind.AnalyzingProject => FirstNonEmpty(template.AnalyzingProjectText, template.AnalyzingText, template.ThinkingText, "Analyzing project"),
+            CodexActivityKind.Ready => ResolveReadyLabel(template, context),
             CodexActivityKind.Offline => FirstNonEmpty(template.OfflineText, template.IdlingText, "Idling"),
             _ => FirstNonEmpty(template.IdlingText, template.ReadyText, "Idling")
         };
 
         return label.Replace("{n}", changedFileCount.ToString(CultureInfo.InvariantCulture), StringComparison.Ordinal);
+    }
+
+    private static string ResolveReadyLabel(PresenceTemplateOptions template, PresenceContext context)
+    {
+        var lastObservedAt = context.Codex.LastObservedAt ?? context.Session.StartedAt;
+        var idleGrace = TimeSpan.FromMinutes(Math.Max(0, template.ReadyIdleGraceMinutes));
+        var elapsedSinceLastObserved = DateTime.UtcNow - lastObservedAt;
+
+        if (elapsedSinceLastObserved < idleGrace)
+        {
+            return FirstNonEmpty(template.ReadyText, "Standing by");
+        }
+
+        return FirstNonEmpty(template.IdlingText, "Idling");
     }
 
     private static string FirstNonEmpty(params string[] values)
@@ -183,15 +234,45 @@ public sealed class PresenceTemplateRenderer
     {
         if (value >= 1_000_000)
         {
-            return (value / 1_000_000D).ToString("0.#M", CultureInfo.InvariantCulture);
+            return $"{(value / 1_000_000D).ToString("0.#", CultureInfo.InvariantCulture)}M";
         }
 
         if (value >= 1_000)
         {
-            return (value / 1_000D).ToString("0.#k", CultureInfo.InvariantCulture);
+            return $"{(value / 1_000D).ToString("0.#", CultureInfo.InvariantCulture)}K";
         }
 
         return value.ToString(CultureInfo.InvariantCulture);
+    }
+
+    private static RecentProjectFileSnapshot? SelectEditingFile(
+        PresenceContext context,
+        IReadOnlyList<RecentProjectFileSnapshot> recentEditedFiles)
+    {
+        if (recentEditedFiles.Count == 0)
+        {
+            return null;
+        }
+
+        if (recentEditedFiles.Count == 1)
+        {
+            return recentEditedFiles[0];
+        }
+
+        if (recentEditedFiles.Count <= 4)
+        {
+            var elapsedMilliseconds = Math.Max(0, context.Session.Elapsed.TotalMilliseconds);
+            var index = (int)(elapsedMilliseconds / 750d) % recentEditedFiles.Count;
+            return recentEditedFiles[index];
+        }
+
+        return recentEditedFiles[0];
+    }
+
+    private static string FormatCost(decimal value)
+    {
+        var format = value >= 1m ? "0.00" : "0.0000";
+        return "$" + value.ToString(format, CultureInfo.InvariantCulture);
     }
 
     private static string FormatChangedFiles(int count)
@@ -203,7 +284,7 @@ public sealed class PresenceTemplateRenderer
     {
         var files = fileCount == 1 ? "1 file" : $"{FormatNumber(fileCount)} files";
         var lines = lineCount == 1 ? "1 line" : $"{FormatNumber(lineCount)} lines";
-        return $"{files} ・ {lines}";
+        return $"{files} \u2022 {lines}";
     }
 }
 
@@ -216,3 +297,5 @@ public sealed record RenderedPresence(
     DateTime? StartedAt);
 
 public sealed record RenderedButton(string Label, string Url);
+
+

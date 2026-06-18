@@ -32,6 +32,7 @@ public sealed class ProjectInspector
             ProjectPath,
             inspection.RecentFile?.Name,
             inspection.RecentFile?.FullName,
+            inspection.TotalFileCount,
             inspection.ScannedFileCount,
             inspection.TotalLineCount,
             inspection.RecentFiles);
@@ -40,6 +41,7 @@ public sealed class ProjectInspector
     private ProjectInspection InspectProject(DirectoryInfo root)
     {
         FileInfo? best = null;
+        var totalFileCount = 0;
         var scannedFileCount = 0;
         long totalLineCount = 0;
         var recentFiles = new List<FileInfo>();
@@ -73,6 +75,8 @@ public sealed class ProjectInspector
                     continue;
                 }
 
+                totalFileCount++;
+
                 if (scannedFileCount < _options.MaxProjectFilesToScan)
                 {
                     scannedFileCount++;
@@ -98,6 +102,7 @@ public sealed class ProjectInspector
 
         return new ProjectInspection(
             best,
+            totalFileCount,
             scannedFileCount,
             totalLineCount,
             recentFiles
@@ -199,10 +204,11 @@ public sealed class ProjectInspector
 
     private sealed record ProjectInspection(
         FileInfo? RecentFile,
+        int TotalFileCount,
         int ScannedFileCount,
         long TotalLineCount,
         IReadOnlyList<RecentProjectFileSnapshot> RecentFiles)
     {
-        public static ProjectInspection Empty { get; } = new(null, 0, 0, Array.Empty<RecentProjectFileSnapshot>());
+        public static ProjectInspection Empty { get; } = new(null, 0, 0, 0, Array.Empty<RecentProjectFileSnapshot>());
     }
 }
