@@ -164,6 +164,26 @@ public sealed class PresenceTemplateRendererTests
     }
 
     [Fact]
+    public void Render_ThinkingJustStarted_OmitsZeroElapsedSuffix()
+    {
+        var renderer = new PresenceTemplateRenderer();
+        var template = new PresenceTemplateOptions { State = "{ActivityLine}" };
+        var context = CreateContext(
+            new CodexProcessSnapshot(true, "codex", true)
+            {
+                ActivityStartedAt = DateTime.UtcNow,
+                LastObservedAt = DateTime.UtcNow
+            },
+            new ProjectSnapshot("Nexstrap", @"E:\tool\Nexstrap", null, null, 128, 128, 42000, []),
+            new GitSnapshot(true, 1, null),
+            lastObservedAt: DateTime.UtcNow);
+
+        var presence = renderer.Render(template, context);
+
+        Assert.Equal("Thinking", presence.State);
+    }
+
+    [Fact]
     public void Render_AnalyzingProjectRepeatCount_AppendsX2()
     {
         var renderer = new PresenceTemplateRenderer();

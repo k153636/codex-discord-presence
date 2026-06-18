@@ -81,6 +81,11 @@ internal static class PresenceActivityComposer
             return baseLine;
         }
 
+        if (string.Equals(elapsedText, "0s", StringComparison.Ordinal))
+        {
+            return baseLine;
+        }
+
         return string.IsNullOrWhiteSpace(elapsedText)
             ? baseLine
             : $"{baseLine} • {elapsedText}";
