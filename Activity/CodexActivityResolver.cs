@@ -45,7 +45,7 @@ internal sealed class CodexActivityResolver
         {
             provenance = ActivityProvenance.Observed;
             confidence = ActivityConfidence.High;
-            if (hasBurstRecentEdits || recentEditedFiles.Count > 1)
+            if (hasBurstRecentEdits)
             {
                 reason = $"recent edits={recentEditedFiles.Count}, git changed files={changedFileCount}";
                 return CodexActivityKind.CoordinatingChanges;
@@ -85,6 +85,17 @@ internal sealed class CodexActivityResolver
             confidence = ActivityConfidence.Low;
             reason = CodexActivityEvidence.BuildRefactorReason(sessionInspection, gitSnapshot);
             return CodexActivityKind.Refactoring;
+        }
+
+        if (previousActivityKind is CodexActivityKind.ApplyingEdits or CodexActivityKind.CoordinatingChanges &&
+            hasFreshSession &&
+            changedFileCount > 0 &&
+            recentEditedFiles.Count == 0)
+        {
+            provenance = ActivityProvenance.Mixed;
+            confidence = ActivityConfidence.High;
+            reason = $"preserve {previousActivityKind} while git changed files={changedFileCount}";
+            return previousActivityKind.Value;
         }
 
         if (previousActivityKind == CodexActivityKind.AnalyzingProject &&

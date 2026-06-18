@@ -17,7 +17,7 @@ public sealed class PresenceTemplateRendererTests
 
         var presence = renderer.Render(template, context);
 
-        Assert.Equal("Thinking • 5m", presence.State);
+        Assert.Equal("Thinking", presence.State);
     }
 
     [Fact]
@@ -52,7 +52,7 @@ public sealed class PresenceTemplateRendererTests
     }
 
     [Fact]
-    public void Render_DefaultPresence_UsesModelAndFreshnessElapsed()
+    public void Render_DefaultPresence_UsesModel()
     {
         var renderer = new PresenceTemplateRenderer();
         var template = new PresenceTemplateOptions
@@ -73,7 +73,7 @@ public sealed class PresenceTemplateRendererTests
         var presence = renderer.Render(template, context);
 
         Assert.Equal("Plan mode: gpt-5-codex • Tokens pending", presence.Details);
-        Assert.Equal("Thinking • 5m", presence.State);
+        Assert.Equal("Thinking", presence.State);
         Assert.Equal("working on Nexstrap", presence.LargeImageText);
         Assert.Equal("128 files • session 5m", presence.SmallImageText);
     }
@@ -160,7 +160,7 @@ public sealed class PresenceTemplateRendererTests
 
         var presence = renderer.Render(template, context);
 
-        Assert.Equal("Thinking • 18s", presence.State);
+        Assert.Equal("Thinking", presence.State);
     }
 
     [Fact]
@@ -198,7 +198,7 @@ public sealed class PresenceTemplateRendererTests
 
         var presence = renderer.Render(template, context);
 
-        Assert.Equal("Thinking x2 • 5m", presence.State);
+        Assert.Equal("Thinking x2", presence.State);
     }
 
     [Fact]
@@ -536,17 +536,7 @@ public sealed class PresenceTemplateRendererTests
         var presence = renderer.Render(template, context);
 
         Assert.Equal("Refactoring", presence.State);
-    }
-
-    [Fact]
-    public void Render_FreshnessElapsed_BucketsToThreeSecondSteps()
-    {
-        var renderer = new PresenceTemplateRenderer();
-        var template = new PresenceTemplateOptions
-        {
-            State = "{FreshnessElapsed}",
-            FreshnessUpdateIntervalSeconds = 3
-        };
+    };
         var context = CreateContext(
             new CodexProcessSnapshot(true, "codex", true),
             new ProjectSnapshot("Nexstrap", @"E:\tool\Nexstrap", null, null, 128, 128, 42000, []),
@@ -580,3 +570,5 @@ public sealed class PresenceTemplateRendererTests
             new TokenUsageSnapshot(null, null));
     }
 }
+
+

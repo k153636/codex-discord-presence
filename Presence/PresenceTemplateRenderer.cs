@@ -31,7 +31,7 @@ public sealed class PresenceTemplateRenderer
         var changedFilesText = FormatChangedFiles(context.Git.ChangedFileCount);
         var projectSizeText = FormatProjectSize(context.Project.TotalFileCount, context.Project.TotalLineCount);
         var goalModePrefix = FormatGoalModePrefix(context);
-        var stateLabel = ResolveStateLabel(template, context, context.Codex.ActivityKind, recentEditedFiles.Count);
+        var stateLabel = ResolveStateLabel(template, context, context.Codex.ActivityKind, recentEditedFiles.Length);
         if (context.Codex.ActivityKind == CodexActivityKind.AnalyzingProject &&
             context.Codex.ActivityRepeatCount > 1)
         {

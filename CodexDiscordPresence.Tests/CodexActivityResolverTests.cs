@@ -49,6 +49,26 @@ public sealed class CodexActivityResolverTests
     }
 
     [Fact]
+    public void Resolve_PreviousCoordinatingChanges_PreservesWorkStateWhenFreshSessionContinues()
+    {
+        var resolver = new CodexActivityResolver();
+        var now = DateTime.UtcNow;
+        var context = CreateContext(
+            new SessionInspection(true, true, true, false, now, null, now, null, false, null, null),
+            new GitSnapshot(true, 3, null),
+            CodexActivityKind.CoordinatingChanges,
+            [],
+            changedFileCount: 3);
+
+        var activity = resolver.Resolve(context, out var provenance, out var confidence, out var reason, out _);
+
+        Assert.Equal(CodexActivityKind.CoordinatingChanges, activity);
+        Assert.Equal(ActivityProvenance.Mixed, provenance);
+        Assert.Equal(ActivityConfidence.High, confidence);
+        Assert.Contains("preserve CoordinatingChanges", reason);
+    }
+
+    [Fact]
     public void Resolve_CommandInSession_ReturnsRunningCommand()
     {
         var resolver = new CodexActivityResolver();
