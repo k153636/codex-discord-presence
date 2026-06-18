@@ -61,8 +61,6 @@ public sealed class TokenUsageProvider
             .OrderByDescending(file => file.LastWriteTimeUtc)
             .Take(Math.Max(1, _codexOptions.RecentSessionFilesToScan));
 
-        SessionUsageInspection? newestAny = null;
-
         foreach (var file in recentFiles)
         {
             var inspection = AnalyzeSessionFile(file.FullName, normalizedProjectPath, fallbackModelName);
@@ -70,11 +68,9 @@ public sealed class TokenUsageProvider
             {
                 return inspection;
             }
-
-            newestAny ??= inspection;
         }
 
-        return newestAny is { HasTokenUsage: true } ? newestAny : null;
+        return null;
     }
 
     private SessionUsageInspection AnalyzeSessionFile(string path, string? normalizedProjectPath, string? fallbackModelName)

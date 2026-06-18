@@ -48,6 +48,36 @@ public sealed class TokenUsageProviderTests
     }
 
     [Fact]
+    public void GetSnapshot_IgnoresTokenUsageFromOtherProjects()
+    {
+        var tempHome = CreateTempCodexHome();
+        try
+        {
+            var currentProjectPath = @"E:\tool\discord-presence-for-codex";
+            var otherProjectPath = Path.Combine(Path.GetTempPath(), "OtherProject_" + Guid.NewGuid());
+
+            WriteSession(tempHome, "other.jsonl", new[]
+            {
+                $"{{\"timestamp\":\"2026-06-17T13:00:00.000Z\",\"type\":\"session_meta\",\"payload\":{{\"id\":\"other-session\",\"cwd\":\"{EscapeJson(otherProjectPath)}\",\"model\":\"gpt-5.5\"}}}}",
+                $"{{\"timestamp\":\"2026-06-17T13:00:01.000Z\",\"type\":\"event_msg\",\"payload\":{{\"type\":\"token_count\",\"info\":{{\"total_token_usage\":{{\"input_tokens\":300,\"cached_input_tokens\":0,\"output_tokens\":200,\"reasoning_output_tokens\":0,\"total_tokens\":500}},\"last_token_usage\":{{\"input_tokens\":300,\"cached_input_tokens\":0,\"output_tokens\":200,\"reasoning_output_tokens\":0,\"total_tokens\":500}},\"model_context_window\":258400}}}}}}"
+            });
+
+            var provider = new TokenUsageProvider(
+                new CodexDetectionOptions { HomePath = tempHome, ModelEnvironmentVariables = [] },
+                new TokenUsageOptions { Enabled = true });
+
+            var snapshot = provider.GetSnapshot(currentProjectPath);
+
+            Assert.Null(snapshot.TotalTokens);
+            Assert.Null(snapshot.EstimatedCostUsd);
+        }
+        finally
+        {
+            Directory.Delete(tempHome, true);
+        }
+    }
+
+    [Fact]
     public void GetSnapshot_KeepsCostStableWhenSessionModelChanges()
     {
         var tempHome = CreateTempCodexHome();

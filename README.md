@@ -86,6 +86,8 @@ When `Presence.AutoDetectModelName` is enabled, the app resolves `{ModelName}` f
 - `%USERPROFILE%\.codex\config.toml`
 - `Presence.ModelName` as the fallback
 
+Token usage is only read from sessions whose `cwd` exactly matches the active project path. If no exact match exists, token usage stays empty instead of borrowing another project's totals.
+
 The app logs these values for debugging:
 
 - Selected UI model
