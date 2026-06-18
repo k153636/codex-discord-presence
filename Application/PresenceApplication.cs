@@ -74,7 +74,7 @@ public static class PresenceApplication
                 var observedProjectPath = codexDetector.GetObservedProjectPath(activeProjectPath);
                 if (!string.IsNullOrWhiteSpace(observedProjectPath))
                 {
-                    activeProjectPath = projectInspector.ResolveProjectPath(observedProjectPath);
+                    activeProjectPath = projectInspector.NormalizeProjectPath(observedProjectPath);
                 }
 
                 if (!string.Equals(activeProjectPath, lastLoggedProjectPath, StringComparison.OrdinalIgnoreCase))

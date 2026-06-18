@@ -101,6 +101,30 @@ public sealed class ProjectInspectorTests
     }
 
     [Fact]
+    public void NormalizeProjectPath_PreservesObservedCwdInsteadOfGitRoot()
+    {
+        var tempPath = Path.Combine(Path.GetTempPath(), "CodexProjectInspectorTests_" + Guid.NewGuid());
+        var projectPath = Path.Combine(tempPath, "workspace", "nested");
+        Directory.CreateDirectory(Path.Combine(tempPath, ".git"));
+        Directory.CreateDirectory(projectPath);
+
+        try
+        {
+            var inspector = new ProjectInspector(new ProjectOptions
+            {
+                Path = projectPath,
+                PreferGitRootForProjectPath = true
+            });
+
+            Assert.Equal(Path.GetFullPath(projectPath), inspector.NormalizeProjectPath(projectPath));
+        }
+        finally
+        {
+            Directory.Delete(tempPath, true);
+        }
+    }
+
+    [Fact]
     public void GetSnapshot_LimitsRecentEditedFilesToConfiguredCount()
     {
         var tempPath = Path.Combine(Path.GetTempPath(), "CodexProjectInspectorTests_" + Guid.NewGuid());

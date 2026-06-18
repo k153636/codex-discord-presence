@@ -22,6 +22,11 @@ public sealed class ProjectInspector
         return ResolveProjectPath(projectPath ?? _options.Path, _options.PreferGitRootForProjectPath);
     }
 
+    public string NormalizeProjectPath(string? projectPath)
+    {
+        return ResolveProjectPath(projectPath ?? _options.Path, preferGitRootForProjectPath: false);
+    }
+
     public ProjectSnapshot GetSnapshot(string? projectPath = null)
     {
         var resolvedProjectPath = ResolveProjectPath(projectPath);
