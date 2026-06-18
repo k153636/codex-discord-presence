@@ -77,7 +77,10 @@ public sealed class AppOptionsMergeTests
                 """
 {
   "CodexCli": {
-    "ProcessNameContains": [ "codex-cli" ]
+    "ProcessNameContains": [],
+    "WindowTitleContains": [],
+    "ExecutablePathContains": [],
+    "CommandLineContains": [ "@openai/codex/bin/codex.js", "@openai\\codex\\bin\\codex.js" ]
   },
   "DiscordCli": {
     "ClientId": "1516846793873424474",
@@ -110,11 +113,15 @@ public sealed class AppOptionsMergeTests
             Assert.NotNull(options.DiscordCli);
             Assert.Equal("1516846793873424474", options.DiscordCli!.ClientId);
             Assert.Equal("codexcli_logo1", options.DiscordCli.LargeImageKey);
-            Assert.Equal("{GoalModePrefix} {ModelName} • {Tokens}", options.Presence.Details);
+            Assert.Equal("{GoalModePrefix} {ModelName} \u2022 {Tokens}", options.Presence.Details);
             Assert.Equal(4, options.UpdateIntervalSeconds);
             Assert.NotNull(options.CodexCli);
-            Assert.Contains("codex-cli", options.CodexCli!.ProcessNameContains);
             Assert.Contains("codex", options.Codex.ProcessNameContains);
+            Assert.Empty(options.CodexCli!.ProcessNameContains);
+            Assert.Empty(options.CodexCli.WindowTitleContains);
+            Assert.Empty(options.CodexCli.ExecutablePathContains);
+            Assert.Contains("@openai/codex/bin/codex.js", options.CodexCli.CommandLineContains);
+            Assert.Contains("@openai\\codex\\bin\\codex.js", options.CodexCli.CommandLineContains);
             Assert.Same(options.CodexCli, options.GetCodexDetectionOptions(AppProfileKind.CodexCli));
             Assert.Same(options.DiscordCli, options.GetDiscordOptions(AppProfileKind.CodexCli));
         }

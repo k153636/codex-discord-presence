@@ -80,4 +80,32 @@ public sealed class AppProfileSelectionPolicyTests
 
         Assert.Equal(AppProfileKind.CodexCli, selected);
     }
+
+    [Fact]
+    public void Select_KeepsCurrentProfile_WhenEvidenceIsTied()
+    {
+        var now = DateTime.UtcNow;
+        var codex = new AppProfileSelectionCandidate(
+            AppProfileKind.Codex,
+            new CodexProcessSnapshot(true, "codex", true)
+            {
+                Confidence = ActivityConfidence.High,
+                LastObservedAt = now,
+                DetectionKind = CodexProcessDetectionKind.CommandLine
+            },
+            new DiscordOptions { ClientId = "1516846793873424474" });
+        var cli = new AppProfileSelectionCandidate(
+            AppProfileKind.CodexCli,
+            new CodexProcessSnapshot(true, "codex-cli", true)
+            {
+                Confidence = ActivityConfidence.High,
+                LastObservedAt = now,
+                DetectionKind = CodexProcessDetectionKind.CommandLine
+            },
+            new DiscordOptions { ClientId = "1516846793873424474" });
+
+        var selected = AppProfileSelectionPolicy.Select(AppProfileKind.CodexCli, codex, cli);
+
+        Assert.Equal(AppProfileKind.CodexCli, selected);
+    }
 }

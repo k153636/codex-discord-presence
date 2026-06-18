@@ -22,10 +22,10 @@ internal sealed class CodexProcessNameMatcher
     {
         if (_options.CommandLineContains.Length > 0)
         {
-            var nodeProcessMatch = FindMatchingNodeProcess();
-            if (nodeProcessMatch is not null)
+            var commandLineProcessMatch = FindMatchingCommandLineProcess();
+            if (commandLineProcessMatch is not null)
             {
-                return nodeProcessMatch;
+                return commandLineProcessMatch;
             }
         }
 
@@ -61,9 +61,9 @@ internal sealed class CodexProcessNameMatcher
         return null;
     }
 
-    private CodexProcessMatch? FindMatchingNodeProcess()
+    private CodexProcessMatch? FindMatchingCommandLineProcess()
     {
-        foreach (var process in Process.GetProcessesByName("node"))
+        foreach (var process in Process.GetProcessesByName("node").Concat(Process.GetProcessesByName("codex")))
         {
             try
             {

@@ -17,7 +17,7 @@ public sealed class AppOptions
 
     public static AppOptions Load(string[] args)
     {
-        return Load(args, AppPaths.Create(ResolveProfile(args)));
+        return Load(args, AppPaths.Create(AppProfileKind.Codex));
     }
 
     public static AppOptions Load(string[] args, AppPaths paths)
@@ -69,27 +69,6 @@ public sealed class AppOptions
         }
 
         return merged.Deserialize<AppOptions>(JsonOptions()) ?? new AppOptions();
-    }
-
-    public static AppProfileKind ResolveProfile(IEnumerable<string> args)
-    {
-        var argList = args as string[] ?? args.ToArray();
-        for (var i = 0; i < argList.Length; i++)
-        {
-            if (string.Equals(argList[i], "--cli", StringComparison.OrdinalIgnoreCase))
-            {
-                return AppProfileKind.CodexCli;
-            }
-
-            if (string.Equals(argList[i], "--profile", StringComparison.OrdinalIgnoreCase) &&
-                i + 1 < argList.Length &&
-                string.Equals(argList[i + 1], "cli", StringComparison.OrdinalIgnoreCase))
-            {
-                return AppProfileKind.CodexCli;
-            }
-        }
-
-        return AppProfileKind.Codex;
     }
 
     public CodexDetectionOptions GetCodexDetectionOptions(AppProfileKind profile)
