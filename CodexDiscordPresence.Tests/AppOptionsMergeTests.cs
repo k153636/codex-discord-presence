@@ -81,7 +81,7 @@ public sealed class AppOptionsMergeTests
   },
   "DiscordCli": {
     "ClientId": "cli-client",
-    "LargeImageKey": "CodexCLI_logo"
+    "LargeImageKey": "codexcli_logo1"
   },
   "Presence": {
     "Details": "Test"
@@ -111,7 +111,7 @@ public sealed class AppOptionsMergeTests
             Assert.Equal("1516846793873424474", options.Discord.ClientId);
             Assert.NotNull(options.DiscordCli);
             Assert.Equal("cli-client", options.DiscordCli!.ClientId);
-            Assert.Equal("CodexCLI_logo", options.DiscordCli.LargeImageKey);
+            Assert.Equal("codexcli_logo1", options.DiscordCli.LargeImageKey);
             Assert.Equal("Test", options.Presence.Details);
             Assert.Equal(4, options.UpdateIntervalSeconds);
             Assert.NotNull(options.CodexCli);
