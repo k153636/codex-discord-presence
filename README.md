@@ -13,7 +13,7 @@ Presence text is template-driven through `appsettings.json`, so you can change t
 5. Run `install.cmd --autostart` to also register Windows startup.
 6. Run `uninstall.cmd` to remove created shortcuts.
 
-The app is configured as a self-contained `win-x64` single-file publish.
+The app is configured as a `win-x64` single-file publish that requires the .NET 9 Desktop Runtime on the target machine.
 It runs in the background with a system tray icon, where you can toggle `Enable`, open `appsettings.json`, or `Quit`.
 `start.cmd` rebuilds before launching so the tray app stays in sync with the current source.
 The tray `Enable` state is saved under `%LOCALAPPDATA%\CodexDiscordPresence\presence-state.json`.
@@ -201,6 +201,7 @@ The default large image key is:
 
 - `start.cmd` launches the published exe in the background
 - `stop.cmd` stops the running instance
+- Install the .NET 9 Desktop Runtime if the app says the runtime is missing
 - `git diff`, recent file writes, and session logs are used together to infer active work
 - Project scanning ignores common build, cache, and binary folders
 - Activity and evidence helpers live under `Modules/` to keep the main entrypoints smaller
