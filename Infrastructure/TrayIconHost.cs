@@ -68,7 +68,7 @@ public sealed class TrayIconHost : ApplicationContext
 
     private void UpdateMenu()
     {
-        _enableMenuItem.Text = _state.Enabled ? "Disable" : "Enable";
+        _enableMenuItem.Text = "Enable";
         _enableMenuItem.Checked = _state.Enabled;
     }
 
