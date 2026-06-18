@@ -283,64 +283,6 @@ public sealed class PresenceTemplateRendererTests
     }
 
     [Fact]
-    public void Render_WithApplyingEditsAndManyRecentFiles_StillShowsFileName()
-    {
-        var tempFiles = Enumerable.Range(0, 6)
-            .Select(index => Path.Combine(Path.GetTempPath(), $"CodexRpcRendererManyFiles{index}.txt"))
-            .ToArray();
-
-        foreach (var tempFile in tempFiles)
-        {
-            File.WriteAllText(tempFile, "test");
-        }
-
-        try
-        {
-            var renderer = new PresenceTemplateRenderer();
-            var template = new PresenceTemplateOptions { State = "{ActivityLine}" };
-            var observedAt = DateTime.UtcNow.AddSeconds(-12);
-            var recentEditedFiles = tempFiles
-                .Select((path, index) => new RecentProjectFileSnapshot(
-                    Path.GetFileName(path),
-                    path,
-                    File.GetLastWriteTimeUtc(path).AddSeconds(index)))
-                .ToArray();
-
-            var context = CreateContext(
-                new CodexProcessSnapshot(true, "codex", false)
-                {
-                    DetectedActivityKind = CodexActivityKind.ApplyingEdits,
-                    ActivityProvenance = ActivityProvenance.Observed,
-                    LastObservedAt = observedAt
-                },
-                new ProjectSnapshot(
-                    "Nexstrap",
-                    Path.GetTempPath(),
-                    Path.GetFileName(tempFiles[0]),
-                    tempFiles[0],
-                    6,
-                    6,
-                    42000,
-                    recentEditedFiles),
-                new GitSnapshot(true, 2, null),
-                sessionAge: TimeSpan.FromSeconds(12),
-                lastObservedAt: observedAt,
-                recentEditedFiles: recentEditedFiles);
-
-            var presence = renderer.Render(template, context);
-
-            Assert.Contains("Applying edits • ", presence.State);
-        }
-        finally
-        {
-            foreach (var tempFile in tempFiles)
-            {
-                File.Delete(tempFile);
-            }
-        }
-    }
-
-    [Fact]
     public void Render_WithStaleEditedFile_FallsBackToReadyActivity()
     {
         var tempFile = Path.Combine(Path.GetTempPath(), "CodexRpcRendererStaleTest.txt");

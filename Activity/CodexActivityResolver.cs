@@ -45,7 +45,7 @@ internal sealed class CodexActivityResolver
         {
             provenance = ActivityProvenance.Observed;
             confidence = ActivityConfidence.High;
-            if (hasBurstRecentEdits || recentEditedFiles.Count > 1)
+            if (hasBurstRecentEdits)
             {
                 reason = $"recent edits={recentEditedFiles.Count}, git changed files={changedFileCount}";
                 return CodexActivityKind.CoordinatingChanges;

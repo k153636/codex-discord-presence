@@ -49,29 +49,6 @@ public sealed class CodexActivityResolverTests
     }
 
     [Fact]
-    public void Resolve_MultipleRecentEditedFiles_UsesCoordinatingChanges()
-    {
-        var resolver = new CodexActivityResolver();
-        var now = DateTime.UtcNow;
-        var context = CreateContext(
-            new SessionInspection(true, true, true, false, now, null, now, null, false, null, null),
-            new GitSnapshot(true, 1, null),
-            CodexActivityKind.AnalyzingProject,
-            [
-                new RecentProjectFileSnapshot("One.cs", @"E:\tool\One.cs", now),
-                new RecentProjectFileSnapshot("Two.cs", @"E:\tool\Two.cs", now.AddSeconds(-1))
-            ],
-            changedFileCount: 1);
-
-        var activity = resolver.Resolve(context, out var provenance, out var confidence, out var reason, out _);
-
-        Assert.Equal(CodexActivityKind.CoordinatingChanges, activity);
-        Assert.Equal(ActivityProvenance.Observed, provenance);
-        Assert.Equal(ActivityConfidence.High, confidence);
-        Assert.Contains("recent edits", reason);
-    }
-
-    [Fact]
     public void Resolve_PreviousCoordinatingChanges_FallsBackToAnalyzingProject()
     {
         var resolver = new CodexActivityResolver();

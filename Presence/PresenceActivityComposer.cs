@@ -28,7 +28,7 @@ internal static class PresenceActivityComposer
         if (context.Codex.ActivityKind is CodexActivityKind.ApplyingEdits or CodexActivityKind.CreatingFiles or CodexActivityKind.DeletingFiles &&
             recentEditedFiles.Count > 0)
         {
-            return BuildEditingActivityLine(stateLabel, editingFile);
+            return BuildEditingActivityLine(stateLabel, recentEditedFiles, editingFile);
         }
 
         return BuildIdleActivityLine(context, stateLabel);
@@ -36,9 +36,10 @@ internal static class PresenceActivityComposer
 
     private static string BuildEditingActivityLine(
         string stateLabel,
+        IReadOnlyList<RecentProjectFileSnapshot> recentEditedFiles,
         RecentProjectFileSnapshot? editingFile)
     {
-        if (editingFile is not null)
+        if (editingFile is not null && recentEditedFiles.Count <= 4)
         {
             return $"{stateLabel} • {editingFile.Name}";
         }
