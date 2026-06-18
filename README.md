@@ -66,11 +66,12 @@ For quiet idle periods, the app shows `Hold on` for the first 5 minutes, then sw
 ## Default Presence
 
 - `Details`: `{ModelName} &bull; {Tokens}`
-- `State`: `{ActivityLine} &bull; {FreshnessElapsed}`
+- `State`: `{ActivityLine}`
 - `LargeImageText`: `working on {ProjectName}`
 - `SmallImageText`: `{ProjectFileCount} files &bull; session {SessionElapsed}`
 - Button: `GitHub`
 
+`ActivityLine` already carries the 3-second freshness suffix for active states.
 Use `{ActivityLabel}` if you want the file name omitted for a cleaner one-line status.
 
 ## Model Detection
