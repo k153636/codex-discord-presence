@@ -113,7 +113,7 @@ public class CodexStateTests
     }
 
     [Fact]
-    public void Test_2c_ObservedProjectPath_IgnoresOlderMatchWhenNewerProjectExists()
+    public void Test_2c_ObservedProjectPath_PrefersCurrentProjectMatchOverNewerOtherProject()
     {
         var tempPath = CreateTempSessionDirectory();
         try
@@ -136,7 +136,7 @@ public class CodexStateTests
 
             var observedProjectPath = detector.GetObservedProjectPath(currentProject);
 
-            Assert.Equal(switchedProject, observedProjectPath);
+            Assert.Equal(currentProject, observedProjectPath);
         }
         finally
         {

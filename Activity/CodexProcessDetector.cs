@@ -98,6 +98,19 @@ public sealed class CodexProcessDetector
 
     public string? GetObservedProjectPath(string? projectPath = null)
     {
+        if (!string.IsNullOrWhiteSpace(projectPath))
+        {
+            var inspection = InspectRecentSessions(projectPath);
+            if (inspection is not null &&
+                inspection.MatchesProject &&
+                !string.IsNullOrWhiteSpace(inspection.ProjectPath))
+            {
+                return inspection.ProjectPath;
+            }
+
+            return null;
+        }
+
         return _sessionLogParser.GetLatestObservedProjectPath()
             ?? InspectRecentSessions(projectPath)?.ProjectPath;
     }
