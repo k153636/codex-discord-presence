@@ -32,6 +32,11 @@ public sealed class PresenceStatusLabelResolver
 
     private static string ResolveReadyLabel(PresenceTemplateOptions template, PresenceContext context)
     {
+        if (ShouldUseAwaitingInputLabel(template, context))
+        {
+            return FirstNonEmpty(template.AwaitingInputText, "Input");
+        }
+
         var lastObservedAt = context.Codex.LastObservedAt ?? context.Session.StartedAt;
         var idleGrace = TimeSpan.FromMinutes(Math.Max(0, template.ReadyIdleGraceMinutes));
         var elapsedSinceLastObserved = DateTime.UtcNow - lastObservedAt;
@@ -42,6 +47,20 @@ public sealed class PresenceStatusLabelResolver
         }
 
         return FirstNonEmpty(template.IdlingText, "Idling");
+    }
+
+    private static bool ShouldUseAwaitingInputLabel(PresenceTemplateOptions template, PresenceContext context)
+    {
+        if (context.Codex.ActivityKind != CodexActivityKind.Ready ||
+            string.IsNullOrWhiteSpace(context.Codex.ActivityReason) ||
+            !context.Codex.ActivityReason.Contains("task_complete", StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
+        var idleGrace = TimeSpan.FromMinutes(Math.Max(0, template.ReadyIdleGraceMinutes));
+        var lastObservedAt = context.Codex.LastObservedAt ?? context.Session.StartedAt;
+        return DateTime.UtcNow - lastObservedAt < idleGrace;
     }
 
     private static bool ShouldUseWorkingLabel(PresenceContext context)

@@ -62,6 +62,22 @@ public sealed class PresenceStatusLabelResolverTests
     }
 
     [Fact]
+    public void ResolveStateLabel_ReadyAfterTaskCompleted_ReturnsInput()
+    {
+        var resolver = new PresenceStatusLabelResolver();
+        var context = CreateContext(
+            new CodexProcessSnapshot(true, "codex", false)
+            {
+                ActivityReason = "task_complete without file writes",
+                LastObservedAt = DateTime.UtcNow.AddMinutes(-1)
+            });
+
+        var label = resolver.ResolveStateLabel(new PresenceTemplateOptions(), context, CodexActivityKind.Ready, 0);
+
+        Assert.Equal("Input", label);
+    }
+
+    [Fact]
     public void ResolveStateLabel_Offline_ReturnsIdling()
     {
         var resolver = new PresenceStatusLabelResolver();
@@ -75,13 +91,16 @@ public sealed class PresenceStatusLabelResolverTests
 
     private static PresenceContext CreateContext(
         CodexProcessSnapshot codex,
-        TimeSpan? sessionAge = null)
+        TimeSpan? sessionAge = null,
+        DateTime? lastObservedAt = null)
     {
         var startedAt = DateTime.UtcNow - (sessionAge ?? TimeSpan.FromMinutes(5));
 
         return new PresenceContext(
             "gpt-5-codex",
-            codex,
+            lastObservedAt.HasValue
+                ? codex with { LastObservedAt = lastObservedAt }
+                : codex,
             new ProjectSnapshot("Nexstrap", @"E:\tool\Nexstrap", null, null, 128, 128, 42000, []),
             new GitSnapshot(true, 1, null),
             new SessionSnapshot(startedAt, DateTime.UtcNow - startedAt),
