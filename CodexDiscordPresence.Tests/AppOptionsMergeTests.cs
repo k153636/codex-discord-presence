@@ -80,12 +80,10 @@ public sealed class AppOptionsMergeTests
     "ProcessNameContains": [ "codex-cli" ]
   },
   "DiscordCli": {
-    "ClientId": "cli-client",
+    "ClientId": "1516846793873424474",
     "LargeImageKey": "codexcli_logo1"
   },
-  "Presence": {
-    "Details": "Test"
-  }
+  "Presence": {}
 }
 """);
 
@@ -110,9 +108,9 @@ public sealed class AppOptionsMergeTests
 
             Assert.Equal("1516846793873424474", options.Discord.ClientId);
             Assert.NotNull(options.DiscordCli);
-            Assert.Equal("cli-client", options.DiscordCli!.ClientId);
+            Assert.Equal("1516846793873424474", options.DiscordCli!.ClientId);
             Assert.Equal("codexcli_logo1", options.DiscordCli.LargeImageKey);
-            Assert.Equal("Test", options.Presence.Details);
+            Assert.Equal("{GoalModePrefix} {ModelName} • {Tokens}", options.Presence.Details);
             Assert.Equal(4, options.UpdateIntervalSeconds);
             Assert.NotNull(options.CodexCli);
             Assert.Contains("codex-cli", options.CodexCli!.ProcessNameContains);
