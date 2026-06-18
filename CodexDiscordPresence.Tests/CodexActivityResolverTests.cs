@@ -49,7 +49,7 @@ public sealed class CodexActivityResolverTests
     }
 
     [Fact]
-    public void Resolve_PreviousCoordinatingChanges_PreservesWorkStateWhenFreshSessionContinues()
+    public void Resolve_PreviousCoordinatingChanges_FallsBackToAnalyzingProject()
     {
         var resolver = new CodexActivityResolver();
         var now = DateTime.UtcNow;
@@ -62,10 +62,30 @@ public sealed class CodexActivityResolverTests
 
         var activity = resolver.Resolve(context, out var provenance, out var confidence, out var reason, out _);
 
-        Assert.Equal(CodexActivityKind.CoordinatingChanges, activity);
-        Assert.Equal(ActivityProvenance.Mixed, provenance);
+        Assert.Equal(CodexActivityKind.AnalyzingProject, activity);
+        Assert.Equal(ActivityProvenance.Inferred, provenance);
         Assert.Equal(ActivityConfidence.High, confidence);
-        Assert.Contains("preserve CoordinatingChanges", reason);
+        Assert.Contains("task_started", reason);
+    }
+
+    [Fact]
+    public void Resolve_PreviousApplyingEditsWithoutFreshEdits_FallsBackToAnalyzingProject()
+    {
+        var resolver = new CodexActivityResolver();
+        var now = DateTime.UtcNow;
+        var context = CreateContext(
+            new SessionInspection(true, true, true, false, now, null, now, null, false, null, null),
+            new GitSnapshot(true, 1, null),
+            CodexActivityKind.ApplyingEdits,
+            [],
+            changedFileCount: 1);
+
+        var activity = resolver.Resolve(context, out var provenance, out var confidence, out var reason, out _);
+
+        Assert.Equal(CodexActivityKind.AnalyzingProject, activity);
+        Assert.Equal(ActivityProvenance.Inferred, provenance);
+        Assert.Equal(ActivityConfidence.High, confidence);
+        Assert.Contains("task_started", reason);
     }
 
     [Fact]

@@ -87,17 +87,6 @@ internal sealed class CodexActivityResolver
             return CodexActivityKind.Refactoring;
         }
 
-        if (previousActivityKind is CodexActivityKind.ApplyingEdits or CodexActivityKind.CoordinatingChanges &&
-            hasFreshSession &&
-            changedFileCount > 0 &&
-            recentEditedFiles.Count == 0)
-        {
-            provenance = ActivityProvenance.Mixed;
-            confidence = ActivityConfidence.High;
-            reason = $"preserve {previousActivityKind} while git changed files={changedFileCount}";
-            return previousActivityKind.Value;
-        }
-
         if (previousActivityKind == CodexActivityKind.AnalyzingProject &&
             hasFreshSession &&
             sessionInspection?.HasTaskStarted == true &&
