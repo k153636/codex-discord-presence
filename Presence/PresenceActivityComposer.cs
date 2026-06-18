@@ -50,7 +50,7 @@ internal static class PresenceActivityComposer
     {
         if (editingFile is not null && recentEditedFiles.Count <= 4)
         {
-            return $"{stateLabel} \u2022 {editingFile.Name}";
+            return $"{stateLabel} • {editingFile.Name}";
         }
 
         return stateLabel;
@@ -83,7 +83,7 @@ internal static class PresenceActivityComposer
 
         return string.IsNullOrWhiteSpace(elapsedText)
             ? baseLine
-            : $"{baseLine} \u2022 {elapsedText}";
+            : $"{baseLine} • {elapsedText}";
     }
 
     private static TimeSpan BucketDuration(TimeSpan elapsed, int intervalSeconds)
