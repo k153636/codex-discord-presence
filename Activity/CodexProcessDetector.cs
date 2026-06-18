@@ -27,6 +27,9 @@ public sealed class CodexProcessDetector
         var sessionInspection = InspectRecentSessions(projectPath);
         var matchedProcess = _processNameMatcher.FindMatchingProcess();
         var matchedProcessName = matchedProcess?.ProcessName;
+        var projectPathMismatch = sessionInspection is not null &&
+            sessionInspection.HasProjectPath &&
+            !sessionInspection.MatchesProject;
         var isRunning = matchedProcessName is not null ||
             (sessionInspection is not null &&
              sessionInspection.HasRecentActivity(_presenceOptions.ThinkingStaleTimeoutMinutes));
@@ -40,6 +43,23 @@ public sealed class CodexProcessDetector
                 Confidence = ActivityConfidence.High,
                 DetectionKind = CodexProcessDetectionKind.None,
                 ActivityReason = "Codex process, window, and recent session activity were not detected."
+            };
+        }
+
+        if (projectPathMismatch)
+        {
+            return new CodexProcessSnapshot(true, matchedProcessName, false)
+            {
+                DetectedActivityKind = CodexActivityKind.Ready,
+                ActivityProvenance = ActivityProvenance.Observed,
+                Confidence = ActivityConfidence.Low,
+                DetectionKind = matchedProcess?.DetectionKind ?? CodexProcessDetectionKind.SessionActivity,
+                ActivityReason = $"session project path '{sessionInspection?.ProjectPath}' does not match active project path '{projectPath}'",
+                CollaborationMode = sessionInspection?.CollaborationMode,
+                LastTaskStartedAt = sessionInspection?.LastTaskStartedAt,
+                LastObservedAt = sessionInspection?.LastObservedAt,
+                ObservedProjectPath = sessionInspection?.ProjectPath,
+                RecentEditedFiles = Array.Empty<RecentProjectFileSnapshot>()
             };
         }
 

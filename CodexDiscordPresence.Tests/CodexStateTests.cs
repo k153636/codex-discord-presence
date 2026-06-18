@@ -171,6 +171,35 @@ public class CodexStateTests
     }
 
     [Fact]
+    public void Test_3b_TaskStartedForOtherProject_DoesNotApplyEditsToCurrentProject()
+    {
+        var tempPath = CreateTempSessionDirectory();
+        try
+        {
+            var now = DateTime.UtcNow;
+            var otherProject = @"E:\tool\OtherProject";
+            WriteMockSessionLog(tempPath, "session1.jsonl", new[]
+            {
+                $"{{\"timestamp\":\"{now:yyyy-MM-ddTHH:mm:ss.fffZ}\",\"type\":\"event_msg\",\"payload\":{{\"type\":\"task_started\",\"turn_id\":\"123\",\"cwd\":\"{otherProject.Replace("\\", "\\\\")}\"}}}}"
+            });
+
+            var currentProject = @"E:\tool\discord-presence-for-codex";
+            var detector = new CodexProcessDetector(new CodexDetectionOptions { HomePath = tempPath }, new PresenceTemplateOptions { ThinkingStaleTimeoutMinutes = 10 });
+
+            var snapshot = detector.GetSnapshot(currentProject);
+
+            Assert.True(snapshot.IsRunning);
+            Assert.Equal(CodexActivityKind.Ready, snapshot.ActivityKind);
+            Assert.Equal(ActivityConfidence.Low, snapshot.Confidence);
+            Assert.Equal(otherProject, snapshot.ObservedProjectPath);
+        }
+        finally
+        {
+            Directory.Delete(tempPath, true);
+        }
+    }
+
+    [Fact]
     public void Test_4_LatestSessionHasTaskComplete_ReturnsReady()
     {
         var tempPath = CreateTempSessionDirectory();
@@ -388,16 +417,16 @@ public class CodexStateTests
         try
         {
             var now = DateTime.UtcNow;
-            WriteMockSessionLog(tempPath, "session1.jsonl", new[]
-            {
-                $"{{\"timestamp\":\"{now:yyyy-MM-ddTHH:mm:ss.fffZ}\",\"type\":\"event_msg\",\"payload\":{{\"type\":\"task_started\",\"turn_id\":\"123\",\"cwd\":\"E:\\\\tool\\\\discord-presence-for-codex\"}}}}"
-            });
-
             var projectRoot = Path.Combine(Path.GetTempPath(), "CodexSingleEditProject_" + Guid.NewGuid());
             Directory.CreateDirectory(projectRoot);
 
             try
             {
+                WriteMockSessionLog(tempPath, "session1.jsonl", new[]
+                {
+                    $"{{\"timestamp\":\"{now:yyyy-MM-ddTHH:mm:ss.fffZ}\",\"type\":\"event_msg\",\"payload\":{{\"type\":\"task_started\",\"turn_id\":\"123\",\"cwd\":\"{projectRoot.Replace("\\", "\\\\")}\"}}}}"
+                });
+
                 var file = Path.Combine(projectRoot, "README.md");
                 File.WriteAllText(file, "hello");
                 File.SetLastWriteTimeUtc(file, now);
@@ -439,16 +468,16 @@ public class CodexStateTests
         try
         {
             var now = DateTime.UtcNow;
-            WriteMockSessionLog(tempPath, "session1.jsonl", new[]
-            {
-                $"{{\"timestamp\":\"{now:yyyy-MM-ddTHH:mm:ss.fffZ}\",\"type\":\"event_msg\",\"payload\":{{\"type\":\"task_started\",\"turn_id\":\"123\",\"cwd\":\"E:\\\\tool\\\\discord-presence-for-codex\"}}}}"
-            });
-
             var projectRoot = Path.Combine(Path.GetTempPath(), "CodexSingleEditProject_" + Guid.NewGuid());
             Directory.CreateDirectory(projectRoot);
 
             try
             {
+                WriteMockSessionLog(tempPath, "session1.jsonl", new[]
+                {
+                    $"{{\"timestamp\":\"{now:yyyy-MM-ddTHH:mm:ss.fffZ}\",\"type\":\"event_msg\",\"payload\":{{\"type\":\"task_started\",\"turn_id\":\"123\",\"cwd\":\"{projectRoot.Replace("\\", "\\\\")}\"}}}}"
+                });
+
                 var detector = new CodexProcessDetector(new CodexDetectionOptions { HomePath = tempPath }, new PresenceTemplateOptions { EditingFreshnessSeconds = 120 });
                 var projectSnapshot = new ProjectSnapshot(
                     Path.GetFileName(projectRoot),
@@ -488,16 +517,16 @@ public class CodexStateTests
         try
         {
             var now = DateTime.UtcNow;
-            WriteMockSessionLog(tempPath, "session1.jsonl", new[]
-            {
-                $"{{\"timestamp\":\"{now:yyyy-MM-ddTHH:mm:ss.fffZ}\",\"type\":\"event_msg\",\"payload\":{{\"type\":\"task_started\",\"turn_id\":\"123\",\"cwd\":\"E:\\\\tool\\\\discord-presence-for-codex\"}}}}"
-            });
-
             var projectRoot = Path.Combine(Path.GetTempPath(), "CodexEditingProject_" + Guid.NewGuid());
             Directory.CreateDirectory(projectRoot);
 
             try
             {
+                WriteMockSessionLog(tempPath, "session1.jsonl", new[]
+                {
+                    $"{{\"timestamp\":\"{now:yyyy-MM-ddTHH:mm:ss.fffZ}\",\"type\":\"event_msg\",\"payload\":{{\"type\":\"task_started\",\"turn_id\":\"123\",\"cwd\":\"{projectRoot.Replace("\\", "\\\\")}\"}}}}"
+                });
+
                 var file1 = Path.Combine(projectRoot, "One.cs");
                 var file2 = Path.Combine(projectRoot, "Two.cs");
                 var file3 = Path.Combine(projectRoot, "Three.cs");
