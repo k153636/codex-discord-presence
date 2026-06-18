@@ -72,7 +72,7 @@ For quiet idle periods, the app shows `Hold on` for the first 5 minutes, then sw
 - Button: `GitHub`
 
 `ActivityLine` already carries the 3-second freshness suffix for active states.
-When the same thinking state repeats across refreshes, it can render as `Thinking x2`, `Thinking x3`, and so on.
+When the same thinking state repeats across refreshes, it can render as `Thinking x2` through `Thinking x9`, then stays capped there until the state changes.
 Use `{ActivityLabel}` if you want the file name omitted for a cleaner one-line status.
 
 ## Model Detection

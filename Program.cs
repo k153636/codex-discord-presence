@@ -50,7 +50,7 @@ string? lastPresenceDetails = null;
 string? lastPresenceState = null;
 string? stableCostModelName = null;
 var lastActivityKind = CodexActivityKind.Ready;
-var lastAnalyzingRepeatCount = 0;
+var lastAnalyzingRepeatCount = 1;
 string? lastPresenceSignature = null;
 var lastSuccessfulUpdateUtc = DateTime.MinValue;
 var keepAliveInterval = TimeSpan.FromSeconds(15);
@@ -62,8 +62,9 @@ while (!cts.IsCancellationRequested)
         var projectSnapshot = projectInspector.GetSnapshot();
         var gitSnapshot = gitInspector.GetSnapshot(projectInspector.ProjectPath);
         var codexSnapshot = codexDetector.GetSnapshot(projectInspector.ProjectPath, projectSnapshot, gitSnapshot);
-        var analyzingRepeatCount = codexSnapshot.ActivityKind == CodexActivityKind.AnalyzingProject
-            ? (lastActivityKind == CodexActivityKind.AnalyzingProject ? lastAnalyzingRepeatCount + 1 : 1)
+        var analyzingRepeatCount = codexSnapshot.ActivityKind == CodexActivityKind.AnalyzingProject &&
+                                   lastActivityKind == CodexActivityKind.AnalyzingProject
+            ? Math.Min(9, lastAnalyzingRepeatCount + 1)
             : 1;
         codexSnapshot = codexSnapshot with { ActivityRepeatCount = analyzingRepeatCount };
         var modelSnapshot = modelNameProvider.GetSnapshot(projectInspector.ProjectPath);
