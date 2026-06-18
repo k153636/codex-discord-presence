@@ -285,6 +285,39 @@ public class CodexStateTests
     }
 
     [Fact]
+    public void Test_9b_GoalModeAliasNormalizesToGoal()
+    {
+        var tempPath = CreateTempSessionDirectory();
+        try
+        {
+            var now = DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ss.fffZ");
+            WriteMockSessionLog(tempPath, "session1.jsonl", new[]
+            {
+                $"{{\"timestamp\":\"{now}\",\"type\":\"event_msg\",\"payload\":{{\"type\":\"turn_context\",\"cwd\":\"E:\\\\tool\\\\discord-presence-for-codex\",\"collaboration_mode\":{{\"mode\":\"goalmode\",\"settings\":{{\"model\":\"gpt-5.5\"}}}}}}}}"
+            });
+
+            var detector = new CodexProcessDetector(new CodexDetectionOptions { HomePath = tempPath }, new PresenceTemplateOptions());
+            var projectSnapshot = new ProjectSnapshot(
+                "discord-presence-for-codex",
+                @"E:\tool\discord-presence-for-codex",
+                null,
+                null,
+                10,
+                10,
+                200,
+                []);
+
+            var snapshot = detector.GetSnapshot(@"E:\tool\discord-presence-for-codex", projectSnapshot, new GitSnapshot(false, 0, null));
+
+            Assert.Equal("goal", snapshot.CollaborationMode);
+        }
+        finally
+        {
+            Directory.Delete(tempPath, true);
+        }
+    }
+
+    [Fact]
     public void Test_10_SingleRecentEdit_ReturnsApplyingEdits()
     {
         var tempPath = CreateTempSessionDirectory();

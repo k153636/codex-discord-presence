@@ -452,20 +452,90 @@ public sealed class CodexProcessDetector
 
     private static string? TryGetCollaborationMode(JsonElement payload)
     {
+        string? mode = null;
+
         if (payload.TryGetProperty("collaboration_mode", out var collaborationMode))
         {
-            if (TryGetString(collaborationMode, "mode", out var mode))
+            mode = TryGetNormalizedCollaborationMode(collaborationMode, "mode");
+            if (!string.IsNullOrWhiteSpace(mode))
             {
                 return mode;
             }
+
+            mode = TryGetNormalizedCollaborationMode(collaborationMode, "kind");
+            if (!string.IsNullOrWhiteSpace(mode))
+            {
+                return mode;
+            }
+
+            mode = TryGetNormalizedCollaborationMode(collaborationMode, "value");
+            if (!string.IsNullOrWhiteSpace(mode))
+            {
+                return mode;
+            }
+
+            if (collaborationMode.TryGetProperty("settings", out var settings))
+            {
+                mode = TryGetNormalizedCollaborationMode(settings, "mode");
+                if (!string.IsNullOrWhiteSpace(mode))
+                {
+                    return mode;
+                }
+
+                mode = TryGetNormalizedCollaborationMode(settings, "kind");
+                if (!string.IsNullOrWhiteSpace(mode))
+                {
+                    return mode;
+                }
+
+                mode = TryGetNormalizedCollaborationMode(settings, "value");
+                if (!string.IsNullOrWhiteSpace(mode))
+                {
+                    return mode;
+                }
+            }
         }
 
-        if (TryGetString(payload, "collaboration_mode_kind", out var collaborationModeKind))
+        mode = TryGetNormalizedCollaborationMode(payload, "collaboration_mode_kind");
+        if (!string.IsNullOrWhiteSpace(mode))
         {
-            return collaborationModeKind;
+            return mode;
+        }
+
+        mode = TryGetNormalizedCollaborationMode(payload, "collaboration_mode_mode");
+        if (!string.IsNullOrWhiteSpace(mode))
+        {
+            return mode;
         }
 
         return null;
+    }
+
+    private static string? TryGetNormalizedCollaborationMode(JsonElement element, string propertyName)
+    {
+        if (!TryGetString(element, propertyName, out var value))
+        {
+            return null;
+        }
+
+        return NormalizeCollaborationMode(value);
+    }
+
+    private static string? NormalizeCollaborationMode(string value)
+    {
+        var trimmed = value.Trim();
+        if (trimmed.Length == 0)
+        {
+            return null;
+        }
+
+        var compact = new string(trimmed.Where(char.IsLetterOrDigit).ToArray()).ToLowerInvariant();
+        return compact switch
+        {
+            "plan" or "planmode" => "plan",
+            "goal" or "goalmode" => "goal",
+            _ => trimmed.ToLowerInvariant()
+        };
     }
 
     private static DateTime? TryGetTimestamp(JsonElement root)
