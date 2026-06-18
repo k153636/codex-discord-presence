@@ -25,7 +25,7 @@ public sealed class PresenceTemplateRenderer
             .OrderByDescending(file => file.LastWriteTimeUtc)
             .ToArray();
 
-        var editingFile = SelectEditingFile(context, recentEditedFiles);
+        var editingFile = SelectEditingFile(recentEditedFiles);
         var editingFileName = editingFile?.Name ?? "";
         var editingFileLabel = BuildEditingFileLabel(context, editingFileName);
         var changedFilesText = FormatChangedFiles(context.Git.ChangedFileCount);
@@ -101,7 +101,7 @@ public sealed class PresenceTemplateRenderer
         }
 
         var stateLabel = ResolveStateLabel(template, context, context.Codex.ActivityKind, context.Git.ChangedFileCount);
-        var editingFile = SelectEditingFile(context, recentEditedFiles);
+        var editingFile = SelectEditingFile(recentEditedFiles);
         if (editingFile is null)
         {
             return "";
@@ -246,24 +246,11 @@ public sealed class PresenceTemplateRenderer
     }
 
     private static RecentProjectFileSnapshot? SelectEditingFile(
-        PresenceContext context,
         IReadOnlyList<RecentProjectFileSnapshot> recentEditedFiles)
     {
         if (recentEditedFiles.Count == 0)
         {
             return null;
-        }
-
-        if (recentEditedFiles.Count == 1)
-        {
-            return recentEditedFiles[0];
-        }
-
-        if (recentEditedFiles.Count <= 4)
-        {
-            var elapsedMilliseconds = Math.Max(0, context.Session.Elapsed.TotalMilliseconds);
-            var index = (int)(elapsedMilliseconds / 750d) % recentEditedFiles.Count;
-            return recentEditedFiles[index];
         }
 
         return recentEditedFiles[0];
