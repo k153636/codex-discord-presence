@@ -9,11 +9,15 @@ Presence text is template-driven through `appsettings.json`, so you can change t
 1. Run `build.cmd`.
 2. Run `start.cmd`.
 3. Run `stop.cmd` to shut it down.
+4. Run `install.cmd` to create desktop and Start Menu shortcuts.
+5. Run `install.cmd --autostart` to also register Windows startup.
+6. Run `uninstall.cmd` to remove created shortcuts.
 
 The app is configured as a self-contained `win-x64` single-file publish.
 It runs in the background with a system tray icon, where you can toggle `Enable`, open `appsettings.json`, or `Quit`.
 `start.cmd` rebuilds before launching so the tray app stays in sync with the current source.
 The tray `Enable` state is saved under `%LOCALAPPDATA%\CodexDiscordPresence\presence-state.json`.
+The app can also check GitHub Releases once at startup and only logs when a newer release exists.
 
 ## Preview
 
@@ -149,6 +153,7 @@ Common settings live in `appsettings.json`:
 - `Presence.RunningCommandUpdateIntervalSeconds`
 - `Presence.RunningCommandHoldSeconds`
 - `Presence.IdleUpdateIntervalSeconds`
+- `EnableUpdateCheck`
 - `UpdateIntervalSeconds`
 
 ## Template Values

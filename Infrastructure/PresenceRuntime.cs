@@ -5,18 +5,20 @@ public sealed class PresenceRuntime
     private readonly AppOptions _options;
     private readonly PresenceRuntimeState _state;
     private readonly CancellationToken _cancellationToken;
-    private readonly string _settingsPath;
+    private readonly AppPaths _paths;
     private RuntimeTimingSettings _timingSettings;
-    private DateTime _settingsLastWriteTimeUtc;
+    private DateTime _executableSettingsLastWriteTimeUtc;
+    private DateTime _userSettingsLastWriteTimeUtc;
 
-    public PresenceRuntime(AppOptions options, PresenceRuntimeState state, CancellationToken cancellationToken, string settingsPath)
+    public PresenceRuntime(AppOptions options, PresenceRuntimeState state, CancellationToken cancellationToken, AppPaths paths)
     {
         _options = options;
         _state = state;
         _cancellationToken = cancellationToken;
-        _settingsPath = settingsPath;
+        _paths = paths;
         _timingSettings = RuntimeTimingSettings.From(options);
-        _settingsLastWriteTimeUtc = GetSettingsLastWriteTimeUtc();
+        _executableSettingsLastWriteTimeUtc = GetSettingsLastWriteTimeUtc(_paths.ExecutableSettingsPath);
+        _userSettingsLastWriteTimeUtc = GetSettingsLastWriteTimeUtc(_paths.UserSettingsPath);
     }
 
     public async Task RunAsync()
@@ -307,17 +309,20 @@ public sealed class PresenceRuntime
 
     private void RefreshTimingSettingsIfNeeded()
     {
-        var lastWriteTimeUtc = GetSettingsLastWriteTimeUtc();
-        if (lastWriteTimeUtc == _settingsLastWriteTimeUtc)
+        var executableLastWriteTimeUtc = GetSettingsLastWriteTimeUtc(_paths.ExecutableSettingsPath);
+        var userLastWriteTimeUtc = GetSettingsLastWriteTimeUtc(_paths.UserSettingsPath);
+        if (executableLastWriteTimeUtc == _executableSettingsLastWriteTimeUtc &&
+            userLastWriteTimeUtc == _userSettingsLastWriteTimeUtc)
         {
             return;
         }
 
-        _settingsLastWriteTimeUtc = lastWriteTimeUtc;
+        _executableSettingsLastWriteTimeUtc = executableLastWriteTimeUtc;
+        _userSettingsLastWriteTimeUtc = userLastWriteTimeUtc;
 
         try
         {
-            var reloadedOptions = AppOptions.LoadFromFile(_settingsPath);
+            var reloadedOptions = AppOptions.LoadMerged(_paths.ExecutableSettingsPath, _paths.UserSettingsPath);
             var reloadedTiming = RuntimeTimingSettings.From(reloadedOptions);
 
             if (!reloadedTiming.Equals(_timingSettings))
@@ -339,12 +344,12 @@ public sealed class PresenceRuntime
         }
     }
 
-    private DateTime GetSettingsLastWriteTimeUtc()
+    private static DateTime GetSettingsLastWriteTimeUtc(string path)
     {
         try
         {
-            return File.Exists(_settingsPath)
-                ? File.GetLastWriteTimeUtc(_settingsPath)
+            return File.Exists(path)
+                ? File.GetLastWriteTimeUtc(path)
                 : DateTime.MinValue;
         }
         catch

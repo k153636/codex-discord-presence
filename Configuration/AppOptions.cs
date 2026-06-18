@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.Text.Json.Nodes;
 
 namespace CodexDiscordPresence;
 
@@ -10,10 +11,16 @@ public sealed class AppOptions
     public PresenceTemplateOptions Presence { get; set; } = new();
     public TokenUsageOptions TokenUsage { get; set; } = new();
     public int UpdateIntervalSeconds { get; set; } = 2;
+    public bool EnableUpdateCheck { get; set; } = true;
 
     public static AppOptions Load(string[] args)
     {
-        var options = LoadFromFile("appsettings.json");
+        return Load(args, AppPaths.Create());
+    }
+
+    public static AppOptions Load(string[] args, AppPaths paths)
+    {
+        var options = LoadMerged(paths.ExecutableSettingsPath, paths.UserSettingsPath);
 
         for (var i = 0; i < args.Length; i++)
         {
@@ -42,6 +49,78 @@ public sealed class AppOptions
         return File.Exists(path)
             ? JsonSerializer.Deserialize<AppOptions>(File.ReadAllText(path), JsonOptions()) ?? new AppOptions()
             : new AppOptions();
+    }
+
+    public static AppOptions LoadMerged(params string[] paths)
+    {
+        var merged = new JsonObject();
+
+        foreach (var path in paths)
+        {
+            if (!TryLoadJsonObject(path, out var node))
+            {
+                continue;
+            }
+
+            MergeJsonObject(merged, node);
+        }
+
+        return merged.Deserialize<AppOptions>(JsonOptions()) ?? new AppOptions();
+    }
+
+    private static bool TryLoadJsonObject(string path, out JsonObject node)
+    {
+        node = new JsonObject();
+
+        if (!File.Exists(path))
+        {
+            return false;
+        }
+
+        try
+        {
+            var parsed = JsonNode.Parse(
+                File.ReadAllText(path),
+                documentOptions: new JsonDocumentOptions
+                {
+                    CommentHandling = JsonCommentHandling.Skip,
+                    AllowTrailingCommas = true
+                });
+            if (parsed is JsonObject objectNode)
+            {
+                node = objectNode;
+                return true;
+            }
+
+            return false;
+        }
+        catch (Exception ex)
+        {
+            Console.Error.WriteLine($"Failed to read settings file '{path}': {ex.Message}");
+            return false;
+        }
+    }
+
+    private static void MergeJsonObject(JsonObject target, JsonObject source)
+    {
+        foreach (var (key, value) in source)
+        {
+            if (value is JsonObject sourceObject)
+            {
+                if (target[key] is JsonObject targetObject)
+                {
+                    MergeJsonObject(targetObject, sourceObject);
+                }
+                else
+                {
+                    target[key] = sourceObject.DeepClone();
+                }
+
+                continue;
+            }
+
+            target[key] = value?.DeepClone();
+        }
     }
 
     private static JsonSerializerOptions JsonOptions() => new()

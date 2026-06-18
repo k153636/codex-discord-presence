@@ -11,7 +11,10 @@ public static class PresenceApplication
             return InstanceCoordinator.StopRunningInstance(AppContext.BaseDirectory);
         }
 
-        var options = AppOptions.Load(args);
+        var appPaths = AppPaths.Create(AppContext.BaseDirectory);
+        AppDataInitializer.EnsureInitialized(appPaths);
+
+        var options = AppOptions.Load(args, appPaths);
 
         if (string.IsNullOrWhiteSpace(options.Discord.ClientId) ||
             options.Discord.ClientId == "YOUR_DISCORD_APPLICATION_CLIENT_ID")
@@ -29,6 +32,30 @@ public static class PresenceApplication
             return 1;
         }
 
+        if (options.EnableUpdateCheck)
+        {
+            using var httpClient = new HttpClient
+            {
+                Timeout = TimeSpan.FromSeconds(5)
+            };
+
+            var releaseChecker = new GitHubReleaseChecker(httpClient);
+            var releaseCheck = await releaseChecker.CheckLatestReleaseAsync(cts.Token);
+            if (!releaseCheck.Succeeded)
+            {
+                Console.Error.WriteLine(releaseCheck.WarningMessage);
+            }
+            else if (releaseCheck.UpdateAvailable && releaseCheck.LatestVersion is not null)
+            {
+                var releaseUrl = string.IsNullOrWhiteSpace(releaseCheck.LatestReleaseUrl)
+                    ? string.Empty
+                    : $" Release: {releaseCheck.LatestReleaseUrl}";
+
+                Console.WriteLine(
+                    $"GitHub release update available: current {releaseCheck.CurrentVersion} < latest {releaseCheck.LatestVersion}.{releaseUrl}");
+            }
+        }
+
         TrayIconHost? trayHost = null;
         Console.CancelKeyPress += (_, eventArgs) =>
         {
@@ -38,11 +65,10 @@ public static class PresenceApplication
         };
 
         var stateStore = new PresenceStateStore();
-        var statePath = PresenceStateStore.GetDefaultPath();
+        var statePath = appPaths.StatePath;
         var runtimeState = stateStore.Load(statePath);
-        var projectRoot = Path.GetFullPath(Environment.ExpandEnvironmentVariables(options.Project.Path));
-        var settingsPath = Path.Combine(projectRoot, "appsettings.json");
-        var runtime = new PresenceRuntime(options, runtimeState, cts.Token, settingsPath);
+        var settingsPath = appPaths.ExecutableSettingsPath;
+        var runtime = new PresenceRuntime(options, runtimeState, cts.Token, appPaths);
         var runtimeTask = runtime.RunAsync();
 
         trayHost = new TrayIconHost(runtimeState, stateStore, statePath, settingsPath, () => cts.Cancel());
