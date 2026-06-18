@@ -188,6 +188,8 @@ public sealed class CodexDetectionOptions
     ];
     public string[] ProcessNameContains { get; set; } = ["codex"];
     public string[] WindowTitleContains { get; set; } = ["Codex"];
+    public string[] ExecutablePathContains { get; set; } = [];
+    public string[] CommandLineContains { get; set; } = [];
     public int RecentSessionFilesToScan { get; set; } = 20;
 
     public string GetResolvedHomePath()

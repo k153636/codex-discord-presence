@@ -16,7 +16,8 @@ public sealed class AppProfileSelectionPolicyTests
             new CodexProcessSnapshot(true, "codex-cli", true)
             {
                 Confidence = ActivityConfidence.High,
-                LastObservedAt = DateTime.UtcNow
+                LastObservedAt = DateTime.UtcNow,
+                DetectionKind = CodexProcessDetectionKind.CommandLine
             },
             new DiscordOptions { ClientId = "cli-client" });
 
@@ -33,7 +34,8 @@ public sealed class AppProfileSelectionPolicyTests
             new CodexProcessSnapshot(true, "codex", true)
             {
                 Confidence = ActivityConfidence.High,
-                LastObservedAt = DateTime.UtcNow
+                LastObservedAt = DateTime.UtcNow,
+                DetectionKind = CodexProcessDetectionKind.ProcessName
             },
             new DiscordOptions { ClientId = "codex-client" });
         var cli = new AppProfileSelectionCandidate(
@@ -41,7 +43,8 @@ public sealed class AppProfileSelectionPolicyTests
             new CodexProcessSnapshot(true, "codex-cli", true)
             {
                 Confidence = ActivityConfidence.High,
-                LastObservedAt = DateTime.UtcNow
+                LastObservedAt = DateTime.UtcNow,
+                DetectionKind = CodexProcessDetectionKind.CommandLine
             },
             new DiscordOptions { ClientId = "YOUR_DISCORD_CLI_APPLICATION_CLIENT_ID" });
 
@@ -59,7 +62,8 @@ public sealed class AppProfileSelectionPolicyTests
             new CodexProcessSnapshot(true, "codex", true)
             {
                 Confidence = ActivityConfidence.High,
-                LastObservedAt = now.AddMinutes(-5)
+                LastObservedAt = now.AddMinutes(-5),
+                DetectionKind = CodexProcessDetectionKind.ProcessName
             },
             new DiscordOptions { ClientId = "codex-client" });
         var cli = new AppProfileSelectionCandidate(
@@ -67,7 +71,8 @@ public sealed class AppProfileSelectionPolicyTests
             new CodexProcessSnapshot(true, "codex-cli", true)
             {
                 Confidence = ActivityConfidence.High,
-                LastObservedAt = now
+                LastObservedAt = now,
+                DetectionKind = CodexProcessDetectionKind.CommandLine
             },
             new DiscordOptions { ClientId = "cli-client" });
 

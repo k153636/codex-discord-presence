@@ -16,6 +16,7 @@
 
   <ItemGroup>
     <PackageReference Include="DiscordRichPresence" Version="1.6.1.70" />
+    <PackageReference Include="System.Management" Version="9.0.0" />
   </ItemGroup>
 
   <ItemGroup>

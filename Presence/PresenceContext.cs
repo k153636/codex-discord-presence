@@ -8,6 +8,16 @@ public sealed record PresenceContext(
     SessionSnapshot Session,
     TokenUsageSnapshot TokenUsage);
 
+public enum CodexProcessDetectionKind
+{
+    None = 0,
+    ProcessName = 1,
+    WindowTitle = 2,
+    ExecutablePath = 3,
+    CommandLine = 4,
+    SessionActivity = 5
+}
+
 public sealed partial record CodexProcessSnapshot(bool IsRunning, string? ProcessName, bool IsThinking);
 
 public enum CodexActivityKind
@@ -58,6 +68,7 @@ public sealed partial record CodexProcessSnapshot
     public DateTime? LastObservedAt { get; init; }
     public IReadOnlyList<RecentProjectFileSnapshot> RecentEditedFiles { get; init; } = Array.Empty<RecentProjectFileSnapshot>();
     public int ActivityRepeatCount { get; init; } = 1;
+    public CodexProcessDetectionKind DetectionKind { get; init; } = CodexProcessDetectionKind.None;
 
     public CodexActivityKind ActivityKind =>
         DetectedActivityKind ??

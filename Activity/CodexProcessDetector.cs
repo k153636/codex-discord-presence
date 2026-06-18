@@ -25,7 +25,8 @@ public sealed class CodexProcessDetector
         CodexActivityKind? previousActivityKind = null)
     {
         var sessionInspection = InspectRecentSessions(projectPath);
-        var matchedProcessName = _processNameMatcher.FindMatchingProcessName();
+        var matchedProcess = _processNameMatcher.FindMatchingProcess();
+        var matchedProcessName = matchedProcess?.ProcessName;
         var isRunning = matchedProcessName is not null ||
             (sessionInspection is not null &&
              sessionInspection.HasRecentActivity(_presenceOptions.ThinkingStaleTimeoutMinutes));
@@ -37,6 +38,7 @@ public sealed class CodexProcessDetector
                 DetectedActivityKind = CodexActivityKind.Offline,
                 ActivityProvenance = ActivityProvenance.Observed,
                 Confidence = ActivityConfidence.High,
+                DetectionKind = CodexProcessDetectionKind.None,
                 ActivityReason = "Codex process, window, and recent session activity were not detected."
             };
         }
@@ -64,6 +66,7 @@ public sealed class CodexProcessDetector
             DetectedActivityKind = activity,
             ActivityProvenance = provenance,
             Confidence = confidence,
+            DetectionKind = matchedProcess?.DetectionKind ?? CodexProcessDetectionKind.SessionActivity,
             ActivityReason = reason,
             CollaborationMode = sessionInspection?.CollaborationMode,
             LastTaskStartedAt = sessionInspection?.LastTaskStartedAt,

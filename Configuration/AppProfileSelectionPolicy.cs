@@ -10,6 +10,16 @@ public sealed record AppProfileSelectionCandidate(
         !DiscordOptions.ClientId.StartsWith("YOUR_", StringComparison.OrdinalIgnoreCase);
 
     public bool IsRunning => HasValidDiscordClientId && Snapshot.IsRunning;
+
+    public int DetectionStrength => Snapshot.DetectionKind switch
+    {
+        CodexProcessDetectionKind.CommandLine => 400,
+        CodexProcessDetectionKind.ExecutablePath => 300,
+        CodexProcessDetectionKind.WindowTitle => 200,
+        CodexProcessDetectionKind.ProcessName => 100,
+        CodexProcessDetectionKind.SessionActivity => 50,
+        _ => 0
+    };
 }
 
 public static class AppProfileSelectionPolicy
@@ -22,6 +32,13 @@ public static class AppProfileSelectionPolicy
         if (codexCandidate.HasValidDiscordClientId != cliCandidate.HasValidDiscordClientId)
         {
             return codexCandidate.HasValidDiscordClientId
+                ? AppProfileKind.Codex
+                : AppProfileKind.CodexCli;
+        }
+
+        if (codexCandidate.DetectionStrength != cliCandidate.DetectionStrength)
+        {
+            return codexCandidate.DetectionStrength > cliCandidate.DetectionStrength
                 ? AppProfileKind.Codex
                 : AppProfileKind.CodexCli;
         }
