@@ -15,7 +15,7 @@ public sealed class CodexProcessDetector
         _presenceOptions = presenceOptions;
         _processNameMatcher = new CodexProcessNameMatcher(options);
         _activityResolver = new CodexActivityResolver();
-        _sessionLogParser = new CodexSessionLogParser(options);
+        _sessionLogParser = new CodexSessionLogParser(options, presenceOptions);
     }
 
     public CodexProcessSnapshot GetSnapshot(

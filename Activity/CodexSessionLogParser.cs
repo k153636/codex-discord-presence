@@ -5,10 +5,12 @@ namespace CodexDiscordPresence;
 internal sealed class CodexSessionLogParser
 {
     private readonly CodexDetectionOptions _options;
+    private readonly PresenceTemplateOptions _presenceOptions;
 
-    public CodexSessionLogParser(CodexDetectionOptions options)
+    public CodexSessionLogParser(CodexDetectionOptions options, PresenceTemplateOptions presenceOptions)
     {
         _options = options;
+        _presenceOptions = presenceOptions;
     }
 
     public SessionInspection? InspectRecentSessions(string? projectPath)
@@ -33,22 +35,15 @@ internal sealed class CodexSessionLogParser
                 .Take(Math.Max(1, _options.RecentSessionFilesToScan))
                 .ToArray();
 
-            SessionInspection? latestAny = null;
-            SessionInspection? latestProjectMatch = null;
+            var candidates = new List<SessionInspectionCandidate>(files.Length);
 
             foreach (var file in files)
             {
                 var inspection = AnalyzeSessionFile(file.FullName, normalizedProjectPath);
-                latestAny ??= inspection;
-
-                if (inspection.MatchesProject)
-                {
-                    latestProjectMatch = inspection;
-                    break;
-                }
+                candidates.Add(new SessionInspectionCandidate(inspection, file.LastWriteTimeUtc));
             }
 
-            return latestProjectMatch ?? latestAny;
+            return SelectInspection(candidates, normalizedProjectPath);
         }
         catch
         {
@@ -73,21 +68,19 @@ internal sealed class CodexSessionLogParser
                 .OrderByDescending(file => file.LastWriteTimeUtc)
                 .Take(Math.Max(1, _options.RecentSessionFilesToScan));
 
+            var candidates = new List<SessionInspectionCandidate>();
             foreach (var file in files)
             {
                 var inspection = AnalyzeSessionFile(file.FullName, normalizedProjectPath: null);
-                if (!string.IsNullOrWhiteSpace(inspection.ProjectPath))
-                {
-                    return inspection.ProjectPath;
-                }
+                candidates.Add(new SessionInspectionCandidate(inspection, file.LastWriteTimeUtc));
             }
+
+            return SelectLatestObservedProjectPath(candidates);
         }
         catch
         {
             return null;
         }
-
-        return null;
     }
 
     private SessionInspection AnalyzeSessionFile(string path, string? normalizedProjectPath)
@@ -361,4 +354,58 @@ internal sealed class CodexSessionLogParser
             return path.Trim().ToUpperInvariant();
         }
     }
+
+    private SessionInspection? SelectInspection(
+        IReadOnlyList<SessionInspectionCandidate> candidates,
+        string? normalizedProjectPath)
+    {
+        if (candidates.Count == 0)
+        {
+            return null;
+        }
+
+        SessionInspectionCandidate? best = null;
+
+        if (!string.IsNullOrWhiteSpace(normalizedProjectPath))
+        {
+            best = PickBest(candidates.Where(candidate => candidate.Inspection.MatchesProject && candidate.Inspection.HasRecentActivity(_presenceOptions.ThinkingStaleTimeoutMinutes)));
+            if (best is not null)
+            {
+                return best.Inspection;
+            }
+
+            best = PickBest(candidates.Where(candidate => candidate.Inspection.MatchesProject));
+            if (best is not null)
+            {
+                return best.Inspection;
+            }
+        }
+
+        best = PickBest(candidates.Where(candidate => candidate.Inspection.HasRecentActivity(_presenceOptions.ThinkingStaleTimeoutMinutes)));
+        if (best is not null)
+        {
+            return best.Inspection;
+        }
+
+        return PickBest(candidates)?.Inspection;
+    }
+
+    private string? SelectLatestObservedProjectPath(IReadOnlyList<SessionInspectionCandidate> candidates)
+    {
+        var best = PickBest(candidates.Where(candidate => candidate.Inspection.HasRecentActivity(_presenceOptions.ThinkingStaleTimeoutMinutes) && !string.IsNullOrWhiteSpace(candidate.Inspection.ProjectPath)))
+            ?? PickBest(candidates.Where(candidate => !string.IsNullOrWhiteSpace(candidate.Inspection.ProjectPath)));
+
+        return best?.Inspection.ProjectPath;
+    }
+
+    private SessionInspectionCandidate? PickBest(IEnumerable<SessionInspectionCandidate> candidates)
+    {
+        return candidates
+            .OrderByDescending(candidate => candidate.Inspection.HasRecentActivity(_presenceOptions.ThinkingStaleTimeoutMinutes))
+            .ThenByDescending(candidate => candidate.Inspection.LastObservedAt ?? DateTime.MinValue)
+            .ThenByDescending(candidate => candidate.SessionLastWriteTimeUtc)
+            .FirstOrDefault();
+    }
+
+    private sealed record SessionInspectionCandidate(SessionInspection Inspection, DateTime SessionLastWriteTimeUtc);
 }
