@@ -81,7 +81,12 @@ public sealed class PresenceTemplateRenderer
             return stateLabel;
         }
 
-        if (context.Codex.ActivityKind is CodexActivityKind.ApplyingEdits or CodexActivityKind.UpdatingFiles or CodexActivityKind.CreatingFiles or CodexActivityKind.DeletingFiles &&
+        if (context.Codex.ActivityKind == CodexActivityKind.UpdatingFiles)
+        {
+            return stateLabel;
+        }
+
+        if (context.Codex.ActivityKind is CodexActivityKind.ApplyingEdits or CodexActivityKind.CreatingFiles or CodexActivityKind.DeletingFiles &&
             recentEditedFiles.Count > 0)
         {
             return BuildEditingActivityLine(stateLabel, recentEditedFiles, editingFile);

@@ -241,7 +241,7 @@ public sealed class PresenceTemplateRendererTests
 
         var presence = renderer.Render(template, context);
 
-        Assert.Equal("Coordinating changes across 2 files \u2022 Program.cs", presence.State);
+        Assert.Equal("Coordinating changes across 2 files", presence.State);
     }
 
     [Fact]
