@@ -162,7 +162,7 @@ public static class PresenceApplication
                 Console.Error.WriteLine($"Presence update loop failed: {ex.Message}");
             }
 
-            var delay = PresenceRefreshPolicy.GetNextDelay(options.Presence, lastActivityKind);
+            var delay = PresenceRefreshPolicy.GetNextDelay(options.Presence, lastActivityKind, options.UpdateIntervalSeconds);
 
             await Task.Delay(delay, cts.Token)
                 .ContinueWith(_ => { }, CancellationToken.None);

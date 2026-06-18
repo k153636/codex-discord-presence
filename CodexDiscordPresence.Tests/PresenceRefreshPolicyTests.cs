@@ -15,9 +15,9 @@ public sealed class PresenceRefreshPolicyTests
             IdleUpdateIntervalSeconds = 8
         };
 
-        var delay = PresenceRefreshPolicy.GetNextDelay(options, CodexActivityKind.RunningCommand);
+        var delay = PresenceRefreshPolicy.GetNextDelay(options, CodexActivityKind.RunningCommand, 2);
 
-        Assert.Equal(TimeSpan.FromSeconds(1), delay);
+        Assert.Equal(TimeSpan.FromMilliseconds(500), delay);
     }
 
     [Fact]
@@ -30,9 +30,9 @@ public sealed class PresenceRefreshPolicyTests
             IdleUpdateIntervalSeconds = 8
         };
 
-        Assert.Equal(TimeSpan.FromSeconds(1), PresenceRefreshPolicy.GetNextDelay(options, CodexActivityKind.ApplyingEdits));
-        Assert.Equal(TimeSpan.FromSeconds(1), PresenceRefreshPolicy.GetNextDelay(options, CodexActivityKind.UpdatingFiles));
-        Assert.Equal(TimeSpan.FromSeconds(1), PresenceRefreshPolicy.GetNextDelay(options, CodexActivityKind.AnalyzingProject));
+        Assert.Equal(TimeSpan.FromSeconds(2), PresenceRefreshPolicy.GetNextDelay(options, CodexActivityKind.ApplyingEdits, 2));
+        Assert.Equal(TimeSpan.FromSeconds(2), PresenceRefreshPolicy.GetNextDelay(options, CodexActivityKind.UpdatingFiles, 2));
+        Assert.Equal(TimeSpan.FromSeconds(3), PresenceRefreshPolicy.GetNextDelay(options, CodexActivityKind.AnalyzingProject, 2));
     }
 
     [Fact]
@@ -45,7 +45,7 @@ public sealed class PresenceRefreshPolicyTests
             IdleUpdateIntervalSeconds = 8
         };
 
-        Assert.Equal(TimeSpan.FromSeconds(1), PresenceRefreshPolicy.GetNextDelay(options, CodexActivityKind.Ready));
-        Assert.Equal(TimeSpan.FromSeconds(1), PresenceRefreshPolicy.GetNextDelay(options, CodexActivityKind.Offline));
+        Assert.Equal(TimeSpan.FromSeconds(8), PresenceRefreshPolicy.GetNextDelay(options, CodexActivityKind.Ready, 2));
+        Assert.Equal(TimeSpan.FromSeconds(8), PresenceRefreshPolicy.GetNextDelay(options, CodexActivityKind.Offline, 2));
     }
 }
