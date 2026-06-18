@@ -539,7 +539,7 @@ public sealed class PresenceTemplateRendererTests
     }
 
     [Fact]
-    public void Render_SessionElapsed_UsesSecondsWhenUnderOneMinute()
+    public void Render_SessionElapsed_UsesMinuteFloorWhenUnderOneMinute()
     {
         var renderer = new PresenceTemplateRenderer();
         var template = new PresenceTemplateOptions { State = "{SessionElapsed}" };
@@ -551,7 +551,7 @@ public sealed class PresenceTemplateRendererTests
 
         var presence = renderer.Render(template, context);
 
-        Assert.Equal("3s", presence.State);
+        Assert.Equal("1m", presence.State);
     }
 
     private static PresenceContext CreateContext(
