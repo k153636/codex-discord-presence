@@ -71,6 +71,22 @@ public sealed class PresenceRuntime
                     ResetAllProfilePresenceCaches(profileStates);
                 }
 
+                var observedCodexSnapshot = profileStates[AppProfileKind.Codex].Detector.GetSnapshot();
+                var observedCliSnapshot = profileStates[AppProfileKind.CodexCli].Detector.GetSnapshot();
+
+                var (nextProjectPath, projectPathChanged) = UpdateActiveProjectPath(
+                    projectInspector,
+                    activeProjectPath,
+                    observedCodexSnapshot,
+                    observedCliSnapshot,
+                    ref lastLoggedProjectPath);
+                activeProjectPath = nextProjectPath;
+
+                if (projectPathChanged)
+                {
+                    ResetAllProfilePresenceCaches(profileStates);
+                }
+
                 var selectedProfile = SelectProfile(profileStates, activeProjectPath, currentProfile);
                 var selectedProfileState = profileStates[selectedProfile];
 
@@ -81,12 +97,6 @@ public sealed class PresenceRuntime
                     Console.WriteLine($"Profile switched: {currentProfile} -> {selectedProfile}");
                     currentProfile = selectedProfile;
                 }
-
-                activeProjectPath = UpdateActiveProjectPath(
-                    projectInspector,
-                    activeProjectPath,
-                    selectedProfileState,
-                    ref lastLoggedProjectPath);
 
                 var projectSnapshot = projectInspector.GetSnapshot(activeProjectPath);
                 var gitSnapshot = gitInspector.GetSnapshot(activeProjectPath);
@@ -173,26 +183,31 @@ public sealed class PresenceRuntime
             new AppProfileSelectionCandidate(AppProfileKind.CodexCli, cliProfileSnapshot, profileStates[AppProfileKind.CodexCli].DiscordOptions));
     }
 
-    private string UpdateActiveProjectPath(
+    private static (string ActiveProjectPath, bool Changed) UpdateActiveProjectPath(
         ProjectInspector projectInspector,
         string activeProjectPath,
-        ProfileRuntimeState selectedProfileState,
+        CodexProcessSnapshot observedCodexSnapshot,
+        CodexProcessSnapshot observedCliSnapshot,
         ref string lastLoggedProjectPath)
     {
-        var observedProjectPath = selectedProfileState.Detector.GetObservedProjectPath(activeProjectPath);
-        if (!string.IsNullOrWhiteSpace(observedProjectPath))
+        var nextProjectPath = ActiveProjectPathSelectionPolicy.Select(
+            activeProjectPath,
+            observedCodexSnapshot,
+            observedCliSnapshot);
+
+        if (!string.IsNullOrWhiteSpace(nextProjectPath))
         {
-            activeProjectPath = projectInspector.NormalizeProjectPath(observedProjectPath);
+            nextProjectPath = projectInspector.NormalizeProjectPath(nextProjectPath);
         }
 
-        if (!string.Equals(activeProjectPath, lastLoggedProjectPath, StringComparison.OrdinalIgnoreCase))
+        var changed = !string.Equals(activeProjectPath, nextProjectPath, StringComparison.OrdinalIgnoreCase);
+        if (changed)
         {
-            Console.WriteLine($"Project switched: {lastLoggedProjectPath} -> {activeProjectPath}");
-            lastLoggedProjectPath = activeProjectPath;
-            selectedProfileState.ResetPresenceCache();
+            Console.WriteLine($"Project switched: {lastLoggedProjectPath} -> {nextProjectPath}");
+            lastLoggedProjectPath = nextProjectPath;
         }
 
-        return activeProjectPath;
+        return (nextProjectPath, changed);
     }
 
     private CodexProcessSnapshot BuildCodexSnapshot(

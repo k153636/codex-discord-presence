@@ -242,6 +242,52 @@ public class CodexStateTests
     }
 
     [Fact]
+    public void Test_3d_ActiveProjectPathSelection_PrefersNewestRunningObservation()
+    {
+        var currentProject = @"E:\tool\ProjectOne";
+        var newerProject = @"E:\tool\ProjectTwo";
+        var now = DateTime.UtcNow;
+
+        var selectedProjectPath = ActiveProjectPathSelectionPolicy.Select(
+            currentProject,
+            new CodexProcessSnapshot(true, "codex", true)
+            {
+                ObservedProjectPath = currentProject,
+                LastObservedAt = now.AddMinutes(-5)
+            },
+            new CodexProcessSnapshot(true, "codex-cli", true)
+            {
+                ObservedProjectPath = newerProject,
+                LastObservedAt = now
+            });
+
+        Assert.Equal(newerProject, selectedProjectPath);
+    }
+
+    [Fact]
+    public void Test_3e_ActiveProjectPathSelection_KeepsCurrentPath_WhenNewObservationIsClose()
+    {
+        var currentProject = @"E:\tool\ProjectOne";
+        var competingProject = @"E:\tool\ProjectTwo";
+        var now = DateTime.UtcNow;
+
+        var selectedProjectPath = ActiveProjectPathSelectionPolicy.Select(
+            currentProject,
+            new CodexProcessSnapshot(true, "codex", true)
+            {
+                ObservedProjectPath = currentProject,
+                LastObservedAt = now
+            },
+            new CodexProcessSnapshot(true, "codex-cli", true)
+            {
+                ObservedProjectPath = competingProject,
+                LastObservedAt = now.AddSeconds(-2)
+            });
+
+        Assert.Equal(currentProject, selectedProjectPath);
+    }
+
+    [Fact]
     public void Test_4_LatestSessionHasTaskComplete_ReturnsReady()
     {
         var tempPath = CreateTempSessionDirectory();
