@@ -31,8 +31,8 @@ public sealed class PresenceTemplateRenderer
         var changedFilesText = FormatChangedFiles(context.Git.ChangedFileCount);
         var projectSizeText = FormatProjectSize(context.Project.TotalFileCount, context.Project.TotalLineCount);
         var stateLabel = ResolveStateLabel(template, context, context.Codex.ActivityKind, context.Git.ChangedFileCount);
-        var activityLine = BuildActivityLine(context, recentEditedFiles, stateLabel, editingFile);
         var freshnessElapsedText = BuildFreshnessElapsedText(context, template.FreshnessUpdateIntervalSeconds);
+        var activityLine = BuildActivityLine(context, recentEditedFiles, stateLabel, editingFile, freshnessElapsedText);
 
         var values = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
         {
@@ -66,7 +66,6 @@ public sealed class PresenceTemplateRenderer
             ["FreshnessElapsed"] = freshnessElapsedText
         };
 
-        values["FreshnessText"] = Apply(template.FreshnessText, values);
         return values;
     }
 
@@ -74,7 +73,8 @@ public sealed class PresenceTemplateRenderer
         PresenceContext context,
         IReadOnlyList<RecentProjectFileSnapshot> recentEditedFiles,
         string stateLabel,
-        RecentProjectFileSnapshot? editingFile)
+        RecentProjectFileSnapshot? editingFile,
+        string freshnessElapsedText)
     {
         if (!context.Codex.IsRunning)
         {
@@ -83,16 +83,18 @@ public sealed class PresenceTemplateRenderer
 
         if (context.Codex.ActivityKind == CodexActivityKind.UpdatingFiles)
         {
-            return stateLabel;
+            return AppendActivityElapsed(stateLabel, freshnessElapsedText);
         }
 
         if (context.Codex.ActivityKind is CodexActivityKind.ApplyingEdits or CodexActivityKind.CreatingFiles or CodexActivityKind.DeletingFiles &&
             recentEditedFiles.Count > 0)
         {
-            return BuildEditingActivityLine(stateLabel, recentEditedFiles, editingFile);
+            return AppendActivityElapsed(BuildEditingActivityLine(stateLabel, recentEditedFiles, editingFile), freshnessElapsedText);
         }
 
-        return BuildIdleActivityLine(context, stateLabel);
+        return context.Codex.ActivityKind.IsActive()
+            ? AppendActivityElapsed(BuildIdleActivityLine(context, stateLabel), freshnessElapsedText)
+            : BuildIdleActivityLine(context, stateLabel);
     }
 
     private static string BuildActiveEditedFilesText(
@@ -169,6 +171,18 @@ public sealed class PresenceTemplateRenderer
         var elapsed = DateTime.UtcNow - referenceUtc;
         var bucketedElapsed = BucketDuration(elapsed, freshnessIntervalSeconds);
         return FormatShortDuration(bucketedElapsed, allowZero: true);
+    }
+
+    private static string AppendActivityElapsed(string baseLine, string elapsedText)
+    {
+        if (string.IsNullOrWhiteSpace(baseLine))
+        {
+            return baseLine;
+        }
+
+        return string.IsNullOrWhiteSpace(elapsedText)
+            ? baseLine
+            : $"{baseLine} \u2022 {elapsedText}";
     }
 
     private static TimeSpan BucketDuration(TimeSpan elapsed, int intervalSeconds)

@@ -133,22 +133,6 @@ public sealed class CodexProcessDetector
             return CodexActivityKind.RunningCommand;
         }
 
-        if (hasCreatingEvidence)
-        {
-            provenance = ActivityProvenance.Observed;
-            confidence = ActivityConfidence.High;
-            reason = $"created files={createdFileCount}, git changed files={changedFileCount}";
-            return CodexActivityKind.CreatingFiles;
-        }
-
-        if (hasDeletingEvidence)
-        {
-            provenance = ActivityProvenance.Observed;
-            confidence = ActivityConfidence.High;
-            reason = $"deleted files={deletedFileCount}, git changed files={changedFileCount}";
-            return CodexActivityKind.DeletingFiles;
-        }
-
         if (hasFreshRecentEdits)
         {
             provenance = ActivityProvenance.Observed;
@@ -167,6 +151,22 @@ public sealed class CodexProcessDetector
 
             reason = $"recent edit={recentEditedFiles[0].Name}, git changed files={changedFileCount}";
             return CodexActivityKind.ApplyingEdits;
+        }
+
+        if (hasCreatingEvidence)
+        {
+            provenance = ActivityProvenance.Observed;
+            confidence = ActivityConfidence.High;
+            reason = $"created files={createdFileCount}, git changed files={changedFileCount}";
+            return CodexActivityKind.CreatingFiles;
+        }
+
+        if (hasDeletingEvidence)
+        {
+            provenance = ActivityProvenance.Observed;
+            confidence = ActivityConfidence.High;
+            reason = $"deleted files={deletedFileCount}, git changed files={changedFileCount}";
+            return CodexActivityKind.DeletingFiles;
         }
 
         if (sessionInspection?.CollaborationMode is "plan" && hasFreshSession)

@@ -43,7 +43,7 @@ The app is configured as a self-contained `win-x64` single-file publish.
 - Git changed-file count
 - Session elapsed time
 - Token count placeholder
-- Freshness text that updates in 3-second steps
+- Freshness text on the state line that updates in 3-second steps
 - Discord buttons
 
 ## Activity Labels
@@ -66,9 +66,9 @@ For quiet idle periods, the app shows `Hold on` for the first 5 minutes, then sw
 ## Default Presence
 
 - `Details`: `{ModelName} &bull; {Tokens}`
-- `State`: `{ActivityLine}`
+- `State`: `{ActivityLine} &bull; {FreshnessElapsed}`
 - `LargeImageText`: `working on {ProjectName}`
-- `SmallImageText`: `{ProjectFileCount} files &bull; {FreshnessText}`
+- `SmallImageText`: `{ProjectFileCount} files &bull; session {SessionElapsed}`
 - Button: `GitHub`
 
 Use `{ActivityLabel}` if you want the file name omitted for a cleaner one-line status.
@@ -132,7 +132,6 @@ Common settings live in `appsettings.json`:
 - `Presence.ThinkingText`
 - `Presence.IdlingText`
 - `Presence.ReadyText`
-- `Presence.FreshnessText`
 - `Presence.ThinkingStaleTimeoutMinutes`
 - `Presence.ReadyIdleGraceMinutes`
 - `Presence.EditingFreshnessSeconds`
@@ -171,7 +170,6 @@ These placeholders can be used in `Presence.Details`, `Presence.State`, `Presenc
 - `{SessionElapsed}`
 - `{SessionStartedAt}`
 - `{FreshnessElapsed}`
-- `{FreshnessText}`
 - `{Tokens}`
 - `{Cost}`
 

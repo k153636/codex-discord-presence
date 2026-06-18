@@ -131,9 +131,9 @@ public sealed class PresenceTemplateOptions
     public bool AutoDetectModelName { get; set; } = true;
     public string ModelName { get; set; } = "Codex";
     public string Details { get; set; } = "{ModelName} \u2022 {Tokens}";
-    public string State { get; set; } = "{ActivityLine}";
+    public string State { get; set; } = "{ActivityLine} \u2022 {FreshnessElapsed}";
     public string LargeImageText { get; set; } = "working on {ProjectName}";
-    public string SmallImageText { get; set; } = "{ProjectFileCount} files \u2022 {FreshnessText}";
+    public string SmallImageText { get; set; } = "{ProjectFileCount} files \u2022 session {SessionElapsed}";
     public PresenceButtonOptions[] Buttons { get; set; } = [];
     public string AnalyzingProjectText { get; set; } = "Thinking";
     public string UpdatingFilesText { get; set; } = "Coordinating changes across {n} files";
@@ -151,7 +151,6 @@ public sealed class PresenceTemplateOptions
     public string ReadyActivityText { get; set; } = "Idling";
     public string WaitingActivityText { get; set; } = "Idling";
     public string OfflineText { get; set; } = "Idling";
-    public string FreshnessText { get; set; } = "updated {FreshnessElapsed} ago";
     public int ThinkingStaleTimeoutMinutes { get; set; } = 10;
     public int ReadyIdleGraceMinutes { get; set; } = 5;
     public int EditingFreshnessSeconds { get; set; } = 12;

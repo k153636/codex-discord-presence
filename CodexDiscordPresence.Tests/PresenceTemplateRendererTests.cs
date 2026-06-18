@@ -17,7 +17,7 @@ public sealed class PresenceTemplateRendererTests
 
         var presence = renderer.Render(template, context);
 
-        Assert.Equal("Thinking", presence.State);
+        Assert.Equal("Thinking • 5m", presence.State);
     }
 
     [Fact]
@@ -52,7 +52,7 @@ public sealed class PresenceTemplateRendererTests
     }
 
     [Fact]
-    public void Render_DefaultPresence_UsesModelAndFreshnessText()
+    public void Render_DefaultPresence_UsesModelAndFreshnessElapsed()
     {
         var renderer = new PresenceTemplateRenderer();
         var template = new PresenceTemplateOptions
@@ -60,7 +60,7 @@ public sealed class PresenceTemplateRendererTests
             Details = "{ModelName} • {Tokens}",
             State = "{ActivityLine}",
             LargeImageText = "working on {ProjectName}",
-            SmallImageText = "{ProjectFileCount} files • {FreshnessText}"
+            SmallImageText = "{ProjectFileCount} files • session {SessionElapsed}"
         };
         var context = CreateContext(
             new CodexProcessSnapshot(true, "codex", true),
@@ -70,9 +70,9 @@ public sealed class PresenceTemplateRendererTests
         var presence = renderer.Render(template, context);
 
         Assert.Equal("gpt-5-codex • Tokens pending", presence.Details);
-        Assert.Equal("Thinking", presence.State);
+        Assert.Equal("Thinking • 5m", presence.State);
         Assert.Equal("working on Nexstrap", presence.LargeImageText);
-        Assert.Equal("128 files • updated 5m ago", presence.SmallImageText);
+        Assert.Equal("128 files • session 5m", presence.SmallImageText);
     }
 
     [Fact]
@@ -85,13 +85,13 @@ public sealed class PresenceTemplateRendererTests
         {
             var renderer = new PresenceTemplateRenderer();
             var template = new PresenceTemplateOptions { State = "{ActivityLine}" };
-            var now = DateTime.UtcNow;
+            var observedAt = DateTime.UtcNow.AddSeconds(-12);
             var context = CreateContext(
                 new CodexProcessSnapshot(true, "codex", false)
                 {
                     DetectedActivityKind = CodexActivityKind.ApplyingEdits,
                     ActivityProvenance = ActivityProvenance.Observed,
-                    LastObservedAt = now
+                    LastObservedAt = observedAt
                 },
                 new ProjectSnapshot(
                     "Nexstrap",
@@ -104,12 +104,12 @@ public sealed class PresenceTemplateRendererTests
                     [new RecentProjectFileSnapshot(Path.GetFileName(tempFile), tempFile, File.GetLastWriteTimeUtc(tempFile))]),
                 new GitSnapshot(true, 2, null),
                 sessionAge: TimeSpan.FromSeconds(12),
-                lastObservedAt: now,
+                lastObservedAt: observedAt,
                 recentEditedFiles: [new RecentProjectFileSnapshot(Path.GetFileName(tempFile), tempFile, File.GetLastWriteTimeUtc(tempFile))]);
 
             var presence = renderer.Render(template, context);
 
-            Assert.Equal("Applying edits • CodexRpcRendererTest.txt", presence.State);
+            Assert.Equal("Applying edits • CodexRpcRendererTest.txt • 12s", presence.State);
         }
         finally
         {
@@ -219,7 +219,7 @@ public sealed class PresenceTemplateRendererTests
     [Fact]
     public void Render_WithTwoRecentEditedFiles_UsesUpdatingFilesActivity()
     {
-        var now = DateTime.UtcNow;
+        var now = DateTime.UtcNow.AddSeconds(-12);
         var renderer = new PresenceTemplateRenderer();
         var template = new PresenceTemplateOptions { State = "{ActivityLine}" };
         var context = CreateContext(
@@ -249,13 +249,13 @@ public sealed class PresenceTemplateRendererTests
 
         var presence = renderer.Render(template, context);
 
-        Assert.Equal("Coordinating changes across 2 files", presence.State);
+        Assert.Equal("Coordinating changes across 2 files • 12s", presence.State);
     }
 
     [Fact]
     public void Render_WithCreatedFilesActivity_UsesCreatingFilesLabel()
     {
-        var now = DateTime.UtcNow;
+        var now = DateTime.UtcNow.AddSeconds(-12);
         var renderer = new PresenceTemplateRenderer();
         var template = new PresenceTemplateOptions { State = "{ActivityLine}" };
         var context = CreateContext(
@@ -281,13 +281,13 @@ public sealed class PresenceTemplateRendererTests
 
         var presence = renderer.Render(template, context);
 
-        Assert.Equal("Creating files • NewFile.cs", presence.State);
+        Assert.Equal("Creating files • NewFile.cs • 12s", presence.State);
     }
 
     [Fact]
     public void Render_WithDeletedFilesActivity_UsesDeletingFilesLabel()
     {
-        var now = DateTime.UtcNow;
+        var now = DateTime.UtcNow.AddSeconds(-12);
         var renderer = new PresenceTemplateRenderer();
         var template = new PresenceTemplateOptions { State = "{ActivityLine}" };
         var context = CreateContext(
@@ -312,13 +312,13 @@ public sealed class PresenceTemplateRendererTests
 
         var presence = renderer.Render(template, context);
 
-        Assert.Equal("Deleting files", presence.State);
+        Assert.Equal("Deleting files • 12s", presence.State);
     }
 
     [Fact]
     public void Render_ActiveEditedFilesText_SuppressesMultiFileRedundancy()
     {
-        var now = DateTime.UtcNow;
+        var now = DateTime.UtcNow.AddSeconds(-12);
         var renderer = new PresenceTemplateRenderer();
         var template = new PresenceTemplateOptions { State = "{ActiveEditedFilesText}" };
         var context = CreateContext(
@@ -353,9 +353,9 @@ public sealed class PresenceTemplateRendererTests
     [Fact]
     public void Render_WithRunningCommand_UsesRunningCommandActivity()
     {
+        var now = DateTime.UtcNow.AddSeconds(-12);
         var renderer = new PresenceTemplateRenderer();
         var template = new PresenceTemplateOptions { State = "{ActivityLine}" };
-        var now = DateTime.UtcNow;
         var context = CreateContext(
             new CodexProcessSnapshot(true, "codex", false)
             {
@@ -370,13 +370,13 @@ public sealed class PresenceTemplateRendererTests
 
         var presence = renderer.Render(template, context);
 
-        Assert.Equal("Running command", presence.State);
+        Assert.Equal("Running command • 12s", presence.State);
     }
 
     [Fact]
     public void Render_WithRefactoringActivity_UsesRefactoringLabel()
     {
-        var now = DateTime.UtcNow;
+        var now = DateTime.UtcNow.AddSeconds(-12);
         var renderer = new PresenceTemplateRenderer();
         var template = new PresenceTemplateOptions { State = "{ActivityLine}" };
         var context = CreateContext(
@@ -409,16 +409,16 @@ public sealed class PresenceTemplateRendererTests
 
         var presence = renderer.Render(template, context);
 
-        Assert.Equal("Refactoring", presence.State);
+        Assert.Equal("Refactoring • 12s", presence.State);
     }
 
     [Fact]
-    public void Render_FreshnessText_BucketsToThreeSecondSteps()
+    public void Render_FreshnessElapsed_BucketsToThreeSecondSteps()
     {
         var renderer = new PresenceTemplateRenderer();
         var template = new PresenceTemplateOptions
         {
-            SmallImageText = "{FreshnessText}",
+            State = "{FreshnessElapsed}",
             FreshnessUpdateIntervalSeconds = 3
         };
         var context = CreateContext(
@@ -429,7 +429,7 @@ public sealed class PresenceTemplateRendererTests
 
         var presence = renderer.Render(template, context);
 
-        Assert.Equal("updated 3s ago", presence.SmallImageText);
+        Assert.Equal("3s", presence.State);
     }
 
     private static PresenceContext CreateContext(
