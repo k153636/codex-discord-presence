@@ -36,7 +36,7 @@ public sealed class PresenceTemplateRendererTests
     }
 
     [Fact]
-    public void Render_ReadyWithinFiveMinutes_UsesHoldOnLabel()
+    public void Render_ReadyWithinFiveMinutes_UsesWorkingLabel()
     {
         var renderer = new PresenceTemplateRenderer();
         var template = new PresenceTemplateOptions { State = "{ActivityLine}" };
@@ -48,7 +48,7 @@ public sealed class PresenceTemplateRendererTests
 
         var presence = renderer.Render(template, context);
 
-        Assert.Equal("Hold on", presence.State);
+        Assert.Equal("Working", presence.State);
     }
 
     [Fact]

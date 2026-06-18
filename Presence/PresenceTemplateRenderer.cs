@@ -143,7 +143,7 @@ public sealed class PresenceTemplateRenderer
 
         if (elapsedSinceLastObserved < idleGrace)
         {
-            return FirstNonEmpty(template.ReadyText, "Standing by");
+            return FirstNonEmpty(template.WorkingText, template.ReadyText, "Working");
         }
 
         return FirstNonEmpty(template.IdlingText, "Idling");

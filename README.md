@@ -62,6 +62,7 @@ The presence engine prefers observable, high-confidence labels first:
 - `Creating files`
 - `Deleting files`
 - `Thinking`
+- `Working`
 - `Hold on`
 - `Idling`
 
@@ -144,6 +145,7 @@ Common settings live in `appsettings.json`:
 - `Presence.ApplyingEditsText`
 - `Presence.RefactoringText`
 - `Presence.ThinkingText`
+- `Presence.WorkingText`
 - `Presence.IdlingText`
 - `Presence.ReadyText`
 - `Presence.ThinkingStaleTimeoutMinutes`
