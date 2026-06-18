@@ -89,6 +89,7 @@ public sealed class PresenceRuntime
 
                 var selectedProfile = SelectProfile(profileStates, activeProjectPath, currentProfile);
                 var selectedProfileState = profileStates[selectedProfile];
+                var selectedProfileProjectPath = ResolveProfileProjectPath(selectedProfileState, activeProjectPath);
 
                 rpc.UpdateOptions(selectedProfileState.DiscordOptions);
 
@@ -98,17 +99,17 @@ public sealed class PresenceRuntime
                     currentProfile = selectedProfile;
                 }
 
-                var projectSnapshot = projectInspector.GetSnapshot(activeProjectPath);
-                var gitSnapshot = gitInspector.GetSnapshot(activeProjectPath);
+                var projectSnapshot = projectInspector.GetSnapshot(selectedProfileProjectPath);
+                var gitSnapshot = gitInspector.GetSnapshot(selectedProfileProjectPath);
                 var codexSnapshot = BuildCodexSnapshot(
-                    activeProjectPath,
+                    selectedProfileProjectPath,
                     projectSnapshot,
                     gitSnapshot,
                     selectedProfileState);
-                var modelSnapshot = UpdateModelSnapshot(activeProjectPath, selectedProfileState);
+                var modelSnapshot = UpdateModelSnapshot(selectedProfileProjectPath, selectedProfileState);
                 var context = BuildPresenceContext(
                     session,
-                    activeProjectPath,
+                    selectedProfileProjectPath,
                     selectedProfileState,
                     modelSnapshot,
                     projectSnapshot,
@@ -175,12 +176,19 @@ public sealed class PresenceRuntime
         string activeProjectPath,
         AppProfileKind currentProfile)
     {
-        var codexProfileSnapshot = profileStates[AppProfileKind.Codex].Detector.GetSnapshot(activeProjectPath);
-        var cliProfileSnapshot = profileStates[AppProfileKind.CodexCli].Detector.GetSnapshot(activeProjectPath);
+        var codexProfileProjectPath = ResolveProfileProjectPath(profileStates[AppProfileKind.Codex], activeProjectPath);
+        var cliProfileProjectPath = ResolveProfileProjectPath(profileStates[AppProfileKind.CodexCli], activeProjectPath);
+        var codexProfileSnapshot = profileStates[AppProfileKind.Codex].Detector.GetSnapshot(codexProfileProjectPath);
+        var cliProfileSnapshot = profileStates[AppProfileKind.CodexCli].Detector.GetSnapshot(cliProfileProjectPath);
         return AppProfileSelectionPolicy.Select(
             currentProfile,
             new AppProfileSelectionCandidate(AppProfileKind.Codex, codexProfileSnapshot, profileStates[AppProfileKind.Codex].DiscordOptions),
             new AppProfileSelectionCandidate(AppProfileKind.CodexCli, cliProfileSnapshot, profileStates[AppProfileKind.CodexCli].DiscordOptions));
+    }
+
+    private static string ResolveProfileProjectPath(ProfileRuntimeState profileState, string activeProjectPath)
+    {
+        return profileState.Detector.GetObservedProjectPath() ?? activeProjectPath;
     }
 
     private static (string ActiveProjectPath, bool Changed) UpdateActiveProjectPath(
