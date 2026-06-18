@@ -67,6 +67,7 @@ The presence engine prefers observable, high-confidence labels first:
 - `Idling`
 
 `Planning` and `Refactoring` are still supported, but they are treated as low-confidence labels and only appear when local evidence is explicit enough.
+`Working` is only emitted when there is explicit `task_started` evidence in the session log, so it stays stronger than the short idle grace labels.
 
 For quiet idle periods, the app shows `Hold on` for the first 5 minutes, then switches to `Idling`.
 

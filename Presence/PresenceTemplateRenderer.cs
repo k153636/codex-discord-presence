@@ -126,7 +126,9 @@ public sealed class PresenceTemplateRenderer
             CodexActivityKind.DeletingFiles => FirstNonEmpty(template.DeletingFilesText, "Deleting files"),
             CodexActivityKind.RunningCommand => FirstNonEmpty(template.RunningCommandText, "Running command"),
             CodexActivityKind.Refactoring => FirstNonEmpty(template.RefactoringText, "Refactoring"),
-            CodexActivityKind.AnalyzingProject => FirstNonEmpty(template.AnalyzingProjectText, template.AnalyzingText, template.ThinkingText, "Analyzing project"),
+            CodexActivityKind.AnalyzingProject => context.Codex.LastTaskStartedAt.HasValue
+                ? FirstNonEmpty(template.WorkingText, template.AnalyzingProjectText, template.AnalyzingText, template.ThinkingText, "Analyzing project")
+                : FirstNonEmpty(template.AnalyzingProjectText, template.AnalyzingText, template.ThinkingText, "Analyzing project"),
             CodexActivityKind.Ready => ResolveReadyLabel(template, context),
             CodexActivityKind.Offline => FirstNonEmpty(template.OfflineText, template.IdlingText, "Idling"),
             _ => FirstNonEmpty(template.IdlingText, template.ReadyText, "Idling")
@@ -143,7 +145,7 @@ public sealed class PresenceTemplateRenderer
 
         if (elapsedSinceLastObserved < idleGrace)
         {
-            return FirstNonEmpty(template.WorkingText, template.ReadyText, "Working");
+            return FirstNonEmpty(template.ReadyText, "Standing by");
         }
 
         return FirstNonEmpty(template.IdlingText, "Idling");

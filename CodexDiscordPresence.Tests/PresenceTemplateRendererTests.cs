@@ -36,7 +36,7 @@ public sealed class PresenceTemplateRendererTests
     }
 
     [Fact]
-    public void Render_ReadyWithinFiveMinutes_UsesWorkingLabel()
+    public void Render_ReadyWithinFiveMinutes_UsesHoldOnLabel()
     {
         var renderer = new PresenceTemplateRenderer();
         var template = new PresenceTemplateOptions { State = "{ActivityLine}" };
@@ -45,6 +45,25 @@ public sealed class PresenceTemplateRendererTests
             new ProjectSnapshot("Nexstrap", @"E:\tool\Nexstrap", null, null, 128, 128, 42000, []),
             new GitSnapshot(true, 0, null),
             sessionAge: TimeSpan.FromMinutes(4));
+
+        var presence = renderer.Render(template, context);
+
+        Assert.Equal("Hold on", presence.State);
+    }
+
+    [Fact]
+    public void Render_AnalyzingProjectWithTaskStart_UsesWorkingLabel()
+    {
+        var renderer = new PresenceTemplateRenderer();
+        var template = new PresenceTemplateOptions { State = "{ActivityLine}" };
+        var now = DateTime.UtcNow;
+        var context = CreateContext(
+            new CodexProcessSnapshot(true, "codex", true)
+            {
+                LastTaskStartedAt = now
+            },
+            new ProjectSnapshot("Nexstrap", @"E:\tool\Nexstrap", null, null, 128, 128, 42000, []),
+            new GitSnapshot(true, 1, null));
 
         var presence = renderer.Render(template, context);
 
@@ -560,16 +579,27 @@ public sealed class PresenceTemplateRendererTests
         GitSnapshot git,
         TimeSpan? sessionAge = null,
         DateTime? lastObservedAt = null,
+        DateTime? lastTaskStartedAt = null,
         IReadOnlyList<RecentProjectFileSnapshot>? recentEditedFiles = null)
     {
         var startedAt = DateTime.UtcNow - (sessionAge ?? TimeSpan.FromMinutes(5));
+        var snapshot = codex with
+        {
+            RecentEditedFiles = recentEditedFiles ?? Array.Empty<RecentProjectFileSnapshot>(),
+            LastObservedAt = lastObservedAt
+        };
+
+        if (lastTaskStartedAt.HasValue)
+        {
+            snapshot = snapshot with
+            {
+                LastTaskStartedAt = lastTaskStartedAt
+            };
+        }
+
         return new PresenceContext(
             "gpt-5-codex",
-            codex with
-            {
-                RecentEditedFiles = recentEditedFiles ?? Array.Empty<RecentProjectFileSnapshot>(),
-                LastObservedAt = lastObservedAt
-            },
+            snapshot,
             project,
             git,
             new SessionSnapshot(startedAt, DateTime.UtcNow - startedAt),
