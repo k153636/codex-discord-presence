@@ -774,6 +774,64 @@ public class CodexStateTests
     }
 
     [Fact]
+    public void Test_12c_GitCommandWithoutArguments_ReturnsRunningCommandWithGitKind()
+    {
+        var tempPath = CreateTempSessionDirectory();
+        try
+        {
+            var now = DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ss.fffZ");
+            WriteMockSessionLog(tempPath, "session1.jsonl", new[]
+            {
+                $"{{\"timestamp\":\"{now}\",\"type\":\"event_msg\",\"payload\":{{\"type\":\"task_started\",\"turn_id\":\"123\"}}}}",
+                $"{{\"timestamp\":\"{now}\",\"type\":\"response_item\",\"payload\":{{\"type\":\"function_call\",\"name\":\"shell_command\",\"arguments\":\"{{\\\"command\\\":\\\"git\\\"}}\",\"call_id\":\"call_123\"}}}}"
+            });
+
+            var detector = new CodexProcessDetector(new CodexDetectionOptions { HomePath = tempPath }, new PresenceTemplateOptions());
+
+            var snapshot = detector.GetSnapshot();
+
+            Assert.True(snapshot.IsRunning);
+            Assert.Equal(CodexActivityKind.RunningCommand, snapshot.ActivityKind);
+            Assert.Equal(RunningCommandKind.Git, snapshot.RunningCommandKind);
+            Assert.Equal("git", snapshot.RunningCommandName);
+            Assert.True(snapshot.LastShellCommandWasInvestigative);
+        }
+        finally
+        {
+            Directory.Delete(tempPath, true);
+        }
+    }
+
+    [Fact]
+    public void Test_12c_StartSleepCommandIsIgnored()
+    {
+        var tempPath = CreateTempSessionDirectory();
+        try
+        {
+            var now = DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ss.fffZ");
+            WriteMockSessionLog(tempPath, "session1.jsonl", new[]
+            {
+                $"{{\"timestamp\":\"{now}\",\"type\":\"event_msg\",\"payload\":{{\"type\":\"task_started\",\"turn_id\":\"123\"}}}}",
+                $"{{\"timestamp\":\"{now}\",\"type\":\"response_item\",\"payload\":{{\"type\":\"function_call\",\"name\":\"shell_command\",\"arguments\":\"{{\\\"command\\\":\\\"Start-Sleep 5\\\"}}\",\"call_id\":\"call_123\"}}}}"
+            });
+
+            var detector = new CodexProcessDetector(new CodexDetectionOptions { HomePath = tempPath }, new PresenceTemplateOptions());
+
+            var snapshot = detector.GetSnapshot();
+
+            Assert.True(snapshot.IsRunning);
+            Assert.NotEqual(CodexActivityKind.RunningCommand, snapshot.ActivityKind);
+            Assert.Equal(RunningCommandKind.Unknown, snapshot.RunningCommandKind);
+            Assert.Equal("", snapshot.RunningCommandName);
+            Assert.False(snapshot.LastShellCommandWasInvestigative);
+        }
+        finally
+        {
+            Directory.Delete(tempPath, true);
+        }
+    }
+
+    [Fact]
     public void Test_12d_SearchCommandInSession_ReturnsRunningCommandWithSearchKind()
     {
         var tempPath = CreateTempSessionDirectory();
@@ -794,6 +852,35 @@ public class CodexStateTests
             Assert.Equal(CodexActivityKind.RunningCommand, snapshot.ActivityKind);
             Assert.Equal(RunningCommandKind.Search, snapshot.RunningCommandKind);
             Assert.Equal("rg", snapshot.RunningCommandName);
+            Assert.True(snapshot.LastShellCommandWasInvestigative);
+        }
+        finally
+        {
+            Directory.Delete(tempPath, true);
+        }
+    }
+
+    [Fact]
+    public void Test_12e_QuotedPathCommandInSession_ReturnsFileNameOnly()
+    {
+        var tempPath = CreateTempSessionDirectory();
+        try
+        {
+            var now = DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ss.fffZ");
+            WriteMockSessionLog(tempPath, "session1.jsonl", new[]
+            {
+                $"{{\"timestamp\":\"{now}\",\"type\":\"event_msg\",\"payload\":{{\"type\":\"task_started\",\"turn_id\":\"123\"}}}}",
+                $"{{\"timestamp\":\"{now}\",\"type\":\"response_item\",\"payload\":{{\"type\":\"function_call\",\"name\":\"shell_command\",\"arguments\":\"{{\\\"command\\\":\\\"& \\\\\\\"C:\\\\\\\\Program Files\\\\\\\\Git\\\\\\\\bin\\\\\\\\git.exe\\\\\\\" diff --stat\\\"}}\",\"call_id\":\"call_123\"}}}}"
+            });
+
+            var detector = new CodexProcessDetector(new CodexDetectionOptions { HomePath = tempPath }, new PresenceTemplateOptions());
+
+            var snapshot = detector.GetSnapshot();
+
+            Assert.True(snapshot.IsRunning);
+            Assert.Equal(CodexActivityKind.RunningCommand, snapshot.ActivityKind);
+            Assert.Equal(RunningCommandKind.Git, snapshot.RunningCommandKind);
+            Assert.Equal("git", snapshot.RunningCommandName);
             Assert.True(snapshot.LastShellCommandWasInvestigative);
         }
         finally

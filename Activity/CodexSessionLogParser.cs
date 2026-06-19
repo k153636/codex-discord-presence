@@ -180,8 +180,15 @@ internal sealed class CodexSessionLogParser
                     pendingShellCommands.Add(callId);
                     if (TryGetShellCommandText(payload, out var commandText))
                     {
+                        if (IsPassiveShellCommand(commandText))
+                        {
+                            pendingShellCommands.Remove(callId);
+                            continue;
+                        }
+
                         var commandKind = ClassifyShellCommand(commandText);
                         var commandName = ExtractCommandName(commandText);
+                        var displayCommandName = commandName ?? DescribeRunningCommandKind(commandKind);
                         var isInvestigative = commandKind is RunningCommandKind.Git or RunningCommandKind.Search;
                         if (!lastShellCommandAt.HasValue || timestamp >= lastShellCommandAt)
                         {
@@ -191,7 +198,7 @@ internal sealed class CodexSessionLogParser
                             lastRunningCommandName = commandName;
                             runningCommandReason = commandKind is null
                                 ? "pending shell_command function call in session log"
-                                : $"shell_command looks like {commandName}";
+                                : $"shell_command looks like {displayCommandName}";
                         }
                     }
                 }
@@ -245,6 +252,17 @@ internal sealed class CodexSessionLogParser
 
     private static string? ExtractCommandName(string commandText)
     {
+        var token = ExtractFirstCommandToken(commandText);
+        if (token is null)
+        {
+            return null;
+        }
+
+        return SanitizeCommandName(token);
+    }
+
+    private static string? ExtractFirstCommandToken(string commandText)
+    {
         var normalized = commandText.Trim();
         if (normalized.Length == 0)
         {
@@ -261,18 +279,75 @@ internal sealed class CodexSessionLogParser
             return null;
         }
 
+        if (normalized[0] is '"' or '\'')
+        {
+            var quote = normalized[0];
+            var endQuote = normalized.IndexOf(quote, 1);
+            if (endQuote < 0)
+            {
+                return normalized[1..].Trim();
+            }
+
+            return normalized[1..endQuote].Trim();
+        }
+
         var separatorIndex = normalized.IndexOfAny([' ', '\t', '|', ';']);
         var commandName = separatorIndex < 0 ? normalized : normalized[..separatorIndex];
-        commandName = commandName.Trim().Trim('"', '\'');
+        commandName = commandName.Trim();
         return commandName.Length == 0 ? null : commandName;
+    }
+
+    private static string? SanitizeCommandName(string commandName)
+    {
+        var normalized = commandName.Trim().Trim('"', '\'');
+        if (normalized.Length == 0)
+        {
+            return null;
+        }
+
+        if (LooksLikePath(normalized))
+        {
+            var fileName = Path.GetFileNameWithoutExtension(normalized);
+            if (!string.IsNullOrWhiteSpace(fileName))
+            {
+                return fileName;
+            }
+        }
+
+        return normalized;
+    }
+
+    private static bool LooksLikePath(string commandName)
+    {
+        return commandName.Contains('\\') ||
+            commandName.Contains('/') ||
+            (commandName.Length >= 2 && commandName[1] == ':');
+    }
+
+    private static string DescribeRunningCommandKind(RunningCommandKind? commandKind)
+    {
+        return commandKind switch
+        {
+            RunningCommandKind.Git => "git",
+            RunningCommandKind.Search => "search",
+            RunningCommandKind.Build => "build",
+            RunningCommandKind.Test => "test",
+            _ => "running command"
+        };
     }
 
     private static RunningCommandKind? ClassifyShellCommand(string commandText)
     {
-        var normalized = commandText.Trim();
+        var normalized = NormalizeCommandTextForClassification(commandText);
         if (normalized.Length == 0)
         {
             return null;
+        }
+
+        var commandName = ExtractCommandName(commandText);
+        if (string.Equals(commandName, "git", StringComparison.OrdinalIgnoreCase))
+        {
+            return RunningCommandKind.Git;
         }
 
         if (ContainsAny(normalized, GitShellCommandMarkers))
@@ -332,6 +407,92 @@ internal sealed class CodexSessionLogParser
 
         return false;
     }
+
+    private static bool IsPassiveShellCommand(string commandText)
+    {
+        var commandName = ExtractCommandName(commandText);
+        return string.Equals(commandName, "Start-Sleep", StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(commandName, "Sleep", StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(commandName, "timeout", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static string NormalizeCommandTextForClassification(string commandText)
+    {
+        var split = SplitCommandText(commandText);
+        if (split is null)
+        {
+            return commandText.Trim();
+        }
+
+        if (string.IsNullOrWhiteSpace(split.Value.Remainder))
+        {
+            return split.Value.CommandName;
+        }
+
+        return $"{split.Value.CommandName} {split.Value.Remainder}";
+    }
+
+    private static CommandTextParts? SplitCommandText(string commandText)
+    {
+        var normalized = commandText.TrimStart();
+        if (normalized.Length == 0)
+        {
+            return null;
+        }
+
+        while (normalized.StartsWith('&'))
+        {
+            normalized = normalized[1..].TrimStart();
+        }
+
+        if (normalized.Length == 0)
+        {
+            return null;
+        }
+
+        string token;
+        string remainder;
+
+        if (normalized[0] is '"' or '\'')
+        {
+            var quote = normalized[0];
+            var endQuote = normalized.IndexOf(quote, 1);
+            if (endQuote < 0)
+            {
+                token = normalized[1..];
+                remainder = "";
+            }
+            else
+            {
+                token = normalized[1..endQuote];
+                remainder = normalized[(endQuote + 1)..];
+            }
+        }
+        else
+        {
+            var separatorIndex = normalized.IndexOfAny([' ', '\t', '|', ';']);
+            if (separatorIndex < 0)
+            {
+                token = normalized;
+                remainder = "";
+            }
+            else
+            {
+                token = normalized[..separatorIndex];
+                remainder = normalized[separatorIndex..];
+            }
+        }
+
+        token = token.Trim();
+        if (token.Length == 0)
+        {
+            return null;
+        }
+
+        return new CommandTextParts(SanitizeCommandName(token) ?? token, remainder.TrimStart());
+    }
+
+    private readonly record struct CommandTextParts(string CommandName, string Remainder);
 
     private static bool ContainsAny(string value, IEnumerable<string> needles)
     {
