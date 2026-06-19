@@ -39,9 +39,10 @@ internal sealed class CodexActivityResolver
 
         if (hasFreshSession && (sessionInspection?.HasRunningCommand == true || hasRecentShellCommandActivity))
         {
+            var runningCommandReason = sessionInspection?.RunningCommandReason;
             provenance = ActivityProvenance.Observed;
             confidence = ActivityConfidence.High;
-            reason = sessionInspection.RunningCommandReason ?? "pending shell_command function call in session log";
+            reason = runningCommandReason ?? "pending shell_command function call in session log";
             return CodexActivityKind.RunningCommand;
         }
 
