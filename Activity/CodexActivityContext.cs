@@ -7,4 +7,7 @@ internal sealed record CodexActivityContext(
     GitSnapshot? GitSnapshot,
     CodexActivityKind? PreviousActivityKind,
     int ThinkingStaleTimeoutMinutes,
-    int EditingFreshnessSeconds);
+    int EditingFreshnessSeconds)
+{
+    public int RunningCommandHoldSeconds { get; init; } = 2;
+}

@@ -57,6 +57,11 @@ The app can also check GitHub Releases once at startup and only logs when a newe
 The presence engine prefers observable, high-confidence labels first:
 
 - `Running command`
+- `Reviewing diff`
+- `Searching context`
+- `Testing`
+- `Building`
+- `Debugging`
 - `Coordinating changes across {n} files`
 - `Applying edits`
 - `Creating files`
@@ -68,6 +73,7 @@ The presence engine prefers observable, high-confidence labels first:
 
 `Planning` and `Refactoring` are still supported, but they are treated as low-confidence labels and only appear when local evidence is explicit enough.
 `Working` is only emitted when there is explicit `task_started` evidence in the session log, so it stays stronger than the short idle grace labels.
+`Investigating` remains the fallback for ambiguous exploration. More specific shell-command evidence now splits out into `Reviewing diff`, `Searching context`, `Testing`, `Building`, and `Debugging` before falling back to the generic analysis label.
 
 For quiet idle periods, the app shows `Waiting` for the first 5 minutes, then switches to `Idling`.
 
@@ -142,6 +148,11 @@ Common settings live in `appsettings.json`:
 - `Presence.CreatingFilesText`
 - `Presence.DeletingFilesText`
 - `Presence.RunningCommandText`
+- `Presence.ReviewingDiffText`
+- `Presence.SearchingContextText`
+- `Presence.BuildingText`
+- `Presence.TestingText`
+- `Presence.DebuggingText`
 - `Presence.PlanningText`
 - `Presence.ApplyingEditsText`
 - `Presence.RefactoringText`

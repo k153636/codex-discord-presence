@@ -689,7 +689,7 @@ public class CodexStateTests
     }
 
     [Fact]
-    public void Test_12b_InvestigativeShellCommand_ReturnsInvestigatingLabel()
+    public void Test_12a_TestCommandInSession_ReturnsTesting()
     {
         var tempPath = CreateTempSessionDirectory();
         try
@@ -698,8 +698,116 @@ public class CodexStateTests
             WriteMockSessionLog(tempPath, "session1.jsonl", new[]
             {
                 $"{{\"timestamp\":\"{now}\",\"type\":\"event_msg\",\"payload\":{{\"type\":\"task_started\",\"turn_id\":\"123\"}}}}",
-                $"{{\"timestamp\":\"{now}\",\"type\":\"response_item\",\"payload\":{{\"type\":\"function_call\",\"name\":\"shell_command\",\"arguments\":\"{{\\\"command\\\":\\\"Get-Content README.md\\\"}}\",\"call_id\":\"call_123\"}}}}",
-                $"{{\"timestamp\":\"{now}\",\"type\":\"response_item\",\"payload\":{{\"type\":\"function_call_output\",\"call_id\":\"call_123\"}}}}"
+                $"{{\"timestamp\":\"{now}\",\"type\":\"response_item\",\"payload\":{{\"type\":\"function_call\",\"name\":\"shell_command\",\"arguments\":\"{{\\\"command\\\":\\\"dotnet test\\\"}}\",\"call_id\":\"call_123\"}}}}"
+            });
+
+            var detector = new CodexProcessDetector(new CodexDetectionOptions { HomePath = tempPath }, new PresenceTemplateOptions());
+
+            var snapshot = detector.GetSnapshot();
+
+            Assert.True(snapshot.IsRunning);
+            Assert.Equal(CodexActivityKind.Testing, snapshot.ActivityKind);
+        }
+        finally
+        {
+            Directory.Delete(tempPath, true);
+        }
+    }
+
+    [Fact]
+    public void Test_12b_BuildCommandInSession_ReturnsBuilding()
+    {
+        var tempPath = CreateTempSessionDirectory();
+        try
+        {
+            var now = DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ss.fffZ");
+            WriteMockSessionLog(tempPath, "session1.jsonl", new[]
+            {
+                $"{{\"timestamp\":\"{now}\",\"type\":\"event_msg\",\"payload\":{{\"type\":\"task_started\",\"turn_id\":\"123\"}}}}",
+                $"{{\"timestamp\":\"{now}\",\"type\":\"response_item\",\"payload\":{{\"type\":\"function_call\",\"name\":\"shell_command\",\"arguments\":\"{{\\\"command\\\":\\\"dotnet build\\\"}}\",\"call_id\":\"call_123\"}}}}"
+            });
+
+            var detector = new CodexProcessDetector(new CodexDetectionOptions { HomePath = tempPath }, new PresenceTemplateOptions());
+
+            var snapshot = detector.GetSnapshot();
+
+            Assert.True(snapshot.IsRunning);
+            Assert.Equal(CodexActivityKind.Building, snapshot.ActivityKind);
+        }
+        finally
+        {
+            Directory.Delete(tempPath, true);
+        }
+    }
+
+    [Fact]
+    public void Test_12c_DiffCommandInSession_ReturnsReviewingDiff()
+    {
+        var tempPath = CreateTempSessionDirectory();
+        try
+        {
+            var now = DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ss.fffZ");
+            WriteMockSessionLog(tempPath, "session1.jsonl", new[]
+            {
+                $"{{\"timestamp\":\"{now}\",\"type\":\"event_msg\",\"payload\":{{\"type\":\"task_started\",\"turn_id\":\"123\"}}}}",
+                $"{{\"timestamp\":\"{now}\",\"type\":\"response_item\",\"payload\":{{\"type\":\"function_call\",\"name\":\"shell_command\",\"arguments\":\"{{\\\"command\\\":\\\"git diff --stat\\\"}}\",\"call_id\":\"call_123\"}}}}"
+            });
+
+            var detector = new CodexProcessDetector(new CodexDetectionOptions { HomePath = tempPath }, new PresenceTemplateOptions());
+
+            var snapshot = detector.GetSnapshot();
+
+            Assert.True(snapshot.IsRunning);
+            Assert.Equal(CodexActivityKind.ReviewingDiff, snapshot.ActivityKind);
+            Assert.True(snapshot.LastShellCommandWasInvestigative);
+        }
+        finally
+        {
+            Directory.Delete(tempPath, true);
+        }
+    }
+
+    [Fact]
+    public void Test_12d_SearchCommandInSession_ReturnsSearchingContext()
+    {
+        var tempPath = CreateTempSessionDirectory();
+        try
+        {
+            var now = DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ss.fffZ");
+            WriteMockSessionLog(tempPath, "session1.jsonl", new[]
+            {
+                $"{{\"timestamp\":\"{now}\",\"type\":\"event_msg\",\"payload\":{{\"type\":\"task_started\",\"turn_id\":\"123\"}}}}",
+                $"{{\"timestamp\":\"{now}\",\"type\":\"response_item\",\"payload\":{{\"type\":\"function_call\",\"name\":\"shell_command\",\"arguments\":\"{{\\\"command\\\":\\\"rg TODO\\\"}}\",\"call_id\":\"call_123\"}}}}"
+            });
+
+            var detector = new CodexProcessDetector(new CodexDetectionOptions { HomePath = tempPath }, new PresenceTemplateOptions());
+
+            var snapshot = detector.GetSnapshot();
+
+            Assert.True(snapshot.IsRunning);
+            Assert.Equal(CodexActivityKind.SearchingContext, snapshot.ActivityKind);
+            Assert.True(snapshot.LastShellCommandWasInvestigative);
+        }
+        finally
+        {
+            Directory.Delete(tempPath, true);
+        }
+    }
+
+    [Fact]
+    public void Test_12b_InvestigativeShellCommand_ReturnsInvestigatingLabel()
+    {
+        var tempPath = CreateTempSessionDirectory();
+        try
+        {
+            var now = DateTime.UtcNow;
+            var taskStartedAt = now.ToString("yyyy-MM-ddTHH:mm:ss.fffZ");
+            var commandAt = now.AddSeconds(-5).ToString("yyyy-MM-ddTHH:mm:ss.fffZ");
+            WriteMockSessionLog(tempPath, "session1.jsonl", new[]
+            {
+                $"{{\"timestamp\":\"{taskStartedAt}\",\"type\":\"event_msg\",\"payload\":{{\"type\":\"task_started\",\"turn_id\":\"123\"}}}}",
+                $"{{\"timestamp\":\"{commandAt}\",\"type\":\"response_item\",\"payload\":{{\"type\":\"function_call\",\"name\":\"shell_command\",\"arguments\":\"{{\\\"command\\\":\\\"Get-Content README.md\\\"}}\",\"call_id\":\"call_123\"}}}}",
+                $"{{\"timestamp\":\"{commandAt}\",\"type\":\"response_item\",\"payload\":{{\"type\":\"function_call_output\",\"call_id\":\"call_123\"}}}}"
             });
 
             var detector = new CodexProcessDetector(new CodexDetectionOptions { HomePath = tempPath }, new PresenceTemplateOptions());

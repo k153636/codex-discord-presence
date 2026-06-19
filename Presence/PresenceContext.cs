@@ -30,8 +30,22 @@ public enum CodexActivityKind
     CreatingFiles = 5,
     DeletingFiles = 6,
     RunningCommand = 7,
-    Planning = 8,
-    Refactoring = 9
+    ReviewingDiff = 8,
+    SearchingContext = 9,
+    Building = 10,
+    Testing = 11,
+    Debugging = 12,
+    Planning = 13,
+    Refactoring = 14
+}
+
+internal enum ShellCommandActivityKind
+{
+    ReviewingDiff = 0,
+    SearchingContext = 1,
+    Building = 2,
+    Testing = 3,
+    Debugging = 4
 }
 
 public enum ActivityConfidence

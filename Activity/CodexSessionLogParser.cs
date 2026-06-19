@@ -94,6 +94,7 @@ internal sealed class CodexSessionLogParser
         DateTime? lastTaskCompletedAt = null;
         DateTime? lastObservedAt = null;
         DateTime? lastShellCommandAt = null;
+        ShellCommandActivityKind? lastShellCommandActivityKind = null;
         bool lastShellCommandWasInvestigative = false;
         string? collaborationMode = null;
         var pendingShellCommands = new HashSet<string>(StringComparer.Ordinal);
@@ -178,11 +179,16 @@ internal sealed class CodexSessionLogParser
                     pendingShellCommands.Add(callId);
                     if (TryGetShellCommandText(payload, out var commandText))
                     {
-                        var isInvestigative = IsInvestigativeShellCommand(commandText);
+                        var commandKind = ClassifyShellCommand(commandText);
+                        var isInvestigative = commandKind is ShellCommandActivityKind.ReviewingDiff or ShellCommandActivityKind.SearchingContext;
                         if (!lastShellCommandAt.HasValue || timestamp >= lastShellCommandAt)
                         {
                             lastShellCommandAt = timestamp;
                             lastShellCommandWasInvestigative = isInvestigative;
+                            lastShellCommandActivityKind = commandKind;
+                            runningCommandReason = commandKind is null
+                                ? "pending shell_command function call in session log"
+                                : $"shell_command looks like {DescribeShellCommandKind(commandKind.Value)}";
                         }
                     }
                 }
@@ -228,24 +234,58 @@ internal sealed class CodexSessionLogParser
         {
             ProjectPath = latestProjectPath,
             LastShellCommandAt = lastShellCommandAt,
+            LastShellCommandActivityKind = lastShellCommandActivityKind,
             LastShellCommandWasInvestigative = lastShellCommandWasInvestigative
         };
     }
 
-    private static bool IsInvestigativeShellCommand(string commandText)
+    private static ShellCommandActivityKind? ClassifyShellCommand(string commandText)
     {
         var normalized = commandText.Trim();
         if (normalized.Length == 0)
         {
-            return false;
+            return null;
         }
 
-        if (ContainsAny(normalized, MutatingShellCommandMarkers))
+        if (ContainsAny(normalized, TestingShellCommandMarkers))
         {
-            return false;
+            return ShellCommandActivityKind.Testing;
         }
 
-        return ContainsAny(normalized, InvestigativeShellCommandMarkers);
+        if (ContainsAny(normalized, BuildingShellCommandMarkers))
+        {
+            return ShellCommandActivityKind.Building;
+        }
+
+        if (ContainsAny(normalized, ReviewingDiffShellCommandMarkers))
+        {
+            return ShellCommandActivityKind.ReviewingDiff;
+        }
+
+        if (ContainsAny(normalized, SearchingContextShellCommandMarkers))
+        {
+            return ShellCommandActivityKind.SearchingContext;
+        }
+
+        if (ContainsAny(normalized, DebuggingShellCommandMarkers))
+        {
+            return ShellCommandActivityKind.Debugging;
+        }
+
+        return null;
+    }
+
+    private static string DescribeShellCommandKind(ShellCommandActivityKind kind)
+    {
+        return kind switch
+        {
+            ShellCommandActivityKind.ReviewingDiff => "reviewing diff",
+            ShellCommandActivityKind.SearchingContext => "searching context",
+            ShellCommandActivityKind.Building => "building",
+            ShellCommandActivityKind.Testing => "testing",
+            ShellCommandActivityKind.Debugging => "debugging",
+            _ => "running command"
+        };
     }
 
     private static bool TryGetShellCommandText(JsonElement payload, out string commandText)
@@ -288,16 +328,24 @@ internal sealed class CodexSessionLogParser
         return needles.Any(needle => value.Contains(needle, StringComparison.OrdinalIgnoreCase));
     }
 
-    private static readonly string[] InvestigativeShellCommandMarkers =
+    private static readonly string[] ReviewingDiffShellCommandMarkers =
+    [
+        "git status",
+        "git diff",
+        "git show",
+        "git log",
+        "git blame",
+        "git stash show"
+    ];
+
+    private static readonly string[] SearchingContextShellCommandMarkers =
     [
         "Get-Content",
         "Get-ChildItem",
+        "Select-String",
         "rg ",
         "rg(",
-        "git status",
-        "git diff",
-        "git log",
-        "Select-String",
+        "ripgrep",
         "cat ",
         " type ",
         "type ",
@@ -306,26 +354,67 @@ internal sealed class CodexSessionLogParser
         "find ",
         "dir ",
         "ls ",
-        "Get-Process"
+        "Get-Process",
+        "grep ",
+        "ack "
     ];
 
-    private static readonly string[] MutatingShellCommandMarkers =
+    private static readonly string[] BuildingShellCommandMarkers =
     [
-        "git add",
-        "git commit",
-        "git push",
-        "git reset",
-        "git checkout",
-        "Remove-Item",
-        "Move-Item",
-        "Copy-Item",
-        "Set-Content",
-        "Add-Content",
-        "Out-File",
-        "New-Item",
-        "Rename-Item",
-        "Invoke-WebRequest",
-        "Start-Process"
+        "dotnet build",
+        "dotnet publish",
+        "npm run build",
+        "pnpm run build",
+        "yarn build",
+        "bun run build",
+        "cargo build",
+        "go build",
+        "cmake --build",
+        "mvn package",
+        "gradle build",
+        "webpack",
+        "vite build",
+        "tsc",
+        "make "
+    ];
+
+    private static readonly string[] TestingShellCommandMarkers =
+    [
+        "dotnet test",
+        "npm test",
+        "npm run test",
+        "pnpm test",
+        "pnpm run test",
+        "yarn test",
+        "yarn run test",
+        "bun test",
+        "go test",
+        "cargo test",
+        "pytest",
+        "mvn test",
+        "gradle test",
+        "make test",
+        "make check",
+        "jest",
+        "vitest",
+        "playwright test",
+        "npx playwright test"
+    ];
+
+    private static readonly string[] DebuggingShellCommandMarkers =
+    [
+        "lldb",
+        "gdb",
+        "windbg",
+        "cdb",
+        "--inspect",
+        "--inspect-brk",
+        "debugpy",
+        "pdb.set_trace",
+        "breakpoint()",
+        "python -m pdb",
+        "Write-Debug",
+        "Get-Error"
     ];
 
     private static string? TryGetCollaborationMode(JsonElement payload)

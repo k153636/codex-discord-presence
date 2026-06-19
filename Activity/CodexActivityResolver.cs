@@ -23,6 +23,10 @@ internal sealed class CodexActivityResolver
         var deletedFileCount = gitSnapshot?.DeletedFileCount ?? 0;
         var hasFreshSession = sessionInspection is not null &&
             sessionInspection.HasRecentActivity(context.ThinkingStaleTimeoutMinutes);
+        var hasRecentShellCommandActivity = sessionInspection is not null &&
+            sessionInspection.LastShellCommandActivityKind.HasValue &&
+            sessionInspection.LastShellCommandAt.HasValue &&
+            DateTime.UtcNow - sessionInspection.LastShellCommandAt.Value <= TimeSpan.FromSeconds(Math.Max(0, context.RunningCommandHoldSeconds));
         var hasFreshRecentEdits = CodexActivityEvidence.HasFreshRecentEdits(recentEditedFiles, context.EditingFreshnessSeconds);
         var hasBurstRecentEdits = CodexActivityEvidence.HasBurstRecentEdits(recentEditedFiles, changedFileCount);
         var hasRefactorEvidence = CodexActivityEvidence.HasRefactorEvidence(gitSnapshot);
@@ -33,8 +37,18 @@ internal sealed class CodexActivityResolver
             createdFileCount == 0 &&
             changedFileCount == deletedFileCount;
 
-        if (sessionInspection?.HasRunningCommand == true && hasFreshSession)
+        if (hasFreshSession && (sessionInspection?.HasRunningCommand == true || hasRecentShellCommandActivity))
         {
+            if (TryResolveShellCommandActivity(sessionInspection, out var shellCommandActivityKind))
+            {
+                provenance = ActivityProvenance.Observed;
+                confidence = shellCommandActivityKind == CodexActivityKind.Debugging
+                    ? ActivityConfidence.Low
+                    : ActivityConfidence.High;
+                reason = sessionInspection.RunningCommandReason ?? $"shell_command classified as {shellCommandActivityKind.Value}";
+                return shellCommandActivityKind.Value;
+            }
+
             provenance = ActivityProvenance.Observed;
             confidence = ActivityConfidence.High;
             reason = sessionInspection.RunningCommandReason ?? "pending shell_command function call in session log";
@@ -154,5 +168,22 @@ internal sealed class CodexActivityResolver
         }
 
         return max;
+    }
+
+    private static bool TryResolveShellCommandActivity(
+        SessionInspection sessionInspection,
+        out CodexActivityKind? activityKind)
+    {
+        activityKind = sessionInspection.LastShellCommandActivityKind switch
+        {
+            ShellCommandActivityKind.ReviewingDiff => CodexActivityKind.ReviewingDiff,
+            ShellCommandActivityKind.SearchingContext => CodexActivityKind.SearchingContext,
+            ShellCommandActivityKind.Building => CodexActivityKind.Building,
+            ShellCommandActivityKind.Testing => CodexActivityKind.Testing,
+            ShellCommandActivityKind.Debugging => CodexActivityKind.Debugging,
+            _ => null
+        };
+
+        return activityKind.HasValue;
     }
 }

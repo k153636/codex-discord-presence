@@ -75,6 +75,7 @@ public sealed class CodexProcessDetector
             previousActivityKind,
             _presenceOptions.ThinkingStaleTimeoutMinutes,
             _presenceOptions.EditingFreshnessSeconds);
+        context = context with { RunningCommandHoldSeconds = _presenceOptions.RunningCommandHoldSeconds };
 
         var activity = _activityResolver.Resolve(
             context,

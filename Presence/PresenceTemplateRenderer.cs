@@ -202,6 +202,11 @@ public sealed class PresenceTemplateRenderer
             or CodexActivityKind.CoordinatingChanges
             or CodexActivityKind.CreatingFiles
             or CodexActivityKind.DeletingFiles
+            or CodexActivityKind.ReviewingDiff
+            or CodexActivityKind.SearchingContext
+            or CodexActivityKind.Building
+            or CodexActivityKind.Testing
+            or CodexActivityKind.Debugging
             or CodexActivityKind.RunningCommand
             or CodexActivityKind.Refactoring;
     }

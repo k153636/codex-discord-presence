@@ -18,6 +18,11 @@ public sealed class PresenceStatusLabelResolver
             CodexActivityKind.CreatingFiles => FirstNonEmpty(template.CreatingFilesText, "Creating files"),
             CodexActivityKind.DeletingFiles => FirstNonEmpty(template.DeletingFilesText, "Deleting files"),
             CodexActivityKind.RunningCommand => FirstNonEmpty(template.RunningCommandText, "Running command"),
+            CodexActivityKind.ReviewingDiff => FirstNonEmpty(template.ReviewingDiffText, "Reviewing diff"),
+            CodexActivityKind.SearchingContext => FirstNonEmpty(template.SearchingContextText, "Searching context"),
+            CodexActivityKind.Building => FirstNonEmpty(template.BuildingText, "Building"),
+            CodexActivityKind.Testing => FirstNonEmpty(template.TestingText, "Testing"),
+            CodexActivityKind.Debugging => FirstNonEmpty(template.DebuggingText, "Debugging"),
             CodexActivityKind.Refactoring => FirstNonEmpty(template.RefactoringText, "Refactoring"),
             CodexActivityKind.AnalyzingProject => ShouldUseWorkingLabel(context)
                 ? FirstNonEmpty(template.WorkingText, template.InvestigatingText, template.AnalyzingProjectText, template.AnalyzingText, template.ThinkingText, "Analyzing project")
