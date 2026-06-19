@@ -689,6 +689,34 @@ public class CodexStateTests
     }
 
     [Fact]
+    public void Test_12b_InvestigativeShellCommand_ReturnsInvestigatingLabel()
+    {
+        var tempPath = CreateTempSessionDirectory();
+        try
+        {
+            var now = DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ss.fffZ");
+            WriteMockSessionLog(tempPath, "session1.jsonl", new[]
+            {
+                $"{{\"timestamp\":\"{now}\",\"type\":\"event_msg\",\"payload\":{{\"type\":\"task_started\",\"turn_id\":\"123\"}}}}",
+                $"{{\"timestamp\":\"{now}\",\"type\":\"response_item\",\"payload\":{{\"type\":\"function_call\",\"name\":\"shell_command\",\"arguments\":\"{{\\\"command\\\":\\\"Get-Content README.md\\\"}}\",\"call_id\":\"call_123\"}}}}",
+                $"{{\"timestamp\":\"{now}\",\"type\":\"response_item\",\"payload\":{{\"type\":\"function_call_output\",\"call_id\":\"call_123\"}}}}"
+            });
+
+            var detector = new CodexProcessDetector(new CodexDetectionOptions { HomePath = tempPath }, new PresenceTemplateOptions());
+
+            var snapshot = detector.GetSnapshot();
+
+            Assert.True(snapshot.IsRunning);
+            Assert.Equal(CodexActivityKind.AnalyzingProject, snapshot.ActivityKind);
+            Assert.True(snapshot.LastShellCommandWasInvestigative);
+        }
+        finally
+        {
+            Directory.Delete(tempPath, true);
+        }
+    }
+
+    [Fact]
     public void Test_13_CommitMessageWithRefactorHint_ReturnsRefactoringLowConfidence()
     {
         var tempPath = CreateTempSessionDirectory();

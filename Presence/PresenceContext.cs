@@ -66,6 +66,8 @@ public sealed partial record CodexProcessSnapshot
     public DateTime? LastTaskStartedAt { get; init; }
     public DateTime? ActivityStartedAt { get; init; }
     public DateTime? LastObservedAt { get; init; }
+    public DateTime? LastShellCommandAt { get; init; }
+    public bool LastShellCommandWasInvestigative { get; init; }
     public IReadOnlyList<RecentProjectFileSnapshot> RecentEditedFiles { get; init; } = Array.Empty<RecentProjectFileSnapshot>();
     public int ActivityRepeatCount { get; init; } = 1;
     public CodexProcessDetectionKind DetectionKind { get; init; } = CodexProcessDetectionKind.None;

@@ -93,6 +93,8 @@ internal sealed class CodexSessionLogParser
         DateTime? lastTaskStartedAt = null;
         DateTime? lastTaskCompletedAt = null;
         DateTime? lastObservedAt = null;
+        DateTime? lastShellCommandAt = null;
+        bool lastShellCommandWasInvestigative = false;
         string? collaborationMode = null;
         var pendingShellCommands = new HashSet<string>(StringComparer.Ordinal);
         var completedShellCommands = new HashSet<string>(StringComparer.Ordinal);
@@ -174,6 +176,15 @@ internal sealed class CodexSessionLogParser
                     TryGetString(payload, "call_id", out var callId))
                 {
                     pendingShellCommands.Add(callId);
+                    if (TryGetShellCommandText(payload, out var commandText))
+                    {
+                        var isInvestigative = IsInvestigativeShellCommand(commandText);
+                        if (!lastShellCommandAt.HasValue || timestamp >= lastShellCommandAt)
+                        {
+                            lastShellCommandAt = timestamp;
+                            lastShellCommandWasInvestigative = isInvestigative;
+                        }
+                    }
                 }
 
                 if (payloadType is "function_call_output" &&
@@ -215,9 +226,107 @@ internal sealed class CodexSessionLogParser
             runningCommandReason,
             null)
         {
-            ProjectPath = latestProjectPath
+            ProjectPath = latestProjectPath,
+            LastShellCommandAt = lastShellCommandAt,
+            LastShellCommandWasInvestigative = lastShellCommandWasInvestigative
         };
     }
+
+    private static bool IsInvestigativeShellCommand(string commandText)
+    {
+        var normalized = commandText.Trim();
+        if (normalized.Length == 0)
+        {
+            return false;
+        }
+
+        if (ContainsAny(normalized, MutatingShellCommandMarkers))
+        {
+            return false;
+        }
+
+        return ContainsAny(normalized, InvestigativeShellCommandMarkers);
+    }
+
+    private static bool TryGetShellCommandText(JsonElement payload, out string commandText)
+    {
+        commandText = "";
+
+        if (TryGetString(payload, "command", out commandText))
+        {
+            return true;
+        }
+
+        if (!TryGetString(payload, "arguments", out var arguments))
+        {
+            return false;
+        }
+
+        try
+        {
+            using var document = JsonDocument.Parse(arguments);
+            var root = document.RootElement;
+            if (TryGetString(root, "command", out commandText))
+            {
+                return true;
+            }
+
+            if (root.TryGetProperty("input", out var input) && TryGetString(input, "command", out commandText))
+            {
+                return true;
+            }
+        }
+        catch
+        {
+        }
+
+        return false;
+    }
+
+    private static bool ContainsAny(string value, IEnumerable<string> needles)
+    {
+        return needles.Any(needle => value.Contains(needle, StringComparison.OrdinalIgnoreCase));
+    }
+
+    private static readonly string[] InvestigativeShellCommandMarkers =
+    [
+        "Get-Content",
+        "Get-ChildItem",
+        "rg ",
+        "rg(",
+        "git status",
+        "git diff",
+        "git log",
+        "Select-String",
+        "cat ",
+        " type ",
+        "type ",
+        "less ",
+        "more ",
+        "find ",
+        "dir ",
+        "ls ",
+        "Get-Process"
+    ];
+
+    private static readonly string[] MutatingShellCommandMarkers =
+    [
+        "git add",
+        "git commit",
+        "git push",
+        "git reset",
+        "git checkout",
+        "Remove-Item",
+        "Move-Item",
+        "Copy-Item",
+        "Set-Content",
+        "Add-Content",
+        "Out-File",
+        "New-Item",
+        "Rename-Item",
+        "Invoke-WebRequest",
+        "Start-Process"
+    ];
 
     private static string? TryGetCollaborationMode(JsonElement payload)
     {

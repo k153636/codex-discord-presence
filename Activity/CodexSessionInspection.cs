@@ -14,6 +14,8 @@ internal sealed record SessionInspection(
     string? RefactorEvidenceReason)
 {
     public string? ProjectPath { get; init; }
+    public DateTime? LastShellCommandAt { get; init; }
+    public bool LastShellCommandWasInvestigative { get; init; }
 
     public bool HasRecentActivity(int staleTimeoutMinutes)
     {

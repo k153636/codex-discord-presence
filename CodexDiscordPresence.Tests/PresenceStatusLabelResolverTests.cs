@@ -49,6 +49,22 @@ public sealed class PresenceStatusLabelResolverTests
     }
 
     [Fact]
+    public void ResolveStateLabel_AnalyzingProjectWithInvestigativeCommand_ReturnsInvestigating()
+    {
+        var resolver = new PresenceStatusLabelResolver();
+        var context = CreateContext(
+            new CodexProcessSnapshot(true, "codex", true)
+            {
+                LastTaskStartedAt = DateTime.UtcNow,
+                LastShellCommandWasInvestigative = true
+            });
+
+        var label = resolver.ResolveStateLabel(new PresenceTemplateOptions(), context, CodexActivityKind.AnalyzingProject, 0);
+
+        Assert.Equal("Investigating", label);
+    }
+
+    [Fact]
     public void ResolveStateLabel_ReadyWithinGracePeriod_ReturnsWaiting()
     {
         var resolver = new PresenceStatusLabelResolver();

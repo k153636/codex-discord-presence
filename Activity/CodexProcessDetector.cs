@@ -58,6 +58,8 @@ public sealed class CodexProcessDetector
                 CollaborationMode = sessionInspection?.CollaborationMode,
                 LastTaskStartedAt = sessionInspection?.LastTaskStartedAt,
                 LastObservedAt = sessionInspection?.LastObservedAt,
+                LastShellCommandAt = sessionInspection?.LastShellCommandAt,
+                LastShellCommandWasInvestigative = sessionInspection?.LastShellCommandWasInvestigative ?? false,
                 ObservedProjectPath = sessionInspection?.ProjectPath,
                 RecentEditedFiles = Array.Empty<RecentProjectFileSnapshot>()
             };
@@ -91,6 +93,8 @@ public sealed class CodexProcessDetector
             CollaborationMode = sessionInspection?.CollaborationMode,
             LastTaskStartedAt = sessionInspection?.LastTaskStartedAt,
             LastObservedAt = lastObservedAt,
+            LastShellCommandAt = sessionInspection?.LastShellCommandAt,
+            LastShellCommandWasInvestigative = sessionInspection?.LastShellCommandWasInvestigative ?? false,
             ObservedProjectPath = sessionInspection?.ProjectPath,
             RecentEditedFiles = recentEditedFiles
         };
