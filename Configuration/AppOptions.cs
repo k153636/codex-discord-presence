@@ -241,12 +241,7 @@ public sealed class PresenceTemplateOptions
     public string CoordinatingChangesText { get; set; } = "Coordinating changes across {n} files";
     public string CreatingFilesText { get; set; } = "Creating files";
     public string DeletingFilesText { get; set; } = "Deleting files";
-    public string RunningCommandText { get; set; } = "Running command";
-    public string ReviewingDiffText { get; set; } = "Reviewing diff";
-    public string SearchingContextText { get; set; } = "Searching context";
-    public string BuildingText { get; set; } = "Building";
-    public string TestingText { get; set; } = "Testing";
-    public string DebuggingText { get; set; } = "Debugging";
+    public string RunningCommandText { get; set; } = "Run Command";
     public string PlanningText { get; set; } = "Planning";
     public string ApplyingEditsText { get; set; } = "Applying edits";
     public string RefactoringText { get; set; } = "Refactoring";

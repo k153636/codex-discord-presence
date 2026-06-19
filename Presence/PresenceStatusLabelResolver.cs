@@ -17,12 +17,7 @@ public sealed class PresenceStatusLabelResolver
             CodexActivityKind.CoordinatingChanges => FirstNonEmpty(template.CoordinatingChangesText, "Coordinating changes across {n} files"),
             CodexActivityKind.CreatingFiles => FirstNonEmpty(template.CreatingFilesText, "Creating files"),
             CodexActivityKind.DeletingFiles => FirstNonEmpty(template.DeletingFilesText, "Deleting files"),
-            CodexActivityKind.RunningCommand => FirstNonEmpty(template.RunningCommandText, "Running command"),
-            CodexActivityKind.ReviewingDiff => FirstNonEmpty(template.ReviewingDiffText, "Reviewing diff"),
-            CodexActivityKind.SearchingContext => FirstNonEmpty(template.SearchingContextText, "Searching context"),
-            CodexActivityKind.Building => FirstNonEmpty(template.BuildingText, "Building"),
-            CodexActivityKind.Testing => FirstNonEmpty(template.TestingText, "Testing"),
-            CodexActivityKind.Debugging => FirstNonEmpty(template.DebuggingText, "Debugging"),
+            CodexActivityKind.RunningCommand => ResolveRunningCommandLabel(template, context),
             CodexActivityKind.Refactoring => FirstNonEmpty(template.RefactoringText, "Refactoring"),
             CodexActivityKind.AnalyzingProject => ShouldUseWorkingLabel(context)
                 ? FirstNonEmpty(template.WorkingText, template.InvestigatingText, template.AnalyzingProjectText, template.AnalyzingText, template.ThinkingText, "Analyzing project")
@@ -47,6 +42,44 @@ public sealed class PresenceStatusLabelResolver
         }
 
         return FirstNonEmpty(template.IdlingText, "Idling");
+    }
+
+    private static string ResolveRunningCommandLabel(PresenceTemplateOptions template, PresenceContext context)
+    {
+        var baseLabel = FirstNonEmpty(template.RunningCommandText, "Run Command");
+        var commandName = ResolveRunningCommandName(context.Codex.RunningCommandKind);
+
+        if (string.IsNullOrWhiteSpace(commandName))
+        {
+            return StripRunningCommandPlaceholder(baseLabel);
+        }
+
+        if (template.RunningCommandText.Contains("{RunningCommandName}", StringComparison.OrdinalIgnoreCase))
+        {
+            return baseLabel;
+        }
+
+        return $"{baseLabel}: {commandName}";
+    }
+
+    private static string ResolveRunningCommandName(RunningCommandKind commandKind)
+    {
+        return commandKind switch
+        {
+            RunningCommandKind.Git => "Git",
+            RunningCommandKind.Search => "Search",
+            RunningCommandKind.Build => "Build",
+            RunningCommandKind.Test => "Test",
+            _ => ""
+        };
+    }
+
+    private static string StripRunningCommandPlaceholder(string value)
+    {
+        return value
+            .Replace(": {RunningCommandName}", "", StringComparison.OrdinalIgnoreCase)
+            .Replace("{RunningCommandName}", "", StringComparison.OrdinalIgnoreCase)
+            .Trim();
     }
 
     private static bool ShouldUseWorkingLabel(PresenceContext context)

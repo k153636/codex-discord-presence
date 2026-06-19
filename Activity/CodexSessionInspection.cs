@@ -15,7 +15,7 @@ internal sealed record SessionInspection(
 {
     public string? ProjectPath { get; init; }
     public DateTime? LastShellCommandAt { get; init; }
-    public ShellCommandActivityKind? LastShellCommandActivityKind { get; init; }
+    public RunningCommandKind LastRunningCommandKind { get; init; } = RunningCommandKind.Unknown;
     public bool LastShellCommandWasInvestigative { get; init; }
 
     public bool HasRecentActivity(int staleTimeoutMinutes)

@@ -19,7 +19,6 @@ public static class PresenceRefreshPolicy
             CodexActivityKind.RunningCommand => runningCommandInterval,
             CodexActivityKind.AnalyzingProject => activeInterval,
             CodexActivityKind.ApplyingEdits or CodexActivityKind.CoordinatingChanges or CodexActivityKind.CreatingFiles or CodexActivityKind.DeletingFiles => activeInterval,
-            CodexActivityKind.ReviewingDiff or CodexActivityKind.SearchingContext or CodexActivityKind.Building or CodexActivityKind.Testing or CodexActivityKind.Debugging => activeInterval,
             CodexActivityKind.Planning or CodexActivityKind.Refactoring => activeInterval,
             CodexActivityKind.Ready or CodexActivityKind.Offline => idleInterval,
             _ => defaultInterval

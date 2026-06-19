@@ -689,7 +689,7 @@ public class CodexStateTests
     }
 
     [Fact]
-    public void Test_12a_TestCommandInSession_ReturnsTesting()
+    public void Test_12a_TestCommandInSession_ReturnsRunningCommandWithTestKind()
     {
         var tempPath = CreateTempSessionDirectory();
         try
@@ -706,7 +706,8 @@ public class CodexStateTests
             var snapshot = detector.GetSnapshot();
 
             Assert.True(snapshot.IsRunning);
-            Assert.Equal(CodexActivityKind.Testing, snapshot.ActivityKind);
+            Assert.Equal(CodexActivityKind.RunningCommand, snapshot.ActivityKind);
+            Assert.Equal(RunningCommandKind.Test, snapshot.RunningCommandKind);
         }
         finally
         {
@@ -715,7 +716,7 @@ public class CodexStateTests
     }
 
     [Fact]
-    public void Test_12b_BuildCommandInSession_ReturnsBuilding()
+    public void Test_12b_BuildCommandInSession_ReturnsRunningCommandWithBuildKind()
     {
         var tempPath = CreateTempSessionDirectory();
         try
@@ -732,7 +733,8 @@ public class CodexStateTests
             var snapshot = detector.GetSnapshot();
 
             Assert.True(snapshot.IsRunning);
-            Assert.Equal(CodexActivityKind.Building, snapshot.ActivityKind);
+            Assert.Equal(CodexActivityKind.RunningCommand, snapshot.ActivityKind);
+            Assert.Equal(RunningCommandKind.Build, snapshot.RunningCommandKind);
         }
         finally
         {
@@ -741,7 +743,7 @@ public class CodexStateTests
     }
 
     [Fact]
-    public void Test_12c_DiffCommandInSession_ReturnsReviewingDiff()
+    public void Test_12c_DiffCommandInSession_ReturnsRunningCommandWithGitKind()
     {
         var tempPath = CreateTempSessionDirectory();
         try
@@ -758,7 +760,8 @@ public class CodexStateTests
             var snapshot = detector.GetSnapshot();
 
             Assert.True(snapshot.IsRunning);
-            Assert.Equal(CodexActivityKind.ReviewingDiff, snapshot.ActivityKind);
+            Assert.Equal(CodexActivityKind.RunningCommand, snapshot.ActivityKind);
+            Assert.Equal(RunningCommandKind.Git, snapshot.RunningCommandKind);
             Assert.True(snapshot.LastShellCommandWasInvestigative);
         }
         finally
@@ -768,7 +771,7 @@ public class CodexStateTests
     }
 
     [Fact]
-    public void Test_12d_SearchCommandInSession_ReturnsSearchingContext()
+    public void Test_12d_SearchCommandInSession_ReturnsRunningCommandWithSearchKind()
     {
         var tempPath = CreateTempSessionDirectory();
         try
@@ -785,7 +788,8 @@ public class CodexStateTests
             var snapshot = detector.GetSnapshot();
 
             Assert.True(snapshot.IsRunning);
-            Assert.Equal(CodexActivityKind.SearchingContext, snapshot.ActivityKind);
+            Assert.Equal(CodexActivityKind.RunningCommand, snapshot.ActivityKind);
+            Assert.Equal(RunningCommandKind.Search, snapshot.RunningCommandKind);
             Assert.True(snapshot.LastShellCommandWasInvestigative);
         }
         finally
@@ -816,6 +820,7 @@ public class CodexStateTests
 
             Assert.True(snapshot.IsRunning);
             Assert.Equal(CodexActivityKind.AnalyzingProject, snapshot.ActivityKind);
+            Assert.Equal(RunningCommandKind.Search, snapshot.RunningCommandKind);
             Assert.True(snapshot.LastShellCommandWasInvestigative);
         }
         finally

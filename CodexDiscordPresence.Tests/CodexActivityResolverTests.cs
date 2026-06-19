@@ -143,56 +143,56 @@ public sealed class CodexActivityResolverTests
     }
 
     [Fact]
-    public void Resolve_TestingShellCommand_ReturnsTesting()
+    public void Resolve_GitShellCommand_ReturnsRunningCommand()
     {
         var resolver = new CodexActivityResolver();
         var now = DateTime.UtcNow;
         var context = CreateContext(
-            new SessionInspection(true, true, true, false, now, null, now, null, true, "shell_command looks like testing", null)
+            new SessionInspection(true, true, true, false, now, null, now, null, true, "shell_command looks like git", null)
             {
-                LastShellCommandActivityKind = ShellCommandActivityKind.Testing
+                LastRunningCommandKind = RunningCommandKind.Git
             },
             new GitSnapshot(true, 0, null),
             CodexActivityKind.AnalyzingProject);
 
         var activity = resolver.Resolve(context, out var provenance, out var confidence, out var reason, out _);
 
-        Assert.Equal(CodexActivityKind.Testing, activity);
+        Assert.Equal(CodexActivityKind.RunningCommand, activity);
         Assert.Equal(ActivityProvenance.Observed, provenance);
         Assert.Equal(ActivityConfidence.High, confidence);
-        Assert.Contains("testing", reason, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("git", reason, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]
-    public void Resolve_BuildingShellCommand_ReturnsBuilding()
+    public void Resolve_TestShellCommand_ReturnsRunningCommand()
     {
         var resolver = new CodexActivityResolver();
         var now = DateTime.UtcNow;
         var context = CreateContext(
-            new SessionInspection(true, true, true, false, now, null, now, null, true, "shell_command looks like building", null)
+            new SessionInspection(true, true, true, false, now, null, now, null, true, "shell_command looks like test", null)
             {
-                LastShellCommandActivityKind = ShellCommandActivityKind.Building
+                LastRunningCommandKind = RunningCommandKind.Test
             },
             new GitSnapshot(true, 0, null),
             CodexActivityKind.AnalyzingProject);
 
         var activity = resolver.Resolve(context, out var provenance, out var confidence, out var reason, out _);
 
-        Assert.Equal(CodexActivityKind.Building, activity);
+        Assert.Equal(CodexActivityKind.RunningCommand, activity);
         Assert.Equal(ActivityProvenance.Observed, provenance);
         Assert.Equal(ActivityConfidence.High, confidence);
-        Assert.Contains("building", reason, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("test", reason, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]
-    public void Resolve_ReviewingDiffShellCommand_ReturnsReviewingDiff()
+    public void Resolve_SearchShellCommand_ReturnsRunningCommand()
     {
         var resolver = new CodexActivityResolver();
         var now = DateTime.UtcNow;
         var context = CreateContext(
-            new SessionInspection(true, true, true, false, now, null, now, null, true, "shell_command looks like reviewing diff", null)
+            new SessionInspection(true, true, true, false, now, null, now, null, true, "shell_command looks like search", null)
             {
-                LastShellCommandActivityKind = ShellCommandActivityKind.ReviewingDiff,
+                LastRunningCommandKind = RunningCommandKind.Search,
                 LastShellCommandWasInvestigative = true
             },
             new GitSnapshot(true, 0, null),
@@ -200,53 +200,31 @@ public sealed class CodexActivityResolverTests
 
         var activity = resolver.Resolve(context, out var provenance, out var confidence, out var reason, out _);
 
-        Assert.Equal(CodexActivityKind.ReviewingDiff, activity);
+        Assert.Equal(CodexActivityKind.RunningCommand, activity);
         Assert.Equal(ActivityProvenance.Observed, provenance);
         Assert.Equal(ActivityConfidence.High, confidence);
-        Assert.Contains("reviewing diff", reason, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("search", reason, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]
-    public void Resolve_SearchingContextShellCommand_ReturnsSearchingContext()
+    public void Resolve_BuildShellCommand_ReturnsRunningCommand()
     {
         var resolver = new CodexActivityResolver();
         var now = DateTime.UtcNow;
         var context = CreateContext(
-            new SessionInspection(true, true, true, false, now, null, now, null, true, "shell_command looks like searching context", null)
+            new SessionInspection(true, true, true, false, now, null, now, null, true, "shell_command looks like build", null)
             {
-                LastShellCommandActivityKind = ShellCommandActivityKind.SearchingContext,
-                LastShellCommandWasInvestigative = true
+                LastRunningCommandKind = RunningCommandKind.Build
             },
             new GitSnapshot(true, 0, null),
             CodexActivityKind.AnalyzingProject);
 
         var activity = resolver.Resolve(context, out var provenance, out var confidence, out var reason, out _);
 
-        Assert.Equal(CodexActivityKind.SearchingContext, activity);
+        Assert.Equal(CodexActivityKind.RunningCommand, activity);
         Assert.Equal(ActivityProvenance.Observed, provenance);
         Assert.Equal(ActivityConfidence.High, confidence);
-        Assert.Contains("searching context", reason, StringComparison.OrdinalIgnoreCase);
-    }
-
-    [Fact]
-    public void Resolve_DebuggingShellCommand_ReturnsDebuggingWithLowConfidence()
-    {
-        var resolver = new CodexActivityResolver();
-        var now = DateTime.UtcNow;
-        var context = CreateContext(
-            new SessionInspection(true, true, true, false, now, null, now, null, true, "shell_command looks like debugging", null)
-            {
-                LastShellCommandActivityKind = ShellCommandActivityKind.Debugging
-            },
-            new GitSnapshot(true, 0, null),
-            CodexActivityKind.AnalyzingProject);
-
-        var activity = resolver.Resolve(context, out var provenance, out var confidence, out var reason, out _);
-
-        Assert.Equal(CodexActivityKind.Debugging, activity);
-        Assert.Equal(ActivityProvenance.Observed, provenance);
-        Assert.Equal(ActivityConfidence.Low, confidence);
-        Assert.Contains("debugging", reason, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("build", reason, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]

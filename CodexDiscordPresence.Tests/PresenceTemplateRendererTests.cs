@@ -80,6 +80,7 @@ public sealed class PresenceTemplateRendererTests
             new CodexProcessSnapshot(true, "codex", true)
             {
                 DetectedActivityKind = CodexActivityKind.RunningCommand,
+                RunningCommandKind = RunningCommandKind.Git,
                 LastTaskStartedAt = now
             },
             new ProjectSnapshot("Nexstrap", @"E:\tool\Nexstrap", null, null, 128, 128, 42000, []),
@@ -87,7 +88,7 @@ public sealed class PresenceTemplateRendererTests
 
         var presence = renderer.Render(template, context);
 
-        Assert.Equal("Running command", presence.State);
+        Assert.Equal("Run Command: Git", presence.State);
     }
 
     [Fact]
@@ -525,6 +526,7 @@ public sealed class PresenceTemplateRendererTests
             new CodexProcessSnapshot(true, "codex", false)
             {
                 DetectedActivityKind = CodexActivityKind.RunningCommand,
+                RunningCommandKind = RunningCommandKind.Git,
                 ActivityProvenance = ActivityProvenance.Observed,
                 LastObservedAt = now
             },
@@ -535,7 +537,7 @@ public sealed class PresenceTemplateRendererTests
 
         var presence = renderer.Render(template, context);
 
-        Assert.Equal("Running command", presence.State);
+        Assert.Equal("Run Command: Git", presence.State);
     }
 
     [Fact]

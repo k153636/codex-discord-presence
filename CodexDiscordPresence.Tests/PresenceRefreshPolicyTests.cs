@@ -33,11 +33,6 @@ public sealed class PresenceRefreshPolicyTests
         Assert.Equal(TimeSpan.FromSeconds(2), PresenceRefreshPolicy.GetNextDelay(options, CodexActivityKind.ApplyingEdits, 2));
         Assert.Equal(TimeSpan.FromSeconds(2), PresenceRefreshPolicy.GetNextDelay(options, CodexActivityKind.CoordinatingChanges, 2));
         Assert.Equal(TimeSpan.FromSeconds(2), PresenceRefreshPolicy.GetNextDelay(options, CodexActivityKind.AnalyzingProject, 2));
-        Assert.Equal(TimeSpan.FromSeconds(2), PresenceRefreshPolicy.GetNextDelay(options, CodexActivityKind.ReviewingDiff, 2));
-        Assert.Equal(TimeSpan.FromSeconds(2), PresenceRefreshPolicy.GetNextDelay(options, CodexActivityKind.SearchingContext, 2));
-        Assert.Equal(TimeSpan.FromSeconds(2), PresenceRefreshPolicy.GetNextDelay(options, CodexActivityKind.Building, 2));
-        Assert.Equal(TimeSpan.FromSeconds(2), PresenceRefreshPolicy.GetNextDelay(options, CodexActivityKind.Testing, 2));
-        Assert.Equal(TimeSpan.FromSeconds(2), PresenceRefreshPolicy.GetNextDelay(options, CodexActivityKind.Debugging, 2));
     }
 
     [Fact]

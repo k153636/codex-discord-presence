@@ -94,7 +94,7 @@ internal sealed class CodexSessionLogParser
         DateTime? lastTaskCompletedAt = null;
         DateTime? lastObservedAt = null;
         DateTime? lastShellCommandAt = null;
-        ShellCommandActivityKind? lastShellCommandActivityKind = null;
+        RunningCommandKind lastRunningCommandKind = RunningCommandKind.Unknown;
         bool lastShellCommandWasInvestigative = false;
         string? collaborationMode = null;
         var pendingShellCommands = new HashSet<string>(StringComparer.Ordinal);
@@ -180,12 +180,12 @@ internal sealed class CodexSessionLogParser
                     if (TryGetShellCommandText(payload, out var commandText))
                     {
                         var commandKind = ClassifyShellCommand(commandText);
-                        var isInvestigative = commandKind is ShellCommandActivityKind.ReviewingDiff or ShellCommandActivityKind.SearchingContext;
+                        var isInvestigative = commandKind is RunningCommandKind.Git or RunningCommandKind.Search;
                         if (!lastShellCommandAt.HasValue || timestamp >= lastShellCommandAt)
                         {
                             lastShellCommandAt = timestamp;
                             lastShellCommandWasInvestigative = isInvestigative;
-                            lastShellCommandActivityKind = commandKind;
+                            lastRunningCommandKind = commandKind ?? RunningCommandKind.Unknown;
                             runningCommandReason = commandKind is null
                                 ? "pending shell_command function call in session log"
                                 : $"shell_command looks like {DescribeShellCommandKind(commandKind.Value)}";
@@ -234,12 +234,12 @@ internal sealed class CodexSessionLogParser
         {
             ProjectPath = latestProjectPath,
             LastShellCommandAt = lastShellCommandAt,
-            LastShellCommandActivityKind = lastShellCommandActivityKind,
+            LastRunningCommandKind = lastRunningCommandKind,
             LastShellCommandWasInvestigative = lastShellCommandWasInvestigative
         };
     }
 
-    private static ShellCommandActivityKind? ClassifyShellCommand(string commandText)
+    private static RunningCommandKind? ClassifyShellCommand(string commandText)
     {
         var normalized = commandText.Trim();
         if (normalized.Length == 0)
@@ -247,43 +247,37 @@ internal sealed class CodexSessionLogParser
             return null;
         }
 
-        if (ContainsAny(normalized, TestingShellCommandMarkers))
+        if (ContainsAny(normalized, GitShellCommandMarkers))
         {
-            return ShellCommandActivityKind.Testing;
-        }
-
-        if (ContainsAny(normalized, BuildingShellCommandMarkers))
-        {
-            return ShellCommandActivityKind.Building;
-        }
-
-        if (ContainsAny(normalized, ReviewingDiffShellCommandMarkers))
-        {
-            return ShellCommandActivityKind.ReviewingDiff;
+            return RunningCommandKind.Git;
         }
 
         if (ContainsAny(normalized, SearchingContextShellCommandMarkers))
         {
-            return ShellCommandActivityKind.SearchingContext;
+            return RunningCommandKind.Search;
         }
 
-        if (ContainsAny(normalized, DebuggingShellCommandMarkers))
+        if (ContainsAny(normalized, BuildingShellCommandMarkers))
         {
-            return ShellCommandActivityKind.Debugging;
+            return RunningCommandKind.Build;
+        }
+
+        if (ContainsAny(normalized, TestingShellCommandMarkers))
+        {
+            return RunningCommandKind.Test;
         }
 
         return null;
     }
 
-    private static string DescribeShellCommandKind(ShellCommandActivityKind kind)
+    private static string DescribeShellCommandKind(RunningCommandKind kind)
     {
         return kind switch
         {
-            ShellCommandActivityKind.ReviewingDiff => "reviewing diff",
-            ShellCommandActivityKind.SearchingContext => "searching context",
-            ShellCommandActivityKind.Building => "building",
-            ShellCommandActivityKind.Testing => "testing",
-            ShellCommandActivityKind.Debugging => "debugging",
+            RunningCommandKind.Git => "git",
+            RunningCommandKind.Search => "search",
+            RunningCommandKind.Build => "build",
+            RunningCommandKind.Test => "test",
             _ => "running command"
         };
     }
@@ -328,7 +322,7 @@ internal sealed class CodexSessionLogParser
         return needles.Any(needle => value.Contains(needle, StringComparison.OrdinalIgnoreCase));
     }
 
-    private static readonly string[] ReviewingDiffShellCommandMarkers =
+    private static readonly string[] GitShellCommandMarkers =
     [
         "git status",
         "git diff",
@@ -399,22 +393,6 @@ internal sealed class CodexSessionLogParser
         "vitest",
         "playwright test",
         "npx playwright test"
-    ];
-
-    private static readonly string[] DebuggingShellCommandMarkers =
-    [
-        "lldb",
-        "gdb",
-        "windbg",
-        "cdb",
-        "--inspect",
-        "--inspect-brk",
-        "debugpy",
-        "pdb.set_trace",
-        "breakpoint()",
-        "python -m pdb",
-        "Write-Debug",
-        "Get-Error"
     ];
 
     private static string? TryGetCollaborationMode(JsonElement payload)
