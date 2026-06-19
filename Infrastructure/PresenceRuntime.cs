@@ -25,7 +25,7 @@ public sealed class PresenceRuntime
 
     public async Task RunAsync()
     {
-        var session = new SessionClock();
+        var session = new SessionClock(_state.SessionStartedAtUtc ?? DateTime.UtcNow);
         var profileStates = BuildProfileStates();
         var projectInspector = new ProjectInspector(_options.Project);
         var gitInspector = new GitInspector();

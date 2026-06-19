@@ -60,6 +60,11 @@ public static class PresenceApplication
         var stateStore = new PresenceStateStore();
         var statePath = appPaths.StatePath;
         var runtimeState = stateStore.Load(statePath);
+        if (!runtimeState.SessionStartedAtUtc.HasValue)
+        {
+            runtimeState.SessionStartedAtUtc = DateTime.UtcNow;
+            stateStore.Save(statePath, runtimeState);
+        }
         var settingsPath = appPaths.ExecutableSettingsPath;
         var runtime = new PresenceRuntime(options, runtimeState, cts.Token, appPaths);
         var runtimeTask = runtime.RunAsync();

@@ -28,7 +28,8 @@ public sealed class PresenceStateStore
             var state = JsonSerializer.Deserialize<PresenceStateDto>(json, JsonOptions);
             return new PresenceRuntimeState
             {
-                Enabled = state?.Enabled ?? true
+                Enabled = state?.Enabled ?? true,
+                SessionStartedAtUtc = state?.SessionStartedAtUtc
             };
         }
         catch
@@ -47,7 +48,7 @@ public sealed class PresenceStateStore
                 Directory.CreateDirectory(directory);
             }
 
-            var dto = new PresenceStateDto(state.Enabled);
+            var dto = new PresenceStateDto(state.Enabled, state.SessionStartedAtUtc);
             File.WriteAllText(path, JsonSerializer.Serialize(dto, JsonOptions));
         }
         catch (Exception ex)
@@ -56,5 +57,5 @@ public sealed class PresenceStateStore
         }
     }
 
-    private sealed record PresenceStateDto(bool Enabled);
+    private sealed record PresenceStateDto(bool Enabled, DateTime? SessionStartedAtUtc);
 }
