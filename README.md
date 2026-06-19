@@ -147,6 +147,7 @@ Common settings live in `appsettings.json`:
 - `Presence.RefactoringText`
 - `Presence.ThinkingText`
 - `Presence.WorkingText`
+- `Presence.InvestigatingText`
 - `Presence.WaitingText`
 - `Presence.IdlingText`
 - `Presence.ReadyText`

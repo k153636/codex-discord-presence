@@ -17,7 +17,7 @@ public sealed class PresenceTemplateRendererTests
 
         var presence = renderer.Render(template, context);
 
-        Assert.Equal("Thinking", presence.State);
+        Assert.Equal("Investigating", presence.State);
     }
 
     [Fact]
@@ -112,7 +112,7 @@ public sealed class PresenceTemplateRendererTests
         var presence = renderer.Render(template, context);
 
         Assert.Equal("Plan mode: gpt-5-codex • Tokens pending", presence.Details);
-        Assert.Equal("Thinking", presence.State);
+        Assert.Equal("Investigating", presence.State);
         Assert.Equal("working on Nexstrap", presence.LargeImageText);
         Assert.Equal("128 files • session 5m", presence.SmallImageText);
     }
@@ -182,7 +182,7 @@ public sealed class PresenceTemplateRendererTests
     }
 
     [Fact]
-    public void Render_ThinkingElapsed_UsesActivityStartTime()
+    public void Render_InvestigatingElapsed_UsesActivityStartTime()
     {
         var renderer = new PresenceTemplateRenderer();
         var template = new PresenceTemplateOptions { State = "{ActivityLine}" };
@@ -199,11 +199,11 @@ public sealed class PresenceTemplateRendererTests
 
         var presence = renderer.Render(template, context);
 
-        Assert.Equal("Thinking", presence.State);
+        Assert.Equal("Investigating", presence.State);
     }
 
     [Fact]
-    public void Render_ThinkingJustStarted_OmitsZeroElapsedSuffix()
+    public void Render_InvestigatingJustStarted_OmitsZeroElapsedSuffix()
     {
         var renderer = new PresenceTemplateRenderer();
         var template = new PresenceTemplateOptions { State = "{ActivityLine}" };
@@ -219,7 +219,7 @@ public sealed class PresenceTemplateRendererTests
 
         var presence = renderer.Render(template, context);
 
-        Assert.Equal("Thinking", presence.State);
+        Assert.Equal("Investigating", presence.State);
     }
 
     [Fact]
@@ -237,7 +237,7 @@ public sealed class PresenceTemplateRendererTests
 
         var presence = renderer.Render(template, context);
 
-        Assert.Equal("Thinking x2", presence.State);
+        Assert.Equal("Investigating x2", presence.State);
     }
 
     [Fact]

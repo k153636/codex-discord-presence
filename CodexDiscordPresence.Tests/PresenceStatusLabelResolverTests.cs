@@ -37,7 +37,7 @@ public sealed class PresenceStatusLabelResolverTests
     }
 
     [Fact]
-    public void ResolveStateLabel_AnalyzingProjectWithoutStrongEvidence_ReturnsThinking()
+    public void ResolveStateLabel_AnalyzingProjectWithoutStrongEvidence_ReturnsInvestigating()
     {
         var resolver = new PresenceStatusLabelResolver();
         var context = CreateContext(
@@ -45,7 +45,7 @@ public sealed class PresenceStatusLabelResolverTests
 
         var label = resolver.ResolveStateLabel(new PresenceTemplateOptions(), context, CodexActivityKind.AnalyzingProject, 0);
 
-        Assert.Equal("Thinking", label);
+        Assert.Equal("Investigating", label);
     }
 
     [Fact]

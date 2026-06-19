@@ -20,8 +20,8 @@ public sealed class PresenceStatusLabelResolver
             CodexActivityKind.RunningCommand => FirstNonEmpty(template.RunningCommandText, "Running command"),
             CodexActivityKind.Refactoring => FirstNonEmpty(template.RefactoringText, "Refactoring"),
             CodexActivityKind.AnalyzingProject => ShouldUseWorkingLabel(context)
-                ? FirstNonEmpty(template.WorkingText, template.AnalyzingProjectText, template.AnalyzingText, template.ThinkingText, "Analyzing project")
-                : FirstNonEmpty(template.AnalyzingProjectText, template.AnalyzingText, template.ThinkingText, "Analyzing project"),
+                ? FirstNonEmpty(template.WorkingText, template.InvestigatingText, template.AnalyzingProjectText, template.AnalyzingText, template.ThinkingText, "Analyzing project")
+                : FirstNonEmpty(template.InvestigatingText, template.AnalyzingProjectText, template.AnalyzingText, template.ThinkingText, "Investigating"),
             CodexActivityKind.Ready => ResolveReadyLabel(template, context),
             CodexActivityKind.Offline => FirstNonEmpty(template.OfflineText, template.IdlingText, "Idling"),
             _ => FirstNonEmpty(template.IdlingText, template.ReadyText, "Idling")
