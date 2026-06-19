@@ -13,6 +13,7 @@ public static class PresenceApplication
 
         var appPaths = AppPaths.Create(AppProfileKind.Codex, AppContext.BaseDirectory);
         AppDataInitializer.EnsureInitialized(appPaths);
+        using var diagnosticLog = DiagnosticLog.Create(appPaths.LogsDirectory);
 
         var options = AppOptions.Load(args, appPaths);
 
@@ -21,10 +22,11 @@ public static class PresenceApplication
 
         if (instance is null)
         {
-            Console.Error.WriteLine("Codex Discord RPC is already running. Use --stop to end the current instance.");
+            diagnosticLog.Error("Codex Discord RPC is already running. Use --stop to end the current instance.");
             return 1;
         }
 
+        diagnosticLog.Info($"Startup: profile={appPaths.Profile}, baseDirectory={appPaths.BaseDirectory}, logFile={diagnosticLog.Path}");
         if (options.EnableUpdateCheck)
         {
             using var httpClient = new HttpClient
@@ -36,7 +38,7 @@ public static class PresenceApplication
             var releaseCheck = await releaseChecker.CheckLatestReleaseAsync(cts.Token);
             if (!releaseCheck.Succeeded)
             {
-                Console.Error.WriteLine(releaseCheck.WarningMessage);
+                diagnosticLog.Warn(releaseCheck.WarningMessage ?? "GitHub release check failed.");
             }
             else if (releaseCheck.UpdateAvailable && releaseCheck.LatestVersion is not null)
             {
@@ -44,7 +46,7 @@ public static class PresenceApplication
                     ? string.Empty
                     : $" Release: {releaseCheck.LatestReleaseUrl}";
 
-                Console.WriteLine(
+                diagnosticLog.Info(
                     $"GitHub release update available: current {releaseCheck.CurrentVersion} < latest {releaseCheck.LatestVersion}.{releaseUrl}");
             }
         }
@@ -66,14 +68,14 @@ public static class PresenceApplication
             stateStore.Save(statePath, runtimeState);
         }
         var settingsPath = appPaths.ExecutableSettingsPath;
-        var runtime = new PresenceRuntime(options, runtimeState, cts.Token, appPaths);
+        var runtime = new PresenceRuntime(options, runtimeState, cts.Token, appPaths, diagnosticLog);
         var runtimeTask = runtime.RunAsync();
 
         trayHost = new TrayIconHost(runtimeState, stateStore, statePath, settingsPath, () => cts.Cancel());
         _ = runtimeTask.ContinueWith(_ => trayHost?.RequestExit(), TaskScheduler.Default);
 
-        Console.WriteLine("Codex Discord RPC is running in the background.");
-        Console.WriteLine("Right-click the tray icon for Enable, Edit Discord RPC, and Quit.");
+        diagnosticLog.Info("Codex Discord RPC is running in the background.");
+        diagnosticLog.Info("Right-click the tray icon for Enable, Edit Discord RPC, and Quit.");
 
         Application.Run(trayHost);
 
@@ -89,7 +91,7 @@ public static class PresenceApplication
         }
         catch (Exception ex)
         {
-            Console.Error.WriteLine($"Presence runtime failed: {ex.Message}");
+            diagnosticLog.Error("Presence runtime failed", ex);
             return 1;
         }
 

@@ -6,17 +6,19 @@ public sealed class PresenceRuntime
     private readonly PresenceRuntimeState _state;
     private readonly CancellationToken _cancellationToken;
     private readonly AppPaths _paths;
+    private readonly DiagnosticLog _log;
     private RuntimeTimingSettings _timingSettings;
     private DateTime _executableSettingsLastWriteTimeUtc;
     private DateTime _cliSettingsLastWriteTimeUtc;
     private DateTime _userSettingsLastWriteTimeUtc;
 
-    public PresenceRuntime(AppOptions options, PresenceRuntimeState state, CancellationToken cancellationToken, AppPaths paths)
+    public PresenceRuntime(AppOptions options, PresenceRuntimeState state, CancellationToken cancellationToken, AppPaths paths, DiagnosticLog log)
     {
         _options = options;
         _state = state;
         _cancellationToken = cancellationToken;
         _paths = paths;
+        _log = log;
         _timingSettings = RuntimeTimingSettings.From(options);
         _executableSettingsLastWriteTimeUtc = GetSettingsLastWriteTimeUtc(_paths.ExecutableSettingsPath);
         _cliSettingsLastWriteTimeUtc = GetSettingsLastWriteTimeUtc(Path.Combine(_paths.BaseDirectory, SettingsFileNames.Cli));
@@ -32,10 +34,10 @@ public sealed class PresenceRuntime
         var renderer = new PresenceTemplateRenderer();
         var projectSwitchDetectionInterval = TimeSpan.FromSeconds(3);
 
-        Console.WriteLine("Starting Codex Discord RPC with auto-detection.");
+        _log.Info("Starting Codex Discord RPC with auto-detection.");
         var activeProjectPath = projectInspector.ProjectPath;
-        Console.WriteLine($"Project path: {activeProjectPath}");
-        Console.WriteLine("Press Ctrl+C or Quit to stop.");
+        _log.Info($"Project path: {activeProjectPath}");
+        _log.Info("Press Ctrl+C or Quit to stop.");
 
         var initialCodexProbe = profileStates[AppProfileKind.Codex].Detector.GetSnapshot(activeProjectPath);
         var initialCliProbe = profileStates[AppProfileKind.CodexCli].Detector.GetSnapshot(activeProjectPath);
@@ -43,7 +45,7 @@ public sealed class PresenceRuntime
             AppProfileKind.Codex,
             new AppProfileSelectionCandidate(AppProfileKind.Codex, initialCodexProbe, profileStates[AppProfileKind.Codex].DiscordOptions),
             new AppProfileSelectionCandidate(AppProfileKind.CodexCli, initialCliProbe, profileStates[AppProfileKind.CodexCli].DiscordOptions));
-        var rpc = new DiscordPresenceClient(profileStates[currentProfile].DiscordOptions);
+        var rpc = new DiscordPresenceClient(profileStates[currentProfile].DiscordOptions, _log);
 
         await rpc.StartAsync(_cancellationToken);
 
@@ -66,7 +68,7 @@ public sealed class PresenceRuntime
 
                 if (wasDisabled)
                 {
-                    Console.WriteLine("Presence enabled.");
+                    _log.Info("Presence enabled.");
                     wasDisabled = false;
                     ResetAllProfilePresenceCaches(profileStates);
                 }
@@ -79,6 +81,7 @@ public sealed class PresenceRuntime
                     activeProjectPath,
                     observedCodexSnapshot,
                     observedCliSnapshot,
+                    _log,
                     ref lastLoggedProjectPath);
                 activeProjectPath = nextProjectPath;
 
@@ -95,7 +98,7 @@ public sealed class PresenceRuntime
 
                 if (selectedProfile != currentProfile)
                 {
-                    Console.WriteLine($"Profile switched: {currentProfile} -> {selectedProfile}");
+                    _log.Info($"Profile switched: {currentProfile} -> {selectedProfile}");
                     currentProfile = selectedProfile;
                 }
 
@@ -131,7 +134,7 @@ public sealed class PresenceRuntime
             }
             catch (Exception ex)
             {
-                Console.Error.WriteLine($"Presence update loop failed: {ex.Message}");
+                _log.Error("Presence update loop failed", ex);
             }
 
             var delay = PresenceRefreshPolicy.GetNextDelay(_options.Presence, profileStates[currentProfile].LastActivityKind, _options.UpdateIntervalSeconds);
@@ -144,7 +147,7 @@ public sealed class PresenceRuntime
         }
 
         rpc.Clear();
-        Console.WriteLine("Stopped Codex Discord RPC.");
+        _log.Info("Stopped Codex Discord RPC.");
     }
 
     private bool HandleDisabledState(DiscordPresenceClient rpc, bool wasDisabled)
@@ -157,7 +160,7 @@ public sealed class PresenceRuntime
         if (!wasDisabled)
         {
             rpc.Clear();
-            Console.WriteLine("Presence disabled.");
+            _log.Info("Presence disabled.");
         }
 
         return false;
@@ -196,6 +199,7 @@ public sealed class PresenceRuntime
         string activeProjectPath,
         CodexProcessSnapshot observedCodexSnapshot,
         CodexProcessSnapshot observedCliSnapshot,
+        DiagnosticLog log,
         ref string lastLoggedProjectPath)
     {
         var nextProjectPath = ActiveProjectPathSelectionPolicy.Select(
@@ -211,7 +215,7 @@ public sealed class PresenceRuntime
         var changed = !string.Equals(activeProjectPath, nextProjectPath, StringComparison.OrdinalIgnoreCase);
         if (changed)
         {
-            Console.WriteLine($"Project switched: {lastLoggedProjectPath} -> {nextProjectPath}");
+            log.Info($"Project switched: {lastLoggedProjectPath} -> {nextProjectPath}");
             lastLoggedProjectPath = nextProjectPath;
         }
 
@@ -256,7 +260,7 @@ public sealed class PresenceRuntime
             !string.Equals(modelSnapshot.LastUsedSessionModel, selectedProfileState.LastModelSnapshot.LastUsedSessionModel, StringComparison.Ordinal) ||
             !string.Equals(modelSnapshot.FinalDisplayedModel, selectedProfileState.LastModelSnapshot.FinalDisplayedModel, StringComparison.Ordinal))
         {
-            Console.WriteLine(
+            _log.Info(
                 "Model detection: " +
                 $"Selected UI model={FormatLogValue(modelSnapshot.SelectedUiModel)}, " +
                 $"Last used session model={FormatLogValue(modelSnapshot.LastUsedSessionModel)}, " +
@@ -309,7 +313,7 @@ public sealed class PresenceRuntime
         if (!string.Equals(presence.Details, selectedProfileState.LastPresenceDetails, StringComparison.Ordinal) ||
             !string.Equals(presence.State, selectedProfileState.LastPresenceState, StringComparison.Ordinal))
         {
-            Console.WriteLine(
+            _log.Info(
                 $"Presence rendered: Details={FormatLogValueForMultiline(presence.Details)}; " +
                 $"State={FormatLogValueForMultiline(presence.State)}");
             selectedProfileState.LastPresenceDetails = presence.Details;
@@ -330,12 +334,18 @@ public sealed class PresenceRuntime
             selectedProfileState.LastActivitySnapshot.ActivityProvenance != codexSnapshot.ActivityProvenance ||
             !string.Equals(selectedProfileState.LastActivitySnapshot.ActivityReason, codexSnapshot.ActivityReason, StringComparison.Ordinal))
         {
-            Console.WriteLine(
+            _log.Info(
                 "Activity detection: " +
                 $"state={codexSnapshot.ActivityKind}, " +
                 $"confidence={codexSnapshot.Confidence}, " +
                 $"provenance={codexSnapshot.ActivityProvenance}, " +
-                $"reason={codexSnapshot.ActivityReason}");
+                $"reason={codexSnapshot.ActivityReason}, " +
+                $"runningCommandKind={codexSnapshot.RunningCommandKind}, " +
+                $"runningCommandName={FormatLogValue(codexSnapshot.RunningCommandName)}, " +
+                $"investigative={codexSnapshot.LastShellCommandWasInvestigative}, " +
+                $"lastTaskStartedAt={FormatTimestamp(codexSnapshot.LastTaskStartedAt)}, " +
+                $"lastShellCommandAt={FormatTimestamp(codexSnapshot.LastShellCommandAt)}, " +
+                $"lastObservedAt={FormatTimestamp(codexSnapshot.LastObservedAt)}");
             selectedProfileState.LastActivitySnapshot = codexSnapshot;
         }
 
@@ -391,6 +401,13 @@ public sealed class PresenceRuntime
         return string.IsNullOrWhiteSpace(value)
             ? "<none>"
             : value.ReplaceLineEndings("\\n");
+    }
+
+    private static string FormatTimestamp(DateTime? value)
+    {
+        return value.HasValue
+            ? value.Value.ToString("O", System.Globalization.CultureInfo.InvariantCulture)
+            : "<none>";
     }
 
     private static string BuildPresenceSignature(RenderedPresence presence)
@@ -467,7 +484,7 @@ public sealed class PresenceRuntime
             {
                 _timingSettings = reloadedTiming;
                 _timingSettings.ApplyTo(_options);
-                Console.WriteLine(
+                _log.Info(
                     "Timing settings reloaded: " +
                     $"UpdateIntervalSeconds={_options.UpdateIntervalSeconds}, " +
                     $"ActiveUpdateIntervalSeconds={_options.Presence.ActiveUpdateIntervalSeconds}, " +
@@ -478,7 +495,7 @@ public sealed class PresenceRuntime
         }
         catch (Exception ex)
         {
-            Console.Error.WriteLine($"Failed to reload timing settings: {ex.Message}");
+            _log.Error("Failed to reload timing settings", ex);
         }
     }
 
