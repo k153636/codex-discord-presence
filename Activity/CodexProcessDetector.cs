@@ -60,6 +60,7 @@ public sealed class CodexProcessDetector
                 LastObservedAt = sessionInspection?.LastObservedAt,
                 LastShellCommandAt = sessionInspection?.LastShellCommandAt,
                 RunningCommandKind = sessionInspection?.LastRunningCommandKind ?? RunningCommandKind.Unknown,
+                RunningCommandName = sessionInspection?.LastRunningCommandName ?? "",
                 LastShellCommandWasInvestigative = sessionInspection?.LastShellCommandWasInvestigative ?? false,
                 ObservedProjectPath = sessionInspection?.ProjectPath,
                 RecentEditedFiles = Array.Empty<RecentProjectFileSnapshot>()
@@ -97,6 +98,7 @@ public sealed class CodexProcessDetector
             LastObservedAt = lastObservedAt,
             LastShellCommandAt = sessionInspection?.LastShellCommandAt,
             RunningCommandKind = sessionInspection?.LastRunningCommandKind ?? RunningCommandKind.Unknown,
+            RunningCommandName = sessionInspection?.LastRunningCommandName ?? "",
             LastShellCommandWasInvestigative = sessionInspection?.LastShellCommandWasInvestigative ?? false,
             ObservedProjectPath = sessionInspection?.ProjectPath,
             RecentEditedFiles = recentEditedFiles

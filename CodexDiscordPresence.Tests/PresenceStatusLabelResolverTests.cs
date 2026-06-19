@@ -6,7 +6,7 @@ namespace CodexDiscordPresence.Tests;
 public sealed class PresenceStatusLabelResolverTests
 {
     [Fact]
-    public void ResolveStateLabel_RunningCommandWithGitKind_ReturnsRunCommandGit()
+    public void ResolveStateLabel_RunningCommandWithGitName_ReturnsRunCommandGit()
     {
         var resolver = new PresenceStatusLabelResolver();
         var context = CreateContext(
@@ -14,12 +14,13 @@ public sealed class PresenceStatusLabelResolverTests
             {
                 DetectedActivityKind = CodexActivityKind.RunningCommand,
                 RunningCommandKind = RunningCommandKind.Git,
+                RunningCommandName = "git",
                 LastTaskStartedAt = DateTime.UtcNow
             });
 
         var label = resolver.ResolveStateLabel(new PresenceTemplateOptions(), context, CodexActivityKind.RunningCommand, 0);
 
-        Assert.Equal("Run Command: Git", label);
+        Assert.Equal("Run Command: git", label);
     }
 
     [Fact]

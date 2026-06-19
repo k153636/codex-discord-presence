@@ -95,6 +95,7 @@ internal sealed class CodexSessionLogParser
         DateTime? lastObservedAt = null;
         DateTime? lastShellCommandAt = null;
         RunningCommandKind lastRunningCommandKind = RunningCommandKind.Unknown;
+        string? lastRunningCommandName = null;
         bool lastShellCommandWasInvestigative = false;
         string? collaborationMode = null;
         var pendingShellCommands = new HashSet<string>(StringComparer.Ordinal);
@@ -180,15 +181,17 @@ internal sealed class CodexSessionLogParser
                     if (TryGetShellCommandText(payload, out var commandText))
                     {
                         var commandKind = ClassifyShellCommand(commandText);
+                        var commandName = ExtractCommandName(commandText);
                         var isInvestigative = commandKind is RunningCommandKind.Git or RunningCommandKind.Search;
                         if (!lastShellCommandAt.HasValue || timestamp >= lastShellCommandAt)
                         {
                             lastShellCommandAt = timestamp;
                             lastShellCommandWasInvestigative = isInvestigative;
                             lastRunningCommandKind = commandKind ?? RunningCommandKind.Unknown;
+                            lastRunningCommandName = commandName;
                             runningCommandReason = commandKind is null
                                 ? "pending shell_command function call in session log"
-                                : $"shell_command looks like {DescribeShellCommandKind(commandKind.Value)}";
+                                : $"shell_command looks like {commandName}";
                         }
                     }
                 }
@@ -235,8 +238,33 @@ internal sealed class CodexSessionLogParser
             ProjectPath = latestProjectPath,
             LastShellCommandAt = lastShellCommandAt,
             LastRunningCommandKind = lastRunningCommandKind,
+            LastRunningCommandName = lastRunningCommandName,
             LastShellCommandWasInvestigative = lastShellCommandWasInvestigative
         };
+    }
+
+    private static string? ExtractCommandName(string commandText)
+    {
+        var normalized = commandText.Trim();
+        if (normalized.Length == 0)
+        {
+            return null;
+        }
+
+        while (normalized.StartsWith('&'))
+        {
+            normalized = normalized[1..].TrimStart();
+        }
+
+        if (normalized.Length == 0)
+        {
+            return null;
+        }
+
+        var separatorIndex = normalized.IndexOfAny([' ', '\t', '|', ';']);
+        var commandName = separatorIndex < 0 ? normalized : normalized[..separatorIndex];
+        commandName = commandName.Trim().Trim('"', '\'');
+        return commandName.Length == 0 ? null : commandName;
     }
 
     private static RunningCommandKind? ClassifyShellCommand(string commandText)
@@ -268,18 +296,6 @@ internal sealed class CodexSessionLogParser
         }
 
         return null;
-    }
-
-    private static string DescribeShellCommandKind(RunningCommandKind kind)
-    {
-        return kind switch
-        {
-            RunningCommandKind.Git => "git",
-            RunningCommandKind.Search => "search",
-            RunningCommandKind.Build => "build",
-            RunningCommandKind.Test => "test",
-            _ => "running command"
-        };
     }
 
     private static bool TryGetShellCommandText(JsonElement payload, out string commandText)

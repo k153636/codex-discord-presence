@@ -708,6 +708,7 @@ public class CodexStateTests
             Assert.True(snapshot.IsRunning);
             Assert.Equal(CodexActivityKind.RunningCommand, snapshot.ActivityKind);
             Assert.Equal(RunningCommandKind.Test, snapshot.RunningCommandKind);
+            Assert.Equal("dotnet", snapshot.RunningCommandName);
         }
         finally
         {
@@ -735,6 +736,7 @@ public class CodexStateTests
             Assert.True(snapshot.IsRunning);
             Assert.Equal(CodexActivityKind.RunningCommand, snapshot.ActivityKind);
             Assert.Equal(RunningCommandKind.Build, snapshot.RunningCommandKind);
+            Assert.Equal("dotnet", snapshot.RunningCommandName);
         }
         finally
         {
@@ -762,6 +764,7 @@ public class CodexStateTests
             Assert.True(snapshot.IsRunning);
             Assert.Equal(CodexActivityKind.RunningCommand, snapshot.ActivityKind);
             Assert.Equal(RunningCommandKind.Git, snapshot.RunningCommandKind);
+            Assert.Equal("git", snapshot.RunningCommandName);
             Assert.True(snapshot.LastShellCommandWasInvestigative);
         }
         finally
@@ -790,6 +793,7 @@ public class CodexStateTests
             Assert.True(snapshot.IsRunning);
             Assert.Equal(CodexActivityKind.RunningCommand, snapshot.ActivityKind);
             Assert.Equal(RunningCommandKind.Search, snapshot.RunningCommandKind);
+            Assert.Equal("rg", snapshot.RunningCommandName);
             Assert.True(snapshot.LastShellCommandWasInvestigative);
         }
         finally
@@ -821,6 +825,7 @@ public class CodexStateTests
             Assert.True(snapshot.IsRunning);
             Assert.Equal(CodexActivityKind.AnalyzingProject, snapshot.ActivityKind);
             Assert.Equal(RunningCommandKind.Search, snapshot.RunningCommandKind);
+            Assert.Equal("Get-Content", snapshot.RunningCommandName);
             Assert.True(snapshot.LastShellCommandWasInvestigative);
         }
         finally

@@ -62,7 +62,7 @@ public sealed class PresenceTemplateRenderer
             ["ActivityProvenance"] = context.Codex.ActivityProvenance.ToString(),
             ["ActivityReason"] = context.Codex.ActivityReason,
             ["ActivityLine"] = activityLine,
-            ["RunningCommandName"] = ResolveRunningCommandName(context.Codex.RunningCommandKind),
+            ["RunningCommandName"] = ResolveRunningCommandName(context.Codex.RunningCommandName, context.Codex.RunningCommandKind),
             ["RunningCommandKind"] = context.Codex.RunningCommandKind.ToString(),
             ["ProjectFileCount"] = context.Project.TotalFileCount.ToString(CultureInfo.InvariantCulture),
             ["ProjectLineCount"] = context.Project.TotalLineCount.ToString(CultureInfo.InvariantCulture),
@@ -198,14 +198,19 @@ public sealed class PresenceTemplateRenderer
         };
     }
 
-    private static string ResolveRunningCommandName(RunningCommandKind commandKind)
+    private static string ResolveRunningCommandName(string commandName, RunningCommandKind commandKind)
     {
+        if (!string.IsNullOrWhiteSpace(commandName))
+        {
+            return commandName;
+        }
+
         return commandKind switch
         {
-            RunningCommandKind.Git => "Git",
-            RunningCommandKind.Search => "Search",
-            RunningCommandKind.Build => "Build",
-            RunningCommandKind.Test => "Test",
+            RunningCommandKind.Git => "git",
+            RunningCommandKind.Search => "search",
+            RunningCommandKind.Build => "build",
+            RunningCommandKind.Test => "test",
             _ => ""
         };
     }

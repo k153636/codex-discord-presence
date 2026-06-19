@@ -47,7 +47,7 @@ public sealed class PresenceStatusLabelResolver
     private static string ResolveRunningCommandLabel(PresenceTemplateOptions template, PresenceContext context)
     {
         var baseLabel = FirstNonEmpty(template.RunningCommandText, "Run Command");
-        var commandName = ResolveRunningCommandName(context.Codex.RunningCommandKind);
+        var commandName = ResolveRunningCommandName(context.Codex.RunningCommandName, context.Codex.RunningCommandKind);
 
         if (string.IsNullOrWhiteSpace(commandName))
         {
@@ -62,14 +62,19 @@ public sealed class PresenceStatusLabelResolver
         return $"{baseLabel}: {commandName}";
     }
 
-    private static string ResolveRunningCommandName(RunningCommandKind commandKind)
+    private static string ResolveRunningCommandName(string commandName, RunningCommandKind commandKind)
     {
+        if (!string.IsNullOrWhiteSpace(commandName))
+        {
+            return commandName;
+        }
+
         return commandKind switch
         {
-            RunningCommandKind.Git => "Git",
-            RunningCommandKind.Search => "Search",
-            RunningCommandKind.Build => "Build",
-            RunningCommandKind.Test => "Test",
+            RunningCommandKind.Git => "git",
+            RunningCommandKind.Search => "search",
+            RunningCommandKind.Build => "build",
+            RunningCommandKind.Test => "test",
             _ => ""
         };
     }

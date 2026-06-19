@@ -81,6 +81,7 @@ public sealed class PresenceTemplateRendererTests
             {
                 DetectedActivityKind = CodexActivityKind.RunningCommand,
                 RunningCommandKind = RunningCommandKind.Git,
+                RunningCommandName = "git",
                 LastTaskStartedAt = now
             },
             new ProjectSnapshot("Nexstrap", @"E:\tool\Nexstrap", null, null, 128, 128, 42000, []),
@@ -88,7 +89,7 @@ public sealed class PresenceTemplateRendererTests
 
         var presence = renderer.Render(template, context);
 
-        Assert.Equal("Run Command: Git", presence.State);
+        Assert.Equal("Run Command: git", presence.State);
     }
 
     [Fact]
@@ -527,6 +528,7 @@ public sealed class PresenceTemplateRendererTests
             {
                 DetectedActivityKind = CodexActivityKind.RunningCommand,
                 RunningCommandKind = RunningCommandKind.Git,
+                RunningCommandName = "git",
                 ActivityProvenance = ActivityProvenance.Observed,
                 LastObservedAt = now
             },
@@ -537,7 +539,28 @@ public sealed class PresenceTemplateRendererTests
 
         var presence = renderer.Render(template, context);
 
-        Assert.Equal("Run Command: Git", presence.State);
+        Assert.Equal("Run Command: git", presence.State);
+    }
+
+    [Fact]
+    public void Render_RunningCommandWithChildItemName_UsesCommandName()
+    {
+        var renderer = new PresenceTemplateRenderer();
+        var template = new PresenceTemplateOptions { State = "{ActivityLine}" };
+        var context = CreateContext(
+            new CodexProcessSnapshot(true, "codex", true)
+            {
+                DetectedActivityKind = CodexActivityKind.RunningCommand,
+                RunningCommandKind = RunningCommandKind.Search,
+                RunningCommandName = "Get-ChildItem",
+                LastTaskStartedAt = DateTime.UtcNow
+            },
+            new ProjectSnapshot("Nexstrap", @"E:\tool\Nexstrap", null, null, 128, 128, 42000, []),
+            new GitSnapshot(true, 1, null));
+
+        var presence = renderer.Render(template, context);
+
+        Assert.Equal("Run Command: Get-ChildItem", presence.State);
     }
 
     [Fact]
