@@ -19,9 +19,13 @@ public sealed class PresenceStatusLabelResolver
             CodexActivityKind.DeletingFiles => FirstNonEmpty(template.DeletingFilesText, "Deleting files"),
             CodexActivityKind.RunningCommand => ResolveRunningCommandLabel(template, context),
             CodexActivityKind.Refactoring => FirstNonEmpty(template.RefactoringText, "Refactoring"),
-            CodexActivityKind.AnalyzingProject => ShouldUseWorkingLabel(context)
-                ? FirstNonEmpty(template.WorkingText, template.InvestigatingText, template.AnalyzingProjectText, template.AnalyzingText, template.ThinkingText, "Analyzing project")
-                : FirstNonEmpty(template.InvestigatingText, template.WorkingText, template.AnalyzingProjectText, template.AnalyzingText, template.ThinkingText, "Investigating"),
+            CodexActivityKind.AnalyzingProject => ShouldUseRunningCommandLabel(context)
+                ? ResolveRunningCommandLabel(template, context)
+                : ShouldUseWorkingLabel(context)
+                    ? FirstNonEmpty(template.WorkingText, template.InvestigatingText, template.AnalyzingProjectText, template.AnalyzingText, template.ThinkingText, "Analyzing project")
+                    : ShouldUseInvestigatingLabel(context)
+                        ? FirstNonEmpty(template.InvestigatingText, template.WorkingText, template.AnalyzingProjectText, template.AnalyzingText, template.ThinkingText, "Investigating")
+                        : FirstNonEmpty(template.InvestigatingText, template.WorkingText, template.AnalyzingProjectText, template.AnalyzingText, template.ThinkingText, "Investigating"),
             CodexActivityKind.Ready => ResolveReadyLabel(template, context),
             CodexActivityKind.Offline => FirstNonEmpty(template.OfflineText, template.IdlingText, "Idling"),
             _ => FirstNonEmpty(template.IdlingText, template.ReadyText, "Idling")
@@ -69,14 +73,7 @@ public sealed class PresenceStatusLabelResolver
             return commandName;
         }
 
-        return commandKind switch
-        {
-            RunningCommandKind.Git => "git",
-            RunningCommandKind.Search => "search",
-            RunningCommandKind.Build => "build",
-            RunningCommandKind.Test => "test",
-            _ => ""
-        };
+        return "";
     }
 
     private static string StripRunningCommandPlaceholder(string value)
@@ -92,6 +89,13 @@ public sealed class PresenceStatusLabelResolver
         return context.Codex.ActivityKind == CodexActivityKind.AnalyzingProject &&
             !ShouldUseInvestigatingLabel(context) &&
             context.Codex.LastTaskStartedAt.HasValue;
+    }
+
+    private static bool ShouldUseRunningCommandLabel(PresenceContext context)
+    {
+        return context.Codex.ActivityKind == CodexActivityKind.AnalyzingProject &&
+            (!string.IsNullOrWhiteSpace(context.Codex.RunningCommandName) ||
+                context.Codex.RunningCommandKind != RunningCommandKind.Unknown);
     }
 
     private static bool ShouldUseInvestigatingLabel(PresenceContext context)

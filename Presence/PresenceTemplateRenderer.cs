@@ -205,14 +205,7 @@ public sealed class PresenceTemplateRenderer
             return commandName;
         }
 
-        return commandKind switch
-        {
-            RunningCommandKind.Git => "git",
-            RunningCommandKind.Search => "search",
-            RunningCommandKind.Build => "build",
-            RunningCommandKind.Test => "test",
-            _ => ""
-        };
+        return "";
     }
 
     private static bool IsImplementationActivity(CodexActivityKind activityKind)

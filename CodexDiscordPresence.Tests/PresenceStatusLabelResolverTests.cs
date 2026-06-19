@@ -24,6 +24,23 @@ public sealed class PresenceStatusLabelResolverTests
     }
 
     [Fact]
+    public void ResolveStateLabel_RunningCommandWithoutName_ReturnsRunCommand()
+    {
+        var resolver = new PresenceStatusLabelResolver();
+        var context = CreateContext(
+            new CodexProcessSnapshot(true, "codex", true)
+            {
+                DetectedActivityKind = CodexActivityKind.RunningCommand,
+                RunningCommandKind = RunningCommandKind.Search,
+                LastTaskStartedAt = DateTime.UtcNow
+            });
+
+        var label = resolver.ResolveStateLabel(new PresenceTemplateOptions(), context, CodexActivityKind.RunningCommand, 0);
+
+        Assert.Equal("Run Command", label);
+    }
+
+    [Fact]
     public void ResolveStateLabel_AnalyzingProjectWithTaskStarted_ReturnsWorking()
     {
         var resolver = new PresenceStatusLabelResolver();
@@ -64,6 +81,23 @@ public sealed class PresenceStatusLabelResolverTests
         var label = resolver.ResolveStateLabel(new PresenceTemplateOptions(), context, CodexActivityKind.AnalyzingProject, 0);
 
         Assert.Equal("Investigating", label);
+    }
+
+    [Fact]
+    public void ResolveStateLabel_AnalyzingProjectWithInvestigativeCommandName_ReturnsRunCommand()
+    {
+        var resolver = new PresenceStatusLabelResolver();
+        var context = CreateContext(
+            new CodexProcessSnapshot(true, "codex", true)
+            {
+                RunningCommandKind = RunningCommandKind.Search,
+                RunningCommandName = "rg",
+                LastShellCommandWasInvestigative = true
+            });
+
+        var label = resolver.ResolveStateLabel(new PresenceTemplateOptions(), context, CodexActivityKind.AnalyzingProject, 0);
+
+        Assert.Equal("Run Command: rg", label);
     }
 
     [Fact]
