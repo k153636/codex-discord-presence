@@ -27,10 +27,15 @@ internal sealed class CodexActivityResolver
             sessionInspection.LastRunningCommandKind != RunningCommandKind.Unknown &&
             sessionInspection.LastShellCommandAt.HasValue &&
             DateTime.UtcNow - sessionInspection.LastShellCommandAt.Value <= TimeSpan.FromSeconds(Math.Max(0, context.RunningCommandHoldSeconds));
+        var hasRecentTaskStarted = sessionInspection is not null &&
+            sessionInspection.HasTaskStarted &&
+            sessionInspection.LastTaskStartedAt.HasValue &&
+            DateTime.UtcNow - sessionInspection.LastTaskStartedAt.Value <= TimeSpan.FromMinutes(Math.Max(0, context.ThinkingStaleTimeoutMinutes));
         var hasFreshRecentEdits = CodexActivityEvidence.HasFreshRecentEdits(recentEditedFiles, context.EditingFreshnessSeconds);
         var hasBurstRecentEdits = CodexActivityEvidence.HasBurstRecentEdits(recentEditedFiles, changedFileCount);
         var hasRefactorEvidence = CodexActivityEvidence.HasRefactorEvidence(gitSnapshot);
         var hasCreatingEvidence = hasFreshSession &&
+            hasFreshRecentEdits &&
             createdFileCount > 0 &&
             deletedFileCount == 0 &&
             changedFileCount == createdFileCount;
@@ -122,7 +127,7 @@ internal sealed class CodexActivityResolver
             return CodexActivityKind.Ready;
         }
 
-        if (hasFreshSession && sessionInspection?.HasTaskStarted == true)
+        if (hasFreshSession && hasRecentTaskStarted)
         {
             provenance = ActivityProvenance.Inferred;
             confidence = ActivityConfidence.High;
@@ -134,8 +139,8 @@ internal sealed class CodexActivityResolver
         {
             provenance = ActivityProvenance.Inferred;
             confidence = ActivityConfidence.High;
-            reason = "recent Codex activity without file writes";
-            return CodexActivityKind.AnalyzingProject;
+            reason = "Codex running but idle";
+            return CodexActivityKind.Ready;
         }
 
         provenance = ActivityProvenance.Inferred;
