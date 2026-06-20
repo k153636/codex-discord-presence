@@ -30,10 +30,12 @@ internal sealed class CodexActivityResolver
         var hasFreshRecentEdits = CodexActivityEvidence.HasFreshRecentEdits(recentEditedFiles, context.EditingFreshnessSeconds);
         var hasBurstRecentEdits = CodexActivityEvidence.HasBurstRecentEdits(recentEditedFiles, changedFileCount);
         var hasRefactorEvidence = CodexActivityEvidence.HasRefactorEvidence(gitSnapshot);
-        var hasCreatingEvidence = createdFileCount > 0 &&
+        var hasCreatingEvidence = hasFreshSession &&
+            createdFileCount > 0 &&
             deletedFileCount == 0 &&
             changedFileCount == createdFileCount;
-        var hasDeletingEvidence = deletedFileCount > 0 &&
+        var hasDeletingEvidence = hasFreshSession &&
+            deletedFileCount > 0 &&
             createdFileCount == 0 &&
             changedFileCount == deletedFileCount;
 

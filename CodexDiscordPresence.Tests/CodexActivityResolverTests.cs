@@ -228,6 +228,27 @@ public sealed class CodexActivityResolverTests
     }
 
     [Fact]
+    public void Resolve_StaleCreatedFilesFallsBackToReady()
+    {
+        var resolver = new CodexActivityResolver();
+        var now = DateTime.UtcNow;
+        var context = CreateContext(
+            new SessionInspection(true, true, true, false, now.AddMinutes(-30), null, now.AddMinutes(-30), null, false, null, null),
+            new GitSnapshot(true, 1, null, CreatedFileCount: 1),
+            null,
+            [],
+            changedFileCount: 1,
+            thinkingStaleTimeoutMinutes: 10);
+
+        var activity = resolver.Resolve(context, out var provenance, out var confidence, out var reason, out _);
+
+        Assert.Equal(CodexActivityKind.Ready, activity);
+        Assert.Equal(ActivityProvenance.Inferred, provenance);
+        Assert.Equal(ActivityConfidence.High, confidence);
+        Assert.Equal("Codex running but idle", reason);
+    }
+
+    [Fact]
     public void Resolve_NoEvidence_ReturnsReady()
     {
         var resolver = new CodexActivityResolver();
