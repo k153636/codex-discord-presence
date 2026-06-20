@@ -36,7 +36,7 @@ public sealed class PresenceStatusLabelResolver
 
     private static string ResolveReadyLabel(PresenceTemplateOptions template, PresenceContext context)
     {
-        var lastObservedAt = context.Codex.LastObservedAt ?? context.Session.StartedAt;
+        var lastObservedAt = context.Codex.ActivityStartedAt ?? context.Codex.LastObservedAt ?? context.Session.StartedAt;
         var idleGrace = TimeSpan.FromMinutes(Math.Max(0, template.ReadyIdleGraceMinutes));
         var elapsedSinceLastObserved = DateTime.UtcNow - lastObservedAt;
 

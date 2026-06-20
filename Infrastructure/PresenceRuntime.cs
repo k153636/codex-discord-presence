@@ -329,10 +329,12 @@ public sealed class PresenceRuntime
 
     private void UpdateProfileActivityState(ProfileRuntimeState selectedProfileState, CodexProcessSnapshot codexSnapshot)
     {
-        if (selectedProfileState.LastActivitySnapshot is null ||
-            selectedProfileState.LastActivitySnapshot.ActivityKind != codexSnapshot.ActivityKind ||
-            selectedProfileState.LastActivitySnapshot.ActivityProvenance != codexSnapshot.ActivityProvenance ||
-            !string.Equals(selectedProfileState.LastActivitySnapshot.ActivityReason, codexSnapshot.ActivityReason, StringComparison.Ordinal))
+        var previousSnapshot = selectedProfileState.LastActivitySnapshot;
+
+        if (previousSnapshot is null ||
+            previousSnapshot.ActivityKind != codexSnapshot.ActivityKind ||
+            previousSnapshot.ActivityProvenance != codexSnapshot.ActivityProvenance ||
+            !string.Equals(previousSnapshot.ActivityReason, codexSnapshot.ActivityReason, StringComparison.Ordinal))
         {
             _log.Info(
                 "Activity detection: " +
@@ -347,6 +349,12 @@ public sealed class PresenceRuntime
                 $"lastShellCommandAt={FormatTimestamp(codexSnapshot.LastShellCommandAt)}, " +
                 $"lastObservedAt={FormatTimestamp(codexSnapshot.LastObservedAt)}");
             selectedProfileState.LastActivitySnapshot = codexSnapshot;
+        }
+
+        if (previousSnapshot is not null &&
+            previousSnapshot.ActivityKind != codexSnapshot.ActivityKind)
+        {
+            _log.Info(BuildActivityTransitionLog(previousSnapshot, codexSnapshot));
         }
 
         selectedProfileState.LastAnalyzingRepeatCount = codexSnapshot.ActivityRepeatCount;
@@ -410,6 +418,54 @@ public sealed class PresenceRuntime
             : "<none>";
     }
 
+    private static string BuildActivityTransitionLog(CodexProcessSnapshot previousSnapshot, CodexProcessSnapshot currentSnapshot)
+    {
+        var transitionStart = previousSnapshot.ActivityStartedAt
+            ?? previousSnapshot.LastObservedAt
+            ?? currentSnapshot.ActivityStartedAt
+            ?? currentSnapshot.LastObservedAt;
+        var transitionEnd = currentSnapshot.ActivityStartedAt
+            ?? currentSnapshot.LastObservedAt
+            ?? DateTime.UtcNow;
+        var duration = transitionStart.HasValue
+            ? FormatDuration(transitionEnd - transitionStart.Value)
+            : "<unknown>";
+
+        return
+            "Activity transition: " +
+            $"{previousSnapshot.ActivityKind} -> {currentSnapshot.ActivityKind}; " +
+            $"startedAt={FormatTimestamp(transitionStart)}; " +
+            $"endedAt={FormatTimestamp(transitionEnd)}; " +
+            $"duration={duration}; " +
+            $"fromReason={FormatLogValueForMultiline(previousSnapshot.ActivityReason)}; " +
+            $"toReason={FormatLogValueForMultiline(currentSnapshot.ActivityReason)}";
+    }
+
+    private static string FormatDuration(TimeSpan duration)
+    {
+        if (duration < TimeSpan.Zero)
+        {
+            duration = TimeSpan.Zero;
+        }
+
+        if (duration.TotalDays >= 1)
+        {
+            return $"{(int)duration.TotalDays}d {duration.Hours}h {duration.Minutes}m {duration.Seconds}s";
+        }
+
+        if (duration.TotalHours >= 1)
+        {
+            return $"{(int)duration.TotalHours}h {duration.Minutes}m {duration.Seconds}s";
+        }
+
+        if (duration.TotalMinutes >= 1)
+        {
+            return $"{duration.Minutes}m {duration.Seconds}s";
+        }
+
+        return $"{duration.Seconds}s";
+    }
+
     private static string BuildPresenceSignature(RenderedPresence presence)
     {
         var buttons = string.Join(
@@ -435,7 +491,7 @@ public sealed class PresenceRuntime
     {
         if (!currentActivityKind.IsActive())
         {
-            return null;
+            return currentObservedAt ?? lastActivityStartedAt ?? DateTime.UtcNow;
         }
 
         if (currentActivityKind == CodexActivityKind.AnalyzingProject &&

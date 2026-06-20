@@ -114,6 +114,24 @@ public sealed class PresenceStatusLabelResolverTests
     }
 
     [Fact]
+    public void ResolveStateLabel_ReadyUsesActivityStartTimeForGracePeriod()
+    {
+        var resolver = new PresenceStatusLabelResolver();
+        var context = CreateContext(
+            new CodexProcessSnapshot(true, "codex", false)
+            {
+                ActivityStartedAt = DateTime.UtcNow.AddMinutes(-4),
+                LastObservedAt = DateTime.UtcNow.AddHours(-1)
+            },
+            sessionAge: TimeSpan.FromHours(1),
+            lastObservedAt: DateTime.UtcNow.AddHours(-1));
+
+        var label = resolver.ResolveStateLabel(new PresenceTemplateOptions(), context, CodexActivityKind.Ready, 0);
+
+        Assert.Equal("Waiting", label);
+    }
+
+    [Fact]
     public void ResolveStateLabel_Offline_ReturnsIdling()
     {
         var resolver = new PresenceStatusLabelResolver();
