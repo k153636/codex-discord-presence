@@ -65,7 +65,7 @@ The presence engine prefers observable, high-confidence labels first:
 - `Applying edits`
 - `Creating files`
 - `Deleting files`
-- `Thinking`
+- `Investigating`
 - `Working`
 - `Waiting`
 - `Idling`

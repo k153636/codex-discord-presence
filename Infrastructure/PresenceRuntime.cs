@@ -426,13 +426,18 @@ public sealed class PresenceRuntime
 
     private static string BuildActivityTransitionLog(CodexProcessSnapshot previousSnapshot, CodexProcessSnapshot currentSnapshot)
     {
-        var transitionStart = previousSnapshot.ActivityStartedAt
-            ?? previousSnapshot.LastObservedAt
-            ?? currentSnapshot.ActivityStartedAt
-            ?? currentSnapshot.LastObservedAt;
-        var transitionEnd = currentSnapshot.ActivityStartedAt
+        var transitionStart = previousSnapshot.LastObservedAt
+            ?? previousSnapshot.ActivityStartedAt
             ?? currentSnapshot.LastObservedAt
+            ?? currentSnapshot.ActivityStartedAt;
+        var transitionEnd = currentSnapshot.LastObservedAt
+            ?? currentSnapshot.ActivityStartedAt
             ?? DateTime.UtcNow;
+        if (transitionStart.HasValue && transitionEnd < transitionStart.Value)
+        {
+            transitionEnd = transitionStart.Value;
+        }
+
         var duration = transitionStart.HasValue
             ? FormatDuration(transitionEnd - transitionStart.Value)
             : "<unknown>";

@@ -56,6 +56,29 @@ public sealed class PresenceStatusLabelResolverTests
     }
 
     [Fact]
+    public void ResolveStateLabel_AnalyzingProjectWithTaskStartedIgnoresGenericFallbackLabels()
+    {
+        var resolver = new PresenceStatusLabelResolver();
+        var template = new PresenceTemplateOptions
+        {
+            InvestigatingText = "Investigating",
+            WorkingText = "Working",
+            ThinkingText = "Thinking",
+            AnalyzingProjectText = "Thinking",
+            AnalyzingText = "Thinking"
+        };
+        var context = CreateContext(
+            new CodexProcessSnapshot(true, "codex", true)
+            {
+                LastTaskStartedAt = DateTime.UtcNow
+            });
+
+        var label = resolver.ResolveStateLabel(template, context, CodexActivityKind.AnalyzingProject, 0);
+
+        Assert.Equal("Working", label);
+    }
+
+    [Fact]
     public void ResolveStateLabel_AnalyzingProjectWithoutStrongEvidence_ReturnsInvestigating()
     {
         var resolver = new PresenceStatusLabelResolver();
