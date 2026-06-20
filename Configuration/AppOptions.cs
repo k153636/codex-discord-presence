@@ -224,7 +224,9 @@ public sealed class ProjectOptions
         "obj",
         "node_modules",
         "dist",
-        "build"
+        "build",
+        "publish",
+        "publish-latest"
     ];
 }
 

@@ -76,6 +76,40 @@ public sealed class ProjectInspectorTests
     }
 
     [Fact]
+    public void GetSnapshot_IgnoresPublishDirectories()
+    {
+        var tempPath = Path.Combine(Path.GetTempPath(), "CodexProjectInspectorTests_" + Guid.NewGuid());
+        Directory.CreateDirectory(tempPath);
+
+        try
+        {
+            var sourceFile = Path.Combine(tempPath, "Source.cs");
+            var publishDir = Path.Combine(tempPath, "publish-latest");
+            var publishFile = Path.Combine(publishDir, "appsettings.json");
+            Directory.CreateDirectory(publishDir);
+            File.WriteAllText(sourceFile, "code");
+            File.WriteAllText(publishFile, "{}");
+            File.SetLastWriteTimeUtc(sourceFile, DateTime.UtcNow.AddMinutes(-10));
+            File.SetLastWriteTimeUtc(publishFile, DateTime.UtcNow);
+
+            var inspector = new ProjectInspector(new ProjectOptions
+            {
+                Path = tempPath
+            });
+
+            var snapshot = inspector.GetSnapshot();
+
+            Assert.Equal("Source.cs", snapshot.RecentFileName);
+            Assert.Single(snapshot.RecentFiles);
+            Assert.Equal("Source.cs", snapshot.RecentFiles[0].Name);
+        }
+        finally
+        {
+            Directory.Delete(tempPath, true);
+        }
+    }
+
+    [Fact]
     public void Constructor_WhenPathIsInsideGitRepo_UsesGitRootAsProjectPath()
     {
         var tempPath = Path.Combine(Path.GetTempPath(), "CodexProjectInspectorTests_" + Guid.NewGuid());
