@@ -28,4 +28,34 @@ public sealed class DiagnosticLogTests
             Directory.Delete(tempPath, true);
         }
     }
+
+    [Fact]
+    public void CreateAndWrite_RotatesWhenMaxSizeExceeded()
+    {
+        var tempPath = Path.Combine(Path.GetTempPath(), "codex-discord-presence-log-rotate-test-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(tempPath);
+
+        try
+        {
+            using (var log = new DiagnosticLog(Path.Combine(tempPath, "presence.log"), 1))
+            {
+                var initialPath = log.Path;
+                log.Info("a");
+                var afterFirstWritePath = log.Path;
+                log.Info("b");
+                var afterSecondWritePath = log.Path;
+                Assert.NotEqual(initialPath, afterFirstWritePath);
+                Assert.NotEqual(afterFirstWritePath, afterSecondWritePath);
+            }
+
+            var files = Directory.GetFiles(tempPath, "presence*.log");
+            Assert.True(files.Length >= 2);
+            Assert.Contains(files, file => Path.GetFileName(file) == "presence.log");
+            Assert.Contains(files, file => Path.GetFileName(file).StartsWith("presence-1", StringComparison.Ordinal));
+        }
+        finally
+        {
+            Directory.Delete(tempPath, true);
+        }
+    }
 }

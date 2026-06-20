@@ -4,20 +4,24 @@ namespace CodexDiscordPresence;
 
 public sealed class DiagnosticLog : IDisposable
 {
-    private readonly StreamWriter _writer;
+    private readonly string _logsDirectory;
+    private readonly string _baseFileName;
+    private readonly long _maxFileSizeBytes;
     private readonly object _gate = new();
+    private int _rotationIndex;
 
-    public DiagnosticLog(string path)
+    public DiagnosticLog(string path, long maxFileSizeBytes = 1_048_576)
     {
+        var directory = System.IO.Path.GetDirectoryName(path) ?? ".";
+        _logsDirectory = directory;
+        _baseFileName = System.IO.Path.GetFileNameWithoutExtension(path);
+        _maxFileSizeBytes = Math.Max(1, maxFileSizeBytes);
+        Directory.CreateDirectory(directory);
         Path = path;
-        Directory.CreateDirectory(System.IO.Path.GetDirectoryName(path) ?? ".");
-        _writer = new StreamWriter(new FileStream(path, FileMode.Create, FileAccess.Write, FileShare.ReadWrite), Encoding.UTF8)
-        {
-            AutoFlush = true
-        };
+        EnsureFileExists(Path);
     }
 
-    public string Path { get; }
+    public string Path { get; private set; }
 
     public static DiagnosticLog Create(string logsDirectory)
     {
@@ -36,14 +40,12 @@ public sealed class DiagnosticLog : IDisposable
 
     public void Dispose()
     {
-        _writer.Dispose();
     }
 
     private void Write(string level, string message, bool error)
     {
         var normalizedMessage = message.ReplaceLineEndings(" | ");
         var line = $"{DateTime.UtcNow:O} [{level}] {normalizedMessage}";
-
         lock (_gate)
         {
             if (error)
@@ -55,7 +57,51 @@ public sealed class DiagnosticLog : IDisposable
                 Console.WriteLine(line);
             }
 
-            _writer.WriteLine(line);
+            AppendLine(Path, line);
+
+            var currentLength = GetFileLength(Path);
+            if (currentLength >= _maxFileSizeBytes)
+            {
+                RotateToNextFile();
+            }
         }
+    }
+
+    private void RotateToNextFile()
+    {
+        _rotationIndex++;
+        Path = BuildRotatedPath();
+        EnsureFileExists(Path);
+    }
+
+    private void AppendLine(string path, string line)
+    {
+        File.AppendAllText(path, line + Environment.NewLine, Encoding.UTF8);
+    }
+
+    private static void EnsureFileExists(string path)
+    {
+        if (!File.Exists(path))
+        {
+            File.WriteAllText(path, string.Empty, Encoding.UTF8);
+        }
+    }
+
+    private static long GetFileLength(string path)
+    {
+        try
+        {
+            return File.Exists(path) ? new FileInfo(path).Length : 0;
+        }
+        catch
+        {
+            return 0;
+        }
+    }
+
+    private string BuildRotatedPath()
+    {
+        var suffix = _rotationIndex == 0 ? "" : $"-{_rotationIndex}";
+        return System.IO.Path.Combine(_logsDirectory, $"{_baseFileName}{suffix}.log");
     }
 }
