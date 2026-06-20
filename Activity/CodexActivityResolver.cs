@@ -34,11 +34,13 @@ internal sealed class CodexActivityResolver
         var hasFreshRecentEdits = CodexActivityEvidence.HasFreshRecentEdits(recentEditedFiles, context.EditingFreshnessSeconds);
         var hasBurstRecentEdits = CodexActivityEvidence.HasBurstRecentEdits(recentEditedFiles, changedFileCount);
         var hasRefactorEvidence = CodexActivityEvidence.HasRefactorEvidence(gitSnapshot);
-        var hasCreatingEvidence = hasFreshSession &&
+        var hasSingleCreatingEvidence = hasFreshSession &&
             hasFreshRecentEdits &&
+            recentEditedFiles.Count == 1 &&
             createdFileCount > 0 &&
             deletedFileCount == 0 &&
-            changedFileCount == createdFileCount;
+            changedFileCount == 1 &&
+            createdFileCount == 1;
         var hasDeletingEvidence = hasFreshSession &&
             deletedFileCount > 0 &&
             createdFileCount == 0 &&
@@ -53,6 +55,14 @@ internal sealed class CodexActivityResolver
             return CodexActivityKind.RunningCommand;
         }
 
+        if (hasSingleCreatingEvidence)
+        {
+            provenance = ActivityProvenance.Observed;
+            confidence = ActivityConfidence.High;
+            reason = $"created file={recentEditedFiles[0].Name}, git changed files={changedFileCount}";
+            return CodexActivityKind.CreatingFiles;
+        }
+
         if (hasFreshRecentEdits)
         {
             provenance = ActivityProvenance.Observed;
@@ -65,14 +75,6 @@ internal sealed class CodexActivityResolver
 
             reason = $"recent edit={recentEditedFiles[0].Name}, git changed files={changedFileCount}";
             return CodexActivityKind.ApplyingEdits;
-        }
-
-        if (hasCreatingEvidence)
-        {
-            provenance = ActivityProvenance.Observed;
-            confidence = ActivityConfidence.High;
-            reason = $"created files={createdFileCount}, git changed files={changedFileCount}";
-            return CodexActivityKind.CreatingFiles;
         }
 
         if (hasDeletingEvidence)
