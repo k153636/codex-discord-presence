@@ -922,6 +922,37 @@ public class CodexStateTests
     }
 
     [Fact]
+    public void Test_12b_PowerShellPreferencePrefix_IsIgnoredForCommandName()
+    {
+        var tempPath = CreateTempSessionDirectory();
+        try
+        {
+            var now = DateTime.UtcNow;
+            var taskStartedAt = now.ToString("yyyy-MM-ddTHH:mm:ss.fffZ");
+            var commandAt = now.AddSeconds(-5).ToString("yyyy-MM-ddTHH:mm:ss.fffZ");
+            WriteMockSessionLog(tempPath, "session1.jsonl", new[]
+            {
+                $"{{\"timestamp\":\"{taskStartedAt}\",\"type\":\"event_msg\",\"payload\":{{\"type\":\"task_started\",\"turn_id\":\"123\"}}}}",
+                $"{{\"timestamp\":\"{commandAt}\",\"type\":\"response_item\",\"payload\":{{\"type\":\"function_call\",\"name\":\"shell_command\",\"arguments\":\"{{\\\"command\\\":\\\"$ErrorActionPreference = 'Stop'; Get-Content README.md\\\"}}\",\"call_id\":\"call_123\"}}}}"
+            });
+
+            var detector = new CodexProcessDetector(new CodexDetectionOptions { HomePath = tempPath }, new PresenceTemplateOptions());
+
+            var snapshot = detector.GetSnapshot();
+
+            Assert.True(snapshot.IsRunning);
+            Assert.Equal(CodexActivityKind.RunningCommand, snapshot.ActivityKind);
+            Assert.Equal(RunningCommandKind.Search, snapshot.RunningCommandKind);
+            Assert.Equal("Get-Content", snapshot.RunningCommandName);
+            Assert.True(snapshot.LastShellCommandWasInvestigative);
+        }
+        finally
+        {
+            Directory.Delete(tempPath, true);
+        }
+    }
+
+    [Fact]
     public void Test_13_CommitMessageWithRefactorHint_ReturnsRefactoringLowConfidence()
     {
         var tempPath = CreateTempSessionDirectory();

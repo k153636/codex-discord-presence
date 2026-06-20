@@ -252,13 +252,23 @@ internal sealed class CodexSessionLogParser
 
     private static string? ExtractCommandName(string commandText)
     {
-        var token = ExtractFirstCommandToken(commandText);
-        if (token is null)
+        foreach (var segment in SplitCommandSegments(commandText))
         {
-            return null;
+            var token = ExtractFirstCommandToken(segment);
+            if (token is null)
+            {
+                continue;
+            }
+
+            if (IsAssignmentPrefix(token, segment))
+            {
+                continue;
+            }
+
+            return SanitizeCommandName(token);
         }
 
-        return SanitizeCommandName(token);
+        return null;
     }
 
     private static string? ExtractFirstCommandToken(string commandText)
@@ -295,6 +305,24 @@ internal sealed class CodexSessionLogParser
         var commandName = separatorIndex < 0 ? normalized : normalized[..separatorIndex];
         commandName = commandName.Trim();
         return commandName.Length == 0 ? null : commandName;
+    }
+
+    private static IEnumerable<string> SplitCommandSegments(string commandText)
+    {
+        return commandText
+            .Split([';', '|', '\n', '\r'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Select(segment => segment.Trim())
+            .Where(segment => segment.Length > 0);
+    }
+
+    private static bool IsAssignmentPrefix(string token, string segment)
+    {
+        if (!token.StartsWith("$", StringComparison.Ordinal))
+        {
+            return false;
+        }
+
+        return segment.Contains('=');
     }
 
     private static string? SanitizeCommandName(string commandName)
