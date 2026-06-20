@@ -7,6 +7,7 @@ public sealed class PresenceRuntime
     private readonly CancellationToken _cancellationToken;
     private readonly AppPaths _paths;
     private readonly DiagnosticLog _log;
+    private readonly ForegroundProjectPathDetector _foregroundProjectPathDetector;
     private RuntimeTimingSettings _timingSettings;
     private DateTime _executableSettingsLastWriteTimeUtc;
     private DateTime _cliSettingsLastWriteTimeUtc;
@@ -19,6 +20,7 @@ public sealed class PresenceRuntime
         _cancellationToken = cancellationToken;
         _paths = paths;
         _log = log;
+        _foregroundProjectPathDetector = new ForegroundProjectPathDetector();
         _timingSettings = RuntimeTimingSettings.From(options);
         _executableSettingsLastWriteTimeUtc = GetSettingsLastWriteTimeUtc(_paths.ExecutableSettingsPath);
         _cliSettingsLastWriteTimeUtc = GetSettingsLastWriteTimeUtc(Path.Combine(_paths.BaseDirectory, SettingsFileNames.Cli));
@@ -81,6 +83,7 @@ public sealed class PresenceRuntime
                     activeProjectPath,
                     observedCodexSnapshot,
                     observedCliSnapshot,
+                    _foregroundProjectPathDetector.GetFocusedProjectPath(),
                     _log,
                     ref lastLoggedProjectPath);
                 activeProjectPath = nextProjectPath;
@@ -199,13 +202,16 @@ public sealed class PresenceRuntime
         string activeProjectPath,
         CodexProcessSnapshot observedCodexSnapshot,
         CodexProcessSnapshot observedCliSnapshot,
+        string? focusedProjectPath,
         DiagnosticLog log,
         ref string lastLoggedProjectPath)
     {
-        var nextProjectPath = ActiveProjectPathSelectionPolicy.Select(
-            activeProjectPath,
-            observedCodexSnapshot,
-            observedCliSnapshot);
+        var nextProjectPath = !string.IsNullOrWhiteSpace(focusedProjectPath)
+            ? focusedProjectPath
+            : ActiveProjectPathSelectionPolicy.Select(
+                activeProjectPath,
+                observedCodexSnapshot,
+                observedCliSnapshot);
 
         if (!string.IsNullOrWhiteSpace(nextProjectPath))
         {

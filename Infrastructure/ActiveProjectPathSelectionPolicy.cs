@@ -6,6 +6,24 @@ public static class ActiveProjectPathSelectionPolicy
 
     public static string Select(
         string currentProjectPath,
+        string? focusedProjectPath,
+        CodexProcessSnapshot codexSnapshot,
+        CodexProcessSnapshot cliSnapshot)
+    {
+        if (!string.IsNullOrWhiteSpace(focusedProjectPath))
+        {
+            var normalizedFocusPath = NormalizePath(focusedProjectPath);
+            if (!string.IsNullOrWhiteSpace(normalizedFocusPath))
+            {
+                return normalizedFocusPath;
+            }
+        }
+
+        return Select(currentProjectPath, codexSnapshot, cliSnapshot);
+    }
+
+    public static string Select(
+        string currentProjectPath,
         CodexProcessSnapshot codexSnapshot,
         CodexProcessSnapshot cliSnapshot)
     {
