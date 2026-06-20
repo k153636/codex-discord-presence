@@ -225,6 +225,8 @@ public sealed class ProjectOptions
         "node_modules",
         "dist",
         "build",
+        "out",
+        "artifacts",
         "publish",
         "publish-latest"
     ];

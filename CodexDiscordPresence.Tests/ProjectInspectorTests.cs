@@ -110,6 +110,45 @@ public sealed class ProjectInspectorTests
     }
 
     [Fact]
+    public void GetSnapshot_IgnoresCommonBuildOutputDirectories()
+    {
+        var tempPath = Path.Combine(Path.GetTempPath(), "CodexProjectInspectorTests_" + Guid.NewGuid());
+        Directory.CreateDirectory(tempPath);
+
+        try
+        {
+            var sourceFile = Path.Combine(tempPath, "Source.cs");
+            var outDir = Path.Combine(tempPath, "out");
+            var artifactsDir = Path.Combine(tempPath, "artifacts");
+            var outFile = Path.Combine(outDir, "generated.txt");
+            var artifactsFile = Path.Combine(artifactsDir, "generated.txt");
+            Directory.CreateDirectory(outDir);
+            Directory.CreateDirectory(artifactsDir);
+            File.WriteAllText(sourceFile, "code");
+            File.WriteAllText(outFile, "out");
+            File.WriteAllText(artifactsFile, "artifacts");
+            File.SetLastWriteTimeUtc(sourceFile, DateTime.UtcNow.AddMinutes(-10));
+            File.SetLastWriteTimeUtc(outFile, DateTime.UtcNow);
+            File.SetLastWriteTimeUtc(artifactsFile, DateTime.UtcNow);
+
+            var inspector = new ProjectInspector(new ProjectOptions
+            {
+                Path = tempPath
+            });
+
+            var snapshot = inspector.GetSnapshot();
+
+            Assert.Equal("Source.cs", snapshot.RecentFileName);
+            Assert.Single(snapshot.RecentFiles);
+            Assert.Equal("Source.cs", snapshot.RecentFiles[0].Name);
+        }
+        finally
+        {
+            Directory.Delete(tempPath, true);
+        }
+    }
+
+    [Fact]
     public void Constructor_WhenPathIsInsideGitRepo_UsesGitRootAsProjectPath()
     {
         var tempPath = Path.Combine(Path.GetTempPath(), "CodexProjectInspectorTests_" + Guid.NewGuid());
