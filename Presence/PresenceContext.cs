@@ -79,6 +79,8 @@ public sealed partial record CodexProcessSnapshot
     public RunningCommandKind RunningCommandKind { get; init; } = RunningCommandKind.Unknown;
     public string RunningCommandName { get; init; } = "";
     public bool LastShellCommandWasInvestigative { get; init; }
+    public string? LastDirectToolFilePath { get; init; }
+    public DateTime? LastDirectToolFileAt { get; init; }
     public IReadOnlyList<RecentProjectFileSnapshot> RecentEditedFiles { get; init; } = Array.Empty<RecentProjectFileSnapshot>();
     public int ActivityRepeatCount { get; init; } = 1;
     public CodexProcessDetectionKind DetectionKind { get; init; } = CodexProcessDetectionKind.None;

@@ -97,6 +97,8 @@ internal sealed class CodexSessionLogParser
         RunningCommandKind lastRunningCommandKind = RunningCommandKind.Unknown;
         string? lastRunningCommandName = null;
         bool lastShellCommandWasInvestigative = false;
+        string? lastDirectToolFilePath = null;
+        DateTime? lastDirectToolFileAt = null;
         string? collaborationMode = null;
         var pendingShellCommands = new HashSet<string>(StringComparer.Ordinal);
         var completedShellCommands = new HashSet<string>(StringComparer.Ordinal);
@@ -138,6 +140,14 @@ internal sealed class CodexSessionLogParser
                 }
 
                 var payloadType = TryGetString(payload, "type", out var type) ? type : null;
+
+                var directToolFilePath = TryGetDirectToolFilePath(payload, payloadType, latestProjectPath);
+                if (directToolFilePath is not null && timestamp.HasValue &&
+                    (!lastDirectToolFileAt.HasValue || timestamp >= lastDirectToolFileAt))
+                {
+                    lastDirectToolFilePath = directToolFilePath;
+                    lastDirectToolFileAt = timestamp;
+                }
 
                 if (payloadType is "task_started" || line.Contains("\"task_started\"", StringComparison.Ordinal))
                 {
@@ -246,9 +256,252 @@ internal sealed class CodexSessionLogParser
             LastShellCommandAt = lastShellCommandAt,
             LastRunningCommandKind = lastRunningCommandKind,
             LastRunningCommandName = lastRunningCommandName,
-            LastShellCommandWasInvestigative = lastShellCommandWasInvestigative
+            LastShellCommandWasInvestigative = lastShellCommandWasInvestigative,
+            LastDirectToolFilePath = lastDirectToolFilePath,
+            LastDirectToolFileAt = lastDirectToolFileAt
         };
     }
+
+    private static string? TryGetDirectToolFilePath(
+        JsonElement payload,
+        string? payloadType,
+        string? projectPath)
+    {
+        switch (payloadType)
+        {
+            case "custom_tool_call":
+            {
+                var toolName = TryGetString(payload, "name");
+                var input = TryGetString(payload, "input");
+                if (input is not null)
+                {
+                    var patchPath = ExtractLastPatchFilePath(input);
+                    if (patchPath is not null)
+                    {
+                        return ResolveToolFilePath(patchPath, projectPath);
+                    }
+                }
+
+                return IsFileMutationTool(toolName)
+                    ? TryGetMutationTargetFromText(input, projectPath)
+                    : null;
+            }
+            case "function_call":
+            {
+                var functionName = TryGetString(payload, "name");
+                var arguments = TryGetString(payload, "arguments");
+                var patchPath = ExtractLastPatchFilePath(arguments);
+                if (patchPath is not null)
+                {
+                    return ResolveToolFilePath(patchPath, projectPath);
+                }
+
+                return IsFileMutationTool(functionName)
+                    ? TryGetMutationTargetFromText(arguments, projectPath)
+                    : null;
+            }
+            case "mcp_tool_call":
+            case "mcp_tool_call_end":
+            {
+                if (!payload.TryGetProperty("invocation", out var invocation) ||
+                    !TryGetString(invocation, "tool", out var toolName) ||
+                    !IsFileMutationTool(toolName) ||
+                    !invocation.TryGetProperty("arguments", out var arguments))
+                {
+                    return null;
+                }
+
+                return TryGetMutationTargetFromElement(arguments, projectPath);
+            }
+            default:
+                return null;
+        }
+    }
+
+    private static string? TryGetMutationTargetFromText(string? value, string? projectPath)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return null;
+        }
+
+        var patchPath = ExtractLastPatchFilePath(value);
+        if (patchPath is not null)
+        {
+            return ResolveToolFilePath(patchPath, projectPath);
+        }
+
+        try
+        {
+            using var document = JsonDocument.Parse(value);
+            return TryGetMutationTargetFromElement(document.RootElement, projectPath);
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    private static string? TryGetMutationTargetFromElement(JsonElement element, string? projectPath)
+    {
+        switch (element.ValueKind)
+        {
+            case JsonValueKind.Object:
+                foreach (var property in element.EnumerateObject())
+                {
+                    if (IsFilePathProperty(property.Name) && property.Value.ValueKind == JsonValueKind.String)
+                    {
+                        var path = property.Value.GetString();
+                        if (!string.IsNullOrWhiteSpace(path))
+                        {
+                            return ResolveToolFilePath(path, projectPath);
+                        }
+                    }
+                }
+
+                foreach (var property in element.EnumerateObject())
+                {
+                    if (property.Value.ValueKind is JsonValueKind.Object or JsonValueKind.Array)
+                    {
+                        var nestedPath = TryGetMutationTargetFromElement(property.Value, projectPath);
+                        if (nestedPath is not null)
+                        {
+                            return nestedPath;
+                        }
+                    }
+                    else if (property.Value.ValueKind == JsonValueKind.String)
+                    {
+                        var patchPath = ExtractLastPatchFilePath(property.Value.GetString());
+                        if (patchPath is not null)
+                        {
+                            return ResolveToolFilePath(patchPath, projectPath);
+                        }
+                    }
+                }
+
+                return null;
+            case JsonValueKind.Array:
+                foreach (var item in element.EnumerateArray())
+                {
+                    var path = TryGetMutationTargetFromElement(item, projectPath);
+                    if (path is not null)
+                    {
+                        return path;
+                    }
+                }
+
+                return null;
+            case JsonValueKind.String:
+                var stringPatchPath = ExtractLastPatchFilePath(element.GetString());
+                return stringPatchPath is null ? null : ResolveToolFilePath(stringPatchPath, projectPath);
+            default:
+                return null;
+        }
+    }
+
+    private static string? ExtractLastPatchFilePath(string? text)
+    {
+        if (string.IsNullOrWhiteSpace(text))
+        {
+            return null;
+        }
+
+        string? lastPath = null;
+        var normalizedText = text
+            .Replace("\r\n", "\n", StringComparison.Ordinal)
+            .Replace("\\r\\n", "\n", StringComparison.Ordinal)
+            .Replace("\\n", "\n", StringComparison.Ordinal);
+        foreach (var line in normalizedText.Split('\n'))
+        {
+            foreach (var marker in PatchFileMarkers)
+            {
+                var markerIndex = line.IndexOf(marker, StringComparison.Ordinal);
+                if (markerIndex < 0)
+                {
+                    continue;
+                }
+
+                var candidate = line[(markerIndex + marker.Length)..].Trim().Trim('"', '\'', '`');
+                if (candidate.Length > 0)
+                {
+                    lastPath = candidate;
+                }
+
+                break;
+            }
+        }
+
+        return lastPath;
+    }
+
+    private static string? ResolveToolFilePath(string path, string? projectPath)
+    {
+        var candidate = path.Trim().Trim('"', '\'', '`');
+        if (candidate.Length == 0)
+        {
+            return null;
+        }
+
+        try
+        {
+            return Path.GetFullPath(Path.IsPathRooted(candidate) || string.IsNullOrWhiteSpace(projectPath)
+                ? candidate
+                : Path.Combine(projectPath, candidate));
+        }
+        catch
+        {
+            return candidate;
+        }
+    }
+
+    private static bool IsFileMutationTool(string? toolName)
+    {
+        return !string.IsNullOrWhiteSpace(toolName) &&
+            FileMutationToolNames.Contains(toolName, StringComparer.OrdinalIgnoreCase);
+    }
+
+    private static bool IsFilePathProperty(string propertyName)
+    {
+        return FilePathPropertyNames.Contains(propertyName, StringComparer.OrdinalIgnoreCase);
+    }
+
+    private static readonly string[] PatchFileMarkers =
+    [
+        "*** Update File:",
+        "*** Add File:",
+        "*** Delete File:",
+        "*** Move to:"
+    ];
+
+    private static readonly string[] FileMutationToolNames =
+    [
+        "apply_patch",
+        "applyPatch",
+        "write_file",
+        "writeFile",
+        "edit_file",
+        "editFile",
+        "create_file",
+        "createFile",
+        "delete_file",
+        "deleteFile",
+        "move_file",
+        "moveFile",
+        "replace_file",
+        "replaceFile"
+    ];
+
+    private static readonly string[] FilePathPropertyNames =
+    [
+        "target_file",
+        "targetFile",
+        "file_path",
+        "filePath",
+        "filename",
+        "fileName",
+        "path",
+        "file"
+    ];
 
     private static string? ExtractCommandName(string commandText)
     {

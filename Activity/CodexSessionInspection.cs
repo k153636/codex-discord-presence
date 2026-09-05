@@ -18,6 +18,8 @@ internal sealed record SessionInspection(
     public RunningCommandKind LastRunningCommandKind { get; init; } = RunningCommandKind.Unknown;
     public string? LastRunningCommandName { get; init; }
     public bool LastShellCommandWasInvestigative { get; init; }
+    public string? LastDirectToolFilePath { get; init; }
+    public DateTime? LastDirectToolFileAt { get; init; }
 
     public bool HasRecentActivity(int staleTimeoutMinutes)
     {

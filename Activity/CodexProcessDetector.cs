@@ -62,6 +62,8 @@ public sealed class CodexProcessDetector
                 RunningCommandKind = sessionInspection?.LastRunningCommandKind ?? RunningCommandKind.Unknown,
                 RunningCommandName = sessionInspection?.LastRunningCommandName ?? "",
                 LastShellCommandWasInvestigative = sessionInspection?.LastShellCommandWasInvestigative ?? false,
+                LastDirectToolFilePath = sessionInspection?.LastDirectToolFilePath,
+                LastDirectToolFileAt = sessionInspection?.LastDirectToolFileAt,
                 ObservedProjectPath = sessionInspection?.ProjectPath,
                 RecentEditedFiles = Array.Empty<RecentProjectFileSnapshot>()
             };
@@ -100,6 +102,8 @@ public sealed class CodexProcessDetector
             RunningCommandKind = sessionInspection?.LastRunningCommandKind ?? RunningCommandKind.Unknown,
             RunningCommandName = sessionInspection?.LastRunningCommandName ?? "",
             LastShellCommandWasInvestigative = sessionInspection?.LastShellCommandWasInvestigative ?? false,
+            LastDirectToolFilePath = sessionInspection?.LastDirectToolFilePath,
+            LastDirectToolFileAt = sessionInspection?.LastDirectToolFileAt,
             ObservedProjectPath = sessionInspection?.ProjectPath,
             RecentEditedFiles = recentEditedFiles
         };
