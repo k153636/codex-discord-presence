@@ -13,12 +13,15 @@ public sealed class PresenceTemplateRenderer
         return new RenderedPresence(
             Apply(template.Details, values),
             Apply(template.State, values),
-            Apply(template.LargeImageText, values),
+            RenderLargeImageText(template, values),
             Apply(template.SmallImageText, values),
             template.Buttons.Select(button => new RenderedButton(
                 Apply(button.Label, values),
                 Apply(button.Url, values))).ToArray(),
-            context.Session.StartedAt);
+            context.Session.StartedAt,
+            context.Codex.ActivityKind,
+            context.Codex.RunningCommandKind,
+            context.Codex.RunningCommandName);
     }
 
     private Dictionary<string, string> BuildValues(PresenceTemplateOptions template, PresenceContext context)
@@ -126,6 +129,17 @@ public sealed class PresenceTemplateRenderer
         return string.IsNullOrWhiteSpace(rendered) ? "" : rendered.Trim();
     }
 
+    private static string? RenderLargeImageText(PresenceTemplateOptions template, IReadOnlyDictionary<string, string> values)
+    {
+        if (!template.EnableLargeImageText)
+        {
+            return null;
+        }
+
+        var rendered = Apply(template.LargeImageText, values);
+        return string.IsNullOrWhiteSpace(rendered) ? null : rendered;
+    }
+
     private static string FormatElapsed(TimeSpan elapsed)
     {
         if (elapsed.TotalHours >= 1)
@@ -222,10 +236,13 @@ public sealed class PresenceTemplateRenderer
 public sealed record RenderedPresence(
     string Details,
     string State,
-    string LargeImageText,
+    string? LargeImageText,
     string SmallImageText,
     IReadOnlyList<RenderedButton> Buttons,
-    DateTime? StartedAt);
+    DateTime? StartedAt,
+    CodexActivityKind ActivityKind,
+    RunningCommandKind RunningCommandKind,
+    string RunningCommandName);
 
 public sealed record RenderedButton(string Label, string Url);
 

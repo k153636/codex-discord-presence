@@ -152,8 +152,29 @@ public sealed class AppOptions
 public sealed class DiscordOptions
 {
     public string ClientId { get; set; } = "1516846793873424474";
-    public string? LargeImageKey { get; set; } = "codex_logo";
-    public string? SmallImageKey { get; set; }
+    public string? LargeImageKey { get; set; } = "rpc_thinking";
+    public string? SmallImageKey { get; set; } = "rpc_codex";
+    public Dictionary<string, string> ActivityImageKeys { get; set; } = new(StringComparer.OrdinalIgnoreCase)
+    {
+        [nameof(CodexActivityKind.Offline)] = "rpc_sleeping",
+        [nameof(CodexActivityKind.Ready)] = "rpc_sleeping",
+        [nameof(CodexActivityKind.AnalyzingProject)] = "rpc_thinking",
+        [nameof(CodexActivityKind.ApplyingEdits)] = "rpc_coding",
+        [nameof(CodexActivityKind.CoordinatingChanges)] = "rpc_coding",
+        [nameof(CodexActivityKind.CreatingFiles)] = "rpc_coding",
+        [nameof(CodexActivityKind.DeletingFiles)] = "rpc_coding",
+        [nameof(CodexActivityKind.RunningCommand)] = "rpc_building",
+        [nameof(CodexActivityKind.Planning)] = "rpc_thinking",
+        [nameof(CodexActivityKind.Refactoring)] = "rpc_coding"
+    };
+    public Dictionary<string, string> RunningCommandImageKeys { get; set; } = new(StringComparer.OrdinalIgnoreCase)
+    {
+        [nameof(RunningCommandKind.Unknown)] = "rpc_building",
+        [nameof(RunningCommandKind.Git)] = "rpc_reading",
+        [nameof(RunningCommandKind.Search)] = "rpc_searching",
+        [nameof(RunningCommandKind.Build)] = "rpc_building",
+        [nameof(RunningCommandKind.Test)] = "rpc_debugging"
+    };
 }
 
 public sealed class CodexDetectionOptions
@@ -238,6 +259,7 @@ public sealed class PresenceTemplateOptions
     public string ModelName { get; set; } = "Codex";
     public string Details { get; set; } = "{GoalModePrefix} {ModelName} \u2022 {Tokens}";
     public string State { get; set; } = "{ActivityLine}";
+    public bool EnableLargeImageText { get; set; } = true;
     public string LargeImageText { get; set; } = "{ProjectName}";
     public string SmallImageText { get; set; } = "{ProjectFileCount} files \u2022 session {SessionElapsed}";
     public PresenceButtonOptions[] Buttons { get; set; } = [];

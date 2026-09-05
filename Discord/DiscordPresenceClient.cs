@@ -31,7 +31,9 @@ public sealed class DiscordPresenceClient : IDisposable
     {
         if (string.Equals(_options.ClientId, options.ClientId, StringComparison.Ordinal) &&
             string.Equals(_options.LargeImageKey, options.LargeImageKey, StringComparison.Ordinal) &&
-            string.Equals(_options.SmallImageKey, options.SmallImageKey, StringComparison.Ordinal))
+            string.Equals(_options.SmallImageKey, options.SmallImageKey, StringComparison.Ordinal) &&
+            AssetMappingsEqual(_options.ActivityImageKeys, options.ActivityImageKeys) &&
+            AssetMappingsEqual(_options.RunningCommandImageKeys, options.RunningCommandImageKeys))
         {
             return;
         }
@@ -77,7 +79,7 @@ public sealed class DiscordPresenceClient : IDisposable
                 State = presence.State,
                 Assets = new Assets
                 {
-                    LargeImageKey = _options.LargeImageKey,
+                    LargeImageKey = DiscordAssetKeyResolver.ResolveLargeImageKey(_options, presence),
                     LargeImageText = presence.LargeImageText,
                     SmallImageKey = _options.SmallImageKey,
                     SmallImageText = presence.SmallImageText
@@ -195,5 +197,31 @@ public sealed class DiscordPresenceClient : IDisposable
     {
         return string.IsNullOrWhiteSpace(clientId) ||
             clientId.StartsWith("YOUR_", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static bool AssetMappingsEqual(
+        IReadOnlyDictionary<string, string>? left,
+        IReadOnlyDictionary<string, string>? right)
+    {
+        if (ReferenceEquals(left, right))
+        {
+            return true;
+        }
+
+        if (left is null || right is null || left.Count != right.Count)
+        {
+            return false;
+        }
+
+        foreach (var pair in left)
+        {
+            if (!right.TryGetValue(pair.Key, out var rightValue) ||
+                !string.Equals(pair.Value, rightValue, StringComparison.Ordinal))
+            {
+                return false;
+            }
+        }
+
+        return true;
     }
 }

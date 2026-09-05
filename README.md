@@ -15,7 +15,7 @@ Presence text is template-driven through `appsettings.json`, so you can change t
 
 The app is configured as a `win-x64` single-file publish that requires the .NET 9 Desktop Runtime on the target machine.
 It runs in the background with a system tray icon, where you can toggle `Enable`, open `appsettings.json`, or `Quit`.
-`start.cmd` rebuilds before launching so the tray app stays in sync with the current source.
+`start.cmd` stops the previous process, waits for it to exit, rebuilds, and launches the latest published build so the tray app stays in sync with the current source.
 The tray `Enable` state is saved under `%LOCALAPPDATA%\CodexDiscordPresence\presence-state.json`.
 The app can also check GitHub Releases once at startup and only logs when a newer release exists.
 
@@ -44,7 +44,7 @@ The app can also check GitHub Releases once at startup and only logs when a newe
 
 ## What It Shows
 
-- Current Codex model when available
+- Current Codex model, reasoning effort, and effective Fast mode speed when available
 - Project name and project size
 - Recent edited file name
 - Git changed-file count
@@ -100,12 +100,23 @@ When `Presence.AutoDetectModelName` is enabled, the app resolves `{ModelName}` f
 - `%USERPROFILE%\.codex\config.toml`
 - `Presence.ModelName` as the fallback
 
+The displayed `{ModelName}` keeps the raw model available for token-cost lookup, while formatting GPT model slugs with spaces for Discord. For example, `gpt-5.6-luna` becomes `gpt 5.6 luna`, and a detected reasoning effort is appended as `gpt 5.6 luna max`.
+
+For GPT-5.6, GPT-5.5, and GPT-5.4, the display appends `1.5x` only when the latest project-matching session reports an effective `service_tier` of `priority` or `fast`. `default`, a missing session value, and config-only Fast mode settings omit the speed suffix; the literal word `fast` is never displayed.
+
+Examples:
+
+- `gpt 5.6 luna max &bull; 12.4K Token`
+- `gpt 5.6 luna max 1.5x &bull; 12.4K Token`
+
 Token usage is only read from sessions whose `cwd` exactly matches the active project path. If no exact match exists, token usage stays empty instead of borrowing another project's totals.
 
 The app logs these values for debugging:
 
 - Selected UI model
 - Last used session model
+- Selected reasoning effort
+- Effective service tier
 - Final displayed model
 
 ## Logging
@@ -126,6 +137,8 @@ Common settings live in `appsettings.json`:
 - `Discord.ClientId`
 - `Discord.LargeImageKey`
 - `Discord.SmallImageKey`
+- `Discord.ActivityImageKeys`
+- `Discord.RunningCommandImageKeys`
 - `Project.Path`
 - `Project.DisplayName`
 - `Project.PreferGitRootForProjectPath`
@@ -139,6 +152,7 @@ Common settings live in `appsettings.json`:
 - `Presence.AutoDetectModelName`
 - `Presence.Details`
 - `Presence.State`
+- `Presence.EnableLargeImageText`
 - `Presence.LargeImageText`
 - `Presence.SmallImageText`
 - `Presence.Buttons`
@@ -171,6 +185,8 @@ Common settings live in `appsettings.json`:
 
 These placeholders can be used in `Presence.Details`, `Presence.State`, `Presence.LargeImageText`, `Presence.SmallImageText`, and button labels/URLs:
 
+`{ModelName}` resolves to the formatted Discord label described in [Model Detection](#model-detection).
+
 - `{ModelName}`
 - `{CodexStatus}`
 - `{CodexProcessName}`
@@ -200,6 +216,26 @@ These placeholders can be used in `Presence.Details`, `Presence.State`, `Presenc
 - `{Tokens}`
 - `{Cost}`
 
+Set `Presence.EnableLargeImageText` to `false` if you want Discord to show only the large image without the hover text under it.
+
+## Discord Art Assets
+
+The RPC art pack is stored in `Assets/RpcArt`. Upload each file to the Discord application's Rich Presence art assets, using the filename without its extension as the key.
+
+The application uses these internal keys:
+
+- `rpc_codex`: fixed small image
+- `rpc_thinking`: analysis and planning
+- `rpc_coding`: edits, file creation/deletion, and refactoring
+- `rpc_sleeping`: offline and ready/idle states
+- `rpc_reading`: Git commands
+- `rpc_searching`: search commands
+- `rpc_building`: build and unknown commands
+- `rpc_debugging`: test commands
+- `rpc_deploying`, `rpc_success`, `rpc_error`: uploaded keys reserved for future event-specific states
+
+Uploaded GIFs are used by key, so the app does not depend on remote image URLs. Discord may render uploaded animated art as a static image depending on the client.
+
 ## Discord App
 
 The default Discord application id is:
@@ -208,11 +244,15 @@ The default Discord application id is:
 
 The default large image key is:
 
-`codex_logo`
+`rpc_thinking`
+
+The default small image key is:
+
+`rpc_codex`
 
 ## Notes
 
-- `start.cmd` launches the published exe in the background
+- `start.cmd` stops the previous process, rebuilds, and launches the latest published exe in the background
 - `stop.cmd` stops the running instance
 - Install the .NET 9 Desktop Runtime if the app says the runtime is missing
 - `git diff`, recent file writes, and session logs are used together to infer active work

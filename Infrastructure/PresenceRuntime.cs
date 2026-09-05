@@ -12,6 +12,8 @@ public sealed class PresenceRuntime
     private DateTime _executableSettingsLastWriteTimeUtc;
     private DateTime _cliSettingsLastWriteTimeUtc;
     private DateTime _userSettingsLastWriteTimeUtc;
+    private string? _lastLoggedFocusedProjectPath;
+    private string? _lastLoggedFocusedProjectPathDecision;
 
     public PresenceRuntime(AppOptions options, PresenceRuntimeState state, CancellationToken cancellationToken, AppPaths paths, DiagnosticLog log)
     {
@@ -29,7 +31,7 @@ public sealed class PresenceRuntime
 
     public async Task RunAsync()
     {
-        var session = new SessionClock(_state.SessionStartedAtUtc ?? DateTime.UtcNow);
+        var session = new SessionClock(DateTime.UtcNow);
         var profileStates = BuildProfileStates();
         var projectInspector = new ProjectInspector(_options.Project);
         var gitInspector = new GitInspector();
@@ -197,7 +199,7 @@ public sealed class PresenceRuntime
         return profileState.Detector.GetObservedProjectPath() ?? activeProjectPath;
     }
 
-    private static (string ActiveProjectPath, bool Changed) UpdateActiveProjectPath(
+    private (string ActiveProjectPath, bool Changed) UpdateActiveProjectPath(
         ProjectInspector projectInspector,
         string activeProjectPath,
         CodexProcessSnapshot observedCodexSnapshot,
@@ -206,12 +208,44 @@ public sealed class PresenceRuntime
         DiagnosticLog log,
         ref string lastLoggedProjectPath)
     {
-        var nextProjectPath = !string.IsNullOrWhiteSpace(focusedProjectPath)
-            ? focusedProjectPath
-            : ActiveProjectPathSelectionPolicy.Select(
-                activeProjectPath,
-                observedCodexSnapshot,
-                observedCliSnapshot);
+        if (!string.IsNullOrWhiteSpace(focusedProjectPath))
+        {
+            if (ActiveProjectPathSelectionPolicy.TryNormalizeFocusedProjectPath(
+                    focusedProjectPath,
+                    out var normalizedFocusedProjectPath,
+                    out var rejectionReason))
+            {
+                var decision = $"accepted; normalized={normalizedFocusedProjectPath}";
+                if (!string.Equals(_lastLoggedFocusedProjectPath, focusedProjectPath, StringComparison.OrdinalIgnoreCase) ||
+                    !string.Equals(_lastLoggedFocusedProjectPathDecision, decision, StringComparison.Ordinal))
+                {
+                    log.Info(
+                        "Focused project path accepted: " +
+                        $"raw={focusedProjectPath}; normalized={normalizedFocusedProjectPath}");
+                    _lastLoggedFocusedProjectPath = focusedProjectPath;
+                    _lastLoggedFocusedProjectPathDecision = decision;
+                }
+            }
+            else
+            {
+                var decision = $"rejected; reason={rejectionReason}";
+                if (!string.Equals(_lastLoggedFocusedProjectPath, focusedProjectPath, StringComparison.OrdinalIgnoreCase) ||
+                    !string.Equals(_lastLoggedFocusedProjectPathDecision, decision, StringComparison.Ordinal))
+                {
+                    log.Info(
+                        "Focused project path rejected: " +
+                        $"raw={focusedProjectPath}; reason={rejectionReason}");
+                    _lastLoggedFocusedProjectPath = focusedProjectPath;
+                    _lastLoggedFocusedProjectPathDecision = decision;
+                }
+            }
+        }
+
+        var nextProjectPath = ActiveProjectPathSelectionPolicy.Select(
+            activeProjectPath,
+            focusedProjectPath,
+            observedCodexSnapshot,
+            observedCliSnapshot);
 
         if (!string.IsNullOrWhiteSpace(nextProjectPath))
         {
@@ -264,14 +298,19 @@ public sealed class PresenceRuntime
         if (selectedProfileState.LastModelSnapshot is null ||
             !string.Equals(modelSnapshot.SelectedUiModel, selectedProfileState.LastModelSnapshot.SelectedUiModel, StringComparison.Ordinal) ||
             !string.Equals(modelSnapshot.LastUsedSessionModel, selectedProfileState.LastModelSnapshot.LastUsedSessionModel, StringComparison.Ordinal) ||
-            !string.Equals(modelSnapshot.FinalDisplayedModel, selectedProfileState.LastModelSnapshot.FinalDisplayedModel, StringComparison.Ordinal))
+            !string.Equals(modelSnapshot.FinalDisplayedModel, selectedProfileState.LastModelSnapshot.FinalDisplayedModel, StringComparison.Ordinal) ||
+            !string.Equals(modelSnapshot.ReasoningEffort, selectedProfileState.LastModelSnapshot.ReasoningEffort, StringComparison.OrdinalIgnoreCase) ||
+            !string.Equals(modelSnapshot.ServiceTier, selectedProfileState.LastModelSnapshot.ServiceTier, StringComparison.OrdinalIgnoreCase))
         {
             _log.Info(
                 "Model detection: " +
                 $"Selected UI model={FormatLogValue(modelSnapshot.SelectedUiModel)}, " +
                 $"Last used session model={FormatLogValue(modelSnapshot.LastUsedSessionModel)}, " +
-                $"Final displayed model={FormatLogValue(modelSnapshot.FinalDisplayedModel)} " +
-                $"(source={modelSnapshot.Source})");
+                $"Reasoning effort={FormatLogValue(modelSnapshot.ReasoningEffort)}, " +
+                $"Effective service tier={FormatLogValue(modelSnapshot.ServiceTier)}, " +
+                $"Final displayed model={FormatLogValue(modelSnapshot.DisplayLabel)} " +
+                $"(raw model={FormatLogValue(modelSnapshot.FinalDisplayedModel)}, " +
+                $"source={modelSnapshot.Source})");
             selectedProfileState.LastModelSnapshot = modelSnapshot;
         }
 
@@ -294,7 +333,7 @@ public sealed class PresenceRuntime
         CodexProcessSnapshot codexSnapshot)
     {
         return new PresenceContext(
-            modelSnapshot.FinalDisplayedModel,
+            modelSnapshot.DisplayLabel,
             codexSnapshot,
             projectSnapshot,
             gitSnapshot,
@@ -342,12 +381,21 @@ public sealed class PresenceRuntime
             previousSnapshot.ActivityProvenance != codexSnapshot.ActivityProvenance ||
             !string.Equals(previousSnapshot.ActivityReason, codexSnapshot.ActivityReason, StringComparison.Ordinal))
         {
+            var recentEditedFiles = codexSnapshot.RecentEditedFiles
+                .Take(3)
+                .Select(file => file.Name)
+                .ToArray();
+            var recentEditedFilesText = recentEditedFiles.Length == 0
+                ? "<none>"
+                : string.Join(", ", recentEditedFiles);
             _log.Info(
                 "Activity detection: " +
                 $"state={codexSnapshot.ActivityKind}, " +
                 $"confidence={codexSnapshot.Confidence}, " +
                 $"provenance={codexSnapshot.ActivityProvenance}, " +
                 $"reason={codexSnapshot.ActivityReason}, " +
+                $"recentEditedFiles={recentEditedFilesText}, " +
+                $"recentEditedFileCount={codexSnapshot.RecentEditedFiles.Count}, " +
                 $"runningCommandKind={codexSnapshot.RunningCommandKind}, " +
                 $"runningCommandName={FormatLogValue(codexSnapshot.RunningCommandName)}, " +
                 $"investigative={codexSnapshot.LastShellCommandWasInvestigative}, " +
@@ -489,6 +537,9 @@ public sealed class PresenceRuntime
             presence.State,
             presence.LargeImageText,
             presence.SmallImageText,
+            presence.ActivityKind.ToString(),
+            presence.RunningCommandKind.ToString(),
+            presence.RunningCommandName,
             buttons);
     }
 
