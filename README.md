@@ -234,7 +234,7 @@ The application uses these internal keys:
 - `rpc_debugging`: test commands
 - `rpc_deploying`, `rpc_success`, `rpc_error`: uploaded keys reserved for future event-specific states
 
-Uploaded GIFs are used by key, so the app does not depend on remote image URLs. Discord may render uploaded animated art as a static image depending on the client.
+The source pack keeps its original GIF files unchanged. Discord's Developer Portal currently accepts PNG, JPEG, and WebP for uploaded Rich Presence assets, and uploaded animations are not supported, so GIF-backed keys use first-frame PNG fallbacks in the portal. Preserving animation would require a stable external image URL, which this project does not configure.
 
 ## Discord App
 
