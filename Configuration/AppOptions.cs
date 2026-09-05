@@ -278,7 +278,7 @@ public sealed class PresenceTemplateOptions
     public string SmallImageText { get; set; } = "{ProjectFileCount} files \u2022 session {SessionElapsed}";
     public PresenceButtonOptions[] Buttons { get; set; } = [];
     public string AnalyzingProjectText { get; set; } = "Thinking";
-    public string CoordinatingChangesText { get; set; } = "Coordinating changes across {n} files";
+    public string CoordinatingChangesText { get; set; } = "Coordinating {n} files";
     public string CreatingFilesText { get; set; } = "Creating files";
     public string DeletingFilesText { get; set; } = "Deleting files";
     public string RunningCommandText { get; set; } = "Run Command";

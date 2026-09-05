@@ -299,7 +299,7 @@ public sealed class PresenceTemplateRendererTests
 
             var presence = renderer.Render(template, context);
 
-            Assert.Equal("Applying edits • CodexRpcRendererTest.txt", presence.State);
+            Assert.Equal("Editing CodexRpcRendererTest.txt", presence.State);
         }
         finally
         {
@@ -439,7 +439,7 @@ public sealed class PresenceTemplateRendererTests
 
         var presence = renderer.Render(template, context);
 
-        Assert.Equal("Coordinating changes across 2 files", presence.State);
+        Assert.Equal("Coordinating 2 files", presence.State);
     }
 
     [Fact]
@@ -471,7 +471,7 @@ public sealed class PresenceTemplateRendererTests
 
         var presence = renderer.Render(template, context);
 
-        Assert.Equal("Creating files • NewFile.cs", presence.State);
+        Assert.Equal("Creating files NewFile.cs", presence.State);
     }
 
     [Fact]
@@ -506,7 +506,7 @@ public sealed class PresenceTemplateRendererTests
     }
 
     [Fact]
-    public void Render_ActiveEditedFilesText_SuppressesMultiFileRedundancy()
+    public void Render_ActiveEditedFilesText_ShowsMultiFileActivity()
     {
         var now = DateTime.UtcNow.AddSeconds(-12);
         var renderer = new PresenceTemplateRenderer();
@@ -537,7 +537,7 @@ public sealed class PresenceTemplateRendererTests
 
         var presence = renderer.Render(template, context);
 
-        Assert.Equal("", presence.State);
+        Assert.Equal("Coordinating 2 files", presence.State);
     }
 
     [Fact]

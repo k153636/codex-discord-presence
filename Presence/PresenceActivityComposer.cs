@@ -1,14 +1,12 @@
-using System.Globalization;
-
 namespace CodexDiscordPresence;
 
 internal static class PresenceActivityComposer
 {
     public static string BuildActivityLine(
         PresenceContext context,
-        IReadOnlyList<RecentProjectFileSnapshot> recentEditedFiles,
         string stateLabel,
-        RecentProjectFileSnapshot? editingFile)
+        string activeFileLabel,
+        int editedFileCount)
     {
         if (!context.Codex.IsRunning)
         {
@@ -25,26 +23,34 @@ internal static class PresenceActivityComposer
             return stateLabel;
         }
 
-        if (context.Codex.ActivityKind is CodexActivityKind.ApplyingEdits or CodexActivityKind.CreatingFiles or CodexActivityKind.DeletingFiles &&
-            recentEditedFiles.Count > 0)
+        if (context.Codex.ActivityKind is (CodexActivityKind.ApplyingEdits or CodexActivityKind.CreatingFiles or CodexActivityKind.DeletingFiles) &&
+            editedFileCount > 0)
         {
-            return BuildEditingActivityLine(stateLabel, recentEditedFiles, editingFile);
+            return BuildEditingActivityLine(context.Codex.ActivityKind, stateLabel, activeFileLabel, editedFileCount);
         }
 
         return BuildIdleActivityLine(context, stateLabel);
     }
 
     private static string BuildEditingActivityLine(
+        CodexActivityKind activityKind,
         string stateLabel,
-        IReadOnlyList<RecentProjectFileSnapshot> recentEditedFiles,
-        RecentProjectFileSnapshot? editingFile)
+        string activeFileLabel,
+        int editedFileCount)
     {
-        if (editingFile is not null && recentEditedFiles.Count <= 4)
+        if (string.IsNullOrWhiteSpace(activeFileLabel))
         {
-            return $"{stateLabel} • {editingFile.Name}";
+            return stateLabel;
         }
 
-        return stateLabel;
+        var prefix = activityKind == CodexActivityKind.ApplyingEdits ? "Editing" : stateLabel;
+        var activityLine = $"{prefix} {activeFileLabel}";
+        if (activityKind == CodexActivityKind.ApplyingEdits && editedFileCount >= 4)
+        {
+            activityLine += $" + {editedFileCount - 1} files";
+        }
+
+        return activityLine;
     }
 
     private static string BuildIdleActivityLine(

@@ -26,23 +26,25 @@ public sealed class PresenceTemplateRenderer
 
     private Dictionary<string, string> BuildValues(PresenceTemplateOptions template, PresenceContext context)
     {
-        var recentEditedFiles = context.Codex.RecentEditedFiles
-            .OrderByDescending(file => file.LastWriteTimeUtc)
-            .ToArray();
-
-        var editingFile = SelectEditingFile(recentEditedFiles);
-        var editingFileName = editingFile?.Name ?? "";
-        var editingFileLabel = BuildEditingFileLabel(context, editingFileName);
+        var editingFileSelection = EditedFileSelector.Select(context, template.EditingFreshnessSeconds);
+        var editingFile = editingFileSelection.ActiveFile;
+        var editingFileName = editingFile is null
+            ? ""
+            : EditedFileSelector.FormatForDisplay(context.Project, editingFile);
+        var activityFileCount = context.Codex.ActivityKind == CodexActivityKind.CoordinatingChanges
+            ? Math.Max(editingFileSelection.TotalFileCount, context.Git.ChangedFileCount)
+            : editingFileSelection.TotalFileCount;
+        var editingFileLabel = BuildEditingFileLabel(context, editingFileName, activityFileCount);
         var changedFilesText = FormatChangedFiles(context.Git.ChangedFileCount);
         var projectSizeText = FormatProjectSize(context.Project.TotalFileCount, context.Project.TotalLineCount);
         var goalModePrefix = FormatGoalModePrefix(context);
-        var stateLabel = _labelResolver.ResolveStateLabel(template, context, context.Codex.ActivityKind, recentEditedFiles.Length);
+        var stateLabel = _labelResolver.ResolveStateLabel(template, context, context.Codex.ActivityKind, activityFileCount);
         if (context.Codex.ActivityKind == CodexActivityKind.AnalyzingProject &&
             context.Codex.ActivityRepeatCount > 1)
         {
             stateLabel = $"{stateLabel} x{context.Codex.ActivityRepeatCount}";
         }
-        var activityLine = PresenceActivityComposer.BuildActivityLine(context, recentEditedFiles, stateLabel, editingFile);
+        var activityLine = PresenceActivityComposer.BuildActivityLine(context, stateLabel, editingFileName, activityFileCount);
 
         var values = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
         {
@@ -54,9 +56,9 @@ public sealed class PresenceTemplateRenderer
             ["GoalModePrefix"] = goalModePrefix,
             ["EditingFileName"] = editingFileName,
             ["EditingFileLabel"] = editingFileLabel,
-            ["EditingFilePath"] = context.Project.RecentFilePath ?? "",
-            ["ActiveEditedFileCount"] = recentEditedFiles.Length.ToString(CultureInfo.InvariantCulture),
-            ["ActiveEditedFilesText"] = BuildActiveEditedFilesText(template, context, recentEditedFiles),
+            ["EditingFilePath"] = editingFileName,
+            ["ActiveEditedFileCount"] = activityFileCount.ToString(CultureInfo.InvariantCulture),
+            ["ActiveEditedFilesText"] = BuildActiveEditedFilesText(context, stateLabel, editingFileName, activityFileCount),
             ["ChangedFileCount"] = context.Git.ChangedFileCount.ToString(CultureInfo.InvariantCulture),
             ["ChangedFilesText"] = changedFilesText,
             ["ActivityLabel"] = stateLabel,
@@ -82,28 +84,18 @@ public sealed class PresenceTemplateRenderer
     }
 
     private string BuildActiveEditedFilesText(
-        PresenceTemplateOptions template,
         PresenceContext context,
-        IReadOnlyList<RecentProjectFileSnapshot> recentEditedFiles)
+        string stateLabel,
+        string editingFileName,
+        int activityFileCount)
     {
-        if (recentEditedFiles.Count != 1)
-        {
-            return "";
-        }
-
-        var stateLabel = _labelResolver.ResolveStateLabel(template, context, context.Codex.ActivityKind, recentEditedFiles.Count);
-        var editingFile = SelectEditingFile(recentEditedFiles);
-        if (editingFile is null)
-        {
-            return "";
-        }
-
-        return $"{stateLabel} \u2022 {editingFile.Name}";
+        return PresenceActivityComposer.BuildActivityLine(context, stateLabel, editingFileName, activityFileCount);
     }
 
     private static string BuildEditingFileLabel(
         PresenceContext context,
-        string editingFileName)
+        string editingFileName,
+        int activityFileCount)
     {
         if (string.IsNullOrWhiteSpace(editingFileName))
         {
@@ -115,7 +107,13 @@ public sealed class PresenceTemplateRenderer
             return "";
         }
 
-        return $"Editing {editingFileName}";
+        var label = $"Editing {editingFileName}";
+        if (context.Codex.ActivityKind == CodexActivityKind.ApplyingEdits && activityFileCount >= 4)
+        {
+            label += $" + {activityFileCount - 1} files";
+        }
+
+        return label;
     }
 
     private static string Apply(string value, IReadOnlyDictionary<string, string> values)
@@ -163,17 +161,6 @@ public sealed class PresenceTemplateRenderer
         }
 
         return value.ToString(CultureInfo.InvariantCulture);
-    }
-
-    private static RecentProjectFileSnapshot? SelectEditingFile(
-        IReadOnlyList<RecentProjectFileSnapshot> recentEditedFiles)
-    {
-        if (recentEditedFiles.Count == 0)
-        {
-            return null;
-        }
-
-        return recentEditedFiles[0];
     }
 
     private static string FormatCost(decimal value)
