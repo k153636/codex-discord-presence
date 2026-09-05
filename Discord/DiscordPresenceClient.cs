@@ -33,7 +33,8 @@ public sealed class DiscordPresenceClient : IDisposable
             string.Equals(_options.LargeImageKey, options.LargeImageKey, StringComparison.Ordinal) &&
             string.Equals(_options.SmallImageKey, options.SmallImageKey, StringComparison.Ordinal) &&
             AssetMappingsEqual(_options.ActivityImageKeys, options.ActivityImageKeys) &&
-            AssetMappingsEqual(_options.RunningCommandImageKeys, options.RunningCommandImageKeys))
+            AssetMappingsEqual(_options.RunningCommandImageKeys, options.RunningCommandImageKeys) &&
+            AssetMappingsEqual(_options.ExternalImageUrls, options.ExternalImageUrls))
         {
             return;
         }
@@ -79,9 +80,9 @@ public sealed class DiscordPresenceClient : IDisposable
                 State = presence.State,
                 Assets = new Assets
                 {
-                    LargeImageKey = DiscordAssetKeyResolver.ResolveLargeImageKey(_options, presence),
+                    LargeImageKey = DiscordAssetKeyResolver.ResolveLargeImageReference(_options, presence),
                     LargeImageText = presence.LargeImageText,
-                    SmallImageKey = _options.SmallImageKey,
+                    SmallImageKey = DiscordAssetKeyResolver.ResolveImageReference(_options, _options.SmallImageKey),
                     SmallImageText = presence.SmallImageText
                 },
                 Buttons = buttons.Length == 0 ? null : buttons,

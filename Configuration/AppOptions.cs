@@ -175,6 +175,20 @@ public sealed class DiscordOptions
         [nameof(RunningCommandKind.Build)] = "rpc_building",
         [nameof(RunningCommandKind.Test)] = "rpc_debugging"
     };
+    public Dictionary<string, string> ExternalImageUrls { get; set; } = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ["rpc_codex"] = "https://raw.githubusercontent.com/SSHdotCodes/codex-rpc/1a44161a554c4de584c0af7d5eb47c4545983410/assets/codex.png",
+        ["rpc_building"] = "https://raw.githubusercontent.com/SSHdotCodes/codex-rpc/1a44161a554c4de584c0af7d5eb47c4545983410/assets/building.gif",
+        ["rpc_coding"] = "https://raw.githubusercontent.com/SSHdotCodes/codex-rpc/1a44161a554c4de584c0af7d5eb47c4545983410/assets/coding.gif",
+        ["rpc_debugging"] = "https://raw.githubusercontent.com/SSHdotCodes/codex-rpc/1a44161a554c4de584c0af7d5eb47c4545983410/assets/debugging.gif",
+        ["rpc_deploying"] = "https://raw.githubusercontent.com/SSHdotCodes/codex-rpc/1a44161a554c4de584c0af7d5eb47c4545983410/assets/deploying.gif",
+        ["rpc_error"] = "https://raw.githubusercontent.com/SSHdotCodes/codex-rpc/1a44161a554c4de584c0af7d5eb47c4545983410/assets/error.gif",
+        ["rpc_reading"] = "https://raw.githubusercontent.com/SSHdotCodes/codex-rpc/1a44161a554c4de584c0af7d5eb47c4545983410/assets/reading.gif",
+        ["rpc_searching"] = "https://raw.githubusercontent.com/SSHdotCodes/codex-rpc/1a44161a554c4de584c0af7d5eb47c4545983410/assets/searching.gif",
+        ["rpc_sleeping"] = "https://raw.githubusercontent.com/SSHdotCodes/codex-rpc/1a44161a554c4de584c0af7d5eb47c4545983410/assets/sleeping.gif",
+        ["rpc_success"] = "https://raw.githubusercontent.com/SSHdotCodes/codex-rpc/1a44161a554c4de584c0af7d5eb47c4545983410/assets/success.gif",
+        ["rpc_thinking"] = "https://raw.githubusercontent.com/SSHdotCodes/codex-rpc/1a44161a554c4de584c0af7d5eb47c4545983410/assets/thinking.gif"
+    };
 }
 
 public sealed class CodexDetectionOptions

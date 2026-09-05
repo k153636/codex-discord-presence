@@ -77,6 +77,40 @@ public sealed class DiscordAssetKeyResolverTests
         Assert.Equal("fallback", key);
     }
 
+    [Fact]
+    public void ResolveLargeImageReference_UsesExternalUrlForResolvedAsset()
+    {
+        var options = new DiscordOptions
+        {
+            ExternalImageUrls = new(StringComparer.OrdinalIgnoreCase)
+            {
+                ["rpc_thinking"] = "https://raw.githubusercontent.com/example/assets/rpc_thinking.gif"
+            }
+        };
+
+        var reference = DiscordAssetKeyResolver.ResolveLargeImageReference(
+            options,
+            CreatePresence(CodexActivityKind.AnalyzingProject));
+
+        Assert.Equal("https://raw.githubusercontent.com/example/assets/rpc_thinking.gif", reference);
+    }
+
+    [Fact]
+    public void ResolveImageReference_FallsBackToInternalKeyWhenUrlIsInvalid()
+    {
+        var options = new DiscordOptions
+        {
+            ExternalImageUrls = new(StringComparer.OrdinalIgnoreCase)
+            {
+                ["rpc_thinking"] = "not-a-url"
+            }
+        };
+
+        var reference = DiscordAssetKeyResolver.ResolveImageReference(options, "rpc_thinking");
+
+        Assert.Equal("rpc_thinking", reference);
+    }
+
     private static RenderedPresence CreatePresence(
         CodexActivityKind activityKind,
         RunningCommandKind commandKind = RunningCommandKind.Unknown)

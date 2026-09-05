@@ -139,6 +139,7 @@ Common settings live in `appsettings.json`:
 - `Discord.SmallImageKey`
 - `Discord.ActivityImageKeys`
 - `Discord.RunningCommandImageKeys`
+- `Discord.ExternalImageUrls`
 - `Project.Path`
 - `Project.DisplayName`
 - `Project.PreferGitRootForProjectPath`
@@ -220,7 +221,7 @@ Set `Presence.EnableLargeImageText` to `false` if you want Discord to show only 
 
 ## Discord Art Assets
 
-The RPC art pack is stored in `Assets/RpcArt`. Upload each file to the Discord application's Rich Presence art assets, using the filename without its extension as the key.
+The RPC art pack is stored in `Assets/RpcArt`. The source GIFs remain unchanged. The Discord application's Rich Presence art assets retain static fallbacks under the same internal keys, while `Discord.ExternalImageUrls` points the runtime presence at the original public images.
 
 The application uses these internal keys:
 
@@ -234,7 +235,7 @@ The application uses these internal keys:
 - `rpc_debugging`: test commands
 - `rpc_deploying`, `rpc_success`, `rpc_error`: uploaded keys reserved for future event-specific states
 
-The source pack keeps its original GIF files unchanged. Discord's Developer Portal currently accepts PNG, JPEG, and WebP for uploaded Rich Presence assets, and uploaded animations are not supported, so GIF-backed keys use first-frame PNG fallbacks in the portal. Preserving animation would require a stable external image URL, which this project does not configure.
+Discord's Developer Portal currently accepts PNG, JPEG, and WebP for uploaded Rich Presence assets, and uploaded animations are not supported. For GIF-backed keys, the runtime therefore sends the configured external GIF URL; if a URL is missing or invalid, it falls back to the internal portal key.
 
 ## Discord App
 
