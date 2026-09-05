@@ -16,7 +16,7 @@ public sealed class CodexSessionLogParserTests
         {
             var now = DateTime.UtcNow;
             var firstFile = Path.Combine(projectPath, "First.cs");
-            var activeFile = Path.Combine(projectPath, "src", "Active.cs");
+            var activeFile = Path.Combine(projectPath, "src", "new", "Active.cs");
             WriteSession(homePath, "session.jsonl",
             [
                 CreateSessionLine(now, new

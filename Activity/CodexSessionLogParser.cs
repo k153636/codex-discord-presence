@@ -409,8 +409,14 @@ internal sealed class CodexSessionLogParser
         string? lastPath = null;
         var normalizedText = text
             .Replace("\r\n", "\n", StringComparison.Ordinal)
-            .Replace("\\r\\n", "\n", StringComparison.Ordinal)
-            .Replace("\\n", "\n", StringComparison.Ordinal);
+            .Replace("\\r\\n***", "\n***", StringComparison.Ordinal)
+            .Replace("\\n***", "\n***", StringComparison.Ordinal)
+            .Replace("\\r\\n@@", "\n@@", StringComparison.Ordinal)
+            .Replace("\\n@@", "\n@@", StringComparison.Ordinal)
+            .Replace("\\r\\n---", "\n---", StringComparison.Ordinal)
+            .Replace("\\n---", "\n---", StringComparison.Ordinal)
+            .Replace("\\r\\n+++", "\n+++", StringComparison.Ordinal)
+            .Replace("\\n+++", "\n+++", StringComparison.Ordinal);
         foreach (var line in normalizedText.Split('\n'))
         {
             foreach (var marker in PatchFileMarkers)
