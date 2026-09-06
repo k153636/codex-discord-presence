@@ -148,7 +148,7 @@ public sealed class CodexActivityResolverTests
     }
 
     [Fact]
-    public void Resolve_CompletedEditEventDoesNotRemainApplyingEdits()
+    public void Resolve_CompletedEditEventFallsBackAfterPropagationGrace()
     {
         var now = DateTime.UtcNow;
         var filePath = @"E:\repo\Completed.cs";
@@ -160,7 +160,7 @@ public sealed class CodexActivityResolverTests
             true,
             true,
             false,
-            now.AddSeconds(-3),
+            now.AddSeconds(-5),
             null,
             now,
             null,
@@ -173,7 +173,7 @@ public sealed class CodexActivityResolverTests
                 new CodexActivityEvent
                 {
                     Sequence = 1,
-                    TimestampUtc = now.AddSeconds(-3),
+                    TimestampUtc = now.AddSeconds(-5),
                     Kind = CodexActivityEventKind.TurnStarted,
                     TurnId = "turn-1",
                     Reason = "task_started"
@@ -181,7 +181,7 @@ public sealed class CodexActivityResolverTests
                 new CodexActivityEvent
                 {
                     Sequence = 2,
-                    TimestampUtc = now.AddSeconds(-2),
+                    TimestampUtc = now.AddSeconds(-4),
                     Kind = CodexActivityEventKind.OperationStarted,
                     TurnId = "turn-1",
                     CallId = "call-1",
@@ -192,7 +192,7 @@ public sealed class CodexActivityResolverTests
                 new CodexActivityEvent
                 {
                     Sequence = 3,
-                    TimestampUtc = now.AddSeconds(-1),
+                    TimestampUtc = now.AddSeconds(-3),
                     Kind = CodexActivityEventKind.OperationCompleted,
                     TurnId = "turn-1",
                     CallId = "call-1",

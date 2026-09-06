@@ -55,7 +55,7 @@ public sealed class CodexActivityStateMachineTests
     }
 
     [Fact]
-    public void Evaluate_CompletedEditStopsBeingActiveAfterCompletion()
+    public void Evaluate_CompletedEditRemainsVisibleOnlyDuringShortPropagationGrace()
     {
         var startedAt = Utc(24);
         var state = EvaluateAt(
@@ -77,9 +77,10 @@ public sealed class CodexActivityStateMachineTests
             startedAt.AddSeconds(1));
 
         Assert.Equal(CodexTurnLifecycle.Open, state.Lifecycle);
-        Assert.Equal(CodexOperationKind.Unknown, state.OperationKind);
-        Assert.Null(state.ActiveFilePath);
+        Assert.Equal(CodexOperationKind.Edit, state.OperationKind);
+        Assert.Equal(@"E:\repo\PresenceRuntime.cs", state.ActiveFilePath);
         Assert.Equal(0, state.PendingOperationCount);
+        Assert.True(state.IsCompletedMutationDisplay);
     }
 
     [Theory]

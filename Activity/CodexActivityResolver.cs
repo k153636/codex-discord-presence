@@ -227,15 +227,15 @@ internal sealed class CodexActivityResolver
     {
         return state.OperationKind switch
         {
-            CodexOperationKind.Edit when state.PendingMutationCount > 0 => state.MutationFilePaths.Count > 1 &&
+            CodexOperationKind.Edit when state.PendingMutationCount > 0 || state.IsCompletedMutationDisplay => state.MutationFilePaths.Count > 1 &&
                 state.ActiveFilePath is null &&
                 !HasCurrentDirectToolTarget(state, sessionInspection)
                 ? CodexActivityKind.CoordinatingChanges
                 : CodexActivityKind.ApplyingEdits,
             CodexOperationKind.Edit => CodexActivityKind.AnalyzingProject,
-            CodexOperationKind.Create when state.PendingMutationCount > 0 => CodexActivityKind.CreatingFiles,
+            CodexOperationKind.Create when state.PendingMutationCount > 0 || state.IsCompletedMutationDisplay => CodexActivityKind.CreatingFiles,
             CodexOperationKind.Create => CodexActivityKind.AnalyzingProject,
-            CodexOperationKind.Delete when state.PendingMutationCount > 0 => CodexActivityKind.DeletingFiles,
+            CodexOperationKind.Delete when state.PendingMutationCount > 0 || state.IsCompletedMutationDisplay => CodexActivityKind.DeletingFiles,
             CodexOperationKind.Delete => CodexActivityKind.AnalyzingProject,
             CodexOperationKind.Command => CodexActivityKind.RunningCommand,
             CodexOperationKind.Read => CodexActivityKind.ReadingFiles,
@@ -262,7 +262,8 @@ internal sealed class CodexActivityResolver
             return false;
         }
 
-        if (state.TriggerEvent?.TimestampUtc is { } operationStartedAt &&
+        if (!state.IsCompletedMutationDisplay &&
+            state.TriggerEvent?.TimestampUtc is { } operationStartedAt &&
             directAt < operationStartedAt)
         {
             return false;
