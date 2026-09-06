@@ -46,6 +46,20 @@ internal sealed class CodexActivityResolver
             createdFileCount == 0 &&
             changedFileCount == deletedFileCount;
 
+        // A completed task is terminal until a newer task_started event appears.
+        // Git changes and recent file timestamps can outlive the task that created
+        // them, so they must not resurrect an active state after task_complete.
+        if (sessionInspection?.HasTaskCompleted == true &&
+            (!sessionInspection.HasTaskStarted || sessionInspection.HasTaskCompletedSinceStart))
+        {
+            provenance = ActivityProvenance.Observed;
+            confidence = ActivityConfidence.High;
+            reason = sessionInspection.HasTaskStarted
+                ? "task_complete without newer task_started"
+                : "task_complete without task_started";
+            return CodexActivityKind.Ready;
+        }
+
         if (hasFreshSession && (sessionInspection?.HasRunningCommand == true || hasRecentShellCommandActivity))
         {
             var runningCommandReason = sessionInspection?.RunningCommandReason;
@@ -111,22 +125,6 @@ internal sealed class CodexActivityResolver
             confidence = ActivityConfidence.High;
             reason = $"task_started with git changed files={changedFileCount}";
             return CodexActivityKind.ApplyingEdits;
-        }
-
-        if (sessionInspection?.HasTaskCompleted == true && !sessionInspection.HasTaskStarted)
-        {
-            provenance = ActivityProvenance.Observed;
-            confidence = ActivityConfidence.High;
-            reason = "task_complete without task_started";
-            return CodexActivityKind.Ready;
-        }
-
-        if (sessionInspection?.HasTaskCompletedSinceStart == true)
-        {
-            provenance = ActivityProvenance.Observed;
-            confidence = ActivityConfidence.High;
-            reason = "task_complete without file writes";
-            return CodexActivityKind.Ready;
         }
 
         if (hasFreshSession && hasRecentTaskStarted)

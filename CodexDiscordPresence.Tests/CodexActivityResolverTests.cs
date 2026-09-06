@@ -7,6 +7,65 @@ namespace CodexDiscordPresence.Tests;
 public sealed class CodexActivityResolverTests
 {
     [Fact]
+    public void Resolve_TaskCompleteWinsOverStaleEditEvidence()
+    {
+        var resolver = new CodexActivityResolver();
+        var now = DateTime.UtcNow;
+        var context = CreateContext(
+            new SessionInspection(
+                true,
+                true,
+                true,
+                true,
+                now.AddSeconds(-10),
+                now.AddSeconds(-1),
+                now,
+                null,
+                false,
+                null,
+                null),
+            new GitSnapshot(true, 1, null),
+            CodexActivityKind.ApplyingEdits,
+            [new RecentProjectFileSnapshot("Completed.cs", @"E:\tool\Completed.cs", now)],
+            changedFileCount: 1);
+
+        var activity = resolver.Resolve(context, out var provenance, out var confidence, out var reason, out _);
+
+        Assert.Equal(CodexActivityKind.Ready, activity);
+        Assert.Equal(ActivityProvenance.Observed, provenance);
+        Assert.Equal(ActivityConfidence.High, confidence);
+        Assert.Equal("task_complete without newer task_started", reason);
+    }
+
+    [Fact]
+    public void Resolve_NewTaskStartedAfterCompletionRemainsActive()
+    {
+        var resolver = new CodexActivityResolver();
+        var now = DateTime.UtcNow;
+        var context = CreateContext(
+            new SessionInspection(
+                true,
+                true,
+                true,
+                true,
+                now,
+                now.AddSeconds(-1),
+                now,
+                null,
+                false,
+                null,
+                null),
+            new GitSnapshot(true, 1, null),
+            CodexActivityKind.AnalyzingProject,
+            changedFileCount: 1);
+
+        var activity = resolver.Resolve(context, out _, out _, out var reason, out _);
+
+        Assert.Equal(CodexActivityKind.ApplyingEdits, activity);
+        Assert.Contains("task_started", reason);
+    }
+
+    [Fact]
     public void Resolve_TaskStartedWithDiff_PrefersApplyingEdits()
     {
         var resolver = new CodexActivityResolver();
