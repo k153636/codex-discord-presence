@@ -19,6 +19,9 @@ public sealed class PresenceStatusLabelResolver
             CodexActivityKind.DeletingFiles => FirstNonEmpty(template.DeletingFilesText, "Deleting files"),
             CodexActivityKind.RunningCommand => ResolveRunningCommandLabel(template, context),
             CodexActivityKind.Refactoring => FirstNonEmpty(template.RefactoringText, "Refactoring"),
+            CodexActivityKind.ReadingFiles => FirstNonEmpty(template.ReadingText, "Reading"),
+            CodexActivityKind.WaitingForInput => FirstNonEmpty(template.WaitingText, "Waiting"),
+            CodexActivityKind.Stalled => FirstNonEmpty(template.StalledText, "Stalled"),
             CodexActivityKind.AnalyzingProject => ShouldUseRunningCommandLabel(context)
                 ? ResolveRunningCommandLabel(template, context)
                 : ShouldUseInvestigatingLabel(context)
@@ -94,6 +97,7 @@ public sealed class PresenceStatusLabelResolver
     private static bool ShouldUseWorkingLabel(PresenceContext context)
     {
         return context.Codex.ActivityKind == CodexActivityKind.AnalyzingProject &&
+            string.IsNullOrWhiteSpace(context.Codex.ActiveTurnId) &&
             context.Codex.LastTaskStartedAt.HasValue;
     }
 

@@ -74,7 +74,7 @@ public sealed class CodexSessionLogParserTests
     }
 
     [Fact]
-    public void InspectRecentSessions_ClassifiesReadShellCommandSeparatelyFromMutation()
+    public void InspectRecentSessions_ClassifiesShellCommandSeparatelyFromMutation()
     {
         var homePath = CreateTempCodexHome();
         var projectPath = Path.Combine(Path.GetTempPath(), "CodexReadEventProject_" + Guid.NewGuid());
@@ -110,7 +110,7 @@ public sealed class CodexSessionLogParserTests
             Assert.NotNull(inspection);
             var operation = Assert.Single(inspection!.ActivityEvents.Skip(1));
             Assert.Equal(CodexActivityEventKind.OperationStarted, operation.Kind);
-            Assert.Equal(CodexOperationKind.Read, operation.OperationKind);
+            Assert.Equal(CodexOperationKind.Command, operation.OperationKind);
             Assert.Equal(RunningCommandKind.Search, operation.CommandKind);
         }
         finally

@@ -84,6 +84,13 @@ public sealed partial record CodexProcessSnapshot
     public bool LastShellCommandWasInvestigative { get; init; }
     public string? LastDirectToolFilePath { get; init; }
     public DateTime? LastDirectToolFileAt { get; init; }
+    public string? ActiveToolFilePath { get; init; }
+    public IReadOnlyList<string> ActivityFilePaths { get; init; } = Array.Empty<string>();
+    public int PendingOperationCount { get; init; }
+    public int PendingMutationCount { get; init; }
+    public string? ActiveTurnId { get; init; }
+    public DateTime? LastEffectiveSignalAt { get; init; }
+    internal CodexTurnLifecycle TurnLifecycle { get; init; } = CodexTurnLifecycle.None;
     public IReadOnlyList<RecentProjectFileSnapshot> RecentEditedFiles { get; init; } = Array.Empty<RecentProjectFileSnapshot>();
     public int ActivityRepeatCount { get; init; } = 1;
     public CodexProcessDetectionKind DetectionKind { get; init; } = CodexProcessDetectionKind.None;

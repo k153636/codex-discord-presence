@@ -2,6 +2,22 @@ namespace CodexDiscordPresence;
 
 internal sealed class CodexActivityResolver
 {
+    private readonly CodexActivityStateMachine _stateMachine;
+    private readonly Func<DateTime> _utcNow;
+
+    public CodexActivityResolver()
+        : this(null, null)
+    {
+    }
+
+    internal CodexActivityResolver(
+        CodexActivityStateMachine? stateMachine,
+        Func<DateTime>? utcNow)
+    {
+        _stateMachine = stateMachine ?? new CodexActivityStateMachine();
+        _utcNow = utcNow ?? (() => DateTime.UtcNow);
+    }
+
     public CodexActivityKind Resolve(
         CodexActivityContext context,
         out ActivityProvenance provenance,
@@ -9,15 +25,46 @@ internal sealed class CodexActivityResolver
         out string reason,
         out DateTime? lastObservedAt)
     {
+        return Resolve(
+            context,
+            out provenance,
+            out confidence,
+            out reason,
+            out _,
+            out lastObservedAt);
+    }
+
+    internal CodexActivityKind Resolve(
+        CodexActivityContext context,
+        out ActivityProvenance provenance,
+        out ActivityConfidence confidence,
+        out string reason,
+        out CodexActivityState? activityState,
+        out DateTime? lastObservedAt)
+    {
+        var nowUtc = _utcNow();
         var recentEditedFiles = context.RecentEditedFiles;
         var changedFileCount = context.ChangedFileCount;
         var sessionInspection = context.SessionInspection;
         var gitSnapshot = context.GitSnapshot;
         var previousActivityKind = context.PreviousActivityKind;
 
-        lastObservedAt = MaxTimestamp(
-            sessionInspection?.LastObservedAt,
-            recentEditedFiles.FirstOrDefault()?.LastWriteTimeUtc);
+        activityState = ResolveActivityState(sessionInspection, nowUtc);
+        lastObservedAt = activityState is not null
+            ? MaxTimestamp(activityState.LastEventAtUtc, activityState.LastEffectiveSignalAtUtc)
+            : MaxTimestamp(
+                sessionInspection?.LastObservedAt,
+                recentEditedFiles.FirstOrDefault()?.LastWriteTimeUtc);
+
+        if (activityState is not null)
+        {
+            return ResolveEventState(
+                activityState,
+                sessionInspection,
+                out provenance,
+                out confidence,
+                out reason);
+        }
 
         var createdFileCount = gitSnapshot?.CreatedFileCount ?? 0;
         var deletedFileCount = gitSnapshot?.DeletedFileCount ?? 0;
@@ -26,11 +73,11 @@ internal sealed class CodexActivityResolver
         var hasRecentShellCommandActivity = sessionInspection is not null &&
             sessionInspection.LastRunningCommandKind != RunningCommandKind.Unknown &&
             sessionInspection.LastShellCommandAt.HasValue &&
-            DateTime.UtcNow - sessionInspection.LastShellCommandAt.Value <= TimeSpan.FromSeconds(Math.Max(0, context.RunningCommandHoldSeconds));
+            nowUtc - sessionInspection.LastShellCommandAt.Value <= TimeSpan.FromSeconds(Math.Max(0, context.RunningCommandHoldSeconds));
         var hasRecentTaskStarted = sessionInspection is not null &&
             sessionInspection.HasTaskStarted &&
             sessionInspection.LastTaskStartedAt.HasValue &&
-            DateTime.UtcNow - sessionInspection.LastTaskStartedAt.Value <= TimeSpan.FromMinutes(Math.Max(0, context.ThinkingStaleTimeoutMinutes));
+            nowUtc - sessionInspection.LastTaskStartedAt.Value <= TimeSpan.FromMinutes(Math.Max(0, context.ThinkingStaleTimeoutMinutes));
         var hasFreshRecentEdits = CodexActivityEvidence.HasFreshRecentEdits(recentEditedFiles, context.EditingFreshnessSeconds);
         var hasBurstRecentEdits = CodexActivityEvidence.HasBurstRecentEdits(recentEditedFiles, changedFileCount);
         var hasRefactorEvidence = CodexActivityEvidence.HasRefactorEvidence(gitSnapshot);
@@ -147,6 +194,62 @@ internal sealed class CodexActivityResolver
         confidence = ActivityConfidence.High;
         reason = "Codex running but idle";
         return CodexActivityKind.Ready;
+    }
+
+    private CodexActivityState? ResolveActivityState(SessionInspection? sessionInspection, DateTime nowUtc)
+    {
+        if (sessionInspection is null ||
+            !sessionInspection.ActivityEvents.Any(activityEvent => activityEvent.Kind != CodexActivityEventKind.ContextUpdated))
+        {
+            return null;
+        }
+
+        return _stateMachine.Evaluate(sessionInspection.ActivityEvents, nowUtc);
+    }
+
+    private static CodexActivityKind ResolveEventState(
+        CodexActivityState state,
+        SessionInspection? sessionInspection,
+        out ActivityProvenance provenance,
+        out ActivityConfidence confidence,
+        out string reason)
+    {
+        provenance = state.Lifecycle == CodexTurnLifecycle.Stalled
+            ? ActivityProvenance.Inferred
+            : ActivityProvenance.Observed;
+        confidence = state.Lifecycle == CodexTurnLifecycle.Stalled
+            ? ActivityConfidence.Low
+            : ActivityConfidence.High;
+        reason = state.Reason;
+
+        return state.Lifecycle switch
+        {
+            CodexTurnLifecycle.Completed => CodexActivityKind.Ready,
+            CodexTurnLifecycle.Failed => CodexActivityKind.Ready,
+            CodexTurnLifecycle.Interrupted => CodexActivityKind.Ready,
+            CodexTurnLifecycle.WaitingForInput => CodexActivityKind.WaitingForInput,
+            CodexTurnLifecycle.Stalled => CodexActivityKind.Stalled,
+            CodexTurnLifecycle.Open => ResolveOpenEventState(state, sessionInspection),
+            _ => CodexActivityKind.Ready
+        };
+    }
+
+    private static CodexActivityKind ResolveOpenEventState(
+        CodexActivityState state,
+        SessionInspection? sessionInspection)
+    {
+        return state.OperationKind switch
+        {
+            CodexOperationKind.Edit => state.MutationFilePaths.Count > 1 && state.ActiveFilePath is null
+                ? CodexActivityKind.CoordinatingChanges
+                : CodexActivityKind.ApplyingEdits,
+            CodexOperationKind.Create => CodexActivityKind.CreatingFiles,
+            CodexOperationKind.Delete => CodexActivityKind.DeletingFiles,
+            CodexOperationKind.Command => CodexActivityKind.RunningCommand,
+            CodexOperationKind.Read => CodexActivityKind.ReadingFiles,
+            _ when sessionInspection?.CollaborationMode is "plan" => CodexActivityKind.Planning,
+            _ => CodexActivityKind.AnalyzingProject
+        };
     }
 
     private static DateTime? MaxTimestamp(params DateTime?[] timestamps)

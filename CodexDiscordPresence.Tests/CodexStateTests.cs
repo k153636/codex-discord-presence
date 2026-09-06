@@ -200,7 +200,7 @@ public class CodexStateTests
     }
 
     [Fact]
-    public void Test_3c_ActiveCurrentProjectSession_BeatsNewerStaleSession()
+    public void Test_3c_ActiveCurrentProjectSession_StallsWithoutEffectiveFollowUp()
     {
         var tempPath = CreateTempSessionDirectory();
         try
@@ -227,8 +227,8 @@ public class CodexStateTests
                 var snapshot = detector.GetSnapshot(currentProject);
 
                 Assert.True(snapshot.IsRunning);
-                Assert.Equal(CodexActivityKind.AnalyzingProject, snapshot.ActivityKind);
-                Assert.Equal(ActivityConfidence.High, snapshot.Confidence);
+                Assert.Equal(CodexActivityKind.Stalled, snapshot.ActivityKind);
+                Assert.Equal(ActivityConfidence.Low, snapshot.Confidence);
             }
             finally
             {
@@ -316,7 +316,7 @@ public class CodexStateTests
     }
 
     [Fact]
-    public void Test_5_TaskStartedStaleTimeout_ReturnsReady()
+    public void Test_5_TaskStartedStaleTimeout_ReturnsStalledWhenProcessIsRunning()
     {
         var tempPath = CreateTempSessionDirectory();
         try
@@ -332,7 +332,7 @@ public class CodexStateTests
             var snapshot = detector.GetSnapshot();
 
             Assert.False(snapshot.IsThinking);
-            Assert.Equal(CodexActivityKind.Ready, snapshot.ActivityKind);
+            Assert.Equal(CodexActivityKind.Stalled, snapshot.ActivityKind);
         }
         finally
         {
@@ -499,7 +499,7 @@ public class CodexStateTests
     }
 
     [Fact]
-    public void Test_10_SingleRecentEdit_ReturnsApplyingEdits()
+    public void Test_10_SingleRecentEditWithoutToolEvent_DoesNotTriggerEditing()
     {
         var tempPath = CreateTempSessionDirectory();
         try
@@ -535,8 +535,9 @@ public class CodexStateTests
                 var snapshot = detector.GetSnapshot(projectRoot, projectSnapshot, new GitSnapshot(true, 12, null));
 
                 Assert.True(snapshot.IsRunning);
-                Assert.Equal(CodexActivityKind.ApplyingEdits, snapshot.ActivityKind);
+                Assert.Equal(CodexActivityKind.AnalyzingProject, snapshot.ActivityKind);
                 Assert.Equal(ActivityConfidence.High, snapshot.Confidence);
+                Assert.Empty(snapshot.ActivityFilePaths);
             }
             finally
             {
@@ -550,7 +551,7 @@ public class CodexStateTests
     }
 
     [Fact]
-    public void Test_10b_TaskStartedWithDiffButNoFreshEdit_ReturnsApplyingEditsSooner()
+    public void Test_10b_TaskStartedWithDiffButNoToolEvent_DoesNotTriggerEditing()
     {
         var tempPath = CreateTempSessionDirectory();
         try
@@ -584,8 +585,9 @@ public class CodexStateTests
                     CodexActivityKind.AnalyzingProject);
 
                 Assert.True(snapshot.IsRunning);
-                Assert.Equal(CodexActivityKind.ApplyingEdits, snapshot.ActivityKind);
+                Assert.Equal(CodexActivityKind.AnalyzingProject, snapshot.ActivityKind);
                 Assert.Equal(ActivityConfidence.High, snapshot.Confidence);
+                Assert.Empty(snapshot.ActivityFilePaths);
             }
             finally
             {
@@ -599,7 +601,7 @@ public class CodexStateTests
     }
 
     [Fact]
-    public void Test_11_MultiFileEdits_ReturnCoordinatingChanges()
+    public void Test_11_MultiFileTimestampsWithoutToolEvent_DoNotTriggerCoordination()
     {
         var tempPath = CreateTempSessionDirectory();
         try
@@ -647,9 +649,10 @@ public class CodexStateTests
                 var snapshot = detector.GetSnapshot(projectRoot, projectSnapshot, new GitSnapshot(true, 4, null));
 
                 Assert.True(snapshot.IsRunning);
-                Assert.Equal(CodexActivityKind.CoordinatingChanges, snapshot.ActivityKind);
+                Assert.Equal(CodexActivityKind.AnalyzingProject, snapshot.ActivityKind);
                 Assert.True(snapshot.IsThinking);
                 Assert.Equal(ActivityConfidence.High, snapshot.Confidence);
+                Assert.Empty(snapshot.ActivityFilePaths);
             }
             finally
             {
@@ -953,7 +956,7 @@ public class CodexStateTests
     }
 
     [Fact]
-    public void Test_13_CommitMessageWithRefactorHint_ReturnsRefactoringLowConfidence()
+    public void Test_13_CommitMessageWithRefactorHint_DoesNotTriggerRefactoring()
     {
         var tempPath = CreateTempSessionDirectory();
         try
@@ -981,8 +984,8 @@ public class CodexStateTests
                 new GitSnapshot(true, 1, "refactor: split editor state from transport"));
 
             Assert.True(snapshot.IsRunning);
-            Assert.Equal(CodexActivityKind.Refactoring, snapshot.ActivityKind);
-            Assert.Equal(ActivityConfidence.Low, snapshot.Confidence);
+            Assert.Equal(CodexActivityKind.AnalyzingProject, snapshot.ActivityKind);
+            Assert.Equal(ActivityConfidence.High, snapshot.Confidence);
         }
         finally
         {

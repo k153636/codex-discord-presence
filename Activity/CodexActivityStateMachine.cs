@@ -62,11 +62,6 @@ internal sealed class CodexActivityStateMachine
 
         foreach (var activityEvent in orderedEvents)
         {
-            if (activityEvent.TimestampUtc != default)
-            {
-                lastEventAtUtc = Max(lastEventAtUtc, activityEvent.TimestampUtc);
-            }
-
             if (activityEvent.Kind == CodexActivityEventKind.TurnStarted)
             {
                 var nextTurnId = NormalizeTurnId(activityEvent.TurnId);
@@ -89,9 +84,20 @@ internal sealed class CodexActivityStateMachine
                     mutationPaths.Clear();
                 }
 
+                lastEventAtUtc = Max(lastEventAtUtc, activityEvent.TimestampUtc);
                 lastEffectiveSignalAtUtc = activityEvent.TimestampUtc;
                 lastEffectiveEvent = activityEvent;
                 continue;
+            }
+
+            if (currentTurnId is null && activityEvent.Kind is
+                CodexActivityEventKind.Reasoning or
+                CodexActivityEventKind.OperationStarted or
+                CodexActivityEventKind.InputRequested)
+            {
+                currentTurnId = NormalizeTurnId(activityEvent.TurnId) ?? $"implicit:{activityEvent.Sequence}";
+                turnStartedAtUtc = activityEvent.TimestampUtc;
+                lifecycle = CodexTurnLifecycle.Open;
             }
 
             if (currentTurnId is null)
@@ -109,6 +115,7 @@ internal sealed class CodexActivityStateMachine
                 continue;
             }
 
+            lastEventAtUtc = Max(lastEventAtUtc, activityEvent.TimestampUtc);
             if (activityEvent.IsEffective)
             {
                 lastEffectiveSignalAtUtc = activityEvent.TimestampUtc;
@@ -240,7 +247,7 @@ internal sealed class CodexActivityStateMachine
                 LastEffectiveSignalAtUtc = lastEffectiveSignalAtUtc,
                 TerminalAtUtc = terminalAtUtc,
                 TriggerEvent = terminalEvent,
-                MutationFilePaths = mutationPaths.OrderBy(path => path, StringComparer.OrdinalIgnoreCase).ToArray(),
+                MutationFilePaths = Array.Empty<string>(),
                 Reason = terminalEvent?.Reason ?? $"turn {lifecycle.ToString().ToLowerInvariant()}"
             };
         }
@@ -374,16 +381,6 @@ internal sealed class CodexActivityStateMachine
         {
             pendingOperationsWithoutId.Clear();
         }
-    }
-
-    private static int CountPendingOperations(
-        CodexOperationKind operationKind,
-        IReadOnlyDictionary<string, PendingOperation> pendingOperations,
-        IEnumerable<PendingOperation> pendingOperationsWithoutId)
-    {
-        return pendingOperations.Values
-            .Concat(pendingOperationsWithoutId)
-            .Count(operation => operation.Event.OperationKind == operationKind);
     }
 
     private static int CountPendingMutations(

@@ -31,9 +31,11 @@ public sealed class PresenceTemplateRenderer
         var editingFileName = editingFile is null
             ? ""
             : EditedFileSelector.FormatForDisplay(context.Project, editingFile);
-        var activityFileCount = context.Codex.ActivityKind == CodexActivityKind.CoordinatingChanges
-            ? Math.Max(editingFileSelection.TotalFileCount, context.Git.ChangedFileCount)
-            : editingFileSelection.TotalFileCount;
+        var activityFileCount = context.Codex.ActivityFilePaths.Count > 0
+            ? context.Codex.ActivityFilePaths.Count
+            : context.Codex.ActivityKind == CodexActivityKind.CoordinatingChanges
+                ? Math.Max(editingFileSelection.TotalFileCount, context.Git.ChangedFileCount)
+                : editingFileSelection.TotalFileCount;
         var editingFileLabel = BuildEditingFileLabel(context, editingFileName, activityFileCount);
         var changedFilesText = FormatChangedFiles(context.Git.ChangedFileCount);
         var projectSizeText = FormatProjectSize(context.Project.TotalFileCount, context.Project.TotalLineCount);

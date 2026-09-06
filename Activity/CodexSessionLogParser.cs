@@ -253,6 +253,10 @@ internal sealed class CodexSessionLogParser
             runningCommandReason = "pending shell_command function call in session log";
         }
 
+        var activityState = activityEvents.Count == 0
+            ? null
+            : new CodexActivityStateMachine().Evaluate(activityEvents, DateTime.UtcNow);
+
         return new SessionInspection(
             hasProjectPath,
             matchesProject,
@@ -273,7 +277,8 @@ internal sealed class CodexSessionLogParser
             LastShellCommandWasInvestigative = lastShellCommandWasInvestigative,
             LastDirectToolFilePath = lastDirectToolFilePath,
             LastDirectToolFileAt = lastDirectToolFileAt,
-            ActivityEvents = activityEvents
+            ActivityEvents = activityEvents,
+            ActivityState = activityState
         };
     }
 
@@ -391,6 +396,11 @@ internal sealed class CodexSessionLogParser
                 var commandText = TryGetShellCommandText(payload, out var shellCommand)
                     ? shellCommand
                     : null;
+                if (!string.IsNullOrWhiteSpace(commandText) && IsPassiveShellCommand(commandText))
+                {
+                    return false;
+                }
+
                 var operationKind = ClassifyOperationKind(toolName, commandText, targetPaths);
                 activityEvent = activityEvent with
                 {
@@ -473,13 +483,15 @@ internal sealed class CodexSessionLogParser
 
         if (!string.IsNullOrWhiteSpace(commandText))
         {
-            var commandKind = ClassifyShellCommand(commandText);
-            return commandKind == RunningCommandKind.Search
-                ? CodexOperationKind.Read
-                : CodexOperationKind.Command;
+            return CodexOperationKind.Command;
         }
 
         var normalizedToolName = toolName?.ToLowerInvariant() ?? "";
+        if (normalizedToolName == "shell_command")
+        {
+            return CodexOperationKind.Command;
+        }
+
         if (normalizedToolName.Contains("read", StringComparison.Ordinal) ||
             normalizedToolName.Contains("search", StringComparison.Ordinal) ||
             normalizedToolName.Contains("view", StringComparison.Ordinal))

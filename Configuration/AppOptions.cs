@@ -285,6 +285,8 @@ public sealed class PresenceTemplateOptions
     public string PlanningText { get; set; } = "Planning";
     public string ApplyingEditsText { get; set; } = "Editing";
     public string RefactoringText { get; set; } = "Refactoring";
+    public string ReadingText { get; set; } = "Reading";
+    public string StalledText { get; set; } = "Stalled";
     public string ThinkingText { get; set; } = "Thinking";
     public string WorkingText { get; set; } = "Working";
     public string InvestigatingText { get; set; } = "Investigating";

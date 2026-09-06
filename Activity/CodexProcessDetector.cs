@@ -86,6 +86,7 @@ public sealed class CodexProcessDetector
             out var provenance,
             out var confidence,
             out var reason,
+            out var activityState,
             out var lastObservedAt);
 
         return new CodexProcessSnapshot(true, matchedProcessName, activity.IsActive())
@@ -104,6 +105,13 @@ public sealed class CodexProcessDetector
             LastShellCommandWasInvestigative = sessionInspection?.LastShellCommandWasInvestigative ?? false,
             LastDirectToolFilePath = sessionInspection?.LastDirectToolFilePath,
             LastDirectToolFileAt = sessionInspection?.LastDirectToolFileAt,
+            ActiveToolFilePath = activityState?.ActiveFilePath,
+            ActivityFilePaths = activityState?.MutationFilePaths ?? Array.Empty<string>(),
+            PendingOperationCount = activityState?.PendingOperationCount ?? 0,
+            PendingMutationCount = activityState?.PendingMutationCount ?? 0,
+            ActiveTurnId = activityState?.TurnId,
+            LastEffectiveSignalAt = activityState?.LastEffectiveSignalAtUtc,
+            TurnLifecycle = activityState?.Lifecycle ?? CodexTurnLifecycle.None,
             ObservedProjectPath = sessionInspection?.ProjectPath,
             RecentEditedFiles = recentEditedFiles
         };
