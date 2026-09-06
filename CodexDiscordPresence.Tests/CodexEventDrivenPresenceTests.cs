@@ -205,6 +205,80 @@ public sealed class CodexEventDrivenPresenceTests
     }
 
     [Fact]
+    public void Render_CompletedExecToolCall_DoesNotRemainRunningCommand()
+    {
+        var now = DateTime.UtcNow;
+        var projectPath = CreateProjectPath();
+        var homePath = CreateHomePath();
+
+        try
+        {
+            WriteSession(homePath, "session.jsonl",
+            [
+                CreateSessionLine(now, new
+                {
+                    type = "task_started",
+                    turn_id = "turn-1",
+                    cwd = projectPath
+                }, "event_msg"),
+                CreateSessionLine(now.AddMilliseconds(1), new
+                {
+                    type = "custom_tool_call",
+                    turn_id = "turn-1",
+                    call_id = "call-completed-exec-1",
+                    name = "exec",
+                    status = "completed",
+                    input = $"const r = await tools.exec_command({{cmd: \"dotnet build\", workdir: \"{projectPath}\"}}); text(r.output);"
+                }, "response_item")
+            ]);
+
+            var snapshot = CreateDetector(homePath).GetSnapshot(projectPath);
+            var presence = Render(projectPath, snapshot);
+
+            Assert.Equal(CodexActivityKind.AnalyzingProject, snapshot.ActivityKind);
+            Assert.Equal(0, snapshot.PendingOperationCount);
+            Assert.Equal("Working", presence.State);
+        }
+        finally
+        {
+            DeleteDirectory(homePath);
+        }
+    }
+
+    [Fact]
+    public void GetSnapshot_CompletedShellCommandWithoutTurnStart_IsNotRunningCommand()
+    {
+        var now = DateTime.UtcNow;
+        var projectPath = CreateProjectPath();
+        var homePath = CreateHomePath();
+
+        try
+        {
+            WriteSession(homePath, "session.jsonl",
+            [
+                CreateSessionLine(now, new
+                {
+                    type = "function_call",
+                    call_id = "call-completed-shell-1",
+                    name = "shell_command",
+                    status = "completed",
+                    arguments = JsonSerializer.Serialize(new { command = "dotnet build" })
+                }, "response_item")
+            ]);
+
+            var snapshot = CreateDetector(homePath).GetSnapshot(projectPath);
+
+            Assert.Equal(CodexActivityKind.Ready, snapshot.ActivityKind);
+            Assert.Equal(0, snapshot.PendingOperationCount);
+            Assert.NotEqual(CodexActivityKind.RunningCommand, snapshot.ActivityKind);
+        }
+        finally
+        {
+            DeleteDirectory(homePath);
+        }
+    }
+
+    [Fact]
     public void Render_PendingMcpEdit_IdentifiesMcpAndActiveFile()
     {
         var now = DateTime.UtcNow;

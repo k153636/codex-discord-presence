@@ -218,7 +218,12 @@ internal sealed class CodexSessionLogParser
                     string.Equals(functionName, "shell_command", StringComparison.OrdinalIgnoreCase) &&
                     TryGetString(payload, "call_id", out var callId))
                 {
-                    pendingShellCommands.Add(callId);
+                    var isTerminalOperation = IsTerminalOperationStatus(payload);
+                    if (!isTerminalOperation)
+                    {
+                        pendingShellCommands.Add(callId);
+                    }
+
                     if (TryGetShellCommandText(payload, out var commandText))
                     {
                         if (IsPassiveShellCommand(commandText))
@@ -230,7 +235,8 @@ internal sealed class CodexSessionLogParser
                         var commandKind = ClassifyShellCommand(commandText);
                         var commandName = ExtractCommandName(commandText);
                         var displayCommandName = commandName ?? DescribeRunningCommandKind(commandKind);
-                        if (!lastShellCommandAt.HasValue || timestamp >= lastShellCommandAt)
+                        if (!isTerminalOperation &&
+                            (!lastShellCommandAt.HasValue || timestamp >= lastShellCommandAt))
                         {
                             lastShellCommandAt = timestamp;
                             lastRunningCommandKind = commandKind ?? RunningCommandKind.Unknown;
@@ -560,16 +566,21 @@ internal sealed class CodexSessionLogParser
 
                 var operationKind = shellMutation?.OperationKind ??
                     ClassifyOperationKind(toolName, commandText, targetPaths, toolInput);
+                var operationEventKind = IsTerminalOperationStatus(payload)
+                    ? CodexActivityEventKind.OperationCompleted
+                    : CodexActivityEventKind.OperationStarted;
                 activityEvent = activityEvent with
                 {
-                    Kind = CodexActivityEventKind.OperationStarted,
+                    Kind = operationEventKind,
                     OperationKind = operationKind,
                     TargetPaths = targetPaths,
                     CommandKind = ClassifyShellCommand(commandText ?? "") ?? RunningCommandKind.Unknown,
                     CommandName = commandText is null ? null : ExtractCommandName(commandText),
                     IsMcpOperation = isMcpOperation,
                     McpServerName = McpServerNameFormatter.ExtractServerName(toolName),
-                    Reason = isMcpOperation
+                    Reason = operationEventKind == CodexActivityEventKind.OperationCompleted
+                        ? "tool operation completed"
+                        : isMcpOperation
                         ? $"MCP {McpServerNameFormatter.ExtractToolName(toolName) ?? toolName ?? "operation"} operation started"
                         : string.IsNullOrWhiteSpace(toolName)
                         ? "tool operation started"
@@ -1723,6 +1734,22 @@ internal sealed class CodexSessionLogParser
         }
 
         return false;
+    }
+
+    private static bool IsTerminalOperationStatus(JsonElement payload)
+    {
+        var status = TryGetFirstString(payload, "status", "outcome")?.ToLowerInvariant();
+        return status is
+            "completed" or
+            "succeeded" or
+            "success" or
+            "done" or
+            "failed" or
+            "error" or
+            "cancelled" or
+            "canceled" or
+            "aborted" or
+            "interrupted";
     }
 
     private static bool TryGetNestedShellCommandText(string toolInput, out string commandText)
