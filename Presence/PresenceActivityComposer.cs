@@ -43,16 +43,17 @@ internal static class PresenceActivityComposer
 
     private static string WithMcpIdentity(PresenceContext context, string activityLine)
     {
-        if (!context.Codex.IsMcpOperation || string.IsNullOrWhiteSpace(activityLine))
+        var activityWithRole = MainAgentActivityComposer.AddRole(context, activityLine);
+        if (!context.Codex.IsMcpOperation || string.IsNullOrWhiteSpace(activityWithRole))
         {
-            return activityLine;
+            return activityWithRole;
         }
 
         var mcpName = McpServerNameFormatter.Format(context.Codex.McpServerName);
         var prefix = string.IsNullOrWhiteSpace(mcpName) ? "MCP" : $"MCP {mcpName}";
-        return activityLine.StartsWith("MCP ", StringComparison.Ordinal)
-            ? activityLine
-            : $"{prefix} {activityLine}";
+        return activityWithRole.StartsWith("MCP ", StringComparison.Ordinal)
+            ? activityWithRole
+            : $"{prefix} {activityWithRole}";
     }
 
     private static string BuildEditingActivityLine(

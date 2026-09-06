@@ -90,7 +90,7 @@ public sealed class PresenceTemplateRendererTests
     }
 
     [Fact]
-    public void Render_CarriesPartySizeWithoutChangingPresenceText()
+    public void Render_WithActiveSubagentsPrefixesMainAgentAndCarriesPartySize()
     {
         var renderer = new PresenceTemplateRenderer();
         var template = new PresenceTemplateOptions { State = "{ActivityLine}" };
@@ -106,8 +106,29 @@ public sealed class PresenceTemplateRendererTests
 
         var presence = renderer.Render(template, context);
 
-        Assert.Equal("Reviewing active agents", presence.State);
+        Assert.Equal("Main agent Reviewing active agents", presence.State);
         Assert.Equal(5, presence.PartySize);
+    }
+
+    [Fact]
+    public void Render_WithSoloPartySizeDoesNotAddMainAgentRole()
+    {
+        var renderer = new PresenceTemplateRenderer();
+        var template = new PresenceTemplateOptions { State = "{ActivityLine}" };
+        var context = CreateContext(
+            new CodexProcessSnapshot(true, "codex", true)
+            {
+                LastTaskStartedAt = DateTime.UtcNow,
+                LatestThinkingSummary = "Reviewing the current task",
+                PartySize = 1
+            },
+            new ProjectSnapshot("Nexstrap", @"E:\tool\Nexstrap", null, null, 128, 128, 42000, []),
+            new GitSnapshot(true, 1, null));
+
+        var presence = renderer.Render(template, context);
+
+        Assert.Equal("Reviewing the current task", presence.State);
+        Assert.Equal(1, presence.PartySize);
     }
 
     [Fact]
@@ -139,14 +160,15 @@ public sealed class PresenceTemplateRendererTests
                 DetectedActivityKind = CodexActivityKind.AnalyzingProject,
                 IsMcpOperation = true,
                 McpServerName = "chrome-devtools",
-                LatestThinkingSummary = "Reviewing the current page state"
+                LatestThinkingSummary = "Reviewing the current page state",
+                PartySize = 2
             },
             new ProjectSnapshot("Nexstrap", @"E:\tool\Nexstrap", null, null, 128, 128, 42000, []),
             new GitSnapshot(true, 1, null));
 
         var presence = renderer.Render(template, context);
 
-        Assert.Equal("MCP chrome-devtools Reviewing the current page state", presence.State);
+        Assert.Equal("MCP chrome-devtools Main agent Reviewing the current page state", presence.State);
     }
 
     [Fact]
