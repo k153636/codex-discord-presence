@@ -609,24 +609,84 @@ public sealed class PresenceRuntime
     private sealed class ProjectSnapshotCache
     {
         private static readonly TimeSpan MaxAge = TimeSpan.FromSeconds(5);
+        private readonly object _sync = new();
         private string? _projectPath;
         private DateTime _capturedAtUtc;
         private ProjectSnapshot? _snapshot;
+        private Task<ProjectSnapshot>? _refreshTask;
+        private string? _refreshProjectPath;
 
         public ProjectSnapshot GetSnapshot(ProjectInspector inspector, string projectPath)
         {
-            var nowUtc = DateTime.UtcNow;
-            if (_snapshot is not null &&
-                string.Equals(_projectPath, projectPath, StringComparison.OrdinalIgnoreCase) &&
-                nowUtc - _capturedAtUtc < MaxAge)
+            lock (_sync)
             {
-                return _snapshot;
+                var nowUtc = DateTime.UtcNow;
+                if (!string.Equals(_projectPath, projectPath, StringComparison.OrdinalIgnoreCase))
+                {
+                    _projectPath = projectPath;
+                    _capturedAtUtc = DateTime.MinValue;
+                    _snapshot = CreateFallbackSnapshot(projectPath);
+                }
+
+                CompleteRefreshIfReady(nowUtc);
+                if (_refreshTask is null && nowUtc - _capturedAtUtc >= MaxAge)
+                {
+                    var refreshProjectPath = _projectPath ?? projectPath;
+                    _refreshProjectPath = refreshProjectPath;
+                    _refreshTask = Task.Run(() => CaptureSnapshot(inspector, refreshProjectPath));
+                }
+
+                return _snapshot!;
+            }
+        }
+
+        private void CompleteRefreshIfReady(DateTime nowUtc)
+        {
+            if (_refreshTask is null || !_refreshTask.IsCompleted)
+            {
+                return;
             }
 
-            _snapshot = inspector.GetSnapshot(projectPath);
-            _projectPath = projectPath;
+            var refreshTask = _refreshTask;
+            var refreshProjectPath = _refreshProjectPath;
+            _refreshTask = null;
+            _refreshProjectPath = null;
+            if (!string.Equals(_projectPath, refreshProjectPath, StringComparison.OrdinalIgnoreCase))
+            {
+                return;
+            }
+
+            _snapshot = refreshTask.GetAwaiter().GetResult();
             _capturedAtUtc = nowUtc;
-            return _snapshot;
+        }
+
+        private static ProjectSnapshot CaptureSnapshot(ProjectInspector inspector, string projectPath)
+        {
+            try
+            {
+                return inspector.GetSnapshot(projectPath);
+            }
+            catch
+            {
+                return CreateFallbackSnapshot(projectPath);
+            }
+        }
+
+        private static ProjectSnapshot CreateFallbackSnapshot(string projectPath)
+        {
+            var name = projectPath.TrimEnd(
+                Path.DirectorySeparatorChar,
+                Path.AltDirectorySeparatorChar);
+            name = Path.GetFileName(name);
+            return new ProjectSnapshot(
+                string.IsNullOrWhiteSpace(name) ? projectPath : name,
+                projectPath,
+                null,
+                null,
+                0,
+                0,
+                0,
+                Array.Empty<RecentProjectFileSnapshot>());
         }
     }
 
