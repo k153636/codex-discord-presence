@@ -165,7 +165,10 @@ public sealed class DiscordOptions
         [nameof(CodexActivityKind.DeletingFiles)] = "rpc_coding",
         [nameof(CodexActivityKind.RunningCommand)] = "rpc_building",
         [nameof(CodexActivityKind.Planning)] = "rpc_thinking",
-        [nameof(CodexActivityKind.Refactoring)] = "rpc_coding"
+        [nameof(CodexActivityKind.Refactoring)] = "rpc_coding",
+        [nameof(CodexActivityKind.ReadingFiles)] = "rpc_reading",
+        [nameof(CodexActivityKind.WaitingForInput)] = "rpc_sleeping",
+        [nameof(CodexActivityKind.Stalled)] = "rpc_error"
     };
     public Dictionary<string, string> RunningCommandImageKeys { get; set; } = new(StringComparer.OrdinalIgnoreCase)
     {
