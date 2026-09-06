@@ -71,8 +71,8 @@ The presence engine prefers observable, high-confidence labels first:
 - `Idling`
 
 `Planning` and `Refactoring` are still supported, but they are treated as low-confidence labels and only appear when local evidence is explicit enough.
-`Working` is only emitted when there is explicit `task_started` evidence in the session log, so it stays stronger than the short idle grace labels.
-`Investigating` remains the fallback for ambiguous exploration. More specific shell-command evidence now renders as `Run Command: git`, `Run Command: Get-ChildItem`, `Run Command: dotnet`, or `Run Command: rg` before falling back to the generic analysis label.
+When Codex emits a reasoning summary, the latest summary replaces `Working` and `Investigating`, for example `Designing mobile-friendly file label format`.
+`Working` and `Investigating` remain fallbacks when no usable summary is present. More specific shell-command evidence still renders as `Run Command: git`, `Run Command: Get-ChildItem`, `Run Command: dotnet`, or `Run Command: rg` before falling back to the generic analysis label.
 
 For quiet idle periods, the app shows `Waiting` for the first 5 minutes, then switches to `Idling`.
 
@@ -84,8 +84,9 @@ For quiet idle periods, the app shows `Waiting` for the first 5 minutes, then sw
 - `SmallImageText`: `{ProjectFileCount} files &bull; session {SessionElapsed}`
 - Button: `GitHub`
 
-When the same thinking state is observed again after new Codex activity, it can render as `Thinking x2`, `Thinking x3`, and so on.
+When no usable reasoning summary is available, repeated generic analysis states can still render with an `x2`, `x3`, and so on repeat suffix.
 Use `{ActivityLabel}` if you want the file name omitted for a cleaner one-line status.
+Use `{ThinkingSummary}` to place the latest normalized reasoning summary directly in a custom template.
 Use `{GoalModePrefix}` if you want `Plan mode:` to appear without changing the main state line.
 `goalmode` is normalized to `plan`, so both values render the same plan label.
 During active implementation work, it can switch to `Code mode:` so planning and coding are visually distinct.
@@ -210,6 +211,7 @@ These placeholders can be used in `Presence.Details`, `Presence.State`, `Presenc
 - `{ActivityProvenance}`
 - `{ActivityReason}`
 - `{ActivityLine}`
+- `{ThinkingSummary}`
 - `{RunningCommandName}`
 - `{RunningCommandKind}`
 - `{SessionElapsed}`

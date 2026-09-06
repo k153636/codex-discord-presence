@@ -453,7 +453,22 @@ internal sealed class CodexSessionLogParser
                 activityEvent = activityEvent with
                 {
                     Kind = CodexActivityEventKind.Reasoning,
+                    ThinkingSummary = TryGetThinkingSummary(payload, payloadType),
                     Reason = payloadType
+                };
+                return true;
+
+            case "item_completed":
+                if (!IsReasoningItem(payload))
+                {
+                    return false;
+                }
+
+                activityEvent = activityEvent with
+                {
+                    Kind = CodexActivityEventKind.Reasoning,
+                    ThinkingSummary = TryGetThinkingSummary(payload, payloadType),
+                    Reason = "reasoning item completed"
                 };
                 return true;
 
@@ -585,6 +600,98 @@ internal sealed class CodexSessionLogParser
             "interrupted" or "aborted" or "cancelled" or "canceled" => CodexActivityEventKind.TurnInterrupted,
             _ => CodexActivityEventKind.TurnCompleted
         };
+    }
+
+    private static bool IsReasoningItem(JsonElement payload)
+    {
+        return payload.TryGetProperty("item", out var item) &&
+            TryGetString(item, "type", out var itemType) &&
+            string.Equals(itemType, "Reasoning", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static string? TryGetThinkingSummary(JsonElement payload, string? payloadType)
+    {
+        var normalizedPayloadType = payloadType?.Trim().ToLowerInvariant();
+        if (normalizedPayloadType is "reasoning" or "agent_reasoning" or "agent_message")
+        {
+            return TryGetLastSummaryText(payload, "summary", "summary_text");
+        }
+
+        if (normalizedPayloadType == "item_completed" &&
+            payload.TryGetProperty("item", out var item))
+        {
+            return TryGetLastSummaryText(item, "summary_text", "summary");
+        }
+
+        return null;
+    }
+
+    private static string? TryGetLastSummaryText(JsonElement element, params string[] propertyNames)
+    {
+        foreach (var propertyName in propertyNames)
+        {
+            if (!element.TryGetProperty(propertyName, out var property))
+            {
+                continue;
+            }
+
+            var summaryText = TryGetLastSummaryText(property);
+            if (!string.IsNullOrWhiteSpace(summaryText))
+            {
+                var normalizedSummary = ThinkingSummaryFormatter.Normalize(summaryText);
+                if (!string.IsNullOrWhiteSpace(normalizedSummary))
+                {
+                    return normalizedSummary;
+                }
+            }
+        }
+
+        return null;
+    }
+
+    private static string? TryGetLastSummaryText(JsonElement element)
+    {
+        switch (element.ValueKind)
+        {
+            case JsonValueKind.String:
+                return element.GetString();
+
+            case JsonValueKind.Array:
+            {
+                string? lastSummary = null;
+                foreach (var item in element.EnumerateArray())
+                {
+                    var candidateText = TryGetLastSummaryText(item);
+                    if (!string.IsNullOrWhiteSpace(candidateText))
+                    {
+                        lastSummary = candidateText;
+                    }
+                }
+
+                return lastSummary;
+            }
+
+            case JsonValueKind.Object:
+                if (TryGetString(element, "text", out var text) && !string.IsNullOrWhiteSpace(text))
+                {
+                    return text;
+                }
+
+                if (element.TryGetProperty("summary_text", out var summaryText))
+                {
+                    return TryGetLastSummaryText(summaryText);
+                }
+
+                if (element.TryGetProperty("summary", out var nestedSummary))
+                {
+                    return TryGetLastSummaryText(nestedSummary);
+                }
+
+                return null;
+
+            default:
+                return null;
+        }
     }
 
     private static CodexOperationKind ClassifyOperationKind(

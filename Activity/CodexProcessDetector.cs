@@ -64,6 +64,7 @@ public sealed class CodexProcessDetector
                 LastShellCommandWasInvestigative = sessionInspection?.LastShellCommandWasInvestigative ?? false,
                 LastDirectToolFilePath = sessionInspection?.LastDirectToolFilePath,
                 LastDirectToolFileAt = sessionInspection?.LastDirectToolFileAt,
+                LatestThinkingSummary = sessionInspection?.LatestThinkingSummary,
                 ObservedProjectPath = sessionInspection?.ProjectPath,
                 RecentEditedFiles = Array.Empty<RecentProjectFileSnapshot>()
             };
@@ -115,6 +116,7 @@ public sealed class CodexProcessDetector
             PendingMutationCount = activityState?.PendingMutationCount ?? 0,
             ActiveTurnId = activityState?.TurnId,
             LastEffectiveSignalAt = activityState?.LastEffectiveSignalAtUtc,
+            LatestThinkingSummary = activityState?.LatestThinkingSummary,
             TurnLifecycle = activityState?.Lifecycle ?? CodexTurnLifecycle.None,
             ObservedProjectPath = sessionInspection?.ProjectPath,
             RecentEditedFiles = recentEditedFiles

@@ -71,6 +71,64 @@ public sealed class PresenceTemplateRendererTests
     }
 
     [Fact]
+    public void Render_AnalyzingProjectWithThinkingSummaryUsesSummaryInActivityLine()
+    {
+        var renderer = new PresenceTemplateRenderer();
+        var template = new PresenceTemplateOptions { State = "{ActivityLine}" };
+        var context = CreateContext(
+            new CodexProcessSnapshot(true, "codex", true)
+            {
+                LastTaskStartedAt = DateTime.UtcNow,
+                LatestThinkingSummary = "**Designing mobile-friendly file label format**"
+            },
+            new ProjectSnapshot("Nexstrap", @"E:\tool\Nexstrap", null, null, 128, 128, 42000, []),
+            new GitSnapshot(true, 1, null));
+
+        var presence = renderer.Render(template, context);
+
+        Assert.Equal("Designing mobile-friendly file label format", presence.State);
+    }
+
+    [Fact]
+    public void Render_ThinkingSummaryPlaceholderUsesNormalizedSummary()
+    {
+        var renderer = new PresenceTemplateRenderer();
+        var template = new PresenceTemplateOptions { State = "{ThinkingSummary}" };
+        var context = CreateContext(
+            new CodexProcessSnapshot(true, "codex", true)
+            {
+                LatestThinkingSummary = "**Checking** the **latest** state"
+            },
+            new ProjectSnapshot("Nexstrap", @"E:\tool\Nexstrap", null, null, 128, 128, 42000, []),
+            new GitSnapshot(true, 1, null));
+
+        var presence = renderer.Render(template, context);
+
+        Assert.Equal("Checking the latest state", presence.State);
+    }
+
+    [Fact]
+    public void Render_ThinkingSummaryWithMcpOperationKeepsMcpIdentity()
+    {
+        var renderer = new PresenceTemplateRenderer();
+        var template = new PresenceTemplateOptions { State = "{ActivityLine}" };
+        var context = CreateContext(
+            new CodexProcessSnapshot(true, "codex", true)
+            {
+                DetectedActivityKind = CodexActivityKind.AnalyzingProject,
+                IsMcpOperation = true,
+                McpServerName = "chrome-devtools",
+                LatestThinkingSummary = "Reviewing the current page state"
+            },
+            new ProjectSnapshot("Nexstrap", @"E:\tool\Nexstrap", null, null, 128, 128, 42000, []),
+            new GitSnapshot(true, 1, null));
+
+        var presence = renderer.Render(template, context);
+
+        Assert.Equal("MCP chrome-devtools Reviewing the current page state", presence.State);
+    }
+
+    [Fact]
     public void Render_AnalyzingProjectWithInvestigativeCommandName_UsesRunCommandLabel()
     {
         var renderer = new PresenceTemplateRenderer();

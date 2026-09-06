@@ -6,6 +6,7 @@ internal sealed record CodexActivityState
     public CodexOperationKind OperationKind { get; init; }
     public bool IsMcpOperation { get; init; }
     public string? McpServerName { get; init; }
+    public string? LatestThinkingSummary { get; init; }
     public string? TurnId { get; init; }
     public string? ActiveFilePath { get; init; }
     public IReadOnlyList<string> MutationFilePaths { get; init; } = Array.Empty<string>();
@@ -56,6 +57,7 @@ internal sealed class CodexActivityStateMachine
         DateTime? terminalAtUtc = null;
         CodexActivityEvent? lastEffectiveEvent = null;
         CodexActivityEvent? terminalEvent = null;
+        string? latestThinkingSummary = null;
         var lifecycle = CodexTurnLifecycle.None;
         var pendingOperations = new Dictionary<string, PendingOperation>(StringComparer.Ordinal);
         var pendingOperationsWithoutId = new List<PendingOperation>();
@@ -90,6 +92,7 @@ internal sealed class CodexActivityStateMachine
                     pendingOperationsWithoutId.Clear();
                     pendingInputs.Clear();
                     mutationPaths.Clear();
+                    latestThinkingSummary = null;
                 }
 
                 lastEventAtUtc = Max(lastEventAtUtc, activityEvent.TimestampUtc);
@@ -121,6 +124,11 @@ internal sealed class CodexActivityStateMachine
             if (lifecycle is CodexTurnLifecycle.Completed or CodexTurnLifecycle.Failed or CodexTurnLifecycle.Interrupted)
             {
                 continue;
+            }
+
+            if (!string.IsNullOrWhiteSpace(activityEvent.ThinkingSummary))
+            {
+                latestThinkingSummary = activityEvent.ThinkingSummary;
             }
 
             lastEventAtUtc = Max(lastEventAtUtc, activityEvent.TimestampUtc);
@@ -272,6 +280,7 @@ internal sealed class CodexActivityStateMachine
             {
                 Lifecycle = CodexTurnLifecycle.WaitingForInput,
                 TurnId = currentTurnId,
+                LatestThinkingSummary = latestThinkingSummary,
                 TurnStartedAtUtc = turnStartedAtUtc,
                 LastEventAtUtc = lastEventAtUtc,
                 LastEffectiveSignalAtUtc = lastEffectiveSignalAtUtc,
@@ -299,6 +308,7 @@ internal sealed class CodexActivityStateMachine
                 {
                     Lifecycle = CodexTurnLifecycle.Stalled,
                     TurnId = currentTurnId,
+                    LatestThinkingSummary = latestThinkingSummary,
                     TurnStartedAtUtc = turnStartedAtUtc,
                     LastEventAtUtc = lastEventAtUtc,
                     LastEffectiveSignalAtUtc = lastEffectiveSignalAtUtc,
@@ -335,6 +345,7 @@ internal sealed class CodexActivityStateMachine
                 IsMcpOperation = activeOperation.Event.IsMcpOperation,
                 McpServerName = activeOperation.Event.McpServerName,
                 TurnId = currentTurnId,
+                LatestThinkingSummary = latestThinkingSummary,
                 ActiveFilePath = activeFilePath,
                 MutationFilePaths = mutationPaths.OrderBy(path => path, StringComparer.OrdinalIgnoreCase).ToArray(),
                 PendingTargetPaths = pendingTargetPaths,
@@ -364,6 +375,7 @@ internal sealed class CodexActivityStateMachine
                 IsMcpOperation = completedMutation.IsMcpOperation,
                 McpServerName = completedMutation.McpServerName,
                 TurnId = currentTurnId,
+                LatestThinkingSummary = latestThinkingSummary,
                 ActiveFilePath = ResolveActiveFilePath(lastCompletedMutation, [lastCompletedMutation]),
                 MutationFilePaths = mutationPaths.OrderBy(path => path, StringComparer.OrdinalIgnoreCase).ToArray(),
                 PendingTargetPaths = completedMutation.TargetPaths,
@@ -385,6 +397,7 @@ internal sealed class CodexActivityStateMachine
             {
                 Lifecycle = CodexTurnLifecycle.Stalled,
                 TurnId = currentTurnId,
+                LatestThinkingSummary = latestThinkingSummary,
                 TurnStartedAtUtc = turnStartedAtUtc,
                 LastEventAtUtc = lastEventAtUtc,
                 LastEffectiveSignalAtUtc = lastEffectiveSignalAtUtc,
@@ -400,6 +413,7 @@ internal sealed class CodexActivityStateMachine
             Lifecycle = CodexTurnLifecycle.Open,
             OperationKind = CodexOperationKind.Unknown,
             TurnId = currentTurnId,
+            LatestThinkingSummary = latestThinkingSummary,
             TurnStartedAtUtc = turnStartedAtUtc,
             LastEventAtUtc = lastEventAtUtc,
             LastEffectiveSignalAtUtc = lastEffectiveSignalAtUtc,

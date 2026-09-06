@@ -3,6 +3,28 @@ namespace CodexDiscordPresence.Tests;
 public sealed class CodexActivityStateMachineTests
 {
     [Fact]
+    public void Evaluate_KeepsLatestThinkingSummaryForCurrentTurnAndClearsItOnNewTurn()
+    {
+        var startedAt = Utc(5);
+        var state = Evaluate(
+            Event(1, startedAt, CodexActivityEventKind.TurnStarted, turnId: "turn-1"),
+            Event(2, startedAt.AddSeconds(1), CodexActivityEventKind.Reasoning, turnId: "turn-1", thinkingSummary: "First summary"),
+            Event(3, startedAt.AddSeconds(2), CodexActivityEventKind.Reasoning, turnId: "turn-1", thinkingSummary: "Latest summary"),
+            Event(4, startedAt.AddSeconds(3), CodexActivityEventKind.TurnCompleted, turnId: "turn-1"),
+            Event(5, startedAt.AddSeconds(4), CodexActivityEventKind.TurnStarted, turnId: "turn-2"));
+
+        Assert.Equal("turn-2", state.TurnId);
+        Assert.Null(state.LatestThinkingSummary);
+
+        var currentTurnState = Evaluate(
+            Event(1, startedAt, CodexActivityEventKind.TurnStarted, turnId: "turn-1"),
+            Event(2, startedAt.AddSeconds(1), CodexActivityEventKind.Reasoning, turnId: "turn-1", thinkingSummary: "First summary"),
+            Event(3, startedAt.AddSeconds(2), CodexActivityEventKind.Reasoning, turnId: "turn-1", thinkingSummary: "Latest summary"));
+
+        Assert.Equal("Latest summary", currentTurnState.LatestThinkingSummary);
+    }
+
+    [Fact]
     public void Evaluate_PendingEditUsesDirectTargetAsActiveFile()
     {
         var startedAt = Utc(10);
@@ -309,7 +331,8 @@ public sealed class CodexActivityStateMachineTests
         string? turnId = null,
         string? callId = null,
         CodexOperationKind operationKind = CodexOperationKind.Unknown,
-        IReadOnlyList<string>? targetPaths = null)
+        IReadOnlyList<string>? targetPaths = null,
+        string? thinkingSummary = null)
     {
         return new CodexActivityEvent
         {
@@ -319,6 +342,7 @@ public sealed class CodexActivityStateMachineTests
             TurnId = turnId,
             CallId = callId,
             OperationKind = operationKind,
+            ThinkingSummary = thinkingSummary,
             TargetPaths = targetPaths ?? [],
             Reason = kind.ToString(),
             Source = CodexActivitySource.SessionLog

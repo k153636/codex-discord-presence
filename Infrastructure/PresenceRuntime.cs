@@ -416,6 +416,7 @@ public sealed class PresenceRuntime
                  $"activityFiles={activityFilesText}, " +
                  $"pendingOperations={codexSnapshot.PendingOperationCount}, " +
                  $"pendingMutations={codexSnapshot.PendingMutationCount}, " +
+                 $"thinkingSummary={FormatLogValueForMultiline(codexSnapshot.LatestThinkingSummary)}, " +
                  $"lastTaskStartedAt={FormatTimestamp(codexSnapshot.LastTaskStartedAt)}, " +
                  $"lastShellCommandAt={FormatTimestamp(codexSnapshot.LastShellCommandAt)}, " +
                  $"lastObservedAt={FormatTimestamp(codexSnapshot.LastObservedAt)}, " +
@@ -532,6 +533,7 @@ public sealed class PresenceRuntime
             previousSnapshot.PendingOperationCount != currentSnapshot.PendingOperationCount ||
             previousSnapshot.PendingMutationCount != currentSnapshot.PendingMutationCount ||
             previousSnapshot.TurnLifecycle != currentSnapshot.TurnLifecycle ||
+            !string.Equals(previousSnapshot.LatestThinkingSummary, currentSnapshot.LatestThinkingSummary, StringComparison.Ordinal) ||
             !previousSnapshot.ActivityFilePaths.SequenceEqual(currentSnapshot.ActivityFilePaths, StringComparer.OrdinalIgnoreCase);
     }
 

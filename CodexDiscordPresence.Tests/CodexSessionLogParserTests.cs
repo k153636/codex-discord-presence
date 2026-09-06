@@ -6,6 +6,106 @@ namespace CodexDiscordPresence.Tests;
 public sealed class CodexSessionLogParserTests
 {
     [Fact]
+    public void InspectRecentSessions_ExtractsLatestReasoningSummaryFromResponseItem()
+    {
+        var homePath = CreateTempCodexHome();
+        var projectPath = Path.Combine(Path.GetTempPath(), "CodexReasoningSummaryProject_" + Guid.NewGuid());
+        Directory.CreateDirectory(projectPath);
+
+        try
+        {
+            var now = DateTime.UtcNow;
+            WriteSession(homePath, "session.jsonl",
+            [
+                CreateSessionLine(now, new
+                {
+                    type = "task_started",
+                    turn_id = "turn-1",
+                    cwd = projectPath
+                }, "event_msg"),
+                CreateSessionLine(now.AddMilliseconds(1), new
+                {
+                    type = "reasoning",
+                    turn_id = "turn-1",
+                    summary = new[]
+                    {
+                        new { type = "summary_text", text = "**Inspecting the activity state**" },
+                        new { type = "summary_text", text = "**Designing the presence summary format**" }
+                    },
+                    encrypted_content = "not used"
+                }, "response_item")
+            ]);
+
+            var parser = new CodexSessionLogParser(
+                new CodexDetectionOptions { HomePath = homePath },
+                new PresenceTemplateOptions());
+
+            var inspection = parser.InspectRecentSessions(projectPath);
+
+            Assert.NotNull(inspection);
+            var reasoning = Assert.Single(inspection!.ActivityEvents, activityEvent =>
+                activityEvent.Kind == CodexActivityEventKind.Reasoning);
+            Assert.Equal("Designing the presence summary format", reasoning.ThinkingSummary);
+            Assert.Equal("Designing the presence summary format", inspection.LatestThinkingSummary);
+        }
+        finally
+        {
+            Directory.Delete(homePath, true);
+            Directory.Delete(projectPath, true);
+        }
+    }
+
+    [Fact]
+    public void InspectRecentSessions_ExtractsReasoningSummaryFromCompletedItem()
+    {
+        var homePath = CreateTempCodexHome();
+        var projectPath = Path.Combine(Path.GetTempPath(), "CodexCompletedReasoningProject_" + Guid.NewGuid());
+        Directory.CreateDirectory(projectPath);
+
+        try
+        {
+            var now = DateTime.UtcNow;
+            WriteSession(homePath, "session.jsonl",
+            [
+                CreateSessionLine(now, new
+                {
+                    type = "task_started",
+                    turn_id = "turn-1",
+                    cwd = projectPath
+                }, "event_msg"),
+                CreateSessionLine(now.AddMilliseconds(1), new
+                {
+                    type = "item_completed",
+                    item = new
+                    {
+                        type = "Reasoning",
+                        summary_text = new[]
+                        {
+                            new { type = "summary_text", text = "**Confirming the final state**" }
+                        }
+                    }
+                }, "event_msg")
+            ]);
+
+            var parser = new CodexSessionLogParser(
+                new CodexDetectionOptions { HomePath = homePath },
+                new PresenceTemplateOptions());
+
+            var inspection = parser.InspectRecentSessions(projectPath);
+
+            Assert.NotNull(inspection);
+            Assert.Contains(inspection!.ActivityEvents, activityEvent =>
+                activityEvent.Kind == CodexActivityEventKind.Reasoning &&
+                activityEvent.ThinkingSummary == "Confirming the final state");
+        }
+        finally
+        {
+            Directory.Delete(homePath, true);
+            Directory.Delete(projectPath, true);
+        }
+    }
+
+    [Fact]
     public void InspectRecentSessions_EmitsTurnAndToolLifecycleEvents()
     {
         var homePath = CreateTempCodexHome();

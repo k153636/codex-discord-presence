@@ -54,6 +54,7 @@ internal sealed record CodexActivityEvent
     public CodexOperationKind OperationKind { get; init; }
     public bool IsMcpOperation { get; init; }
     public string? McpServerName { get; init; }
+    public string? ThinkingSummary { get; init; }
     public IReadOnlyList<string> TargetPaths { get; init; } = Array.Empty<string>();
     public RunningCommandKind CommandKind { get; init; } = RunningCommandKind.Unknown;
     public string? CommandName { get; init; }

@@ -22,19 +22,33 @@ public sealed class PresenceStatusLabelResolver
             CodexActivityKind.ReadingFiles => FirstNonEmpty(template.ReadingText, "Reading"),
             CodexActivityKind.WaitingForInput => FirstNonEmpty(template.WaitingText, "Waiting"),
             CodexActivityKind.Stalled => FirstNonEmpty(template.StalledText, "Stalled"),
-            CodexActivityKind.AnalyzingProject => ShouldUseRunningCommandLabel(context)
-                ? ResolveRunningCommandLabel(template, context)
-                : ShouldUseInvestigatingLabel(context)
-                    ? FirstNonEmpty(template.InvestigatingText, "Investigating")
-                    : ShouldUseWorkingLabel(context)
-                        ? FirstNonEmpty(template.WorkingText, template.InvestigatingText, "Working")
-                        : FirstNonEmpty(template.InvestigatingText, "Investigating"),
+            CodexActivityKind.AnalyzingProject => ResolveAnalyzingLabel(template, context),
             CodexActivityKind.Ready => ResolveReadyLabel(template, context),
             CodexActivityKind.Offline => FirstNonEmpty(template.OfflineText, template.IdlingText, "Idling"),
             _ => FirstNonEmpty(template.IdlingText, template.ReadyText, "Idling")
         };
 
         return label.Replace("{n}", changedFileCount.ToString(CultureInfo.InvariantCulture), StringComparison.Ordinal);
+    }
+
+    private static string ResolveAnalyzingLabel(PresenceTemplateOptions template, PresenceContext context)
+    {
+        if (ShouldUseRunningCommandLabel(context))
+        {
+            return ResolveRunningCommandLabel(template, context);
+        }
+
+        var thinkingSummary = ThinkingSummaryFormatter.FormatForPresence(context.Codex.LatestThinkingSummary);
+        if (!string.IsNullOrWhiteSpace(thinkingSummary))
+        {
+            return thinkingSummary;
+        }
+
+        return ShouldUseInvestigatingLabel(context)
+            ? FirstNonEmpty(template.InvestigatingText, "Investigating")
+            : ShouldUseWorkingLabel(context)
+                ? FirstNonEmpty(template.WorkingText, template.InvestigatingText, "Working")
+                : FirstNonEmpty(template.InvestigatingText, "Investigating");
     }
 
     private static string ResolveReadyLabel(PresenceTemplateOptions template, PresenceContext context)

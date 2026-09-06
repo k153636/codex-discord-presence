@@ -56,6 +56,39 @@ public sealed class PresenceStatusLabelResolverTests
     }
 
     [Fact]
+    public void ResolveStateLabel_AnalyzingProjectWithThinkingSummary_ReturnsSummaryInsteadOfWorking()
+    {
+        var resolver = new PresenceStatusLabelResolver();
+        var context = CreateContext(
+            new CodexProcessSnapshot(true, "codex", true)
+            {
+                LastTaskStartedAt = DateTime.UtcNow,
+                LatestThinkingSummary = "**Designing mobile-friendly file label format**"
+            });
+
+        var label = resolver.ResolveStateLabel(new PresenceTemplateOptions(), context, CodexActivityKind.AnalyzingProject, 0);
+
+        Assert.Equal("Designing mobile-friendly file label format", label);
+    }
+
+    [Fact]
+    public void ResolveStateLabel_AnalyzingProjectWithInvestigativeEvidenceAndThinkingSummaryPrefersSummary()
+    {
+        var resolver = new PresenceStatusLabelResolver();
+        var context = CreateContext(
+            new CodexProcessSnapshot(true, "codex", true)
+            {
+                LastTaskStartedAt = DateTime.UtcNow,
+                LastShellCommandWasInvestigative = true,
+                LatestThinkingSummary = "Reviewing the current MCP activity"
+            });
+
+        var label = resolver.ResolveStateLabel(new PresenceTemplateOptions(), context, CodexActivityKind.AnalyzingProject, 0);
+
+        Assert.Equal("Reviewing the current MCP activity", label);
+    }
+
+    [Fact]
     public void ResolveStateLabel_AnalyzingProjectWithTaskStartedIgnoresGenericFallbackLabels()
     {
         var resolver = new PresenceStatusLabelResolver();

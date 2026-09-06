@@ -21,6 +21,10 @@ internal sealed record SessionInspection(
     public string? LastDirectToolFilePath { get; init; }
     public DateTime? LastDirectToolFileAt { get; init; }
     public IReadOnlyList<CodexActivityEvent> ActivityEvents { get; init; } = Array.Empty<CodexActivityEvent>();
+    public string? LatestThinkingSummary => ActivityEvents
+        .OrderByDescending(activityEvent => activityEvent.Sequence)
+        .Select(activityEvent => activityEvent.ThinkingSummary)
+        .FirstOrDefault(summary => !string.IsNullOrWhiteSpace(summary));
 
     public bool HasRecentActivity(int staleTimeoutMinutes)
     {

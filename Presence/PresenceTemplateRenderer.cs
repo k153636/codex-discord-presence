@@ -47,7 +47,8 @@ public sealed class PresenceTemplateRenderer
         var goalModePrefix = FormatGoalModePrefix(context);
         var stateLabel = _labelResolver.ResolveStateLabel(template, context, context.Codex.ActivityKind, activityFileCount);
         if (context.Codex.ActivityKind == CodexActivityKind.AnalyzingProject &&
-            context.Codex.ActivityRepeatCount > 1)
+            context.Codex.ActivityRepeatCount > 1 &&
+            string.IsNullOrWhiteSpace(context.Codex.LatestThinkingSummary))
         {
             stateLabel = $"{stateLabel} x{context.Codex.ActivityRepeatCount}";
         }
@@ -74,6 +75,7 @@ public sealed class PresenceTemplateRenderer
             ["ActivityProvenance"] = context.Codex.ActivityProvenance.ToString(),
             ["ActivityReason"] = context.Codex.ActivityReason,
             ["ActivityLine"] = activityLine,
+            ["ThinkingSummary"] = ThinkingSummaryFormatter.FormatForPresence(context.Codex.LatestThinkingSummary) ?? "",
             ["RunningCommandName"] = ResolveRunningCommandName(context.Codex.RunningCommandName, context.Codex.RunningCommandKind),
             ["RunningCommandKind"] = context.Codex.RunningCommandKind.ToString(),
             ["ProjectFileCount"] = context.Project.TotalFileCount.ToString(CultureInfo.InvariantCulture),
