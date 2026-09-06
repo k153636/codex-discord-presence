@@ -6,6 +6,11 @@ internal sealed class CodexSessionLogParser
 {
     private const int MaxHeaderLinesToScan = 256;
     private const long MaxTailBytesToScan = 2 * 1024 * 1024;
+    private static readonly System.Text.RegularExpressions.Regex NestedShellCommandRegex = new(
+        @"(?:tools\.)?(?:exec_command|shell_command|run_command)\s*\(\s*\{.*?(?:[""']?)(?:cmd|command)(?:[""']?)\s*:\s*""(?<value>(?:\\.|[^""\\])*)""",
+        System.Text.RegularExpressions.RegexOptions.IgnoreCase |
+        System.Text.RegularExpressions.RegexOptions.Singleline |
+        System.Text.RegularExpressions.RegexOptions.Compiled);
 
     private readonly CodexDetectionOptions _options;
     private readonly PresenceTemplateOptions _presenceOptions;
@@ -538,7 +543,6 @@ internal sealed class CodexSessionLogParser
                     return true;
                 }
 
-                var targetPaths = TryGetDirectToolFilePaths(payload, payloadType, projectPath);
                 var commandText = TryGetShellCommandText(payload, out var shellCommand)
                     ? shellCommand
                     : null;
@@ -547,7 +551,15 @@ internal sealed class CodexSessionLogParser
                     return false;
                 }
 
-                var operationKind = ClassifyOperationKind(toolName, commandText, targetPaths, toolInput);
+                var targetPaths = TryGetDirectToolFilePaths(payload, payloadType, projectPath);
+                var shellMutation = TryGetShellMutation(commandText, projectPath);
+                if (shellMutation is not null)
+                {
+                    targetPaths = shellMutation.Value.TargetPaths;
+                }
+
+                var operationKind = shellMutation?.OperationKind ??
+                    ClassifyOperationKind(toolName, commandText, targetPaths, toolInput);
                 activityEvent = activityEvent with
                 {
                     Kind = CodexActivityEventKind.OperationStarted,
@@ -1090,6 +1102,11 @@ internal sealed class CodexSessionLogParser
                     }
                 }
 
+                if (TryGetShellCommandText(payload, out var shellCommand))
+                {
+                    return TryGetShellMutation(shellCommand, projectPath)?.TargetPaths ?? Array.Empty<string>();
+                }
+
                 return IsFileMutationTool(toolName)
                     ? TryGetMutationTargetPathsFromText(input, projectPath)
                     : Array.Empty<string>();
@@ -1106,6 +1123,11 @@ internal sealed class CodexSessionLogParser
                 if (patchPaths.Length > 0)
                 {
                     return patchPaths;
+                }
+
+                if (TryGetShellCommandText(payload, out var shellCommand))
+                {
+                    return TryGetShellMutation(shellCommand, projectPath)?.TargetPaths ?? Array.Empty<string>();
                 }
 
                 return IsFileMutationTool(functionName)
@@ -1483,6 +1505,15 @@ internal sealed class CodexSessionLogParser
         "replaceFile"
     ];
 
+    private static readonly string[] ShellEditMutationCommandNames =
+    [
+        "Set-Content",
+        "Add-Content",
+        "Clear-Content",
+        "Out-File",
+        "Tee-Object"
+    ];
+
     private static readonly string[] FilePathPropertyNames =
     [
         "target_file",
@@ -1655,30 +1686,300 @@ internal sealed class CodexSessionLogParser
             return true;
         }
 
-        if (!TryGetString(payload, "arguments", out var arguments))
+        if (TryGetString(payload, "arguments", out var arguments))
+        {
+            try
+            {
+                using var document = JsonDocument.Parse(arguments);
+                var root = document.RootElement;
+                if (TryGetString(root, "command", out commandText))
+                {
+                    return true;
+                }
+
+                if (root.TryGetProperty("input", out var input) && TryGetString(input, "command", out commandText))
+                {
+                    return true;
+                }
+            }
+            catch
+            {
+            }
+        }
+
+        if (TryGetString(payload, "input", out var toolInput))
+        {
+            if (string.Equals(TryGetString(payload, "name"), "shell_command", StringComparison.OrdinalIgnoreCase))
+            {
+                commandText = toolInput;
+                return true;
+            }
+
+            if (ExtractNestedMcpToolName(toolInput) is null &&
+                TryGetNestedShellCommandText(toolInput, out commandText))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static bool TryGetNestedShellCommandText(string toolInput, out string commandText)
+    {
+        commandText = "";
+        var match = NestedShellCommandRegex.Match(toolInput);
+        if (!match.Success)
         {
             return false;
         }
 
+        var rawValue = match.Groups["value"].Value;
         try
         {
-            using var document = JsonDocument.Parse(arguments);
-            var root = document.RootElement;
-            if (TryGetString(root, "command", out commandText))
-            {
-                return true;
-            }
-
-            if (root.TryGetProperty("input", out var input) && TryGetString(input, "command", out commandText))
-            {
-                return true;
-            }
+            commandText = JsonSerializer.Deserialize<string>($"\"{rawValue}\"") ?? rawValue;
         }
         catch
         {
+            commandText = rawValue.Replace("\\\"", "\"", StringComparison.Ordinal);
         }
 
-        return false;
+        return !string.IsNullOrWhiteSpace(commandText);
+    }
+
+    private static ShellMutation? TryGetShellMutation(string? commandText, string? projectPath)
+    {
+        if (string.IsNullOrWhiteSpace(commandText))
+        {
+            return null;
+        }
+
+        var targetPaths = new List<string>();
+        CodexOperationKind? operationKind = null;
+
+        foreach (var segment in SplitCommandSegments(commandText))
+        {
+            var tokens = TokenizeShellSegment(segment);
+            for (var index = 0; index < tokens.Count; index++)
+            {
+                var commandName = SanitizeCommandName(tokens[index]);
+                if (commandName is null)
+                {
+                    continue;
+                }
+
+                var mutationKind = GetShellMutationKind(commandName, tokens, index);
+                if (!mutationKind.HasValue)
+                {
+                    continue;
+                }
+
+                var pathToken = GetShellMutationPathToken(tokens, index, commandName);
+                if (!IsPlausibleShellFilePath(pathToken))
+                {
+                    continue;
+                }
+
+                var resolvedPath = ResolveToolFilePath(pathToken!, projectPath);
+                if (string.IsNullOrWhiteSpace(resolvedPath))
+                {
+                    continue;
+                }
+
+                targetPaths.Add(resolvedPath);
+                operationKind = operationKind is null || operationKind == mutationKind
+                    ? mutationKind
+                    : CodexOperationKind.Edit;
+            }
+        }
+
+        if (targetPaths.Count == 0)
+        {
+            var commandKind = ClassifyShellCommand(commandText);
+            if (commandKind is not (RunningCommandKind.Git or RunningCommandKind.Build or RunningCommandKind.Test))
+            {
+                foreach (var segment in SplitCommandSegments(commandText))
+                {
+                    var tokens = TokenizeShellSegment(segment);
+                    for (var index = 0; index < tokens.Count - 1; index++)
+                    {
+                        var pathToken = tokens[index] switch
+                        {
+                            ">" or ">>" => tokens[index + 1],
+                            _ when tokens[index].StartsWith(">", StringComparison.Ordinal) && tokens[index].Length > 1 => tokens[index][1..],
+                            _ => null
+                        };
+
+                        if (!IsPlausibleShellFilePath(pathToken))
+                        {
+                            continue;
+                        }
+
+                        var resolvedPath = ResolveToolFilePath(pathToken!, projectPath);
+                        if (!string.IsNullOrWhiteSpace(resolvedPath))
+                        {
+                            targetPaths.Add(resolvedPath);
+                        }
+                    }
+                }
+
+                if (targetPaths.Count > 0)
+                {
+                    operationKind = CodexOperationKind.Edit;
+                }
+            }
+        }
+
+        var distinctPaths = targetPaths
+            .Where(path => !string.IsNullOrWhiteSpace(path))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+        return distinctPaths.Length == 0 || !operationKind.HasValue
+            ? null
+            : new ShellMutation(operationKind.Value, distinctPaths);
+    }
+
+    private static CodexOperationKind? GetShellMutationKind(
+        string commandName,
+        IReadOnlyList<string> tokens,
+        int commandIndex)
+    {
+        if (ShellEditMutationCommandNames.Contains(commandName, StringComparer.OrdinalIgnoreCase))
+        {
+            return CodexOperationKind.Edit;
+        }
+
+        if (string.Equals(commandName, "New-Item", StringComparison.OrdinalIgnoreCase))
+        {
+            var itemType = GetShellOptionValue(tokens, commandIndex + 1, "-ItemType", "-Type");
+            return string.Equals(itemType, "File", StringComparison.OrdinalIgnoreCase)
+                ? CodexOperationKind.Create
+                : null;
+        }
+
+        if (string.Equals(commandName, "Remove-Item", StringComparison.OrdinalIgnoreCase))
+        {
+            return CodexOperationKind.Delete;
+        }
+
+        return null;
+    }
+
+    private static string? GetShellMutationPathToken(
+        IReadOnlyList<string> tokens,
+        int commandIndex,
+        string commandName)
+    {
+        var optionNames = string.Equals(commandName, "Tee-Object", StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(commandName, "Out-File", StringComparison.OrdinalIgnoreCase)
+            ? new[] { "-FilePath", "-LiteralPath" }
+            : new[] { "-LiteralPath", "-Path" };
+        var optionPath = GetShellOptionValue(tokens, commandIndex + 1, optionNames);
+        if (IsPlausibleShellFilePath(optionPath))
+        {
+            return optionPath;
+        }
+
+        if (commandIndex + 1 < tokens.Count &&
+            IsPlausibleShellFilePath(tokens[commandIndex + 1]) &&
+            !tokens[commandIndex + 1].StartsWith("-", StringComparison.Ordinal))
+        {
+            return tokens[commandIndex + 1];
+        }
+
+        return null;
+    }
+
+    private static string? GetShellOptionValue(
+        IReadOnlyList<string> tokens,
+        int startIndex,
+        params string[] optionNames)
+    {
+        for (var index = startIndex; index < tokens.Count; index++)
+        {
+            var token = tokens[index];
+            foreach (var optionName in optionNames)
+            {
+                if (token.StartsWith(optionName + "=", StringComparison.OrdinalIgnoreCase))
+                {
+                    return token[(optionName.Length + 1)..];
+                }
+
+                if (string.Equals(token, optionName, StringComparison.OrdinalIgnoreCase) &&
+                    index + 1 < tokens.Count)
+                {
+                    return tokens[index + 1];
+                }
+            }
+        }
+
+        return null;
+    }
+
+    private static bool IsPlausibleShellFilePath(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return false;
+        }
+
+        var candidate = value.Trim().Trim('"', '\'', '`');
+        return candidate.Length > 0 &&
+            !candidate.StartsWith("-", StringComparison.Ordinal) &&
+            !candidate.StartsWith("$", StringComparison.Ordinal) &&
+            candidate is not "." and not ".." &&
+            !candidate.Contains('\n') &&
+            !candidate.Contains('\r') &&
+            !candidate.Contains("$null", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static IReadOnlyList<string> TokenizeShellSegment(string segment)
+    {
+        var tokens = new List<string>();
+        var token = new System.Text.StringBuilder();
+        char quote = '\0';
+
+        void FlushToken()
+        {
+            if (token.Length > 0)
+            {
+                tokens.Add(token.ToString());
+                token.Clear();
+            }
+        }
+
+        foreach (var character in segment)
+        {
+            if (quote != '\0')
+            {
+                if (character == quote)
+                {
+                    quote = '\0';
+                }
+                else
+                {
+                    token.Append(character);
+                }
+
+                continue;
+            }
+
+            if (character is '"' or '\'')
+            {
+                quote = character;
+            }
+            else if (char.IsWhiteSpace(character))
+            {
+                FlushToken();
+            }
+            else
+            {
+                token.Append(character);
+            }
+        }
+
+        FlushToken();
+        return tokens;
     }
 
     private static bool IsPassiveShellCommand(string commandText)
@@ -2047,6 +2348,10 @@ internal sealed class CodexSessionLogParser
     }
 
     private sealed record PatchFile(string Path, CodexOperationKind OperationKind);
+
+    private readonly record struct ShellMutation(
+        CodexOperationKind OperationKind,
+        IReadOnlyList<string> TargetPaths);
 
     private sealed record CachedSessionInspection(
         long Length,

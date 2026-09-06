@@ -75,6 +75,136 @@ public sealed class CodexEventDrivenPresenceTests
     }
 
     [Fact]
+    public void Render_PendingShellFileWrite_UsesEditingActivityAndTargetFile()
+    {
+        var now = DateTime.UtcNow;
+        var projectPath = CreateProjectPath();
+        var filePath = Path.Combine(projectPath, "scripts", "build.ps1");
+        var homePath = CreateHomePath();
+
+        try
+        {
+            WriteSession(homePath, "session.jsonl",
+            [
+                CreateSessionLine(now, new
+                {
+                    type = "task_started",
+                    turn_id = "turn-1",
+                    cwd = projectPath
+                }, "event_msg"),
+                CreateSessionLine(now.AddMilliseconds(1), new
+                {
+                    type = "function_call",
+                    turn_id = "turn-1",
+                    call_id = "call-shell-edit-1",
+                    name = "shell_command",
+                    arguments = JsonSerializer.Serialize(new
+                    {
+                        command = $"Set-Content -LiteralPath '{filePath}' -Value 'updated'"
+                    })
+                }, "response_item")
+            ]);
+
+            var snapshot = CreateDetector(homePath).GetSnapshot(projectPath);
+            var presence = Render(projectPath, snapshot);
+
+            Assert.Equal(CodexActivityKind.ApplyingEdits, snapshot.ActivityKind);
+            Assert.Equal(filePath, snapshot.ActiveToolFilePath);
+            Assert.Equal([filePath], snapshot.ActivityFilePaths);
+            Assert.Equal("Editing build.ps1", presence.State);
+        }
+        finally
+        {
+            DeleteDirectory(homePath);
+        }
+    }
+
+    [Fact]
+    public void Render_PendingExecWrappedShellFileWrite_UsesEditingActivityAndTargetFile()
+    {
+        var now = DateTime.UtcNow;
+        var projectPath = CreateProjectPath();
+        var filePath = Path.Combine(projectPath, "scripts", "build.ps1");
+        var homePath = CreateHomePath();
+
+        try
+        {
+            WriteSession(homePath, "session.jsonl",
+            [
+                CreateSessionLine(now, new
+                {
+                    type = "task_started",
+                    turn_id = "turn-1",
+                    cwd = projectPath
+                }, "event_msg"),
+                CreateSessionLine(now.AddMilliseconds(1), new
+                {
+                    type = "custom_tool_call",
+                    turn_id = "turn-1",
+                    call_id = "call-exec-shell-edit-1",
+                    name = "exec",
+                    input = $"const r = await tools.exec_command({{cmd: \"Set-Content -LiteralPath '{filePath}' -Value 'updated'\", workdir: \"{projectPath}\"}}); text(r.output);"
+                }, "response_item")
+            ]);
+
+            var snapshot = CreateDetector(homePath).GetSnapshot(projectPath);
+            var presence = Render(projectPath, snapshot);
+
+            Assert.Equal(CodexActivityKind.ApplyingEdits, snapshot.ActivityKind);
+            Assert.Equal(filePath, snapshot.ActiveToolFilePath);
+            Assert.Equal([filePath], snapshot.ActivityFilePaths);
+            Assert.Equal("Editing build.ps1", presence.State);
+        }
+        finally
+        {
+            DeleteDirectory(homePath);
+        }
+    }
+
+    [Fact]
+    public void Render_PendingShellBuildWithOutputRedirection_RemainsRunningCommand()
+    {
+        var now = DateTime.UtcNow;
+        var projectPath = CreateProjectPath();
+        var homePath = CreateHomePath();
+
+        try
+        {
+            WriteSession(homePath, "session.jsonl",
+            [
+                CreateSessionLine(now, new
+                {
+                    type = "task_started",
+                    turn_id = "turn-1",
+                    cwd = projectPath
+                }, "event_msg"),
+                CreateSessionLine(now.AddMilliseconds(1), new
+                {
+                    type = "function_call",
+                    turn_id = "turn-1",
+                    call_id = "call-shell-build-1",
+                    name = "shell_command",
+                    arguments = JsonSerializer.Serialize(new
+                    {
+                        command = "dotnet build > build.log"
+                    })
+                }, "response_item")
+            ]);
+
+            var snapshot = CreateDetector(homePath).GetSnapshot(projectPath);
+            var presence = Render(projectPath, snapshot);
+
+            Assert.Equal(CodexActivityKind.RunningCommand, snapshot.ActivityKind);
+            Assert.Equal(RunningCommandKind.Build, snapshot.RunningCommandKind);
+            Assert.Equal("Run Command: dotnet", presence.State);
+        }
+        finally
+        {
+            DeleteDirectory(homePath);
+        }
+    }
+
+    [Fact]
     public void Render_PendingMcpEdit_IdentifiesMcpAndActiveFile()
     {
         var now = DateTime.UtcNow;
