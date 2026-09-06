@@ -91,7 +91,9 @@ internal static class EditedFileSelector
 
         var elapsed = DateTime.UtcNow - context.Codex.LastDirectToolFileAt.Value;
         var freshnessWindow = TimeSpan.FromSeconds(Math.Max(1, freshnessSeconds));
-        if (elapsed > freshnessWindow || elapsed < TimeSpan.FromSeconds(-30))
+        var belongsToCurrentTask = context.Codex.LastTaskStartedAt.HasValue &&
+            context.Codex.LastDirectToolFileAt.Value >= context.Codex.LastTaskStartedAt.Value;
+        if ((elapsed > freshnessWindow && !belongsToCurrentTask) || elapsed < TimeSpan.FromSeconds(-30))
         {
             return null;
         }

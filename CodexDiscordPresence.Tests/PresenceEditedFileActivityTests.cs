@@ -103,6 +103,51 @@ public sealed class PresenceEditedFileActivityTests
         Assert.DoesNotContain(projectPath, presence.State, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public void Render_DirectToolTargetIsRetainedThroughoutCurrentTask()
+    {
+        var now = DateTime.UtcNow;
+        var projectPath = CreateProjectPath();
+        var directFilePath = Path.Combine(projectPath, "src", "Current.cs");
+        var context = CreateContext(
+            CodexActivityKind.ApplyingEdits,
+            projectPath,
+            [],
+            gitChangedFileCount: 1,
+            directToolFilePath: directFilePath,
+            directToolFileAt: now.AddMinutes(-1),
+            taskStartedAt: now.AddMinutes(-2));
+
+        var presence = new PresenceTemplateRenderer().Render(
+            new PresenceTemplateOptions { State = "{ActivityLine}" },
+            context);
+
+        Assert.Equal("Editing src/Current.cs", presence.State);
+    }
+
+    [Fact]
+    public void Render_DirectToolTargetFromPreviousTaskIsNotRetained()
+    {
+        var now = DateTime.UtcNow;
+        var projectPath = CreateProjectPath();
+        var directFilePath = Path.Combine(projectPath, "src", "Previous.cs");
+        var context = CreateContext(
+            CodexActivityKind.ApplyingEdits,
+            projectPath,
+            [],
+            gitChangedFileCount: 1,
+            directToolFilePath: directFilePath,
+            directToolFileAt: now.AddMinutes(-2),
+            taskStartedAt: now.AddMinutes(-1));
+
+        var presence = new PresenceTemplateRenderer().Render(
+            new PresenceTemplateOptions { State = "{ActivityLine}" },
+            context);
+
+        Assert.Equal("Editing", presence.State);
+        Assert.DoesNotContain("Previous.cs", presence.State, StringComparison.Ordinal);
+    }
+
     private static RenderedPresence Render(
         CodexActivityKind activityKind,
         string projectPath,
@@ -120,7 +165,8 @@ public sealed class PresenceEditedFileActivityTests
         IReadOnlyList<RecentProjectFileSnapshot> recentFiles,
         int gitChangedFileCount = 0,
         string? directToolFilePath = null,
-        DateTime? directToolFileAt = null)
+        DateTime? directToolFileAt = null,
+        DateTime? taskStartedAt = null)
     {
         var now = DateTime.UtcNow;
         return new PresenceContext(
@@ -130,6 +176,7 @@ public sealed class PresenceEditedFileActivityTests
                 DetectedActivityKind = activityKind,
                 ActivityProvenance = ActivityProvenance.Observed,
                 LastObservedAt = now,
+                LastTaskStartedAt = taskStartedAt,
                 LastDirectToolFilePath = directToolFilePath,
                 LastDirectToolFileAt = directToolFileAt,
                 RecentEditedFiles = recentFiles
