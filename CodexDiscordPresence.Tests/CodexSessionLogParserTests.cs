@@ -235,6 +235,95 @@ public sealed class CodexSessionLogParserTests
     }
 
     [Fact]
+    public void InspectRecentSessions_ClassifiesNestedExecApplyPatchLifecycle()
+    {
+        var homePath = CreateTempCodexHome();
+        var projectPath = Path.Combine(Path.GetTempPath(), "CodexNestedPatchLifecycleProject_" + Guid.NewGuid());
+        Directory.CreateDirectory(projectPath);
+
+        try
+        {
+            var now = DateTime.UtcNow;
+            var filePath = Path.Combine(projectPath, "Probe.txt");
+            WriteSession(homePath, "session.jsonl",
+            [
+                CreateSessionLine(now, new
+                {
+                    type = "task_started",
+                    turn_id = "turn-1",
+                    cwd = projectPath
+                }, "event_msg"),
+                CreateSessionLine(now.AddMilliseconds(1), new
+                {
+                    type = "custom_tool_call",
+                    turn_id = "turn-1",
+                    call_id = "create-call",
+                    name = "exec",
+                    input = $"const patch = \"*** Begin Patch\\n*** Add File: {filePath}\\n+created\\n*** End Patch\"; text(await tools.apply_patch(patch));"
+                }, "response_item"),
+                CreateSessionLine(now.AddMilliseconds(2), new
+                {
+                    type = "custom_tool_call_output",
+                    turn_id = "turn-1",
+                    call_id = "create-call"
+                }, "response_item"),
+                CreateSessionLine(now.AddMilliseconds(3), new
+                {
+                    type = "custom_tool_call",
+                    turn_id = "turn-1",
+                    call_id = "edit-call",
+                    name = "exec",
+                    input = $"const patch = \"*** Begin Patch\\n*** Update File: {filePath}\\n@@\\n-created\\n+edited\\n*** End Patch\"; text(await tools.apply_patch(patch));"
+                }, "response_item"),
+                CreateSessionLine(now.AddMilliseconds(4), new
+                {
+                    type = "custom_tool_call_output",
+                    turn_id = "turn-1",
+                    call_id = "edit-call"
+                }, "response_item"),
+                CreateSessionLine(now.AddMilliseconds(5), new
+                {
+                    type = "custom_tool_call",
+                    turn_id = "turn-1",
+                    call_id = "delete-call",
+                    name = "exec",
+                    input = $"const patch = \"*** Begin Patch\\n*** Delete File: {filePath}\\n*** End Patch\"; text(await tools.apply_patch(patch));"
+                }, "response_item"),
+                CreateSessionLine(now.AddMilliseconds(6), new
+                {
+                    type = "custom_tool_call_output",
+                    turn_id = "turn-1",
+                    call_id = "delete-call"
+                }, "response_item")
+            ]);
+
+            var parser = new CodexSessionLogParser(
+                new CodexDetectionOptions { HomePath = homePath },
+                new PresenceTemplateOptions());
+
+            var inspection = parser.InspectRecentSessions(projectPath);
+
+            Assert.NotNull(inspection);
+            var operations = inspection!.ActivityEvents
+                .Where(activityEvent => activityEvent.Kind == CodexActivityEventKind.OperationStarted)
+                .ToArray();
+
+            Assert.Equal(
+                [CodexOperationKind.Create, CodexOperationKind.Edit, CodexOperationKind.Delete],
+                operations.Select(operation => operation.OperationKind).ToArray());
+            Assert.All(operations, operation =>
+                Assert.Equal(Path.GetFullPath(filePath), Assert.Single(operation.TargetPaths)));
+            Assert.Equal(3, inspection.ActivityEvents.Count(activityEvent =>
+                activityEvent.Kind == CodexActivityEventKind.OperationCompleted));
+        }
+        finally
+        {
+            Directory.Delete(homePath, true);
+            Directory.Delete(projectPath, true);
+        }
+    }
+
+    [Fact]
     public void InspectRecentSessions_UsesLastFileFromApplyPatchAsDirectTarget()
     {
         var homePath = CreateTempCodexHome();
