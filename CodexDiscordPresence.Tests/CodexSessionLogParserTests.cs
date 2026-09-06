@@ -74,6 +74,74 @@ public sealed class CodexSessionLogParserTests
     }
 
     [Fact]
+    public void InspectRecentSessions_ClassifiesAddAndDeletePatchesWithoutLeakingPatchBody()
+    {
+        var homePath = CreateTempCodexHome();
+        var projectPath = Path.Combine(Path.GetTempPath(), "CodexPatchKindProject_" + Guid.NewGuid());
+        Directory.CreateDirectory(projectPath);
+
+        try
+        {
+            var now = DateTime.UtcNow;
+            var createdFile = Path.Combine(projectPath, "Created.cs");
+            var deletedFile = Path.Combine(projectPath, "Deleted.cs");
+            WriteSession(homePath, "session.jsonl",
+            [
+                CreateSessionLine(now, new
+                {
+                    type = "task_started",
+                    turn_id = "turn-1",
+                    cwd = projectPath
+                }, "event_msg"),
+                CreateSessionLine(now.AddMilliseconds(1), new
+                {
+                    type = "custom_tool_call",
+                    turn_id = "turn-1",
+                    call_id = "create-call",
+                    name = "apply_patch",
+                    input = $"*** Begin Patch\\n*** Add File: {createdFile}\\n+probe-created\\n*** End Patch"
+                }, "response_item"),
+                CreateSessionLine(now.AddMilliseconds(2), new
+                {
+                    type = "custom_tool_call_output",
+                    turn_id = "turn-1",
+                    call_id = "create-call"
+                }, "response_item"),
+                CreateSessionLine(now.AddMilliseconds(3), new
+                {
+                    type = "custom_tool_call",
+                    turn_id = "turn-1",
+                    call_id = "delete-call",
+                    name = "apply_patch",
+                    input = $"*** Begin Patch\\n*** Delete File: {deletedFile}\\n*** End Patch"
+                }, "response_item")
+            ]);
+
+            var parser = new CodexSessionLogParser(
+                new CodexDetectionOptions { HomePath = homePath },
+                new PresenceTemplateOptions());
+
+            var inspection = parser.InspectRecentSessions(projectPath);
+
+            Assert.NotNull(inspection);
+            var operations = inspection!.ActivityEvents
+                .Where(activityEvent => activityEvent.Kind == CodexActivityEventKind.OperationStarted)
+                .ToArray();
+            Assert.Equal(2, operations.Length);
+
+            Assert.Equal(CodexOperationKind.Create, operations[0].OperationKind);
+            Assert.Equal(Path.GetFullPath(createdFile), Assert.Single(operations[0].TargetPaths));
+            Assert.Equal(CodexOperationKind.Delete, operations[1].OperationKind);
+            Assert.Equal(Path.GetFullPath(deletedFile), Assert.Single(operations[1].TargetPaths));
+        }
+        finally
+        {
+            Directory.Delete(homePath, true);
+            Directory.Delete(projectPath, true);
+        }
+    }
+
+    [Fact]
     public void InspectRecentSessions_ClassifiesShellCommandSeparatelyFromMutation()
     {
         var homePath = CreateTempCodexHome();

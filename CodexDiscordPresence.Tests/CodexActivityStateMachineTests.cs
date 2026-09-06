@@ -44,7 +44,7 @@ public sealed class CodexActivityStateMachineTests
                 CodexActivityEventKind.OperationCompleted,
                 turnId: "turn-1",
                 callId: "call-1"),
-            startedAt.AddSeconds(3));
+            startedAt.AddSeconds(9));
 
         Assert.Equal(CodexTurnLifecycle.Open, state.Lifecycle);
         Assert.Equal(CodexOperationKind.Unknown, state.OperationKind);
@@ -79,6 +79,41 @@ public sealed class CodexActivityStateMachineTests
         Assert.Equal(CodexTurnLifecycle.Open, state.Lifecycle);
         Assert.Equal(CodexOperationKind.Edit, state.OperationKind);
         Assert.Equal(@"E:\repo\PresenceRuntime.cs", state.ActiveFilePath);
+        Assert.Equal(0, state.PendingOperationCount);
+    }
+
+    [Theory]
+    [InlineData((int)CodexOperationKind.Create)]
+    [InlineData((int)CodexOperationKind.Delete)]
+    public void Evaluate_RecentlyCompletedFileMutationRemainsVisibleDuringObservedDelay(
+        int operationKindValue)
+    {
+        var operationKind = (CodexOperationKind)operationKindValue;
+        var startedAt = Utc(27);
+        var filePath = operationKind == CodexOperationKind.Create
+            ? @"E:\repo\Created.cs"
+            : @"E:\repo\Deleted.cs";
+        var state = EvaluateAt(
+            Event(1, startedAt, CodexActivityEventKind.TurnStarted, turnId: "turn-1"),
+            Event(
+                2,
+                startedAt.AddMilliseconds(100),
+                CodexActivityEventKind.OperationStarted,
+                turnId: "turn-1",
+                callId: "call-1",
+                operationKind: operationKind,
+                targetPaths: [filePath]),
+            Event(
+                3,
+                startedAt.AddMilliseconds(200),
+                CodexActivityEventKind.OperationCompleted,
+                turnId: "turn-1",
+                callId: "call-1"),
+            startedAt.AddSeconds(6));
+
+        Assert.Equal(CodexTurnLifecycle.Open, state.Lifecycle);
+        Assert.Equal(operationKind, state.OperationKind);
+        Assert.Equal(filePath, state.ActiveFilePath);
         Assert.Equal(0, state.PendingOperationCount);
     }
 

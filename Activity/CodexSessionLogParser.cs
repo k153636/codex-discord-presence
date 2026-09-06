@@ -507,7 +507,7 @@ internal sealed class CodexSessionLogParser
                 }
 
                 var targetPaths = TryGetDirectToolFilePaths(payload, payloadType, projectPath);
-                var toolInput = TryGetString(payload, "input");
+                var toolInput = TryGetString(payload, "input") ?? TryGetString(payload, "arguments");
                 var commandText = TryGetShellCommandText(payload, out var shellCommand)
                     ? shellCommand
                     : null;
@@ -545,11 +545,16 @@ internal sealed class CodexSessionLogParser
             case "mcp_tool_call":
             {
                 var toolName = TryGetInvocationToolName(payload);
+                var targetPaths = TryGetDirectToolFilePaths(payload, payloadType, projectPath);
                 activityEvent = activityEvent with
                 {
                     Kind = CodexActivityEventKind.OperationStarted,
-                    OperationKind = ClassifyOperationKind(toolName, null, TryGetDirectToolFilePaths(payload, payloadType, projectPath)),
-                    TargetPaths = TryGetDirectToolFilePaths(payload, payloadType, projectPath),
+                    OperationKind = ClassifyOperationKind(
+                        toolName,
+                        null,
+                        targetPaths,
+                        TryGetInvocationArgumentsText(payload)),
+                    TargetPaths = targetPaths,
                     Reason = string.IsNullOrWhiteSpace(toolName)
                         ? "MCP operation started"
                         : $"MCP {toolName} operation started"
@@ -579,21 +584,40 @@ internal sealed class CodexSessionLogParser
         IReadOnlyList<string> targetPaths,
         string? toolInput = null)
     {
-        if (IsFileMutationTool(toolName) || targetPaths.Count > 0)
+        var normalizedName = toolName?.ToLowerInvariant() ?? "";
+        var hasFileTarget = IsFileMutationTool(toolName) || targetPaths.Count > 0;
+        if (hasFileTarget &&
+            (normalizedName.Contains("create", StringComparison.Ordinal) ||
+             normalizedName.Contains("add", StringComparison.Ordinal)))
         {
-            var normalizedName = toolName?.ToLowerInvariant() ?? "";
-            if (normalizedName.Contains("create", StringComparison.Ordinal) ||
-                normalizedName.Contains("add", StringComparison.Ordinal))
-            {
-                return CodexOperationKind.Create;
-            }
+            return CodexOperationKind.Create;
+        }
 
-            if (normalizedName.Contains("delete", StringComparison.Ordinal) ||
-                normalizedName.Contains("remove", StringComparison.Ordinal))
-            {
-                return CodexOperationKind.Delete;
-            }
+        if (hasFileTarget &&
+            (normalizedName.Contains("delete", StringComparison.Ordinal) ||
+             normalizedName.Contains("remove", StringComparison.Ordinal)))
+        {
+            return CodexOperationKind.Delete;
+        }
 
+        var patchOperationKind = TryGetPatchOperationKind(toolInput);
+        if (patchOperationKind.HasValue)
+        {
+            return patchOperationKind.Value;
+        }
+
+        if (LooksLikeNestedToolCall(toolInput, "tools.create_file(", "tools.createFile("))
+        {
+            return CodexOperationKind.Create;
+        }
+
+        if (LooksLikeNestedToolCall(toolInput, "tools.delete_file(", "tools.deleteFile("))
+        {
+            return CodexOperationKind.Delete;
+        }
+
+        if (hasFileTarget)
+        {
             return CodexOperationKind.Edit;
         }
 
@@ -602,7 +626,7 @@ internal sealed class CodexSessionLogParser
             return CodexOperationKind.Command;
         }
 
-        if (LooksLikeNestedToolCall(toolInput, "tools.apply_patch(", "tools.create_file(", "tools.createFile("))
+        if (LooksLikeNestedToolCall(toolInput, "tools.apply_patch("))
         {
             return CodexOperationKind.Edit;
         }
@@ -636,6 +660,19 @@ internal sealed class CodexSessionLogParser
         }
 
         return CodexOperationKind.Unknown;
+    }
+
+    private static string? TryGetInvocationArgumentsText(JsonElement payload)
+    {
+        if (!payload.TryGetProperty("invocation", out var invocation) ||
+            !invocation.TryGetProperty("arguments", out var arguments))
+        {
+            return null;
+        }
+
+        return arguments.ValueKind == JsonValueKind.String
+            ? arguments.GetString()
+            : arguments.GetRawText();
     }
 
     private static bool LooksLikeNestedToolCall(string? input, params string[] signatures)
@@ -938,22 +975,42 @@ internal sealed class CodexSessionLogParser
 
     private static IReadOnlyList<string> ExtractPatchFilePaths(string? text)
     {
-        if (string.IsNullOrWhiteSpace(text))
+        return ExtractPatchFiles(text)
+            .Select(file => file.Path)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+    }
+
+    private static CodexOperationKind? TryGetPatchOperationKind(string? text)
+    {
+        var files = ExtractPatchFiles(text);
+        if (files.Count == 0)
         {
-            return Array.Empty<string>();
+            return null;
         }
 
-        var paths = new List<string>();
-        var normalizedText = text
-            .Replace("\r\n", "\n", StringComparison.Ordinal)
-            .Replace("\\r\\n***", "\n***", StringComparison.Ordinal)
-            .Replace("\\n***", "\n***", StringComparison.Ordinal)
-            .Replace("\\r\\n@@", "\n@@", StringComparison.Ordinal)
-            .Replace("\\n@@", "\n@@", StringComparison.Ordinal)
-            .Replace("\\r\\n---", "\n---", StringComparison.Ordinal)
-            .Replace("\\n---", "\n---", StringComparison.Ordinal)
-            .Replace("\\r\\n+++", "\n+++", StringComparison.Ordinal)
-            .Replace("\\n+++", "\n+++", StringComparison.Ordinal);
+        if (files.All(file => file.OperationKind == CodexOperationKind.Create))
+        {
+            return CodexOperationKind.Create;
+        }
+
+        if (files.All(file => file.OperationKind == CodexOperationKind.Delete))
+        {
+            return CodexOperationKind.Delete;
+        }
+
+        return CodexOperationKind.Edit;
+    }
+
+    private static IReadOnlyList<PatchFile> ExtractPatchFiles(string? text)
+    {
+        if (string.IsNullOrWhiteSpace(text))
+        {
+            return Array.Empty<PatchFile>();
+        }
+
+        var files = new List<PatchFile>();
+        var normalizedText = NormalizePatchText(text);
         foreach (var line in normalizedText.Split('\n'))
         {
             foreach (var marker in PatchFileMarkers)
@@ -967,16 +1024,43 @@ internal sealed class CodexSessionLogParser
                 var candidate = line[(markerIndex + marker.Length)..].Trim().Trim('"', '\'', '`');
                 if (IsPlausiblePatchPath(candidate))
                 {
-                    paths.Add(candidate);
+                    files.Add(new PatchFile(candidate, GetPatchOperationKind(marker)));
                 }
 
                 break;
             }
         }
 
-        return paths
-            .Distinct(StringComparer.OrdinalIgnoreCase)
+        return files
+            .GroupBy(file => file.Path, StringComparer.OrdinalIgnoreCase)
+            .Select(group => group.First())
             .ToArray();
+    }
+
+    private static string NormalizePatchText(string text)
+    {
+        var normalizedText = text
+            .Replace("\r\n", "\n", StringComparison.Ordinal)
+            .Replace("\r", "\n", StringComparison.Ordinal);
+
+        foreach (var linePrefix in new[] { "***", "@@", "+", "-", " " })
+        {
+            normalizedText = normalizedText
+                .Replace($"\\r\\n{linePrefix}", $"\n{linePrefix}", StringComparison.Ordinal)
+                .Replace($"\\n{linePrefix}", $"\n{linePrefix}", StringComparison.Ordinal);
+        }
+
+        return normalizedText;
+    }
+
+    private static CodexOperationKind GetPatchOperationKind(string marker)
+    {
+        return marker switch
+        {
+            "*** Add File:" => CodexOperationKind.Create,
+            "*** Delete File:" => CodexOperationKind.Delete,
+            _ => CodexOperationKind.Edit
+        };
     }
 
     private static bool IsPlausiblePatchPath(string candidate)
@@ -1596,6 +1680,8 @@ internal sealed class CodexSessionLogParser
             .ThenByDescending(candidate => candidate.SessionLastWriteTimeUtc)
             .FirstOrDefault();
     }
+
+    private sealed record PatchFile(string Path, CodexOperationKind OperationKind);
 
     private sealed record CachedSessionInspection(
         long Length,

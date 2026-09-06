@@ -25,7 +25,7 @@ internal sealed record CodexActivityState
 
 internal sealed class CodexActivityStateMachine
 {
-    private static readonly TimeSpan CompletedMutationGrace = TimeSpan.FromSeconds(2);
+    private static readonly TimeSpan CompletedMutationGrace = TimeSpan.FromSeconds(8);
     private readonly TimeSpan _staleAfter;
     private readonly TimeSpan _reasoningGrace;
 
