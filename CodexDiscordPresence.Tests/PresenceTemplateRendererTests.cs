@@ -90,6 +90,27 @@ public sealed class PresenceTemplateRendererTests
     }
 
     [Fact]
+    public void Render_CarriesPartySizeWithoutChangingPresenceText()
+    {
+        var renderer = new PresenceTemplateRenderer();
+        var template = new PresenceTemplateOptions { State = "{ActivityLine}" };
+        var context = CreateContext(
+            new CodexProcessSnapshot(true, "codex", true)
+            {
+                LastTaskStartedAt = DateTime.UtcNow,
+                LatestThinkingSummary = "Reviewing active agents",
+                PartySize = 5
+            },
+            new ProjectSnapshot("Nexstrap", @"E:\tool\Nexstrap", null, null, 128, 128, 42000, []),
+            new GitSnapshot(true, 1, null));
+
+        var presence = renderer.Render(template, context);
+
+        Assert.Equal("Reviewing active agents", presence.State);
+        Assert.Equal(5, presence.PartySize);
+    }
+
+    [Fact]
     public void Render_ThinkingSummaryPlaceholderUsesNormalizedSummary()
     {
         var renderer = new PresenceTemplateRenderer();

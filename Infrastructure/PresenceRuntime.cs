@@ -417,6 +417,7 @@ public sealed class PresenceRuntime
                  $"pendingOperations={codexSnapshot.PendingOperationCount}, " +
                  $"pendingMutations={codexSnapshot.PendingMutationCount}, " +
                  $"thinkingSummary={FormatLogValueForMultiline(codexSnapshot.LatestThinkingSummary)}, " +
+                 $"partySize={codexSnapshot.PartySize?.ToString(System.Globalization.CultureInfo.InvariantCulture) ?? "<none>"}, " +
                  $"lastTaskStartedAt={FormatTimestamp(codexSnapshot.LastTaskStartedAt)}, " +
                  $"lastShellCommandAt={FormatTimestamp(codexSnapshot.LastShellCommandAt)}, " +
                  $"lastObservedAt={FormatTimestamp(codexSnapshot.LastObservedAt)}, " +
@@ -533,6 +534,7 @@ public sealed class PresenceRuntime
             previousSnapshot.PendingOperationCount != currentSnapshot.PendingOperationCount ||
             previousSnapshot.PendingMutationCount != currentSnapshot.PendingMutationCount ||
             previousSnapshot.TurnLifecycle != currentSnapshot.TurnLifecycle ||
+            previousSnapshot.PartySize != currentSnapshot.PartySize ||
             !string.Equals(previousSnapshot.LatestThinkingSummary, currentSnapshot.LatestThinkingSummary, StringComparison.Ordinal) ||
             !previousSnapshot.ActivityFilePaths.SequenceEqual(currentSnapshot.ActivityFilePaths, StringComparer.OrdinalIgnoreCase);
     }
@@ -596,6 +598,7 @@ public sealed class PresenceRuntime
             presence.ActivityKind.ToString(),
             presence.RunningCommandKind.ToString(),
             presence.RunningCommandName,
+            presence.PartySize?.ToString(System.Globalization.CultureInfo.InvariantCulture) ?? "",
             buttons);
     }
 

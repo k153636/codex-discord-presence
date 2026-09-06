@@ -12,6 +12,7 @@ public sealed class DiscordPresenceClient : IDisposable
     private bool _needsPresenceRefresh = true;
     private DateTime _nextInitializeAttemptUtc = DateTime.MinValue;
     private int _failedInitializeAttempts;
+    private readonly string _partyId = $"codex-party-{Guid.NewGuid():N}";
 
     public DiscordPresenceClient(DiscordOptions options, DiagnosticLog log)
     {
@@ -85,6 +86,7 @@ public sealed class DiscordPresenceClient : IDisposable
                     SmallImageKey = DiscordAssetKeyResolver.ResolveImageReference(_options, _options.SmallImageKey),
                     SmallImageText = presence.SmallImageText
                 },
+                Party = DiscordPartyBuilder.Create(presence.PartySize, _partyId),
                 Buttons = buttons.Length == 0 ? null : buttons,
                 Timestamps = presence.StartedAt is null ? null : new Timestamps(presence.StartedAt.Value)
             });

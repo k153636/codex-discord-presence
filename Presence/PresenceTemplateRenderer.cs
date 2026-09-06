@@ -21,7 +21,10 @@ public sealed class PresenceTemplateRenderer
             context.Session.StartedAt,
             context.Codex.ActivityKind,
             context.Codex.RunningCommandKind,
-            context.Codex.RunningCommandName);
+            context.Codex.RunningCommandName)
+        {
+            PartySize = context.Codex.PartySize
+        };
     }
 
     private Dictionary<string, string> BuildValues(PresenceTemplateOptions template, PresenceContext context)
@@ -223,7 +226,10 @@ public sealed record RenderedPresence(
     DateTime? StartedAt,
     CodexActivityKind ActivityKind,
     RunningCommandKind RunningCommandKind,
-    string RunningCommandName);
+    string RunningCommandName)
+{
+    public int? PartySize { get; init; }
+}
 
 public sealed record RenderedButton(string Label, string Url);
 
