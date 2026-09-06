@@ -108,6 +108,7 @@ public sealed class CodexProcessDetector
             LastDirectToolFilePath = sessionInspection?.LastDirectToolFilePath,
             LastDirectToolFileAt = sessionInspection?.LastDirectToolFileAt,
             ActiveToolFilePath = activityState?.ActiveFilePath,
+            IsMcpOperation = activityState?.IsMcpOperation ?? false,
             ActivityFilePaths = activityState?.MutationFilePaths ?? Array.Empty<string>(),
             PendingOperationCount = activityState?.PendingOperationCount ?? 0,
             PendingMutationCount = activityState?.PendingMutationCount ?? 0,

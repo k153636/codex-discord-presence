@@ -407,6 +407,7 @@ public sealed class CodexSessionLogParserTests
 
             Assert.NotNull(inspection);
             Assert.Equal(Path.GetFullPath(activeFile), inspection!.LastDirectToolFilePath);
+            Assert.Contains(inspection.ActivityEvents, activityEvent => activityEvent.IsMcpOperation);
         }
         finally
         {

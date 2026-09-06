@@ -85,6 +85,7 @@ public sealed partial record CodexProcessSnapshot
     public string? LastDirectToolFilePath { get; init; }
     public DateTime? LastDirectToolFileAt { get; init; }
     public string? ActiveToolFilePath { get; init; }
+    public bool IsMcpOperation { get; init; }
     public IReadOnlyList<string> ActivityFilePaths { get; init; } = Array.Empty<string>();
     public int PendingOperationCount { get; init; }
     public int PendingMutationCount { get; init; }

@@ -15,26 +15,42 @@ internal static class PresenceActivityComposer
 
         if (context.Codex.ActivityKind == CodexActivityKind.AnalyzingProject)
         {
-            return BuildIdleActivityLine(context, stateLabel);
+            return WithMcpPrefix(context, BuildIdleActivityLine(context, stateLabel));
         }
 
         if (context.Codex.ActivityKind == CodexActivityKind.CoordinatingChanges)
         {
-            return stateLabel;
+            return WithMcpPrefix(context, stateLabel);
         }
 
         if (context.Codex.ActivityKind == CodexActivityKind.ApplyingEdits)
         {
-            return BuildEditingActivityLine(context.Codex.ActivityKind, stateLabel, activeFileLabel, editedFileCount);
+            return WithMcpPrefix(
+                context,
+                BuildEditingActivityLine(context.Codex.ActivityKind, stateLabel, activeFileLabel, editedFileCount));
         }
 
         if (context.Codex.ActivityKind is (CodexActivityKind.CreatingFiles or CodexActivityKind.DeletingFiles) &&
             editedFileCount > 0)
         {
-            return BuildEditingActivityLine(context.Codex.ActivityKind, stateLabel, activeFileLabel, editedFileCount);
+            return WithMcpPrefix(
+                context,
+                BuildEditingActivityLine(context.Codex.ActivityKind, stateLabel, activeFileLabel, editedFileCount));
         }
 
-        return BuildIdleActivityLine(context, stateLabel);
+        return WithMcpPrefix(context, BuildIdleActivityLine(context, stateLabel));
+    }
+
+    private static string WithMcpPrefix(PresenceContext context, string activityLine)
+    {
+        if (!context.Codex.IsMcpOperation || string.IsNullOrWhiteSpace(activityLine))
+        {
+            return activityLine;
+        }
+
+        return activityLine.StartsWith("MCP ", StringComparison.Ordinal)
+            ? activityLine
+            : $"MCP {activityLine}";
     }
 
     private static string BuildEditingActivityLine(

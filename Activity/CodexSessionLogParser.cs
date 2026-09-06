@@ -519,6 +519,7 @@ internal sealed class CodexSessionLogParser
                     TargetPaths = targetPaths,
                     CommandKind = ClassifyShellCommand(commandText ?? "") ?? RunningCommandKind.Unknown,
                     CommandName = commandText is null ? null : ExtractCommandName(commandText),
+                    IsMcpOperation = IsMcpToolName(toolName),
                     Reason = string.IsNullOrWhiteSpace(toolName)
                         ? "tool operation started"
                         : $"{toolName} operation started"
@@ -532,6 +533,7 @@ internal sealed class CodexSessionLogParser
                 activityEvent = activityEvent with
                 {
                     Kind = CodexActivityEventKind.OperationCompleted,
+                    IsMcpOperation = payloadType is "mcp_tool_call_end",
                     TargetPaths = TryGetDirectToolFilePaths(payload, payloadType, projectPath),
                     Reason = "tool operation completed"
                 };
@@ -549,6 +551,7 @@ internal sealed class CodexSessionLogParser
                         null,
                         targetPaths,
                         TryGetInvocationArgumentsText(payload)),
+                    IsMcpOperation = true,
                     TargetPaths = targetPaths,
                     Reason = string.IsNullOrWhiteSpace(toolName)
                         ? "MCP operation started"
@@ -693,6 +696,12 @@ internal sealed class CodexSessionLogParser
         return payload.TryGetProperty("invocation", out var invocation)
             ? TryGetString(invocation, "tool")
             : null;
+    }
+
+    private static bool IsMcpToolName(string? toolName)
+    {
+        return !string.IsNullOrWhiteSpace(toolName) &&
+            toolName.StartsWith("mcp__", StringComparison.OrdinalIgnoreCase);
     }
 
     private static string? TryGetFirstString(JsonElement element, params string[] propertyNames)

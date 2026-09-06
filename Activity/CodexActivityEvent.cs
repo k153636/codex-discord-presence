@@ -52,6 +52,7 @@ internal sealed record CodexActivityEvent
     public string? TurnId { get; init; }
     public string? CallId { get; init; }
     public CodexOperationKind OperationKind { get; init; }
+    public bool IsMcpOperation { get; init; }
     public IReadOnlyList<string> TargetPaths { get; init; } = Array.Empty<string>();
     public RunningCommandKind CommandKind { get; init; } = RunningCommandKind.Unknown;
     public string? CommandName { get; init; }

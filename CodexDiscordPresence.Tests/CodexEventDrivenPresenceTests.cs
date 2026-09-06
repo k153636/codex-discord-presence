@@ -34,6 +34,52 @@ public sealed class CodexEventDrivenPresenceTests
     }
 
     [Fact]
+    public void Render_PendingMcpEdit_IdentifiesMcpAndActiveFile()
+    {
+        var now = DateTime.UtcNow;
+        var projectPath = CreateProjectPath();
+        var filePath = Path.Combine(projectPath, "src", "PresenceRuntime.cs");
+        var homePath = CreateHomePath();
+
+        try
+        {
+            WriteSession(homePath, "session.jsonl",
+            [
+                CreateSessionLine(now, new
+                {
+                    type = "task_started",
+                    turn_id = "turn-1",
+                    cwd = projectPath
+                }, "event_msg"),
+                CreateSessionLine(now.AddMilliseconds(1), new
+                {
+                    type = "mcp_tool_call",
+                    turn_id = "turn-1",
+                    call_id = "call-1",
+                    invocation = new
+                    {
+                        tool = "apply_patch",
+                        arguments = new
+                        {
+                            target_file = filePath
+                        }
+                    }
+                }, "event_msg")
+            ]);
+
+            var snapshot = CreateDetector(homePath).GetSnapshot(projectPath);
+            var presence = Render(projectPath, snapshot);
+
+            Assert.True(snapshot.IsMcpOperation);
+            Assert.Equal("MCP Editing PresenceRuntime.cs", presence.State);
+        }
+        finally
+        {
+            DeleteDirectory(homePath);
+        }
+    }
+
+    [Fact]
     public void Render_TwoOrThreeSequentialEdits_UsesCurrentToolFileWithoutHistoryList()
     {
         var now = DateTime.UtcNow;
