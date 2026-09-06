@@ -283,7 +283,7 @@ public sealed class PresenceTemplateOptions
     public string DeletingFilesText { get; set; } = "Deleting files";
     public string RunningCommandText { get; set; } = "Run Command";
     public string PlanningText { get; set; } = "Planning";
-    public string ApplyingEditsText { get; set; } = "Applying edits";
+    public string ApplyingEditsText { get; set; } = "Editing";
     public string RefactoringText { get; set; } = "Refactoring";
     public string ThinkingText { get; set; } = "Thinking";
     public string WorkingText { get; set; } = "Working";

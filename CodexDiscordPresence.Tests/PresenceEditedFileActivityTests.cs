@@ -49,6 +49,21 @@ public sealed class PresenceEditedFileActivityTests
     }
 
     [Fact]
+    public void Render_ApplyingEditsWithoutFileTarget_StillUsesEditingLabel()
+    {
+        var projectPath = CreateProjectPath();
+
+        var presence = Render(
+            CodexActivityKind.ApplyingEdits,
+            projectPath,
+            [],
+            gitChangedFileCount: 14);
+
+        Assert.Equal("Editing", presence.State);
+        Assert.DoesNotContain("Applying edits", presence.State, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void Render_CoordinatingChanges_UsesChangedFileCountWithoutFileName()
     {
         var now = DateTime.UtcNow;

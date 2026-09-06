@@ -61,8 +61,8 @@ The presence engine prefers observable, high-confidence labels first:
 - `Run Command: Get-ChildItem`
 - `Run Command: dotnet`
 - `Run Command: rg`
-- `Coordinating changes across {n} files`
-- `Applying edits`
+- `Coordinating {n} files`
+- `Editing FileName.cs`
 - `Creating files`
 - `Deleting files`
 - `Investigating`

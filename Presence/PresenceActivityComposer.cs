@@ -23,7 +23,12 @@ internal static class PresenceActivityComposer
             return stateLabel;
         }
 
-        if (context.Codex.ActivityKind is (CodexActivityKind.ApplyingEdits or CodexActivityKind.CreatingFiles or CodexActivityKind.DeletingFiles) &&
+        if (context.Codex.ActivityKind == CodexActivityKind.ApplyingEdits)
+        {
+            return BuildEditingActivityLine(context.Codex.ActivityKind, stateLabel, activeFileLabel, editedFileCount);
+        }
+
+        if (context.Codex.ActivityKind is (CodexActivityKind.CreatingFiles or CodexActivityKind.DeletingFiles) &&
             editedFileCount > 0)
         {
             return BuildEditingActivityLine(context.Codex.ActivityKind, stateLabel, activeFileLabel, editedFileCount);
@@ -40,7 +45,7 @@ internal static class PresenceActivityComposer
     {
         if (string.IsNullOrWhiteSpace(activeFileLabel))
         {
-            return stateLabel;
+            return activityKind == CodexActivityKind.ApplyingEdits ? "Editing" : stateLabel;
         }
 
         var prefix = activityKind == CodexActivityKind.ApplyingEdits ? "Editing" : stateLabel;
