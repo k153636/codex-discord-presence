@@ -415,6 +415,10 @@ public sealed class PresenceRuntime
                  $"activityFiles={activityFilesText}, " +
                  $"pendingOperations={codexSnapshot.PendingOperationCount}, " +
                  $"pendingMutations={codexSnapshot.PendingMutationCount}, " +
+                 $"isMcpOperation={codexSnapshot.IsMcpOperation}, " +
+                 $"mcpServerName={FormatLogValue(codexSnapshot.McpServerName)}, " +
+                 $"activeMcpServers={FormatLogValue(string.Join(",", codexSnapshot.ActiveMcpServerNames))}, " +
+                 $"latestActivityEvent={codexSnapshot.LatestActivityEventKind?.ToString() ?? "<none>"}, " +
                  $"thinkingSummary={FormatLogValueForMultiline(codexSnapshot.LatestThinkingSummary)}, " +
                  $"partySize={codexSnapshot.PartySize?.ToString(System.Globalization.CultureInfo.InvariantCulture) ?? "<none>"}, " +
                  $"lastTaskStartedAt={FormatTimestamp(codexSnapshot.LastTaskStartedAt)}, " +
@@ -534,6 +538,10 @@ public sealed class PresenceRuntime
             previousSnapshot.PendingMutationCount != currentSnapshot.PendingMutationCount ||
             previousSnapshot.TurnLifecycle != currentSnapshot.TurnLifecycle ||
             previousSnapshot.PartySize != currentSnapshot.PartySize ||
+            previousSnapshot.IsMcpOperation != currentSnapshot.IsMcpOperation ||
+            !string.Equals(previousSnapshot.McpServerName, currentSnapshot.McpServerName, StringComparison.OrdinalIgnoreCase) ||
+            previousSnapshot.LatestActivityEventKind != currentSnapshot.LatestActivityEventKind ||
+            !previousSnapshot.ActiveMcpServerNames.SequenceEqual(currentSnapshot.ActiveMcpServerNames, StringComparer.OrdinalIgnoreCase) ||
             !string.Equals(previousSnapshot.LatestThinkingSummary, currentSnapshot.LatestThinkingSummary, StringComparison.Ordinal) ||
             !previousSnapshot.ActivityFilePaths.SequenceEqual(currentSnapshot.ActivityFilePaths, StringComparer.OrdinalIgnoreCase);
     }

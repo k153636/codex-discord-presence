@@ -316,7 +316,150 @@ public sealed class CodexEventDrivenPresenceTests
             var presence = Render(projectPath, snapshot);
 
             Assert.True(snapshot.IsMcpOperation);
-            Assert.Equal("MCP chrome-devtools Editing PresenceRuntime.cs", presence.State);
+            Assert.Equal("MCP chrome-devtools", presence.State);
+        }
+        finally
+        {
+            DeleteDirectory(homePath);
+        }
+    }
+
+    [Fact]
+    public void Render_LatestMcpReadOverridesEarlierThinkingSummary()
+    {
+        var now = DateTime.UtcNow;
+        var projectPath = CreateProjectPath();
+        var homePath = CreateHomePath();
+
+        try
+        {
+            WriteSession(homePath, "session.jsonl",
+            [
+                CreateSessionLine(now, new
+                {
+                    type = "task_started",
+                    turn_id = "turn-1",
+                    cwd = projectPath
+                }, "event_msg"),
+                CreateSessionLine(now.AddMilliseconds(1), new
+                {
+                    type = "reasoning",
+                    turn_id = "turn-1",
+                    summary = new[] { new { type = "summary_text", text = "Designing the MCP display" } }
+                }, "response_item"),
+                CreateSessionLine(now.AddMilliseconds(2), new
+                {
+                    type = "mcp_tool_call",
+                    turn_id = "turn-1",
+                    call_id = "mcp-call-1",
+                    invocation = new
+                    {
+                        tool = "mcp__chrome_devtools__list_pages",
+                        arguments = new { }
+                    }
+                }, "event_msg")
+            ]);
+
+            var snapshot = CreateDetector(homePath).GetSnapshot(projectPath);
+            var presence = Render(projectPath, snapshot);
+
+            Assert.Equal(CodexActivityEventKind.OperationStarted, snapshot.LatestActivityEventKind);
+            Assert.Equal("Designing the MCP display", snapshot.LatestThinkingSummary);
+            Assert.Equal("MCP chrome-devtools", presence.State);
+        }
+        finally
+        {
+            DeleteDirectory(homePath);
+        }
+    }
+
+    [Fact]
+    public void Render_LatestThinkingSummaryOverridesEarlierMcpRead()
+    {
+        var now = DateTime.UtcNow;
+        var projectPath = CreateProjectPath();
+        var homePath = CreateHomePath();
+
+        try
+        {
+            WriteSession(homePath, "session.jsonl",
+            [
+                CreateSessionLine(now, new
+                {
+                    type = "task_started",
+                    turn_id = "turn-1",
+                    cwd = projectPath
+                }, "event_msg"),
+                CreateSessionLine(now.AddMilliseconds(1), new
+                {
+                    type = "mcp_tool_call",
+                    turn_id = "turn-1",
+                    call_id = "mcp-call-1",
+                    invocation = new
+                    {
+                        tool = "mcp__chrome_devtools__list_pages",
+                        arguments = new { }
+                    }
+                }, "event_msg"),
+                CreateSessionLine(now.AddMilliseconds(2), new
+                {
+                    type = "reasoning",
+                    turn_id = "turn-1",
+                    summary = new[] { new { type = "summary_text", text = "Reviewing the MCP result" } }
+                }, "response_item")
+            ]);
+
+            var snapshot = CreateDetector(homePath).GetSnapshot(projectPath);
+            var presence = Render(projectPath, snapshot);
+
+            Assert.Equal(CodexActivityEventKind.Reasoning, snapshot.LatestActivityEventKind);
+            Assert.Equal("Reviewing the MCP result", presence.State);
+        }
+        finally
+        {
+            DeleteDirectory(homePath);
+        }
+    }
+
+    [Fact]
+    public void Render_MultiplePendingMcpReadsUsesLatestNameAndAmpersandCount()
+    {
+        var now = DateTime.UtcNow;
+        var projectPath = CreateProjectPath();
+        var homePath = CreateHomePath();
+
+        try
+        {
+            var servers = new[] { "chrome_devtools", "playwright", "roblox_studio", "blender" };
+            WriteSession(homePath, "session.jsonl",
+            [
+                CreateSessionLine(now, new
+                {
+                    type = "task_started",
+                    turn_id = "turn-1",
+                    cwd = projectPath
+                }, "event_msg"),
+                ..servers.Select((server, index) => CreateSessionLine(now.AddMilliseconds(index + 1), new
+                {
+                    type = "mcp_tool_call",
+                    turn_id = "turn-1",
+                    call_id = $"mcp-call-{index + 1}",
+                    invocation = new
+                    {
+                        tool = $"mcp__{server}__list_pages",
+                        arguments = new { }
+                    }
+                }, "event_msg"))
+            ]);
+
+            var snapshot = CreateDetector(homePath).GetSnapshot(projectPath);
+            var presence = Render(projectPath, snapshot);
+
+            Assert.Equal("blender", snapshot.McpServerName);
+            Assert.Equal(
+                ["blender", "roblox_studio", "playwright", "chrome_devtools"],
+                snapshot.ActiveMcpServerNames);
+            Assert.Equal("MCP blender＆+3", presence.State);
         }
         finally
         {
@@ -357,7 +500,7 @@ public sealed class CodexEventDrivenPresenceTests
             Assert.Equal(CodexActivityKind.ReadingFiles, snapshot.ActivityKind);
             Assert.True(snapshot.IsMcpOperation);
             Assert.Equal("chrome_devtools", snapshot.McpServerName);
-            Assert.Equal("MCP chrome-devtools Reading", presence.State);
+            Assert.Equal("MCP chrome-devtools", presence.State);
         }
         finally
         {
@@ -397,7 +540,7 @@ public sealed class CodexEventDrivenPresenceTests
 
             Assert.Equal(CodexActivityKind.ReadingFiles, snapshot.ActivityKind);
             Assert.True(snapshot.IsMcpOperation);
-            Assert.Equal("MCP chrome-devtools Reading", presence.State);
+            Assert.Equal("MCP chrome-devtools", presence.State);
         }
         finally
         {
@@ -447,7 +590,7 @@ public sealed class CodexEventDrivenPresenceTests
             Assert.True(snapshot.IsMcpOperation);
             Assert.Equal("chrome_devtools", snapshot.McpServerName);
             Assert.Equal(filePath, snapshot.ActiveToolFilePath);
-            Assert.Equal("MCP chrome-devtools Editing PresenceRuntime.cs", presence.State);
+            Assert.Equal("MCP chrome-devtools", presence.State);
         }
         finally
         {

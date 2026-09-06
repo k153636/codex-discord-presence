@@ -264,7 +264,7 @@ internal sealed class CodexActivityResolver
         }
 
         if (!state.IsCompletedMutationDisplay &&
-            state.TriggerEvent?.TimestampUtc is { } operationStartedAt &&
+            state.ActiveOperationEvent?.TimestampUtc is { } operationStartedAt &&
             directAt < operationStartedAt)
         {
             return false;

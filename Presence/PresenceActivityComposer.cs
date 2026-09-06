@@ -13,19 +13,30 @@ internal static class PresenceActivityComposer
             return stateLabel;
         }
 
+        var thinkingSummary = ThinkingSummaryFormatter.FormatForPresence(context.Codex.LatestThinkingSummary);
+        if (ShouldDisplayThinkingSummary(context, thinkingSummary))
+        {
+            return MainAgentActivityComposer.AddRole(context, thinkingSummary!);
+        }
+
+        if (ShouldDisplayMcpIdentity(context, thinkingSummary))
+        {
+            return BuildMcpActivityLine(context);
+        }
+
         if (context.Codex.ActivityKind == CodexActivityKind.AnalyzingProject)
         {
-            return WithMcpIdentity(context, BuildIdleActivityLine(context, stateLabel));
+            return WithMainAgentRole(context, BuildIdleActivityLine(context, stateLabel));
         }
 
         if (context.Codex.ActivityKind == CodexActivityKind.CoordinatingChanges)
         {
-            return WithMcpIdentity(context, stateLabel);
+            return WithMainAgentRole(context, stateLabel);
         }
 
         if (context.Codex.ActivityKind == CodexActivityKind.ApplyingEdits)
         {
-            return WithMcpIdentity(
+            return WithMainAgentRole(
                 context,
                 BuildEditingActivityLine(context.Codex.ActivityKind, stateLabel, activeFileLabel, editedFileCount));
         }
@@ -33,27 +44,69 @@ internal static class PresenceActivityComposer
         if (context.Codex.ActivityKind is (CodexActivityKind.CreatingFiles or CodexActivityKind.DeletingFiles) &&
             editedFileCount > 0)
         {
-            return WithMcpIdentity(
+            return WithMainAgentRole(
                 context,
                 BuildEditingActivityLine(context.Codex.ActivityKind, stateLabel, activeFileLabel, editedFileCount));
         }
 
-        return WithMcpIdentity(context, BuildIdleActivityLine(context, stateLabel));
+        return WithMainAgentRole(context, BuildIdleActivityLine(context, stateLabel));
     }
 
-    private static string WithMcpIdentity(PresenceContext context, string activityLine)
+    private static string WithMainAgentRole(PresenceContext context, string activityLine)
     {
-        var activityWithRole = MainAgentActivityComposer.AddRole(context, activityLine);
-        if (!context.Codex.IsMcpOperation || string.IsNullOrWhiteSpace(activityWithRole))
+        return MainAgentActivityComposer.AddRole(context, activityLine);
+    }
+
+    private static bool ShouldDisplayThinkingSummary(
+        PresenceContext context,
+        string? thinkingSummary)
+    {
+        if (string.IsNullOrWhiteSpace(thinkingSummary))
         {
-            return activityWithRole;
+            return false;
         }
 
-        var mcpName = McpServerNameFormatter.Format(context.Codex.McpServerName);
-        var prefix = string.IsNullOrWhiteSpace(mcpName) ? "MCP" : $"MCP {mcpName}";
-        return activityWithRole.StartsWith("MCP ", StringComparison.Ordinal)
-            ? activityWithRole
-            : $"{prefix} {activityWithRole}";
+        if (context.Codex.IsMcpOperation && context.Codex.LatestActivityEventKind is null)
+        {
+            return false;
+        }
+
+        return context.Codex.LatestActivityEventKind is null or CodexActivityEventKind.Reasoning;
+    }
+
+    private static bool ShouldDisplayMcpIdentity(
+        PresenceContext context,
+        string? thinkingSummary)
+    {
+        if (!context.Codex.IsMcpOperation || !context.Codex.ActivityKind.IsActive())
+        {
+            return false;
+        }
+
+        return context.Codex.LatestActivityEventKind is not CodexActivityEventKind.Reasoning ||
+            string.IsNullOrWhiteSpace(thinkingSummary);
+    }
+
+    private static string BuildMcpActivityLine(PresenceContext context)
+    {
+        var mcpName = McpServerNameFormatter.Format(
+            context.Codex.McpServerName ?? context.Codex.ActiveMcpServerNames.FirstOrDefault());
+        var activeMcpCount = context.Codex.ActiveMcpServerNames.Count;
+        if (activeMcpCount == 0 && !string.IsNullOrWhiteSpace(mcpName))
+        {
+            activeMcpCount = 1;
+        }
+
+        if (string.IsNullOrWhiteSpace(mcpName))
+        {
+            return activeMcpCount > 1
+                ? $"MCP＆+{activeMcpCount - 1}"
+                : "MCP";
+        }
+
+        return activeMcpCount > 1
+            ? $"MCP {mcpName}＆+{activeMcpCount - 1}"
+            : $"MCP {mcpName}";
     }
 
     private static string BuildEditingActivityLine(

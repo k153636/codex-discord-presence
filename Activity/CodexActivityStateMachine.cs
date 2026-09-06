@@ -6,6 +6,7 @@ internal sealed record CodexActivityState
     public CodexOperationKind OperationKind { get; init; }
     public bool IsMcpOperation { get; init; }
     public string? McpServerName { get; init; }
+    public IReadOnlyList<string> ActiveMcpServerNames { get; init; } = Array.Empty<string>();
     public string? LatestThinkingSummary { get; init; }
     public string? TurnId { get; init; }
     public string? ActiveFilePath { get; init; }
@@ -20,6 +21,7 @@ internal sealed record CodexActivityState
     public DateTime? LastEffectiveSignalAtUtc { get; init; }
     public DateTime? TerminalAtUtc { get; init; }
     public CodexActivityEvent? TriggerEvent { get; init; }
+    public CodexActivityEvent? ActiveOperationEvent { get; init; }
     public bool IsCompletedMutationDisplay { get; init; }
     public string Reason { get; init; } = "";
     public CodexActivitySource Source { get; init; } = CodexActivitySource.SessionLog;
@@ -126,7 +128,11 @@ internal sealed class CodexActivityStateMachine
                 continue;
             }
 
-            if (!string.IsNullOrWhiteSpace(activityEvent.ThinkingSummary))
+            if (activityEvent.Kind == CodexActivityEventKind.Reasoning)
+            {
+                latestThinkingSummary = activityEvent.ThinkingSummary;
+            }
+            else if (!string.IsNullOrWhiteSpace(activityEvent.ThinkingSummary))
             {
                 latestThinkingSummary = activityEvent.ThinkingSummary;
             }
@@ -324,7 +330,9 @@ internal sealed class CodexActivityStateMachine
                     McpServerName = pending
                         .Select(operation => operation.Event.McpServerName)
                         .FirstOrDefault(name => !string.IsNullOrWhiteSpace(name)),
+                    ActiveMcpServerNames = GetActiveMcpServerNames(pending),
                     TriggerEvent = lastEffectiveEvent,
+                    ActiveOperationEvent = pending[0].Event,
                     Reason = $"pending operation produced no completion for {Math.Max(0, (int)pendingEffectiveAge.TotalSeconds)} seconds",
                     Source = lastEffectiveEvent?.Source ?? CodexActivitySource.SessionLog
                 };
@@ -344,6 +352,7 @@ internal sealed class CodexActivityStateMachine
                 OperationKind = activeOperation.Event.OperationKind,
                 IsMcpOperation = activeOperation.Event.IsMcpOperation,
                 McpServerName = activeOperation.Event.McpServerName,
+                ActiveMcpServerNames = GetActiveMcpServerNames(pending),
                 TurnId = currentTurnId,
                 LatestThinkingSummary = latestThinkingSummary,
                 ActiveFilePath = activeFilePath,
@@ -356,7 +365,8 @@ internal sealed class CodexActivityStateMachine
                 TurnStartedAtUtc = turnStartedAtUtc,
                 LastEventAtUtc = lastEventAtUtc,
                 LastEffectiveSignalAtUtc = lastEffectiveSignalAtUtc,
-                TriggerEvent = activeOperation.Event,
+                TriggerEvent = lastEffectiveEvent,
+                ActiveOperationEvent = activeOperation.Event,
                 Reason = activeOperation.Event.Reason ?? $"pending {activeOperation.Event.OperationKind.ToString().ToLowerInvariant()} operation",
                 Source = activeOperation.Event.Source
             };
@@ -374,6 +384,10 @@ internal sealed class CodexActivityStateMachine
                 OperationKind = completedMutation.OperationKind,
                 IsMcpOperation = completedMutation.IsMcpOperation,
                 McpServerName = completedMutation.McpServerName,
+                ActiveMcpServerNames = completedMutation.IsMcpOperation &&
+                    !string.IsNullOrWhiteSpace(completedMutation.McpServerName)
+                    ? [completedMutation.McpServerName]
+                    : Array.Empty<string>(),
                 TurnId = currentTurnId,
                 LatestThinkingSummary = latestThinkingSummary,
                 ActiveFilePath = ResolveActiveFilePath(lastCompletedMutation, [lastCompletedMutation]),
@@ -382,6 +396,7 @@ internal sealed class CodexActivityStateMachine
                 PendingOperationCount = 0,
                 PendingMutationCount = 0,
                 TriggerEvent = lastEffectiveEvent,
+                ActiveOperationEvent = completedMutation,
                 IsCompletedMutationDisplay = true,
                 Reason = "mutation completed; waiting for next Codex event",
                 Source = completedMutation.Source
@@ -484,6 +499,18 @@ internal sealed class CodexActivityStateMachine
         return pendingOperations.Values
             .Concat(pendingOperationsWithoutId)
             .Count(operation => IsMutation(operation.Event.OperationKind));
+    }
+
+    private static IReadOnlyList<string> GetActiveMcpServerNames(
+        IEnumerable<PendingOperation> pendingOperations)
+    {
+        return pendingOperations
+            .Where(operation => operation.Event.IsMcpOperation)
+            .Select(operation => operation.Event.McpServerName)
+            .Where(name => !string.IsNullOrWhiteSpace(name))
+            .Select(name => name!.Trim())
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToArray();
     }
 
     private static bool IsMutation(CodexOperationKind operationKind)

@@ -150,7 +150,7 @@ public sealed class PresenceTemplateRendererTests
     }
 
     [Fact]
-    public void Render_ThinkingSummaryWithMcpOperationKeepsMcpIdentity()
+    public void Render_McpOperationDisplaysMcpIdentityWithoutThinkingSummary()
     {
         var renderer = new PresenceTemplateRenderer();
         var template = new PresenceTemplateOptions { State = "{ActivityLine}" };
@@ -168,7 +168,55 @@ public sealed class PresenceTemplateRendererTests
 
         var presence = renderer.Render(template, context);
 
-        Assert.Equal("MCP chrome-devtools Main agent Reviewing the current page state", presence.State);
+        Assert.Equal("MCP chrome-devtools", presence.State);
+    }
+
+    [Fact]
+    public void Render_MultipleMcpOperationsUsesRepresentativeNameAndAmpersandCount()
+    {
+        var renderer = new PresenceTemplateRenderer();
+        var template = new PresenceTemplateOptions { State = "{ActivityLine}" };
+        var context = CreateContext(
+            new CodexProcessSnapshot(true, "codex", true)
+            {
+                DetectedActivityKind = CodexActivityKind.ReadingFiles,
+                IsMcpOperation = true,
+                McpServerName = "chrome_devtools",
+                ActiveMcpServerNames = ["chrome_devtools", "playwright", "roblox_studio", "blender"],
+                LatestActivityEventKind = CodexActivityEventKind.OperationStarted,
+                LatestThinkingSummary = "Reading the current page",
+                PartySize = 1
+            },
+            new ProjectSnapshot("Nexstrap", @"E:\tool\Nexstrap", null, null, 128, 128, 42000, []),
+            new GitSnapshot(true, 1, null));
+
+        var presence = renderer.Render(template, context);
+
+        Assert.Equal("MCP chrome-devtools＆+3", presence.State);
+    }
+
+    [Fact]
+    public void Render_LatestThinkingSummaryRemainsExclusiveAfterMcpOperation()
+    {
+        var renderer = new PresenceTemplateRenderer();
+        var template = new PresenceTemplateOptions { State = "{ActivityLine}" };
+        var context = CreateContext(
+            new CodexProcessSnapshot(true, "codex", true)
+            {
+                DetectedActivityKind = CodexActivityKind.ReadingFiles,
+                IsMcpOperation = true,
+                McpServerName = "chrome_devtools",
+                ActiveMcpServerNames = ["chrome_devtools"],
+                LatestActivityEventKind = CodexActivityEventKind.Reasoning,
+                LatestThinkingSummary = "Reviewing the MCP result",
+                PartySize = 1
+            },
+            new ProjectSnapshot("Nexstrap", @"E:\tool\Nexstrap", null, null, 128, 128, 42000, []),
+            new GitSnapshot(true, 1, null));
+
+        var presence = renderer.Render(template, context);
+
+        Assert.Equal("Reviewing the MCP result", presence.State);
     }
 
     [Fact]

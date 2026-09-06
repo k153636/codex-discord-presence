@@ -87,6 +87,8 @@ public sealed partial record CodexProcessSnapshot
     public string? ActiveToolFilePath { get; init; }
     public bool IsMcpOperation { get; init; }
     public string? McpServerName { get; init; }
+    internal IReadOnlyList<string> ActiveMcpServerNames { get; init; } = Array.Empty<string>();
+    internal CodexActivityEventKind? LatestActivityEventKind { get; init; }
     public IReadOnlyList<string> ActivityFilePaths { get; init; } = Array.Empty<string>();
     public int PendingOperationCount { get; init; }
     public int PendingMutationCount { get; init; }

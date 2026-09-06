@@ -208,6 +208,110 @@ public sealed class CodexActivityStateMachineTests
     }
 
     [Fact]
+    public void Evaluate_LatestMcpOperationOverridesEarlierThinkingSummary()
+    {
+        var startedAt = Utc(47);
+        var state = Evaluate(
+            Event(1, startedAt, CodexActivityEventKind.TurnStarted, turnId: "turn-1"),
+            Event(
+                2,
+                startedAt.AddSeconds(1),
+                CodexActivityEventKind.Reasoning,
+                turnId: "turn-1",
+                thinkingSummary: "Designing the MCP display"),
+            Event(
+                3,
+                startedAt.AddSeconds(2),
+                CodexActivityEventKind.OperationStarted,
+                turnId: "turn-1",
+                callId: "mcp-call-1",
+                operationKind: CodexOperationKind.Read,
+                isMcpOperation: true,
+                mcpServerName: "chrome_devtools"));
+
+        Assert.Equal(CodexActivityEventKind.OperationStarted, state.TriggerEvent?.Kind);
+        Assert.True(state.IsMcpOperation);
+        Assert.Equal("chrome_devtools", state.McpServerName);
+        Assert.Equal("Designing the MCP display", state.LatestThinkingSummary);
+    }
+
+    [Fact]
+    public void Evaluate_LatestThinkingSummaryOverridesEarlierMcpOperation()
+    {
+        var startedAt = Utc(48);
+        var state = Evaluate(
+            Event(1, startedAt, CodexActivityEventKind.TurnStarted, turnId: "turn-1"),
+            Event(
+                2,
+                startedAt.AddSeconds(1),
+                CodexActivityEventKind.OperationStarted,
+                turnId: "turn-1",
+                callId: "mcp-call-1",
+                operationKind: CodexOperationKind.Read,
+                isMcpOperation: true,
+                mcpServerName: "chrome_devtools"),
+            Event(
+                3,
+                startedAt.AddSeconds(2),
+                CodexActivityEventKind.Reasoning,
+                turnId: "turn-1",
+                thinkingSummary: "Reviewing the MCP result"));
+
+        Assert.Equal(CodexActivityEventKind.Reasoning, state.TriggerEvent?.Kind);
+        Assert.True(state.IsMcpOperation);
+        Assert.Equal("Reviewing the MCP result", state.LatestThinkingSummary);
+    }
+
+    [Fact]
+    public void Evaluate_MultiplePendingMcpOperationsKeepsDistinctActiveServerNames()
+    {
+        var startedAt = Utc(49);
+        var state = Evaluate(
+            Event(1, startedAt, CodexActivityEventKind.TurnStarted, turnId: "turn-1"),
+            Event(
+                2,
+                startedAt.AddSeconds(1),
+                CodexActivityEventKind.OperationStarted,
+                turnId: "turn-1",
+                callId: "mcp-call-1",
+                operationKind: CodexOperationKind.Read,
+                isMcpOperation: true,
+                mcpServerName: "chrome_devtools"),
+            Event(
+                3,
+                startedAt.AddSeconds(2),
+                CodexActivityEventKind.OperationStarted,
+                turnId: "turn-1",
+                callId: "mcp-call-2",
+                operationKind: CodexOperationKind.Read,
+                isMcpOperation: true,
+                mcpServerName: "playwright"),
+            Event(
+                4,
+                startedAt.AddSeconds(3),
+                CodexActivityEventKind.OperationStarted,
+                turnId: "turn-1",
+                callId: "mcp-call-3",
+                operationKind: CodexOperationKind.Read,
+                isMcpOperation: true,
+                mcpServerName: "roblox_studio"),
+            Event(
+                5,
+                startedAt.AddSeconds(4),
+                CodexActivityEventKind.OperationStarted,
+                turnId: "turn-1",
+                callId: "mcp-call-4",
+                operationKind: CodexOperationKind.Read,
+                isMcpOperation: true,
+                mcpServerName: "blender"));
+
+        Assert.Equal("blender", state.McpServerName);
+        Assert.Equal(
+            ["blender", "roblox_studio", "playwright", "chrome_devtools"],
+            state.ActiveMcpServerNames);
+    }
+
+    [Fact]
     public void Evaluate_NewStartWithReusedTurnIdCreatesNewLogicalTurn()
     {
         var startedAt = Utc(48);
@@ -332,7 +436,9 @@ public sealed class CodexActivityStateMachineTests
         string? callId = null,
         CodexOperationKind operationKind = CodexOperationKind.Unknown,
         IReadOnlyList<string>? targetPaths = null,
-        string? thinkingSummary = null)
+        string? thinkingSummary = null,
+        bool isMcpOperation = false,
+        string? mcpServerName = null)
     {
         return new CodexActivityEvent
         {
@@ -342,6 +448,8 @@ public sealed class CodexActivityStateMachineTests
             TurnId = turnId,
             CallId = callId,
             OperationKind = operationKind,
+            IsMcpOperation = isMcpOperation,
+            McpServerName = mcpServerName,
             ThinkingSummary = thinkingSummary,
             TargetPaths = targetPaths ?? [],
             Reason = kind.ToString(),
