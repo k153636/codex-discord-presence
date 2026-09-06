@@ -236,6 +236,37 @@ public sealed class CodexActivityStateMachineTests
     }
 
     [Fact]
+    public void Evaluate_CompletedMcpOperationRemainsVisibleUntilNextCodexEvent()
+    {
+        var startedAt = Utc(47);
+        var completedAt = startedAt.AddSeconds(2);
+        var state = EvaluateAt(
+            Event(1, startedAt, CodexActivityEventKind.TurnStarted, turnId: "turn-1"),
+            Event(
+                2,
+                startedAt.AddSeconds(1),
+                CodexActivityEventKind.Reasoning,
+                turnId: "turn-1",
+                thinkingSummary: "Preparing the browser check"),
+            Event(
+                3,
+                completedAt,
+                CodexActivityEventKind.OperationCompleted,
+                turnId: "turn-1",
+                callId: "mcp-call-1",
+                operationKind: CodexOperationKind.Read,
+                isMcpOperation: true,
+                mcpServerName: "chrome_devtools"),
+            completedAt.AddSeconds(1));
+
+        Assert.Equal(CodexActivityEventKind.OperationCompleted, state.TriggerEvent?.Kind);
+        Assert.True(state.IsMcpOperation);
+        Assert.Equal("chrome_devtools", state.McpServerName);
+        Assert.Equal(["chrome_devtools"], state.ActiveMcpServerNames);
+        Assert.Equal("MCP operation completed; waiting for next Codex event", state.Reason);
+    }
+
+    [Fact]
     public void Evaluate_LatestThinkingSummaryOverridesEarlierMcpOperation()
     {
         var startedAt = Utc(48);

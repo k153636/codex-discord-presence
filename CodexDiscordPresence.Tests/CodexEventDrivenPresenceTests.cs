@@ -509,6 +509,48 @@ public sealed class CodexEventDrivenPresenceTests
     }
 
     [Fact]
+    public void Render_CompletedNestedMcpCall_UsesMcpIdentityAfterToolReturns()
+    {
+        var now = DateTime.UtcNow;
+        var projectPath = CreateProjectPath();
+        var homePath = CreateHomePath();
+
+        try
+        {
+            WriteSession(homePath, "session.jsonl",
+            [
+                CreateSessionLine(now, new
+                {
+                    type = "task_started",
+                    turn_id = "turn-1",
+                    cwd = projectPath
+                }, "event_msg"),
+                CreateSessionLine(now.AddMilliseconds(1), new
+                {
+                    type = "custom_tool_call",
+                    turn_id = "turn-1",
+                    call_id = "call-1",
+                    name = "exec",
+                    status = "completed",
+                    input = "const result = await tools.mcp__chrome_devtools__list_pages({});"
+                }, "response_item")
+            ]);
+
+            var snapshot = CreateDetector(homePath).GetSnapshot(projectPath);
+            var presence = Render(projectPath, snapshot);
+
+            Assert.Equal(CodexActivityKind.ReadingFiles, snapshot.ActivityKind);
+            Assert.True(snapshot.IsMcpOperation);
+            Assert.Equal("chrome_devtools", snapshot.McpServerName);
+            Assert.Equal("MCP chrome-devtools", presence.State);
+        }
+        finally
+        {
+            DeleteDirectory(homePath);
+        }
+    }
+
+    [Fact]
     public void Render_NestedMcpReadWithAdditionalExecProbe_PrioritizesMcpIdentity()
     {
         var now = DateTime.UtcNow;

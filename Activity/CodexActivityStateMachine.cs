@@ -32,6 +32,7 @@ internal sealed record CodexActivityState
 internal sealed class CodexActivityStateMachine
 {
     private static readonly TimeSpan CompletedMutationDisplayGrace = TimeSpan.FromSeconds(2);
+    private static readonly TimeSpan CompletedMcpDisplayGrace = TimeSpan.FromSeconds(2);
     private readonly TimeSpan _staleAfter;
     private readonly TimeSpan _reasoningGrace;
 
@@ -70,6 +71,9 @@ internal sealed class CodexActivityStateMachine
         PendingOperation? lastCompletedMutation = null;
         var lastCompletedMutationSequence = 0L;
         DateTime? lastCompletedMutationAtUtc = null;
+        PendingOperation? lastCompletedMcpOperation = null;
+        var lastCompletedMcpOperationSequence = 0L;
+        DateTime? lastCompletedMcpOperationAtUtc = null;
 
         foreach (var activityEvent in orderedEvents)
         {
@@ -95,6 +99,9 @@ internal sealed class CodexActivityStateMachine
                     pendingInputs.Clear();
                     mutationPaths.Clear();
                     latestThinkingSummary = null;
+                    lastCompletedMcpOperation = null;
+                    lastCompletedMcpOperationSequence = 0L;
+                    lastCompletedMcpOperationAtUtc = null;
                 }
 
                 lastEventAtUtc = Max(lastEventAtUtc, activityEvent.TimestampUtc);
@@ -185,6 +192,17 @@ internal sealed class CodexActivityStateMachine
                     }
 
                     var completedOperation = CompleteOperation(activityEvent, pendingOperations, pendingOperationsWithoutId);
+                    var completedMcpEvent = activityEvent.IsMcpOperation
+                        ? activityEvent
+                        : completedOperation?.Event.IsMcpOperation == true
+                            ? completedOperation.Event
+                            : null;
+                    if (completedMcpEvent is not null)
+                    {
+                        lastCompletedMcpOperation = new PendingOperation(activityEvent.Sequence, completedMcpEvent);
+                        lastCompletedMcpOperationSequence = activityEvent.Sequence;
+                        lastCompletedMcpOperationAtUtc = activityEvent.TimestampUtc;
+                    }
                     if (completedOperation is not null && IsMutation(completedOperation.Event.OperationKind))
                     {
                         lastCompletedMutation = completedOperation;
@@ -369,6 +387,32 @@ internal sealed class CodexActivityStateMachine
                 ActiveOperationEvent = activeOperation.Event,
                 Reason = activeOperation.Event.Reason ?? $"pending {activeOperation.Event.OperationKind.ToString().ToLowerInvariant()} operation",
                 Source = activeOperation.Event.Source
+            };
+        }
+
+        if (lastCompletedMcpOperation is not null &&
+            lastEffectiveEvent?.Sequence == lastCompletedMcpOperationSequence &&
+            lastCompletedMcpOperationAtUtc.HasValue &&
+            nowUtc - lastCompletedMcpOperationAtUtc.Value <= CompletedMcpDisplayGrace)
+        {
+            var completedMcp = lastCompletedMcpOperation.Event;
+            return new CodexActivityState
+            {
+                Lifecycle = CodexTurnLifecycle.Open,
+                OperationKind = completedMcp.OperationKind,
+                IsMcpOperation = true,
+                McpServerName = completedMcp.McpServerName,
+                ActiveMcpServerNames = string.IsNullOrWhiteSpace(completedMcp.McpServerName)
+                    ? Array.Empty<string>()
+                    : [completedMcp.McpServerName],
+                TurnId = currentTurnId,
+                LatestThinkingSummary = latestThinkingSummary,
+                PendingOperationCount = 0,
+                PendingMutationCount = 0,
+                TriggerEvent = lastEffectiveEvent,
+                ActiveOperationEvent = completedMcp,
+                Reason = "MCP operation completed; waiting for next Codex event",
+                Source = completedMcp.Source
             };
         }
 
