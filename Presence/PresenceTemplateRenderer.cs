@@ -81,7 +81,7 @@ public sealed class PresenceTemplateRenderer
             ["ProjectSizeText"] = projectSizeText,
             ["SessionElapsed"] = FormatElapsed(context.Session.Elapsed),
             ["SessionStartedAt"] = context.Session.StartedAt.ToLocalTime().ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture),
-            ["Tokens"] = context.TokenUsage.TotalTokens is null ? "Tokens pending" : $"{FormatNumber(context.TokenUsage.TotalTokens.Value)} Token",
+            ["Tokens"] = context.TokenUsage.TotalTokens is null ? "Tokens pending" : $"{CompactNumberFormatter.Format(context.TokenUsage.TotalTokens.Value)} Token",
             ["Cost"] = "",
             ["EstimatedCost"] = "",
             ["CodexState"] = stateLabel,
@@ -155,21 +155,6 @@ public sealed class PresenceTemplateRenderer
         return $"{Math.Max(1, elapsed.Minutes)}m";
     }
 
-    private static string FormatNumber(long value)
-    {
-        if (value >= 1_000_000)
-        {
-            return $"{(value / 1_000_000D).ToString("0.#", CultureInfo.InvariantCulture)}M";
-        }
-
-        if (value >= 1_000)
-        {
-            return $"{(value / 1_000D).ToString("0.#", CultureInfo.InvariantCulture)}K";
-        }
-
-        return value.ToString(CultureInfo.InvariantCulture);
-    }
-
     private static string FormatCost(decimal value)
     {
         var format = value >= 1m ? "0.00" : "0.0000";
@@ -183,8 +168,8 @@ public sealed class PresenceTemplateRenderer
 
     private static string FormatProjectSize(int fileCount, long lineCount)
     {
-        var files = fileCount == 1 ? "1 file" : $"{FormatNumber(fileCount)} files";
-        var lines = lineCount == 1 ? "1 line" : $"{FormatNumber(lineCount)} lines";
+        var files = fileCount == 1 ? "1 file" : $"{CompactNumberFormatter.Format(fileCount)} files";
+        var lines = lineCount == 1 ? "1 line" : $"{CompactNumberFormatter.Format(lineCount)} lines";
         return $"{files} \u2022 {lines}";
     }
 
