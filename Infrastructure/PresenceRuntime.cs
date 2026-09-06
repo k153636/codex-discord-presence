@@ -37,18 +37,19 @@ public sealed class PresenceRuntime
         var gitInspector = new GitInspector();
         var renderer = new PresenceTemplateRenderer();
         var projectSwitchDetectionInterval = TimeSpan.FromSeconds(3);
+        var projectSnapshotCache = new ProjectSnapshotCache();
+        var gitSnapshotCache = new GitSnapshotCache();
 
         _log.Info("Starting Codex Discord RPC with auto-detection.");
         var activeProjectPath = projectInspector.ProjectPath;
         _log.Info($"Project path: {activeProjectPath}");
         _log.Info("Press Ctrl+C or Quit to stop.");
 
-        var initialCodexProbe = profileStates[AppProfileKind.Codex].Detector.GetSnapshot(activeProjectPath);
-        var initialCliProbe = profileStates[AppProfileKind.CodexCli].Detector.GetSnapshot(activeProjectPath);
+        var initialProfileSnapshots = CaptureProfileSnapshots(profileStates);
         var currentProfile = AppProfileSelectionPolicy.Select(
             AppProfileKind.Codex,
-            new AppProfileSelectionCandidate(AppProfileKind.Codex, initialCodexProbe, profileStates[AppProfileKind.Codex].DiscordOptions),
-            new AppProfileSelectionCandidate(AppProfileKind.CodexCli, initialCliProbe, profileStates[AppProfileKind.CodexCli].DiscordOptions));
+            new AppProfileSelectionCandidate(AppProfileKind.Codex, initialProfileSnapshots[AppProfileKind.Codex], profileStates[AppProfileKind.Codex].DiscordOptions),
+            new AppProfileSelectionCandidate(AppProfileKind.CodexCli, initialProfileSnapshots[AppProfileKind.CodexCli], profileStates[AppProfileKind.CodexCli].DiscordOptions));
         var rpc = new DiscordPresenceClient(profileStates[currentProfile].DiscordOptions, _log);
 
         await rpc.StartAsync(_cancellationToken);
@@ -77,8 +78,9 @@ public sealed class PresenceRuntime
                     ResetAllProfilePresenceCaches(profileStates);
                 }
 
-                var observedCodexSnapshot = profileStates[AppProfileKind.Codex].Detector.GetSnapshot();
-                var observedCliSnapshot = profileStates[AppProfileKind.CodexCli].Detector.GetSnapshot();
+                var observedProfileSnapshots = CaptureProfileSnapshots(profileStates);
+                var observedCodexSnapshot = observedProfileSnapshots[AppProfileKind.Codex];
+                var observedCliSnapshot = observedProfileSnapshots[AppProfileKind.CodexCli];
 
                 var (nextProjectPath, projectPathChanged) = UpdateActiveProjectPath(
                     projectInspector,
@@ -95,9 +97,11 @@ public sealed class PresenceRuntime
                     ResetAllProfilePresenceCaches(profileStates);
                 }
 
-                var selectedProfile = SelectProfile(profileStates, activeProjectPath, currentProfile);
+                var selectedProfile = SelectProfile(profileStates, currentProfile, observedProfileSnapshots);
                 var selectedProfileState = profileStates[selectedProfile];
-                var selectedProfileProjectPath = ResolveProfileProjectPath(selectedProfileState, activeProjectPath);
+                var selectedProfileProjectPath = ResolveProfileProjectPath(
+                    observedProfileSnapshots[selectedProfile],
+                    activeProjectPath);
 
                 rpc.UpdateOptions(selectedProfileState.DiscordOptions);
 
@@ -107,8 +111,8 @@ public sealed class PresenceRuntime
                     currentProfile = selectedProfile;
                 }
 
-                var projectSnapshot = projectInspector.GetSnapshot(selectedProfileProjectPath);
-                var gitSnapshot = gitInspector.GetSnapshot(selectedProfileProjectPath);
+                var projectSnapshot = projectSnapshotCache.GetSnapshot(projectInspector, selectedProfileProjectPath);
+                var gitSnapshot = gitSnapshotCache.GetSnapshot(gitInspector, selectedProfileProjectPath);
                 var codexSnapshot = BuildCodexSnapshot(
                     selectedProfileProjectPath,
                     projectSnapshot,
@@ -181,22 +185,28 @@ public sealed class PresenceRuntime
 
     private static AppProfileKind SelectProfile(
         Dictionary<AppProfileKind, ProfileRuntimeState> profileStates,
-        string activeProjectPath,
-        AppProfileKind currentProfile)
+        AppProfileKind currentProfile,
+        ProfileDetectionSnapshots observedSnapshots)
     {
-        var codexProfileProjectPath = ResolveProfileProjectPath(profileStates[AppProfileKind.Codex], activeProjectPath);
-        var cliProfileProjectPath = ResolveProfileProjectPath(profileStates[AppProfileKind.CodexCli], activeProjectPath);
-        var codexProfileSnapshot = profileStates[AppProfileKind.Codex].Detector.GetSnapshot(codexProfileProjectPath);
-        var cliProfileSnapshot = profileStates[AppProfileKind.CodexCli].Detector.GetSnapshot(cliProfileProjectPath);
         return AppProfileSelectionPolicy.Select(
             currentProfile,
-            new AppProfileSelectionCandidate(AppProfileKind.Codex, codexProfileSnapshot, profileStates[AppProfileKind.Codex].DiscordOptions),
-            new AppProfileSelectionCandidate(AppProfileKind.CodexCli, cliProfileSnapshot, profileStates[AppProfileKind.CodexCli].DiscordOptions));
+            new AppProfileSelectionCandidate(AppProfileKind.Codex, observedSnapshots[AppProfileKind.Codex], profileStates[AppProfileKind.Codex].DiscordOptions),
+            new AppProfileSelectionCandidate(AppProfileKind.CodexCli, observedSnapshots[AppProfileKind.CodexCli], profileStates[AppProfileKind.CodexCli].DiscordOptions));
     }
 
-    private static string ResolveProfileProjectPath(ProfileRuntimeState profileState, string activeProjectPath)
+    private static string ResolveProfileProjectPath(
+        CodexProcessSnapshot observedSnapshot,
+        string activeProjectPath)
     {
-        return profileState.Detector.GetObservedProjectPath() ?? activeProjectPath;
+        return observedSnapshot.ObservedProjectPath ?? activeProjectPath;
+    }
+
+    private static ProfileDetectionSnapshots CaptureProfileSnapshots(
+        Dictionary<AppProfileKind, ProfileRuntimeState> profileStates)
+    {
+        return new ProfileDetectionSnapshots(
+            profileStates[AppProfileKind.Codex].Detector.GetSnapshot(),
+            profileStates[AppProfileKind.CodexCli].Detector.GetSnapshot());
     }
 
     private (string ActiveProjectPath, bool Changed) UpdateActiveProjectPath(
@@ -585,6 +595,63 @@ public sealed class PresenceRuntime
             presence.RunningCommandKind.ToString(),
             presence.RunningCommandName,
             buttons);
+    }
+
+    private sealed record ProfileDetectionSnapshots(
+        CodexProcessSnapshot Codex,
+        CodexProcessSnapshot CodexCli)
+    {
+        public CodexProcessSnapshot this[AppProfileKind profile] => profile == AppProfileKind.Codex
+            ? Codex
+            : CodexCli;
+    }
+
+    private sealed class ProjectSnapshotCache
+    {
+        private static readonly TimeSpan MaxAge = TimeSpan.FromSeconds(5);
+        private string? _projectPath;
+        private DateTime _capturedAtUtc;
+        private ProjectSnapshot? _snapshot;
+
+        public ProjectSnapshot GetSnapshot(ProjectInspector inspector, string projectPath)
+        {
+            var nowUtc = DateTime.UtcNow;
+            if (_snapshot is not null &&
+                string.Equals(_projectPath, projectPath, StringComparison.OrdinalIgnoreCase) &&
+                nowUtc - _capturedAtUtc < MaxAge)
+            {
+                return _snapshot;
+            }
+
+            _snapshot = inspector.GetSnapshot(projectPath);
+            _projectPath = projectPath;
+            _capturedAtUtc = nowUtc;
+            return _snapshot;
+        }
+    }
+
+    private sealed class GitSnapshotCache
+    {
+        private static readonly TimeSpan MaxAge = TimeSpan.FromSeconds(2);
+        private string? _projectPath;
+        private DateTime _capturedAtUtc;
+        private GitSnapshot? _snapshot;
+
+        public GitSnapshot GetSnapshot(GitInspector inspector, string projectPath)
+        {
+            var nowUtc = DateTime.UtcNow;
+            if (_snapshot is not null &&
+                string.Equals(_projectPath, projectPath, StringComparison.OrdinalIgnoreCase) &&
+                nowUtc - _capturedAtUtc < MaxAge)
+            {
+                return _snapshot;
+            }
+
+            _snapshot = inspector.GetSnapshot(projectPath);
+            _projectPath = projectPath;
+            _capturedAtUtc = nowUtc;
+            return _snapshot;
+        }
     }
 
     private static DateTime? ResolveActivityStartedAt(
