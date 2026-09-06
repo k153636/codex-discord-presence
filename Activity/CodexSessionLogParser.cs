@@ -635,6 +635,11 @@ internal sealed class CodexSessionLogParser
             return CodexOperationKind.Command;
         }
 
+        if (toolName is not null && IsMcpToolName(toolName))
+        {
+            return ClassifyMcpOperationKind(toolName);
+        }
+
         if (LooksLikeNestedToolCall(toolInput, "tools.apply_patch("))
         {
             return CodexOperationKind.Edit;
@@ -666,11 +671,6 @@ internal sealed class CodexSessionLogParser
             normalizedToolName.Contains("view", StringComparison.Ordinal))
         {
             return CodexOperationKind.Read;
-        }
-
-        if (toolName is not null && IsMcpToolName(toolName))
-        {
-            return ClassifyMcpOperationKind(toolName);
         }
 
         return CodexOperationKind.Unknown;
