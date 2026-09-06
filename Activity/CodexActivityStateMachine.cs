@@ -5,6 +5,7 @@ internal sealed record CodexActivityState
     public CodexTurnLifecycle Lifecycle { get; init; }
     public CodexOperationKind OperationKind { get; init; }
     public bool IsMcpOperation { get; init; }
+    public string? McpServerName { get; init; }
     public string? TurnId { get; init; }
     public string? ActiveFilePath { get; init; }
     public IReadOnlyList<string> MutationFilePaths { get; init; } = Array.Empty<string>();
@@ -310,6 +311,9 @@ internal sealed class CodexActivityStateMachine
                     PendingOperationCount = pending.Length,
                     PendingMutationCount = pending.Count(operation => IsMutation(operation.Event.OperationKind)),
                     IsMcpOperation = pending.Any(operation => operation.Event.IsMcpOperation),
+                    McpServerName = pending
+                        .Select(operation => operation.Event.McpServerName)
+                        .FirstOrDefault(name => !string.IsNullOrWhiteSpace(name)),
                     TriggerEvent = lastEffectiveEvent,
                     Reason = $"pending operation produced no completion for {Math.Max(0, (int)pendingEffectiveAge.TotalSeconds)} seconds",
                     Source = lastEffectiveEvent?.Source ?? CodexActivitySource.SessionLog
@@ -329,6 +333,7 @@ internal sealed class CodexActivityStateMachine
                 Lifecycle = CodexTurnLifecycle.Open,
                 OperationKind = activeOperation.Event.OperationKind,
                 IsMcpOperation = activeOperation.Event.IsMcpOperation,
+                McpServerName = activeOperation.Event.McpServerName,
                 TurnId = currentTurnId,
                 ActiveFilePath = activeFilePath,
                 MutationFilePaths = mutationPaths.OrderBy(path => path, StringComparer.OrdinalIgnoreCase).ToArray(),
@@ -357,6 +362,7 @@ internal sealed class CodexActivityStateMachine
                 Lifecycle = CodexTurnLifecycle.Open,
                 OperationKind = completedMutation.OperationKind,
                 IsMcpOperation = completedMutation.IsMcpOperation,
+                McpServerName = completedMutation.McpServerName,
                 TurnId = currentTurnId,
                 ActiveFilePath = ResolveActiveFilePath(lastCompletedMutation, [lastCompletedMutation]),
                 MutationFilePaths = mutationPaths.OrderBy(path => path, StringComparer.OrdinalIgnoreCase).ToArray(),

@@ -15,17 +15,17 @@ internal static class PresenceActivityComposer
 
         if (context.Codex.ActivityKind == CodexActivityKind.AnalyzingProject)
         {
-            return WithMcpPrefix(context, BuildIdleActivityLine(context, stateLabel));
+            return WithMcpIdentity(context, BuildIdleActivityLine(context, stateLabel));
         }
 
         if (context.Codex.ActivityKind == CodexActivityKind.CoordinatingChanges)
         {
-            return WithMcpPrefix(context, stateLabel);
+            return WithMcpIdentity(context, stateLabel);
         }
 
         if (context.Codex.ActivityKind == CodexActivityKind.ApplyingEdits)
         {
-            return WithMcpPrefix(
+            return WithMcpIdentity(
                 context,
                 BuildEditingActivityLine(context.Codex.ActivityKind, stateLabel, activeFileLabel, editedFileCount));
         }
@@ -33,24 +33,26 @@ internal static class PresenceActivityComposer
         if (context.Codex.ActivityKind is (CodexActivityKind.CreatingFiles or CodexActivityKind.DeletingFiles) &&
             editedFileCount > 0)
         {
-            return WithMcpPrefix(
+            return WithMcpIdentity(
                 context,
                 BuildEditingActivityLine(context.Codex.ActivityKind, stateLabel, activeFileLabel, editedFileCount));
         }
 
-        return WithMcpPrefix(context, BuildIdleActivityLine(context, stateLabel));
+        return WithMcpIdentity(context, BuildIdleActivityLine(context, stateLabel));
     }
 
-    private static string WithMcpPrefix(PresenceContext context, string activityLine)
+    private static string WithMcpIdentity(PresenceContext context, string activityLine)
     {
         if (!context.Codex.IsMcpOperation || string.IsNullOrWhiteSpace(activityLine))
         {
             return activityLine;
         }
 
+        var mcpName = McpServerNameFormatter.Format(context.Codex.McpServerName);
+        var prefix = string.IsNullOrWhiteSpace(mcpName) ? "MCP" : $"MCP {mcpName}";
         return activityLine.StartsWith("MCP ", StringComparison.Ordinal)
             ? activityLine
-            : $"MCP {activityLine}";
+            : $"{prefix} {activityLine}";
     }
 
     private static string BuildEditingActivityLine(

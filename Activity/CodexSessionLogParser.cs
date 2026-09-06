@@ -520,6 +520,7 @@ internal sealed class CodexSessionLogParser
                     CommandKind = ClassifyShellCommand(commandText ?? "") ?? RunningCommandKind.Unknown,
                     CommandName = commandText is null ? null : ExtractCommandName(commandText),
                     IsMcpOperation = IsMcpToolName(toolName),
+                    McpServerName = McpServerNameFormatter.ExtractServerName(toolName),
                     Reason = string.IsNullOrWhiteSpace(toolName)
                         ? "tool operation started"
                         : $"{toolName} operation started"
@@ -534,6 +535,9 @@ internal sealed class CodexSessionLogParser
                 {
                     Kind = CodexActivityEventKind.OperationCompleted,
                     IsMcpOperation = payloadType is "mcp_tool_call_end",
+                    McpServerName = payloadType is "mcp_tool_call_end"
+                        ? TryGetInvocationMcpServerName(payload)
+                        : null,
                     TargetPaths = TryGetDirectToolFilePaths(payload, payloadType, projectPath),
                     Reason = "tool operation completed"
                 };
@@ -542,6 +546,7 @@ internal sealed class CodexSessionLogParser
             case "mcp_tool_call":
             {
                 var toolName = TryGetInvocationToolName(payload);
+                var mcpServerName = TryGetInvocationMcpServerName(payload);
                 var targetPaths = TryGetDirectToolFilePaths(payload, payloadType, projectPath);
                 activityEvent = activityEvent with
                 {
@@ -552,6 +557,7 @@ internal sealed class CodexSessionLogParser
                         targetPaths,
                         TryGetInvocationArgumentsText(payload)),
                     IsMcpOperation = true,
+                    McpServerName = mcpServerName,
                     TargetPaths = targetPaths,
                     Reason = string.IsNullOrWhiteSpace(toolName)
                         ? "MCP operation started"
@@ -696,6 +702,17 @@ internal sealed class CodexSessionLogParser
         return payload.TryGetProperty("invocation", out var invocation)
             ? TryGetString(invocation, "tool")
             : null;
+    }
+
+    private static string? TryGetInvocationMcpServerName(JsonElement payload)
+    {
+        if (!payload.TryGetProperty("invocation", out var invocation))
+        {
+            return null;
+        }
+
+        return TryGetFirstString(invocation, "server", "server_name", "serverName", "mcp_server", "mcpServer") ??
+            McpServerNameFormatter.ExtractServerName(TryGetString(invocation, "tool"));
     }
 
     private static bool IsMcpToolName(string? toolName)
@@ -1100,8 +1117,15 @@ internal sealed class CodexSessionLogParser
 
     private static bool IsFileMutationTool(string? toolName)
     {
-        return !string.IsNullOrWhiteSpace(toolName) &&
-            FileMutationToolNames.Contains(toolName, StringComparer.OrdinalIgnoreCase);
+        if (string.IsNullOrWhiteSpace(toolName))
+        {
+            return false;
+        }
+
+        return FileMutationToolNames.Contains(toolName, StringComparer.OrdinalIgnoreCase) ||
+            FileMutationToolNames.Contains(
+                McpServerNameFormatter.ExtractToolName(toolName) ?? "",
+                StringComparer.OrdinalIgnoreCase);
     }
 
     private static bool IsFilePathProperty(string propertyName)

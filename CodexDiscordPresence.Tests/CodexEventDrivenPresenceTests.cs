@@ -58,7 +58,7 @@ public sealed class CodexEventDrivenPresenceTests
                     call_id = "call-1",
                     invocation = new
                     {
-                        tool = "apply_patch",
+                        tool = "mcp__chrome_devtools__apply_patch",
                         arguments = new
                         {
                             target_file = filePath
@@ -71,7 +71,7 @@ public sealed class CodexEventDrivenPresenceTests
             var presence = Render(projectPath, snapshot);
 
             Assert.True(snapshot.IsMcpOperation);
-            Assert.Equal("MCP Editing PresenceRuntime.cs", presence.State);
+            Assert.Equal("MCP chrome-devtools Editing PresenceRuntime.cs", presence.State);
         }
         finally
         {
