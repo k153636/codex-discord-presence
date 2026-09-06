@@ -93,6 +93,7 @@ public sealed partial record CodexProcessSnapshot
     public string? ActiveTurnId { get; init; }
     public DateTime? LastEffectiveSignalAt { get; init; }
     public string? LatestThinkingSummary { get; init; }
+    public int? PartySize { get; init; }
     internal CodexTurnLifecycle TurnLifecycle { get; init; } = CodexTurnLifecycle.None;
     public IReadOnlyList<RecentProjectFileSnapshot> RecentEditedFiles { get; init; } = Array.Empty<RecentProjectFileSnapshot>();
     public int ActivityRepeatCount { get; init; } = 1;

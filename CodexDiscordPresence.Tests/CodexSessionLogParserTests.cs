@@ -106,6 +106,138 @@ public sealed class CodexSessionLogParserTests
     }
 
     [Fact]
+    public void InspectRecentSessions_TracksActiveSubagentsFromCollabAgentToolCalls()
+    {
+        var homePath = CreateTempCodexHome();
+        var projectPath = Path.Combine(Path.GetTempPath(), "CodexPartyProject_" + Guid.NewGuid());
+        Directory.CreateDirectory(projectPath);
+
+        try
+        {
+            var now = DateTime.UtcNow;
+            WriteSession(homePath, "session.jsonl",
+            [
+                CreateSessionLine(now, new
+                {
+                    type = "task_started",
+                    turn_id = "turn-1",
+                    cwd = projectPath
+                }, "event_msg"),
+                CreateSessionLine(now.AddMilliseconds(1), new
+                {
+                    type = "item_completed",
+                    item = new
+                    {
+                        type = "CollabAgentToolCall",
+                        id = "exec-spawn-1",
+                        tool = "spawn_agent",
+                        receiver_agents = new[]
+                        {
+                            new { thread_id = "agent-1" },
+                            new { thread_id = "agent-2" }
+                        }
+                    }
+                }, "event_msg"),
+                CreateSessionLine(now.AddMilliseconds(2), new
+                {
+                    type = "item_completed",
+                    item = new
+                    {
+                        type = "CollabAgentToolCall",
+                        id = "exec-spawn-2",
+                        tool = "spawn_agent",
+                        receiver_agents = new[]
+                        {
+                            new { thread_id = "agent-1" }
+                        }
+                    }
+                }, "event_msg"),
+                CreateSessionLine(now.AddMilliseconds(3), new
+                {
+                    type = "item_completed",
+                    item = new
+                    {
+                        type = "CollabAgentToolCall",
+                        id = "exec-close-1",
+                        tool = "close_agent",
+                        receiver_agents = new[]
+                        {
+                            new { thread_id = "agent-1" }
+                        }
+                    }
+                }, "event_msg")
+            ]);
+
+            var parser = new CodexSessionLogParser(
+                new CodexDetectionOptions { HomePath = homePath },
+                new PresenceTemplateOptions());
+
+            var inspection = parser.InspectRecentSessions(projectPath);
+
+            Assert.NotNull(inspection);
+            Assert.Equal(2, inspection!.ActivityEvents.Count(activityEvent =>
+                activityEvent.Kind == CodexActivityEventKind.AgentStarted));
+            Assert.Single(inspection.ActivityEvents, activityEvent =>
+                activityEvent.Kind == CodexActivityEventKind.AgentCompleted);
+            Assert.Equal(["agent-2"], inspection.ActiveAgentThreadIds);
+            Assert.Equal(2, inspection.PartySize);
+        }
+        finally
+        {
+            Directory.Delete(homePath, true);
+            Directory.Delete(projectPath, true);
+        }
+    }
+
+    [Fact]
+    public void InspectRecentSessions_IgnoresAgentEventsWithoutReceiverThreadId()
+    {
+        var homePath = CreateTempCodexHome();
+        var projectPath = Path.Combine(Path.GetTempPath(), "CodexPartyMissingIdProject_" + Guid.NewGuid());
+        Directory.CreateDirectory(projectPath);
+
+        try
+        {
+            var now = DateTime.UtcNow;
+            WriteSession(homePath, "session.jsonl",
+            [
+                CreateSessionLine(now, new
+                {
+                    type = "task_started",
+                    turn_id = "turn-1",
+                    cwd = projectPath
+                }, "event_msg"),
+                CreateSessionLine(now.AddMilliseconds(1), new
+                {
+                    type = "item_completed",
+                    item = new
+                    {
+                        type = "CollabAgentToolCall",
+                        id = "exec-without-agent-id",
+                        tool = "spawn_agent"
+                    }
+                }, "event_msg")
+            ]);
+
+            var parser = new CodexSessionLogParser(
+                new CodexDetectionOptions { HomePath = homePath },
+                new PresenceTemplateOptions());
+
+            var inspection = parser.InspectRecentSessions(projectPath);
+
+            Assert.NotNull(inspection);
+            Assert.DoesNotContain(inspection!.ActivityEvents, activityEvent =>
+                activityEvent.Kind is CodexActivityEventKind.AgentStarted or CodexActivityEventKind.AgentCompleted);
+            Assert.Equal(1, inspection.PartySize);
+        }
+        finally
+        {
+            Directory.Delete(homePath, true);
+            Directory.Delete(projectPath, true);
+        }
+    }
+
+    [Fact]
     public void InspectRecentSessions_EmitsTurnAndToolLifecycleEvents()
     {
         var homePath = CreateTempCodexHome();

@@ -186,7 +186,7 @@ internal sealed class CodexActivityResolver
     private CodexActivityState? ResolveActivityState(SessionInspection? sessionInspection, DateTime nowUtc)
     {
         if (sessionInspection is null ||
-            !sessionInspection.ActivityEvents.Any(activityEvent => activityEvent.Kind != CodexActivityEventKind.ContextUpdated))
+            !sessionInspection.ActivityEvents.Any(activityEvent => activityEvent.IsEffective))
         {
             return null;
         }

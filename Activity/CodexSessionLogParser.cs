@@ -459,6 +459,19 @@ internal sealed class CodexSessionLogParser
                 return true;
 
             case "item_completed":
+                if (TryGetAgentLifecycleEvent(payload, out var agentEventKind, out var agentThreadIds))
+                {
+                    activityEvent = activityEvent with
+                    {
+                        Kind = agentEventKind,
+                        AgentThreadIds = agentThreadIds,
+                        Reason = agentEventKind == CodexActivityEventKind.AgentStarted
+                            ? "subagent started"
+                            : "subagent completed"
+                    };
+                    return true;
+                }
+
                 if (!IsReasoningItem(payload))
                 {
                     return false;
@@ -600,6 +613,78 @@ internal sealed class CodexSessionLogParser
             "interrupted" or "aborted" or "cancelled" or "canceled" => CodexActivityEventKind.TurnInterrupted,
             _ => CodexActivityEventKind.TurnCompleted
         };
+    }
+
+    private static bool TryGetAgentLifecycleEvent(
+        JsonElement payload,
+        out CodexActivityEventKind eventKind,
+        out IReadOnlyList<string> agentThreadIds)
+    {
+        eventKind = CodexActivityEventKind.ContextUpdated;
+        agentThreadIds = Array.Empty<string>();
+
+        if (!payload.TryGetProperty("item", out var item) ||
+            !TryGetString(item, "type", out var itemType) ||
+            !string.Equals(itemType, "CollabAgentToolCall", StringComparison.OrdinalIgnoreCase) ||
+            !TryGetString(item, "tool", out var toolName))
+        {
+            return false;
+        }
+
+        eventKind = toolName.Trim().ToLowerInvariant() switch
+        {
+            "spawn_agent" => CodexActivityEventKind.AgentStarted,
+            "close_agent" => CodexActivityEventKind.AgentCompleted,
+            _ => CodexActivityEventKind.ContextUpdated
+        };
+        if (eventKind == CodexActivityEventKind.ContextUpdated)
+        {
+            return false;
+        }
+
+        agentThreadIds = ExtractAgentThreadIds(item);
+        return agentThreadIds.Count > 0;
+    }
+
+    private static IReadOnlyList<string> ExtractAgentThreadIds(JsonElement item)
+    {
+        var threadIds = new HashSet<string>(StringComparer.Ordinal);
+        if (item.TryGetProperty("receiver_agents", out var receiverAgents))
+        {
+            CollectAgentThreadIds(receiverAgents, threadIds);
+        }
+
+        return threadIds.OrderBy(threadId => threadId, StringComparer.Ordinal).ToArray();
+    }
+
+    private static void CollectAgentThreadIds(JsonElement element, ISet<string> threadIds)
+    {
+        switch (element.ValueKind)
+        {
+            case JsonValueKind.Array:
+                foreach (var item in element.EnumerateArray())
+                {
+                    CollectAgentThreadIds(item, threadIds);
+                }
+
+                break;
+
+            case JsonValueKind.Object:
+                if (TryGetFirstString(element, "thread_id", "threadId") is { } threadId)
+                {
+                    AddAgentThreadId(threadIds, threadId);
+                }
+
+                break;
+        }
+    }
+
+    private static void AddAgentThreadId(ISet<string> threadIds, string? threadId)
+    {
+        if (!string.IsNullOrWhiteSpace(threadId))
+        {
+            threadIds.Add(threadId.Trim());
+        }
     }
 
     private static bool IsReasoningItem(JsonElement payload)

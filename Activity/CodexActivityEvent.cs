@@ -11,7 +11,9 @@ internal enum CodexActivityEventKind
     TurnCompleted = 6,
     TurnFailed = 7,
     TurnInterrupted = 8,
-    ContextUpdated = 9
+    ContextUpdated = 9,
+    AgentStarted = 10,
+    AgentCompleted = 11
 }
 
 internal enum CodexOperationKind
@@ -55,6 +57,7 @@ internal sealed record CodexActivityEvent
     public bool IsMcpOperation { get; init; }
     public string? McpServerName { get; init; }
     public string? ThinkingSummary { get; init; }
+    public IReadOnlyList<string> AgentThreadIds { get; init; } = Array.Empty<string>();
     public IReadOnlyList<string> TargetPaths { get; init; } = Array.Empty<string>();
     public RunningCommandKind CommandKind { get; init; } = RunningCommandKind.Unknown;
     public string? CommandName { get; init; }
