@@ -507,6 +507,7 @@ internal sealed class CodexSessionLogParser
                 }
 
                 var targetPaths = TryGetDirectToolFilePaths(payload, payloadType, projectPath);
+                var toolInput = TryGetString(payload, "input");
                 var commandText = TryGetShellCommandText(payload, out var shellCommand)
                     ? shellCommand
                     : null;
@@ -515,7 +516,7 @@ internal sealed class CodexSessionLogParser
                     return false;
                 }
 
-                var operationKind = ClassifyOperationKind(toolName, commandText, targetPaths);
+                var operationKind = ClassifyOperationKind(toolName, commandText, targetPaths, toolInput);
                 activityEvent = activityEvent with
                 {
                     Kind = CodexActivityEventKind.OperationStarted,
@@ -575,7 +576,8 @@ internal sealed class CodexSessionLogParser
     private static CodexOperationKind ClassifyOperationKind(
         string? toolName,
         string? commandText,
-        IReadOnlyList<string> targetPaths)
+        IReadOnlyList<string> targetPaths,
+        string? toolInput = null)
     {
         if (IsFileMutationTool(toolName) || targetPaths.Count > 0)
         {
@@ -600,6 +602,26 @@ internal sealed class CodexSessionLogParser
             return CodexOperationKind.Command;
         }
 
+        if (LooksLikeNestedToolCall(toolInput, "tools.apply_patch(", "tools.create_file(", "tools.createFile("))
+        {
+            return CodexOperationKind.Edit;
+        }
+
+        if (LooksLikeNestedToolCall(toolInput, "tools.delete_file(", "tools.deleteFile("))
+        {
+            return CodexOperationKind.Delete;
+        }
+
+        if (LooksLikeNestedToolCall(toolInput, "tools.exec_command(", "tools.write_stdin("))
+        {
+            return CodexOperationKind.Command;
+        }
+
+        if (LooksLikeNestedToolCall(toolInput, "tools.view_image(", "tools.read_mcp_resource(", "tools.script_read("))
+        {
+            return CodexOperationKind.Read;
+        }
+
         var normalizedToolName = toolName?.ToLowerInvariant() ?? "";
         if (normalizedToolName == "shell_command")
         {
@@ -614,6 +636,12 @@ internal sealed class CodexSessionLogParser
         }
 
         return CodexOperationKind.Unknown;
+    }
+
+    private static bool LooksLikeNestedToolCall(string? input, params string[] signatures)
+    {
+        return !string.IsNullOrWhiteSpace(input) &&
+            signatures.Any(signature => input.Contains(signature, StringComparison.OrdinalIgnoreCase));
     }
 
     private static bool IsInputTool(string? toolName)
