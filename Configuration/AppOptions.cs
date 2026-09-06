@@ -167,6 +167,7 @@ public sealed class DiscordOptions
         [nameof(CodexActivityKind.Planning)] = "rpc_thinking",
         [nameof(CodexActivityKind.Refactoring)] = "rpc_coding",
         [nameof(CodexActivityKind.ReadingFiles)] = "rpc_reading",
+        [nameof(CodexActivityKind.Researching)] = "rpc_searching",
         [nameof(CodexActivityKind.WaitingForInput)] = "rpc_sleeping",
         [nameof(CodexActivityKind.Stalled)] = "rpc_error"
     };
@@ -292,7 +293,7 @@ public sealed class PresenceTemplateOptions
     public string StalledText { get; set; } = "Stalled";
     public string ThinkingText { get; set; } = "Thinking";
     public string WorkingText { get; set; } = "Working";
-    public string InvestigatingText { get; set; } = "Investigating";
+    public string ResearchingText { get; set; } = "Researching";
     public string IdlingText { get; set; } = "Idling";
     public string ReadyText { get; set; } = "Hold on";
     public string AnalyzingText { get; set; } = "Thinking";

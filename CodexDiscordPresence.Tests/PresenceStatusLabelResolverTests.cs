@@ -72,14 +72,13 @@ public sealed class PresenceStatusLabelResolverTests
     }
 
     [Fact]
-    public void ResolveStateLabel_AnalyzingProjectWithInvestigativeEvidenceAndThinkingSummaryPrefersSummary()
+    public void ResolveStateLabel_AnalyzingProjectWithSearchEvidenceAndThinkingSummaryPrefersSummary()
     {
         var resolver = new PresenceStatusLabelResolver();
         var context = CreateContext(
             new CodexProcessSnapshot(true, "codex", true)
             {
                 LastTaskStartedAt = DateTime.UtcNow,
-                LastShellCommandWasInvestigative = true,
                 LatestThinkingSummary = "Reviewing the current MCP activity"
             });
 
@@ -94,7 +93,6 @@ public sealed class PresenceStatusLabelResolverTests
         var resolver = new PresenceStatusLabelResolver();
         var template = new PresenceTemplateOptions
         {
-            InvestigatingText = "Investigating",
             WorkingText = "Working",
             ThinkingText = "Thinking",
             AnalyzingProjectText = "Thinking",
@@ -112,7 +110,7 @@ public sealed class PresenceStatusLabelResolverTests
     }
 
     [Fact]
-    public void ResolveStateLabel_AnalyzingProjectWithoutStrongEvidence_ReturnsInvestigating()
+    public void ResolveStateLabel_AnalyzingProjectWithoutStrongEvidence_ReturnsWorking()
     {
         var resolver = new PresenceStatusLabelResolver();
         var context = CreateContext(
@@ -120,35 +118,33 @@ public sealed class PresenceStatusLabelResolverTests
 
         var label = resolver.ResolveStateLabel(new PresenceTemplateOptions(), context, CodexActivityKind.AnalyzingProject, 0);
 
-        Assert.Equal("Investigating", label);
+        Assert.Equal("Working", label);
     }
 
     [Fact]
-    public void ResolveStateLabel_AnalyzingProjectWithInvestigativeCommand_ReturnsInvestigating()
+    public void ResolveStateLabel_AnalyzingProjectWithSearchEvidence_ReturnsWorking()
     {
         var resolver = new PresenceStatusLabelResolver();
         var context = CreateContext(
             new CodexProcessSnapshot(true, "codex", true)
             {
-                LastTaskStartedAt = DateTime.UtcNow,
-                LastShellCommandWasInvestigative = true
+                LastTaskStartedAt = DateTime.UtcNow
             });
 
         var label = resolver.ResolveStateLabel(new PresenceTemplateOptions(), context, CodexActivityKind.AnalyzingProject, 0);
 
-        Assert.Equal("Investigating", label);
+        Assert.Equal("Working", label);
     }
 
     [Fact]
-    public void ResolveStateLabel_AnalyzingProjectWithInvestigativeCommandName_ReturnsRunCommand()
+    public void ResolveStateLabel_AnalyzingProjectWithSearchCommandName_ReturnsRunCommand()
     {
         var resolver = new PresenceStatusLabelResolver();
         var context = CreateContext(
             new CodexProcessSnapshot(true, "codex", true)
             {
                 RunningCommandKind = RunningCommandKind.Search,
-                RunningCommandName = "rg",
-                LastShellCommandWasInvestigative = true
+                RunningCommandName = "rg"
             });
 
         var label = resolver.ResolveStateLabel(new PresenceTemplateOptions(), context, CodexActivityKind.AnalyzingProject, 0);

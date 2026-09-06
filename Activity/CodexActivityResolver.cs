@@ -239,6 +239,7 @@ internal sealed class CodexActivityResolver
             CodexOperationKind.Delete => CodexActivityKind.AnalyzingProject,
             CodexOperationKind.Command => CodexActivityKind.RunningCommand,
             CodexOperationKind.Read => CodexActivityKind.ReadingFiles,
+            CodexOperationKind.Research => CodexActivityKind.Researching,
             _ when sessionInspection?.CollaborationMode is "plan" => CodexActivityKind.Planning,
             _ => CodexActivityKind.AnalyzingProject
         };

@@ -61,18 +61,18 @@ The presence engine prefers observable, high-confidence labels first:
 - `Run Command: Get-ChildItem`
 - `Run Command: dotnet`
 - `Run Command: rg`
+- `Researching`
 - `Coordinating {n} files`
 - `Editing FileName.cs`
 - `Creating files`
 - `Deleting files`
-- `Investigating`
 - `Working`
 - `Waiting`
 - `Idling`
 
 `Planning` and `Refactoring` are still supported, but they are treated as low-confidence labels and only appear when local evidence is explicit enough.
-When Codex emits a reasoning summary, the latest summary replaces `Working` and `Investigating`, for example `Designing mobile-friendly file label format`.
-`Working` and `Investigating` remain fallbacks when no usable summary is present. More specific shell-command evidence still renders as `Run Command: git`, `Run Command: Get-ChildItem`, `Run Command: dotnet`, or `Run Command: rg` before falling back to the generic analysis label.
+When Codex emits a reasoning summary, the latest summary replaces `Working`, for example `Designing mobile-friendly file label format`.
+`Working` remains the fallback when no usable summary is present. A pending web or research MCP tool call renders `Researching`; local shell search still renders as `Run Command: git`, `Run Command: Get-ChildItem`, or `Run Command: rg`.
 
 For quiet idle periods, the app shows `Waiting` for the first 5 minutes, then switches to `Idling`.
 
@@ -168,7 +168,7 @@ Common settings live in `appsettings.json`:
 - `Presence.RefactoringText`
 - `Presence.ThinkingText`
 - `Presence.WorkingText`
-- `Presence.InvestigatingText`
+- `Presence.ResearchingText`
 - `Presence.WaitingText`
 - `Presence.IdlingText`
 - `Presence.ReadyText`

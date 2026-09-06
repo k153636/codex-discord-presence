@@ -20,6 +20,7 @@ public sealed class PresenceStatusLabelResolver
             CodexActivityKind.RunningCommand => ResolveRunningCommandLabel(template, context),
             CodexActivityKind.Refactoring => FirstNonEmpty(template.RefactoringText, "Refactoring"),
             CodexActivityKind.ReadingFiles => FirstNonEmpty(template.ReadingText, "Reading"),
+            CodexActivityKind.Researching => FirstNonEmpty(template.ResearchingText, "Researching"),
             CodexActivityKind.WaitingForInput => FirstNonEmpty(template.WaitingText, "Waiting"),
             CodexActivityKind.Stalled => FirstNonEmpty(template.StalledText, "Stalled"),
             CodexActivityKind.AnalyzingProject => ResolveAnalyzingLabel(template, context),
@@ -44,11 +45,7 @@ public sealed class PresenceStatusLabelResolver
             return thinkingSummary;
         }
 
-        return ShouldUseInvestigatingLabel(context)
-            ? FirstNonEmpty(template.InvestigatingText, "Investigating")
-            : ShouldUseWorkingLabel(context)
-                ? FirstNonEmpty(template.WorkingText, template.InvestigatingText, "Working")
-                : FirstNonEmpty(template.InvestigatingText, "Investigating");
+        return FirstNonEmpty(template.WorkingText, "Working");
     }
 
     private static string ResolveReadyLabel(PresenceTemplateOptions template, PresenceContext context)
@@ -106,19 +103,6 @@ public sealed class PresenceStatusLabelResolver
         return context.Codex.ActivityKind == CodexActivityKind.AnalyzingProject &&
             (!string.IsNullOrWhiteSpace(context.Codex.RunningCommandName) ||
                 context.Codex.RunningCommandKind != RunningCommandKind.Unknown);
-    }
-
-    private static bool ShouldUseWorkingLabel(PresenceContext context)
-    {
-        return context.Codex.ActivityKind == CodexActivityKind.AnalyzingProject &&
-            string.IsNullOrWhiteSpace(context.Codex.ActiveTurnId) &&
-            context.Codex.LastTaskStartedAt.HasValue;
-    }
-
-    private static bool ShouldUseInvestigatingLabel(PresenceContext context)
-    {
-        return context.Codex.ActivityKind == CodexActivityKind.AnalyzingProject &&
-            context.Codex.LastShellCommandWasInvestigative;
     }
 
     private static string FirstNonEmpty(params string[] values)

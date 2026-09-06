@@ -15,6 +15,7 @@ public sealed class DiscordAssetKeyResolverTests
     [InlineData(CodexActivityKind.DeletingFiles, "rpc_coding")]
     [InlineData(CodexActivityKind.Refactoring, "rpc_coding")]
     [InlineData(CodexActivityKind.ReadingFiles, "rpc_reading")]
+    [InlineData(CodexActivityKind.Researching, "rpc_searching")]
     [InlineData(CodexActivityKind.WaitingForInput, "rpc_sleeping")]
     [InlineData(CodexActivityKind.Stalled, "rpc_error")]
     public void ResolveLargeImageKey_UsesActivityMapping(CodexActivityKind activityKind, string expectedKey)

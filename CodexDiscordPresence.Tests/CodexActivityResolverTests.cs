@@ -318,8 +318,7 @@ public sealed class CodexActivityResolverTests
         var context = CreateContext(
             new SessionInspection(true, true, true, false, now, null, now, null, true, "shell_command looks like search", null)
             {
-                LastRunningCommandKind = RunningCommandKind.Search,
-                LastShellCommandWasInvestigative = true
+                LastRunningCommandKind = RunningCommandKind.Search
             },
             new GitSnapshot(true, 0, null),
             CodexActivityKind.AnalyzingProject);

@@ -115,7 +115,7 @@ public sealed class AppOptionsMergeTests
             Assert.Equal("codexcli_logo1", options.DiscordCli.LargeImageKey);
             Assert.Equal("{GoalModePrefix} {ModelName} \u2022 {Tokens}", options.Presence.Details);
             Assert.Equal("Working", options.Presence.WorkingText);
-            Assert.Equal("Investigating", options.Presence.InvestigatingText);
+            Assert.Equal("Researching", options.Presence.ResearchingText);
             Assert.Equal("Waiting", options.Presence.WaitingText);
             Assert.Equal("Waiting", options.Presence.WaitingActivityText);
             Assert.Equal(4, options.UpdateIntervalSeconds);

@@ -23,7 +23,8 @@ internal enum CodexOperationKind
     Edit = 2,
     Create = 3,
     Delete = 4,
-    Command = 5
+    Command = 5,
+    Research = 6
 }
 
 internal enum CodexTurnLifecycle

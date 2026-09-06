@@ -117,7 +117,6 @@ internal sealed class CodexSessionLogParser
         DateTime? lastShellCommandAt = null;
         RunningCommandKind lastRunningCommandKind = RunningCommandKind.Unknown;
         string? lastRunningCommandName = null;
-        bool lastShellCommandWasInvestigative = false;
         string? lastDirectToolFilePath = null;
         DateTime? lastDirectToolFileAt = null;
         string? collaborationMode = null;
@@ -226,11 +225,9 @@ internal sealed class CodexSessionLogParser
                         var commandKind = ClassifyShellCommand(commandText);
                         var commandName = ExtractCommandName(commandText);
                         var displayCommandName = commandName ?? DescribeRunningCommandKind(commandKind);
-                        var isInvestigative = commandKind is RunningCommandKind.Git or RunningCommandKind.Search;
                         if (!lastShellCommandAt.HasValue || timestamp >= lastShellCommandAt)
                         {
                             lastShellCommandAt = timestamp;
-                            lastShellCommandWasInvestigative = isInvestigative;
                             lastRunningCommandKind = commandKind ?? RunningCommandKind.Unknown;
                             lastRunningCommandName = commandName;
                             runningCommandReason = commandKind is null
@@ -283,7 +280,6 @@ internal sealed class CodexSessionLogParser
             LastShellCommandAt = lastShellCommandAt,
             LastRunningCommandKind = lastRunningCommandKind,
             LastRunningCommandName = lastRunningCommandName,
-            LastShellCommandWasInvestigative = lastShellCommandWasInvestigative,
             LastDirectToolFilePath = lastDirectToolFilePath,
             LastDirectToolFileAt = lastDirectToolFileAt,
             ActivityEvents = activityEvents
@@ -512,6 +508,15 @@ internal sealed class CodexSessionLogParser
                 {
                     Kind = CodexActivityEventKind.ContextUpdated,
                     Reason = "turn context updated"
+                };
+                return true;
+
+            case "web_search_end":
+                activityEvent = activityEvent with
+                {
+                    Kind = CodexActivityEventKind.OperationCompleted,
+                    OperationKind = CodexOperationKind.Research,
+                    Reason = "web search completed"
                 };
                 return true;
 
@@ -822,6 +827,11 @@ internal sealed class CodexSessionLogParser
             return CodexOperationKind.Edit;
         }
 
+        if (IsResearchToolCall(toolName, toolInput))
+        {
+            return CodexOperationKind.Research;
+        }
+
         if (!string.IsNullOrWhiteSpace(commandText))
         {
             return CodexOperationKind.Command;
@@ -871,6 +881,11 @@ internal sealed class CodexSessionLogParser
     private static CodexOperationKind ClassifyMcpOperationKind(string toolName)
     {
         var normalizedToolName = (McpServerNameFormatter.ExtractToolName(toolName) ?? toolName).ToLowerInvariant();
+        if (IsResearchToolName(normalizedToolName))
+        {
+            return CodexOperationKind.Research;
+        }
+
         if (normalizedToolName.Contains("exec", StringComparison.Ordinal) ||
             normalizedToolName.Contains("command", StringComparison.Ordinal) ||
             normalizedToolName.Contains("evaluate", StringComparison.Ordinal) ||
@@ -880,6 +895,44 @@ internal sealed class CodexSessionLogParser
         }
 
         return CodexOperationKind.Read;
+    }
+
+    private static bool IsResearchToolCall(string? toolName, string? toolInput)
+    {
+        return IsResearchToolName(toolName) ||
+            LooksLikeNestedToolCall(
+                toolInput,
+                "tools.web__run(",
+                "tools.web.run(",
+                "tools.web_search(",
+                "tools.search_query(",
+                "web__run(",
+                "web.run(",
+                "web_search(");
+    }
+
+    private static bool IsResearchToolName(string? toolName)
+    {
+        if (string.IsNullOrWhiteSpace(toolName))
+        {
+            return false;
+        }
+
+        var normalizedToolName = (McpServerNameFormatter.ExtractToolName(toolName) ?? toolName)
+            .Trim()
+            .ToLowerInvariant();
+        return normalizedToolName is
+            "web_search" or
+            "search" or
+            "search_query" or
+            "web__run" or
+            "web.run" or
+            "http_get" or
+            "http_fetch" or
+            "fetch_url" ||
+            normalizedToolName.Contains("web_search", StringComparison.Ordinal) ||
+            normalizedToolName.EndsWith("__search", StringComparison.Ordinal) ||
+            normalizedToolName.EndsWith("__search_query", StringComparison.Ordinal);
     }
 
     private static string? TryGetInvocationArgumentsText(JsonElement payload)

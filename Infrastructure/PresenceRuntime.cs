@@ -409,7 +409,6 @@ public sealed class PresenceRuntime
                 $"recentEditedFileCount={codexSnapshot.RecentEditedFiles.Count}, " +
                 $"runningCommandKind={codexSnapshot.RunningCommandKind}, " +
                  $"runningCommandName={FormatLogValue(codexSnapshot.RunningCommandName)}, " +
-                 $"investigative={codexSnapshot.LastShellCommandWasInvestigative}, " +
                  $"turnId={FormatLogValue(codexSnapshot.ActiveTurnId)}, " +
                  $"turnLifecycle={codexSnapshot.TurnLifecycle}, " +
                  $"activeToolFile={FormatDisplayFileName(codexSnapshot.ActiveToolFilePath)}, " +

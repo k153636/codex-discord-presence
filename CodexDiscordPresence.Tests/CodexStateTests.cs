@@ -768,7 +768,6 @@ public class CodexStateTests
             Assert.Equal(CodexActivityKind.RunningCommand, snapshot.ActivityKind);
             Assert.Equal(RunningCommandKind.Git, snapshot.RunningCommandKind);
             Assert.Equal("git", snapshot.RunningCommandName);
-            Assert.True(snapshot.LastShellCommandWasInvestigative);
         }
         finally
         {
@@ -797,7 +796,6 @@ public class CodexStateTests
             Assert.Equal(CodexActivityKind.RunningCommand, snapshot.ActivityKind);
             Assert.Equal(RunningCommandKind.Git, snapshot.RunningCommandKind);
             Assert.Equal("git", snapshot.RunningCommandName);
-            Assert.True(snapshot.LastShellCommandWasInvestigative);
         }
         finally
         {
@@ -826,7 +824,6 @@ public class CodexStateTests
             Assert.NotEqual(CodexActivityKind.RunningCommand, snapshot.ActivityKind);
             Assert.Equal(RunningCommandKind.Unknown, snapshot.RunningCommandKind);
             Assert.Equal("", snapshot.RunningCommandName);
-            Assert.False(snapshot.LastShellCommandWasInvestigative);
         }
         finally
         {
@@ -855,7 +852,6 @@ public class CodexStateTests
             Assert.Equal(CodexActivityKind.RunningCommand, snapshot.ActivityKind);
             Assert.Equal(RunningCommandKind.Search, snapshot.RunningCommandKind);
             Assert.Equal("rg", snapshot.RunningCommandName);
-            Assert.True(snapshot.LastShellCommandWasInvestigative);
         }
         finally
         {
@@ -884,7 +880,6 @@ public class CodexStateTests
             Assert.Equal(CodexActivityKind.RunningCommand, snapshot.ActivityKind);
             Assert.Equal(RunningCommandKind.Git, snapshot.RunningCommandKind);
             Assert.Equal("git", snapshot.RunningCommandName);
-            Assert.True(snapshot.LastShellCommandWasInvestigative);
         }
         finally
         {
@@ -893,7 +888,7 @@ public class CodexStateTests
     }
 
     [Fact]
-    public void Test_12b_InvestigativeShellCommand_ReturnsInvestigatingLabel()
+    public void Test_12b_SearchLikeShellCommandLeavesWorkingFallback()
     {
         var tempPath = CreateTempSessionDirectory();
         try
@@ -916,7 +911,6 @@ public class CodexStateTests
             Assert.Equal(CodexActivityKind.AnalyzingProject, snapshot.ActivityKind);
             Assert.Equal(RunningCommandKind.Search, snapshot.RunningCommandKind);
             Assert.Equal("Get-Content", snapshot.RunningCommandName);
-            Assert.True(snapshot.LastShellCommandWasInvestigative);
         }
         finally
         {
@@ -947,7 +941,6 @@ public class CodexStateTests
             Assert.Equal(CodexActivityKind.RunningCommand, snapshot.ActivityKind);
             Assert.Equal(RunningCommandKind.Search, snapshot.RunningCommandKind);
             Assert.Equal("Get-Content", snapshot.RunningCommandName);
-            Assert.True(snapshot.LastShellCommandWasInvestigative);
         }
         finally
         {

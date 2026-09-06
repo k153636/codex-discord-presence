@@ -34,7 +34,8 @@ public enum CodexActivityKind
     Refactoring = 9,
     WaitingForInput = 10,
     ReadingFiles = 11,
-    Stalled = 12
+    Stalled = 12,
+    Researching = 13
 }
 
 public enum RunningCommandKind
@@ -81,7 +82,6 @@ public sealed partial record CodexProcessSnapshot
     public DateTime? LastShellCommandAt { get; init; }
     public RunningCommandKind RunningCommandKind { get; init; } = RunningCommandKind.Unknown;
     public string RunningCommandName { get; init; } = "";
-    public bool LastShellCommandWasInvestigative { get; init; }
     public string? LastDirectToolFilePath { get; init; }
     public DateTime? LastDirectToolFileAt { get; init; }
     public string? ActiveToolFilePath { get; init; }
