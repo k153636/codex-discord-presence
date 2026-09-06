@@ -937,7 +937,7 @@ internal sealed class CodexSessionLogParser
                 }
 
                 var candidate = line[(markerIndex + marker.Length)..].Trim().Trim('"', '\'', '`');
-                if (candidate.Length > 0)
+                if (IsPlausiblePatchPath(candidate))
                 {
                     paths.Add(candidate);
                 }
@@ -949,6 +949,17 @@ internal sealed class CodexSessionLogParser
         return paths
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .ToArray();
+    }
+
+    private static bool IsPlausiblePatchPath(string candidate)
+    {
+        return candidate.Length > 0 &&
+            !candidate.Contains('{') &&
+            !candidate.Contains('}') &&
+            !candidate.Contains('\n') &&
+            !candidate.Contains('\r') &&
+            !candidate.StartsWith("***", StringComparison.Ordinal) &&
+            !candidate.EndsWith(':');
     }
 
     private static string? ResolveToolFilePath(string path, string? projectPath)

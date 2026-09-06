@@ -28,7 +28,7 @@ public sealed class CodexActivityStateMachineTests
     public void Evaluate_CompletedEditIsNotStillPending()
     {
         var startedAt = Utc(20);
-        var state = Evaluate(
+        var state = EvaluateAt(
             Event(1, startedAt, CodexActivityEventKind.TurnStarted, turnId: "turn-1"),
             Event(
                 2,
@@ -43,7 +43,8 @@ public sealed class CodexActivityStateMachineTests
                 startedAt.AddMilliseconds(200),
                 CodexActivityEventKind.OperationCompleted,
                 turnId: "turn-1",
-                callId: "call-1"));
+                callId: "call-1"),
+            startedAt.AddSeconds(3));
 
         Assert.Equal(CodexTurnLifecycle.Open, state.Lifecycle);
         Assert.Equal(CodexOperationKind.Unknown, state.OperationKind);
@@ -51,6 +52,34 @@ public sealed class CodexActivityStateMachineTests
         Assert.Equal(0, state.PendingMutationCount);
         Assert.Null(state.ActiveFilePath);
         Assert.Single(state.MutationFilePaths);
+    }
+
+    [Fact]
+    public void Evaluate_RecentlyCompletedEditRemainsVisibleDuringShortDisplayGrace()
+    {
+        var startedAt = Utc(24);
+        var state = EvaluateAt(
+            Event(1, startedAt, CodexActivityEventKind.TurnStarted, turnId: "turn-1"),
+            Event(
+                2,
+                startedAt.AddMilliseconds(100),
+                CodexActivityEventKind.OperationStarted,
+                turnId: "turn-1",
+                callId: "call-1",
+                operationKind: CodexOperationKind.Edit,
+                targetPaths: [@"E:\repo\PresenceRuntime.cs"]),
+            Event(
+                3,
+                startedAt.AddMilliseconds(200),
+                CodexActivityEventKind.OperationCompleted,
+                turnId: "turn-1",
+                callId: "call-1"),
+            startedAt.AddSeconds(1));
+
+        Assert.Equal(CodexTurnLifecycle.Open, state.Lifecycle);
+        Assert.Equal(CodexOperationKind.Edit, state.OperationKind);
+        Assert.Equal(@"E:\repo\PresenceRuntime.cs", state.ActiveFilePath);
+        Assert.Equal(0, state.PendingOperationCount);
     }
 
     [Fact]
@@ -201,6 +230,15 @@ public sealed class CodexActivityStateMachineTests
     private static CodexActivityState Evaluate(params CodexActivityEvent[] events)
     {
         return new CodexActivityStateMachine().Evaluate(events, events[^1].TimestampUtc.AddSeconds(1));
+    }
+
+    private static CodexActivityState EvaluateAt(
+        CodexActivityEvent first,
+        CodexActivityEvent second,
+        CodexActivityEvent third,
+        DateTime nowUtc)
+    {
+        return new CodexActivityStateMachine().Evaluate([first, second, third], nowUtc);
     }
 
     private static CodexActivityEvent Event(

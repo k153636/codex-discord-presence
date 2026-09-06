@@ -25,6 +25,7 @@ internal sealed record CodexActivityState
 
 internal sealed class CodexActivityStateMachine
 {
+    private static readonly TimeSpan CompletedMutationGrace = TimeSpan.FromSeconds(2);
     private readonly TimeSpan _staleAfter;
     private readonly TimeSpan _reasoningGrace;
 
@@ -59,6 +60,9 @@ internal sealed class CodexActivityStateMachine
         var mutationPaths = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         var operationSequence = 0L;
         var syntheticTurnSequence = 0L;
+        PendingOperation? lastCompletedMutation = null;
+        var lastCompletedMutationSequence = 0L;
+        DateTime? lastCompletedMutationAtUtc = null;
 
         foreach (var activityEvent in orderedEvents)
         {
@@ -163,7 +167,13 @@ internal sealed class CodexActivityStateMachine
                         }
                     }
 
-                    CompleteOperation(activityEvent, pendingOperations, pendingOperationsWithoutId);
+                    var completedOperation = CompleteOperation(activityEvent, pendingOperations, pendingOperationsWithoutId);
+                    if (completedOperation is not null && IsMutation(completedOperation.Event.OperationKind))
+                    {
+                        lastCompletedMutation = completedOperation;
+                        lastCompletedMutationSequence = activityEvent.Sequence;
+                        lastCompletedMutationAtUtc = activityEvent.TimestampUtc;
+                    }
                     if (!string.IsNullOrWhiteSpace(activityEvent.CallId))
                     {
                         pendingInputs.Remove(activityEvent.CallId);
@@ -306,6 +316,31 @@ internal sealed class CodexActivityStateMachine
             };
         }
 
+        if (lastCompletedMutation is not null &&
+            lastEffectiveEvent?.Sequence == lastCompletedMutationSequence &&
+            lastCompletedMutationAtUtc.HasValue &&
+            nowUtc - lastCompletedMutationAtUtc.Value <= CompletedMutationGrace)
+        {
+            var completedMutation = lastCompletedMutation.Event;
+            return new CodexActivityState
+            {
+                Lifecycle = CodexTurnLifecycle.Open,
+                OperationKind = completedMutation.OperationKind,
+                TurnId = currentTurnId,
+                ActiveFilePath = ResolveActiveFilePath(lastCompletedMutation, [lastCompletedMutation]),
+                MutationFilePaths = mutationPaths.OrderBy(path => path, StringComparer.OrdinalIgnoreCase).ToArray(),
+                PendingTargetPaths = completedMutation.TargetPaths,
+                CommandKind = completedMutation.CommandKind,
+                CommandName = completedMutation.CommandName ?? "",
+                TurnStartedAtUtc = turnStartedAtUtc,
+                LastEventAtUtc = lastEventAtUtc,
+                LastEffectiveSignalAtUtc = lastEffectiveSignalAtUtc,
+                TriggerEvent = completedMutation,
+                Reason = "recent edit operation completed",
+                Source = completedMutation.Source
+            };
+        }
+
         var effectiveAge = lastEffectiveSignalAtUtc.HasValue
             ? nowUtc - lastEffectiveSignalAtUtc.Value
             : _staleAfter;
@@ -367,21 +402,30 @@ internal sealed class CodexActivityStateMachine
             .LastOrDefault(path => !string.IsNullOrWhiteSpace(path));
     }
 
-    private static void CompleteOperation(
+    private static PendingOperation? CompleteOperation(
         CodexActivityEvent activityEvent,
         IDictionary<string, PendingOperation> pendingOperations,
         ICollection<PendingOperation> pendingOperationsWithoutId)
     {
         if (!string.IsNullOrWhiteSpace(activityEvent.CallId))
         {
-            pendingOperations.Remove(activityEvent.CallId);
-            return;
+            if (pendingOperations.TryGetValue(activityEvent.CallId, out var operation))
+            {
+                pendingOperations.Remove(activityEvent.CallId);
+                return operation;
+            }
+
+            return null;
         }
 
         if (pendingOperationsWithoutId.Count == 1)
         {
+            var operation = pendingOperationsWithoutId.First();
             pendingOperationsWithoutId.Clear();
+            return operation;
         }
+
+        return null;
     }
 
     private static int CountPendingMutations(

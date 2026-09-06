@@ -213,6 +213,53 @@ public sealed class CodexSessionLogParserTests
     }
 
     [Fact]
+    public void InspectRecentSessions_IgnoresInterpolatedPatchPlaceholder()
+    {
+        var homePath = CreateTempCodexHome();
+        var projectPath = Path.Combine(Path.GetTempPath(), "CodexPlaceholderProject_" + Guid.NewGuid());
+        Directory.CreateDirectory(projectPath);
+
+        try
+        {
+            var now = DateTime.UtcNow;
+            WriteSession(homePath, "session.jsonl",
+            [
+                CreateSessionLine(now, new
+                {
+                    type = "task_started",
+                    turn_id = "turn-1",
+                    cwd = projectPath
+                }, "event_msg"),
+                CreateSessionLine(now.AddMilliseconds(1), new
+                {
+                    type = "custom_tool_call",
+                    turn_id = "turn-1",
+                    call_id = "call-1",
+                    name = "exec",
+                    input = "const patch = \"*** Update File: {filePath}\";"
+                }, "response_item")
+            ]);
+
+            var parser = new CodexSessionLogParser(
+                new CodexDetectionOptions { HomePath = homePath },
+                new PresenceTemplateOptions());
+
+            var inspection = parser.InspectRecentSessions(projectPath);
+
+            Assert.NotNull(inspection);
+            var operation = Assert.Single(inspection!.ActivityEvents.Skip(1));
+            Assert.Equal(CodexOperationKind.Unknown, operation.OperationKind);
+            Assert.Empty(operation.TargetPaths);
+            Assert.Null(inspection.LastDirectToolFilePath);
+        }
+        finally
+        {
+            Directory.Delete(homePath, true);
+            Directory.Delete(projectPath, true);
+        }
+    }
+
+    [Fact]
     public void InspectRecentSessions_IgnoresReadOnlyToolInputAsDirectTarget()
     {
         var homePath = CreateTempCodexHome();
