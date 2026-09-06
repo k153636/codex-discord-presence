@@ -254,6 +254,57 @@ public sealed class CodexSessionLogParserTests
         }
     }
 
+    [Fact]
+    public void InspectRecentSessions_LargeHistoryStillReadsCurrentTail()
+    {
+        var homePath = CreateTempCodexHome();
+        var projectPath = Path.Combine(Path.GetTempPath(), "CodexLargeSessionProject_" + Guid.NewGuid());
+        Directory.CreateDirectory(projectPath);
+
+        try
+        {
+            var now = DateTime.UtcNow;
+            var activeFile = Path.Combine(projectPath, "Current.cs");
+            var lines = new List<string>
+            {
+                CreateSessionLine(now.AddMinutes(-1), new
+                {
+                    type = "task_started",
+                    turn_id = "turn-1",
+                    cwd = projectPath
+                }, "event_msg")
+            };
+            var filler = CreateSessionLine(now.AddSeconds(-30), new { type = "token_count" }, "event_msg");
+            lines.AddRange(Enumerable.Repeat(filler, 30000));
+            lines.Add(CreateSessionLine(now, new
+            {
+                type = "custom_tool_call",
+                turn_id = "turn-1",
+                call_id = "call-1",
+                name = "apply_patch",
+                input = $"*** Begin Patch\n*** Update File: {activeFile}\n*** End Patch"
+            }, "response_item"));
+            WriteSession(homePath, "large-session.jsonl", lines);
+
+            var parser = new CodexSessionLogParser(
+                new CodexDetectionOptions { HomePath = homePath },
+                new PresenceTemplateOptions());
+
+            var inspection = parser.InspectRecentSessions(projectPath);
+
+            Assert.NotNull(inspection);
+            Assert.Equal(Path.GetFullPath(activeFile), inspection!.LastDirectToolFilePath);
+            Assert.Contains(inspection.ActivityEvents, activityEvent =>
+                activityEvent.Kind == CodexActivityEventKind.OperationStarted &&
+                activityEvent.TargetPaths.Contains(Path.GetFullPath(activeFile), StringComparer.OrdinalIgnoreCase));
+        }
+        finally
+        {
+            Directory.Delete(homePath, true);
+            Directory.Delete(projectPath, true);
+        }
+    }
+
     private static string CreateTempCodexHome()
     {
         var path = Path.Combine(Path.GetTempPath(), "CodexSessionParserTests_" + Guid.NewGuid());

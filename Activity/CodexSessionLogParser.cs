@@ -4,8 +4,12 @@ namespace CodexDiscordPresence;
 
 internal sealed class CodexSessionLogParser
 {
+    private const int MaxHeaderLinesToScan = 256;
+    private const long MaxTailBytesToScan = 2 * 1024 * 1024;
+
     private readonly CodexDetectionOptions _options;
     private readonly PresenceTemplateOptions _presenceOptions;
+    private readonly Dictionary<string, CachedSessionInspection> _sessionCache = new(StringComparer.OrdinalIgnoreCase);
 
     public CodexSessionLogParser(CodexDetectionOptions options, PresenceTemplateOptions presenceOptions)
     {
@@ -39,7 +43,7 @@ internal sealed class CodexSessionLogParser
 
             foreach (var file in files)
             {
-                var inspection = AnalyzeSessionFile(file.FullName, normalizedProjectPath);
+                var inspection = GetCachedInspection(file, normalizedProjectPath);
                 candidates.Add(new SessionInspectionCandidate(inspection, file.LastWriteTimeUtc));
             }
 
@@ -71,7 +75,7 @@ internal sealed class CodexSessionLogParser
             var candidates = new List<SessionInspectionCandidate>();
             foreach (var file in files)
             {
-                var inspection = AnalyzeSessionFile(file.FullName, normalizedProjectPath: null);
+                var inspection = GetCachedInspection(file, normalizedProjectPath: null);
                 candidates.Add(new SessionInspectionCandidate(inspection, file.LastWriteTimeUtc));
             }
 
@@ -83,10 +87,27 @@ internal sealed class CodexSessionLogParser
         }
     }
 
-    private SessionInspection AnalyzeSessionFile(string path, string? normalizedProjectPath)
+    private SessionInspection GetCachedInspection(FileInfo file, string? normalizedProjectPath)
+    {
+        var cacheKey = file.FullName;
+        if (_sessionCache.TryGetValue(cacheKey, out var cached) &&
+            cached.Length == file.Length &&
+            cached.LastWriteTimeUtc == file.LastWriteTimeUtc)
+        {
+            return ApplyProjectMatch(cached.Inspection, normalizedProjectPath);
+        }
+
+        var inspection = AnalyzeSessionFile(file.FullName);
+        _sessionCache[cacheKey] = new CachedSessionInspection(
+            file.Length,
+            file.LastWriteTimeUtc,
+            inspection);
+        return ApplyProjectMatch(inspection, normalizedProjectPath);
+    }
+
+    private SessionInspection AnalyzeSessionFile(string path)
     {
         var hasProjectPath = false;
-        var matchesProject = false;
         string? latestProjectPath = null;
         var hasTaskStarted = false;
         var hasTaskCompleted = false;
@@ -108,11 +129,7 @@ internal sealed class CodexSessionLogParser
 
         try
         {
-            using var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
-            using var reader = new StreamReader(stream, System.Text.Encoding.UTF8);
-
-            string? line;
-            while ((line = reader.ReadLine()) != null)
+            foreach (var line in ReadSessionLines(path))
             {
                 if (!line.Contains("\"payload\"", StringComparison.Ordinal))
                 {
@@ -135,10 +152,6 @@ internal sealed class CodexSessionLogParser
                 {
                     hasProjectPath = true;
                     latestProjectPath = cwd;
-                    if (normalizedProjectPath != null && NormalizePath(cwd) == normalizedProjectPath)
-                    {
-                        matchesProject = true;
-                    }
                 }
 
                 var payloadType = TryGetString(payload, "type", out var type) ? type : null;
@@ -259,7 +272,7 @@ internal sealed class CodexSessionLogParser
 
         return new SessionInspection(
             hasProjectPath,
-            matchesProject,
+            false,
             hasTaskStarted,
             hasTaskCompleted,
             lastTaskStartedAt,
@@ -280,6 +293,107 @@ internal sealed class CodexSessionLogParser
             ActivityEvents = activityEvents,
             ActivityState = activityState
         };
+    }
+
+    private static SessionInspection ApplyProjectMatch(
+        SessionInspection inspection,
+        string? normalizedProjectPath)
+    {
+        var matchesProject = normalizedProjectPath is not null &&
+            !string.IsNullOrWhiteSpace(inspection.ProjectPath) &&
+            NormalizePath(inspection.ProjectPath) == normalizedProjectPath;
+        return inspection with { MatchesProject = matchesProject };
+    }
+
+    private static IEnumerable<string> ReadSessionLines(string path)
+    {
+        var fileLength = new FileInfo(path).Length;
+        if (fileLength <= MaxTailBytesToScan)
+        {
+            return ReadLinesFromOffset(path, 0, includePartialFirstLine: true);
+        }
+
+        return ReadLargeSessionLines(path, fileLength);
+    }
+
+    private static IEnumerable<string> ReadLargeSessionLines(string path, long fileLength)
+    {
+        foreach (var line in ReadLinesFromHead(path))
+        {
+            yield return line;
+        }
+
+        var tailOffset = FindLineStart(path, Math.Max(0, fileLength - MaxTailBytesToScan));
+        foreach (var line in ReadLinesFromOffset(path, tailOffset, includePartialFirstLine: true))
+        {
+            yield return line;
+        }
+    }
+
+    private static IEnumerable<string> ReadLinesFromHead(string path)
+    {
+        using var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
+        using var reader = new StreamReader(stream, System.Text.Encoding.UTF8);
+        for (var lineNumber = 0; lineNumber < MaxHeaderLinesToScan; lineNumber++)
+        {
+            var line = reader.ReadLine();
+            if (line is null)
+            {
+                yield break;
+            }
+
+            yield return line;
+        }
+    }
+
+    private static IEnumerable<string> ReadLinesFromOffset(
+        string path,
+        long offset,
+        bool includePartialFirstLine)
+    {
+        using var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
+        stream.Seek(Math.Max(0, offset), SeekOrigin.Begin);
+        using var reader = new StreamReader(stream, System.Text.Encoding.UTF8);
+        if (!includePartialFirstLine && offset > 0)
+        {
+            reader.ReadLine();
+        }
+
+        string? line;
+        while ((line = reader.ReadLine()) is not null)
+        {
+            yield return line;
+        }
+    }
+
+    private static long FindLineStart(string path, long offset)
+    {
+        if (offset <= 0)
+        {
+            return 0;
+        }
+
+        using var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
+        var buffer = new byte[8192];
+        var searchEnd = offset;
+        while (searchEnd > 0)
+        {
+            var blockStart = Math.Max(0, searchEnd - buffer.Length);
+            var blockLength = (int)(searchEnd - blockStart);
+            stream.Seek(blockStart, SeekOrigin.Begin);
+            var bytesRead = stream.Read(buffer, 0, blockLength);
+            for (var index = bytesRead - 1; index >= 0; index--)
+            {
+                if (buffer[index] == (byte)'\n')
+                {
+                    return blockStart + index + 1;
+                }
+            }
+
+            searchEnd = blockStart;
+        }
+
+        return 0;
     }
 
     private static bool TryNormalizeActivityEvent(
@@ -1443,6 +1557,11 @@ internal sealed class CodexSessionLogParser
             .ThenByDescending(candidate => candidate.SessionLastWriteTimeUtc)
             .FirstOrDefault();
     }
+
+    private sealed record CachedSessionInspection(
+        long Length,
+        DateTime LastWriteTimeUtc,
+        SessionInspection Inspection);
 
     private sealed record SessionInspectionCandidate(SessionInspection Inspection, DateTime SessionLastWriteTimeUtc);
 }

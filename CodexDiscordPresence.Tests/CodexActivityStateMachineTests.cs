@@ -98,6 +98,51 @@ public sealed class CodexActivityStateMachineTests
     }
 
     [Fact]
+    public void Evaluate_EventsAfterTerminalBarrierCannotReopenSameTurn()
+    {
+        var startedAt = Utc(45);
+        var state = Evaluate(
+            Event(1, startedAt, CodexActivityEventKind.TurnStarted, turnId: "turn-1"),
+            Event(2, startedAt.AddSeconds(1), CodexActivityEventKind.TurnCompleted, turnId: "turn-1"),
+            Event(3, startedAt.AddSeconds(2), CodexActivityEventKind.Reasoning, turnId: "turn-1"),
+            Event(
+                4,
+                startedAt.AddSeconds(3),
+                CodexActivityEventKind.OperationStarted,
+                turnId: "turn-1",
+                callId: "late-call",
+                operationKind: CodexOperationKind.Edit,
+                targetPaths: [@"E:\repo\Late.cs"]));
+
+        Assert.Equal(CodexTurnLifecycle.Completed, state.Lifecycle);
+        Assert.Equal("turn-1", state.TurnId);
+        Assert.Equal(0, state.PendingOperationCount);
+        Assert.Empty(state.MutationFilePaths);
+    }
+
+    [Fact]
+    public void Evaluate_NewStartWithReusedTurnIdCreatesNewLogicalTurn()
+    {
+        var startedAt = Utc(48);
+        var state = Evaluate(
+            Event(1, startedAt, CodexActivityEventKind.TurnStarted, turnId: "turn-1"),
+            Event(2, startedAt.AddSeconds(1), CodexActivityEventKind.TurnCompleted, turnId: "turn-1"),
+            Event(3, startedAt.AddSeconds(2), CodexActivityEventKind.TurnStarted, turnId: "turn-1"),
+            Event(
+                4,
+                startedAt.AddSeconds(3),
+                CodexActivityEventKind.OperationStarted,
+                turnId: "turn-1",
+                callId: "new-call",
+                operationKind: CodexOperationKind.Edit,
+                targetPaths: [@"E:\repo\New.cs"]));
+
+        Assert.Equal(CodexTurnLifecycle.Open, state.Lifecycle);
+        Assert.Equal("turn-1", state.TurnId);
+        Assert.Equal(@"E:\repo\New.cs", state.ActiveFilePath);
+    }
+
+    [Fact]
     public void Evaluate_UnresolvedInputWinsOverPendingEdit()
     {
         var startedAt = Utc(50);

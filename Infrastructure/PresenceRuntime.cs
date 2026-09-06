@@ -280,6 +280,7 @@ public sealed class PresenceRuntime
             selectedProfileState.LastAnalyzingTaskStartedAt,
             selectedProfileState.LastAnalyzingRepeatCount);
         codexSnapshot = codexSnapshot with { ActivityRepeatCount = analyzingRepeatCount };
+        var currentActivitySignalAt = codexSnapshot.LastEffectiveSignalAt ?? codexSnapshot.LastObservedAt;
         return codexSnapshot with
         {
             ActivityStartedAt = ResolveActivityStartedAt(
@@ -287,7 +288,7 @@ public sealed class PresenceRuntime
                 selectedProfileState.LastActivityKind,
                 selectedProfileState.LastActivityStartedAt,
                 selectedProfileState.LastAnalyzingStartedAt,
-                codexSnapshot.LastObservedAt,
+                currentActivitySignalAt,
                 _options.Presence.RunningCommandHoldSeconds)
         };
     }
@@ -376,10 +377,7 @@ public sealed class PresenceRuntime
     {
         var previousSnapshot = selectedProfileState.LastActivitySnapshot;
 
-        if (previousSnapshot is null ||
-            previousSnapshot.ActivityKind != codexSnapshot.ActivityKind ||
-            previousSnapshot.ActivityProvenance != codexSnapshot.ActivityProvenance ||
-            !string.Equals(previousSnapshot.ActivityReason, codexSnapshot.ActivityReason, StringComparison.Ordinal))
+        if (previousSnapshot is null || HasActivitySnapshotChanged(previousSnapshot, codexSnapshot))
         {
             var recentEditedFiles = codexSnapshot.RecentEditedFiles
                 .Take(3)
@@ -388,6 +386,9 @@ public sealed class PresenceRuntime
             var recentEditedFilesText = recentEditedFiles.Length == 0
                 ? "<none>"
                 : string.Join(", ", recentEditedFiles);
+            var activityFilesText = codexSnapshot.ActivityFilePaths.Count == 0
+                ? "<none>"
+                : string.Join(", ", codexSnapshot.ActivityFilePaths.Select(FormatDisplayFileName));
             _log.Info(
                 "Activity detection: " +
                 $"state={codexSnapshot.ActivityKind}, " +
@@ -397,11 +398,18 @@ public sealed class PresenceRuntime
                 $"recentEditedFiles={recentEditedFilesText}, " +
                 $"recentEditedFileCount={codexSnapshot.RecentEditedFiles.Count}, " +
                 $"runningCommandKind={codexSnapshot.RunningCommandKind}, " +
-                $"runningCommandName={FormatLogValue(codexSnapshot.RunningCommandName)}, " +
-                $"investigative={codexSnapshot.LastShellCommandWasInvestigative}, " +
-                $"lastTaskStartedAt={FormatTimestamp(codexSnapshot.LastTaskStartedAt)}, " +
-                $"lastShellCommandAt={FormatTimestamp(codexSnapshot.LastShellCommandAt)}, " +
-                $"lastObservedAt={FormatTimestamp(codexSnapshot.LastObservedAt)}");
+                 $"runningCommandName={FormatLogValue(codexSnapshot.RunningCommandName)}, " +
+                 $"investigative={codexSnapshot.LastShellCommandWasInvestigative}, " +
+                 $"turnId={FormatLogValue(codexSnapshot.ActiveTurnId)}, " +
+                 $"turnLifecycle={codexSnapshot.TurnLifecycle}, " +
+                 $"activeToolFile={FormatDisplayFileName(codexSnapshot.ActiveToolFilePath)}, " +
+                 $"activityFiles={activityFilesText}, " +
+                 $"pendingOperations={codexSnapshot.PendingOperationCount}, " +
+                 $"pendingMutations={codexSnapshot.PendingMutationCount}, " +
+                 $"lastTaskStartedAt={FormatTimestamp(codexSnapshot.LastTaskStartedAt)}, " +
+                 $"lastShellCommandAt={FormatTimestamp(codexSnapshot.LastShellCommandAt)}, " +
+                 $"lastObservedAt={FormatTimestamp(codexSnapshot.LastObservedAt)}, " +
+                 $"lastEffectiveSignalAt={FormatTimestamp(codexSnapshot.LastEffectiveSignalAt)}");
             selectedProfileState.LastActivitySnapshot = codexSnapshot;
         }
 
@@ -474,12 +482,15 @@ public sealed class PresenceRuntime
 
     private static string BuildActivityTransitionLog(CodexProcessSnapshot previousSnapshot, CodexProcessSnapshot currentSnapshot)
     {
-        var transitionStart = previousSnapshot.LastObservedAt
+        var transitionStart = previousSnapshot.LastEffectiveSignalAt
             ?? previousSnapshot.ActivityStartedAt
-            ?? currentSnapshot.LastObservedAt
-            ?? currentSnapshot.ActivityStartedAt;
-        var transitionEnd = currentSnapshot.LastObservedAt
+            ?? previousSnapshot.LastObservedAt
+            ?? currentSnapshot.LastEffectiveSignalAt
             ?? currentSnapshot.ActivityStartedAt
+            ?? currentSnapshot.LastObservedAt;
+        var transitionEnd = currentSnapshot.LastEffectiveSignalAt
+            ?? currentSnapshot.ActivityStartedAt
+            ?? currentSnapshot.LastObservedAt
             ?? DateTime.UtcNow;
         if (transitionStart.HasValue && transitionEnd < transitionStart.Value)
         {
@@ -498,6 +509,39 @@ public sealed class PresenceRuntime
             $"duration={duration}; " +
             $"fromReason={FormatLogValueForMultiline(previousSnapshot.ActivityReason)}; " +
             $"toReason={FormatLogValueForMultiline(currentSnapshot.ActivityReason)}";
+    }
+
+    private static bool HasActivitySnapshotChanged(
+        CodexProcessSnapshot previousSnapshot,
+        CodexProcessSnapshot currentSnapshot)
+    {
+        return previousSnapshot.ActivityKind != currentSnapshot.ActivityKind ||
+            previousSnapshot.ActivityProvenance != currentSnapshot.ActivityProvenance ||
+            !string.Equals(previousSnapshot.ActivityReason, currentSnapshot.ActivityReason, StringComparison.Ordinal) ||
+            !string.Equals(previousSnapshot.ActiveToolFilePath, currentSnapshot.ActiveToolFilePath, StringComparison.OrdinalIgnoreCase) ||
+            previousSnapshot.PendingOperationCount != currentSnapshot.PendingOperationCount ||
+            previousSnapshot.PendingMutationCount != currentSnapshot.PendingMutationCount ||
+            previousSnapshot.TurnLifecycle != currentSnapshot.TurnLifecycle ||
+            !previousSnapshot.ActivityFilePaths.SequenceEqual(currentSnapshot.ActivityFilePaths, StringComparer.OrdinalIgnoreCase);
+    }
+
+    private static string FormatDisplayFileName(string? path)
+    {
+        if (string.IsNullOrWhiteSpace(path))
+        {
+            return "<none>";
+        }
+
+        try
+        {
+            return Path.GetFileName(path) is { Length: > 0 } fileName
+                ? fileName
+                : path;
+        }
+        catch
+        {
+            return path;
+        }
     }
 
     private static string FormatDuration(TimeSpan duration)
