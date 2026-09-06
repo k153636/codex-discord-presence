@@ -99,7 +99,7 @@ public sealed class CodexEventDrivenPresenceTests
     }
 
     [Fact]
-    public void Render_MultiTargetToolCall_UsesCoordinatingCountWithoutFileName()
+    public void Render_MultiTargetToolCall_UsesLatestDirectFileAndRemainingCount()
     {
         var now = DateTime.UtcNow;
         var projectPath = CreateProjectPath();
@@ -120,10 +120,10 @@ public sealed class CodexEventDrivenPresenceTests
             var snapshot = CreateDetector(homePath).GetSnapshot(projectPath);
             var presence = Render(projectPath, snapshot);
 
-            Assert.Equal(CodexActivityKind.CoordinatingChanges, snapshot.ActivityKind);
+            Assert.Equal(CodexActivityKind.ApplyingEdits, snapshot.ActivityKind);
             Assert.Null(snapshot.ActiveToolFilePath);
             Assert.Equal(18, snapshot.ActivityFilePaths.Count);
-            Assert.Equal("Coordinating 18 files", presence.State);
+            Assert.Equal("Editing File18.cs + 17 files", presence.State);
             Assert.DoesNotContain("File1.cs", presence.State, StringComparison.Ordinal);
         }
         finally

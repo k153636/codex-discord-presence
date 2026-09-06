@@ -127,6 +127,47 @@ public sealed class PresenceEditedFileActivityTests
     }
 
     [Fact]
+    public void Render_MultiFileActivityUsesDirectTargetEvenWhenTurnIsActive()
+    {
+        var now = DateTime.UtcNow;
+        var projectPath = CreateProjectPath();
+        var files = new[]
+        {
+            CreateFile(projectPath, "First.cs", now),
+            CreateFile(projectPath, "Second.cs", now.AddSeconds(-1)),
+            CreateFile(projectPath, "Third.cs", now.AddSeconds(-2)),
+            CreateFile(projectPath, "Fourth.cs", now.AddSeconds(-3))
+        };
+        var context = CreateContext(
+            CodexActivityKind.ApplyingEdits,
+            projectPath,
+            [],
+            directToolFilePath: files[3].Path,
+            directToolFileAt: now,
+            taskStartedAt: now.AddSeconds(-1)) with
+        {
+            Codex = new CodexProcessSnapshot(true, "codex", false)
+            {
+                DetectedActivityKind = CodexActivityKind.ApplyingEdits,
+                ActivityProvenance = ActivityProvenance.Observed,
+                LastObservedAt = now,
+                LastTaskStartedAt = now.AddSeconds(-1),
+                LastDirectToolFilePath = files[3].Path,
+                LastDirectToolFileAt = now,
+                ActiveTurnId = "turn-1",
+                ActivityFilePaths = files.Select(file => file.Path).ToArray(),
+                RecentEditedFiles = files
+            }
+        };
+
+        var presence = new PresenceTemplateRenderer().Render(
+            new PresenceTemplateOptions { State = "{ActivityLine}" },
+            context);
+
+        Assert.Equal("Editing Fourth.cs + 3 files", presence.State);
+    }
+
+    [Fact]
     public void Render_NestedEditedFile_UsesOnlyLeafFileName()
     {
         var now = DateTime.UtcNow;

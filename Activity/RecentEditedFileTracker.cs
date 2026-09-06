@@ -17,7 +17,9 @@ internal sealed class RecentEditedFileTracker
         _utcNow = utcNow ?? (() => DateTime.UtcNow);
     }
 
-    public IReadOnlyList<RecentProjectFileSnapshot> GetRecentEditedFiles(ProjectSnapshot? projectSnapshot)
+    public IReadOnlyList<RecentProjectFileSnapshot> GetRecentEditedFiles(
+        ProjectSnapshot? projectSnapshot,
+        int freshnessSeconds)
     {
         if (projectSnapshot is null)
         {
@@ -25,6 +27,7 @@ internal sealed class RecentEditedFileTracker
         }
 
         var now = _utcNow();
+        var freshnessWindow = TimeSpan.FromSeconds(Math.Max(1, freshnessSeconds));
         var currentProjectPath = NormalizePath(projectSnapshot.Path);
         if (!string.Equals(currentProjectPath, _lastProjectPath, StringComparison.OrdinalIgnoreCase))
         {
@@ -60,7 +63,22 @@ internal sealed class RecentEditedFileTracker
             return changedFiles;
         }
 
+        var currentRecentFilePaths = projectSnapshot.RecentFiles
+            .Select(file => NormalizePath(file.Path))
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+        _lastStableEditedFiles = _lastStableEditedFiles
+            .Where(file =>
+                currentRecentFilePaths.Contains(NormalizePath(file.Path)) &&
+                IsFresh(file.LastWriteTimeUtc, now, freshnessWindow))
+            .ToArray();
+
         return _lastStableEditedFiles;
+    }
+
+    private static bool IsFresh(DateTime timestampUtc, DateTime nowUtc, TimeSpan freshnessWindow)
+    {
+        var elapsed = nowUtc - timestampUtc;
+        return elapsed >= TimeSpan.FromSeconds(-30) && elapsed <= freshnessWindow;
     }
 
     private static string NormalizePath(string path)

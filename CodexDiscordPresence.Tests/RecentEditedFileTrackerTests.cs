@@ -5,15 +5,16 @@ namespace CodexDiscordPresence.Tests;
 public sealed class RecentEditedFileTrackerTests
 {
     [Fact]
-    public void GetRecentEditedFiles_KeepsLastEditedFileUntilProjectChanges()
+    public void GetRecentEditedFiles_ExpiresWhenFileIsNoLongerFreshOrTracked()
     {
         var now = DateTime.UtcNow;
+        var editedAt = now;
         var tracker = new RecentEditedFileTracker(() => now);
         var tempDir = Path.Combine(Path.GetTempPath(), "CodexRecentEditedFileTrackerTests_" + Guid.NewGuid());
         Directory.CreateDirectory(tempDir);
         var tempFile = Path.Combine(tempDir, "Edit.cs");
         File.WriteAllText(tempFile, "test");
-        File.SetLastWriteTimeUtc(tempFile, now);
+        File.SetLastWriteTimeUtc(tempFile, editedAt);
 
         try
         {
@@ -26,10 +27,10 @@ public sealed class RecentEditedFileTrackerTests
                 1,
                 1,
                 [
-                    new RecentProjectFileSnapshot(Path.GetFileName(tempFile), tempFile, now)
+                    new RecentProjectFileSnapshot(Path.GetFileName(tempFile), tempFile, editedAt)
                 ]);
 
-            var first = tracker.GetRecentEditedFiles(snapshot);
+            var first = tracker.GetRecentEditedFiles(snapshot, freshnessSeconds: 12);
             Assert.Single(first);
 
             now = now.AddSeconds(10);
@@ -42,8 +43,8 @@ public sealed class RecentEditedFileTrackerTests
                 1,
                 1,
                 [
-                    new RecentProjectFileSnapshot(Path.GetFileName(tempFile), tempFile, now)
-                ]));
+                    new RecentProjectFileSnapshot(Path.GetFileName(tempFile), tempFile, editedAt)
+                ]), freshnessSeconds: 12);
 
             Assert.Single(second);
             Assert.Equal(first[0].Path, second[0].Path);
@@ -58,11 +59,22 @@ public sealed class RecentEditedFileTrackerTests
                 1,
                 1,
                 [
-                    new RecentProjectFileSnapshot(Path.GetFileName(tempFile), tempFile, now)
-                ]));
+                    new RecentProjectFileSnapshot(Path.GetFileName(tempFile), tempFile, editedAt)
+                ]), freshnessSeconds: 12);
 
-            Assert.Single(third);
-            Assert.Equal(first[0].Path, third[0].Path);
+            Assert.Empty(third);
+
+            var deleted = tracker.GetRecentEditedFiles(new ProjectSnapshot(
+                "Project",
+                tempDir,
+                null,
+                null,
+                0,
+                0,
+                0,
+                []), freshnessSeconds: 12);
+
+            Assert.Empty(deleted);
 
             var nextDir = Path.Combine(Path.GetTempPath(), "CodexRecentEditedFileTrackerTests_" + Guid.NewGuid());
             Directory.CreateDirectory(nextDir);
@@ -80,7 +92,7 @@ public sealed class RecentEditedFileTrackerTests
                 1,
                 [
                     new RecentProjectFileSnapshot(Path.GetFileName(nextFile), nextFile, now.AddSeconds(1))
-                ]));
+                ]), freshnessSeconds: 12);
 
             Assert.Single(afterProjectSwitch);
             Assert.Equal(nextFile, afterProjectSwitch[0].Path);

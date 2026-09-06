@@ -17,7 +17,7 @@ internal static class EditedFileSelector
             .Select(group => group.First())
             .ToArray();
 
-        var activitySelection = SelectCurrentActivityFiles(context);
+        var activitySelection = SelectCurrentActivityFiles(context, freshnessSeconds);
         if (activitySelection is not null)
         {
             return activitySelection;
@@ -74,11 +74,6 @@ internal static class EditedFileSelector
 
     private static string? SelectFreshDirectToolFilePath(PresenceContext context, int freshnessSeconds)
     {
-        if (!string.IsNullOrWhiteSpace(context.Codex.ActiveTurnId))
-        {
-            return null;
-        }
-
         if (context.Codex.ActivityKind is not (CodexActivityKind.ApplyingEdits or CodexActivityKind.CoordinatingChanges or CodexActivityKind.CreatingFiles or CodexActivityKind.DeletingFiles) ||
             string.IsNullOrWhiteSpace(context.Codex.LastDirectToolFilePath) ||
             !context.Codex.LastDirectToolFileAt.HasValue)
@@ -98,7 +93,7 @@ internal static class EditedFileSelector
         return ResolveFilePath(context.Project.Path, context.Codex.LastDirectToolFilePath);
     }
 
-    private static EditedFileSelection? SelectCurrentActivityFiles(PresenceContext context)
+    private static EditedFileSelection? SelectCurrentActivityFiles(PresenceContext context, int freshnessSeconds)
     {
         if (context.Codex.ActivityKind is not (CodexActivityKind.ApplyingEdits or CodexActivityKind.CoordinatingChanges or CodexActivityKind.CreatingFiles or CodexActivityKind.DeletingFiles) ||
             string.IsNullOrWhiteSpace(context.Codex.ActiveTurnId))
@@ -119,6 +114,18 @@ internal static class EditedFileSelector
             activityPaths.Add(activePath);
         }
 
+        var directPath = SelectFreshDirectToolFilePath(context, freshnessSeconds);
+        if (string.IsNullOrWhiteSpace(activePath) && !string.IsNullOrWhiteSpace(directPath))
+        {
+            activePath = directPath;
+        }
+
+        if (!string.IsNullOrWhiteSpace(directPath) &&
+            !activityPaths.Contains(directPath, StringComparer.OrdinalIgnoreCase))
+        {
+            activityPaths.Add(directPath);
+        }
+
         if (activityPaths.Count == 0 && string.IsNullOrWhiteSpace(activePath))
         {
             return new EditedFileSelection(null, 0, 0, true);
@@ -127,6 +134,15 @@ internal static class EditedFileSelector
         if (string.IsNullOrWhiteSpace(activePath) && activityPaths.Count == 1)
         {
             activePath = activityPaths[0];
+        }
+
+        if (string.IsNullOrWhiteSpace(activePath) && activityPaths.Count > 1)
+        {
+            var activityPathSet = activityPaths.ToHashSet(StringComparer.OrdinalIgnoreCase);
+            activePath = context.Codex.RecentEditedFiles
+                .OrderByDescending(file => file.LastWriteTimeUtc)
+                .Select(file => ResolveFilePath(context.Project.Path, file.Path))
+                .FirstOrDefault(path => !string.IsNullOrWhiteSpace(path) && activityPathSet.Contains(path));
         }
 
         var activeFile = string.IsNullOrWhiteSpace(activePath)
@@ -140,7 +156,7 @@ internal static class EditedFileSelector
             activeFile,
             activityPaths.Count,
             activityPaths.Count,
-            true);
+            !string.IsNullOrWhiteSpace(directPath) || !string.IsNullOrWhiteSpace(context.Codex.ActiveToolFilePath));
     }
 
     private static string GetFileIdentity(RecentProjectFileSnapshot file)

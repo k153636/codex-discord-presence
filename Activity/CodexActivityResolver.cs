@@ -47,7 +47,6 @@ internal sealed class CodexActivityResolver
         var changedFileCount = context.ChangedFileCount;
         var sessionInspection = context.SessionInspection;
         var gitSnapshot = context.GitSnapshot;
-        var previousActivityKind = context.PreviousActivityKind;
 
         activityState = ResolveActivityState(sessionInspection, nowUtc);
         lastObservedAt = activityState is not null
@@ -162,18 +161,6 @@ internal sealed class CodexActivityResolver
             return CodexActivityKind.Refactoring;
         }
 
-        if (previousActivityKind == CodexActivityKind.AnalyzingProject &&
-            hasFreshSession &&
-            sessionInspection?.HasTaskStarted == true &&
-            changedFileCount > 0 &&
-            recentEditedFiles.Count == 0)
-        {
-            provenance = ActivityProvenance.Mixed;
-            confidence = ActivityConfidence.High;
-            reason = $"task_started with git changed files={changedFileCount}";
-            return CodexActivityKind.ApplyingEdits;
-        }
-
         if (hasFreshSession && hasRecentTaskStarted)
         {
             provenance = ActivityProvenance.Inferred;
@@ -240,7 +227,9 @@ internal sealed class CodexActivityResolver
     {
         return state.OperationKind switch
         {
-            CodexOperationKind.Edit when state.PendingMutationCount > 0 => state.MutationFilePaths.Count > 1 && state.ActiveFilePath is null
+            CodexOperationKind.Edit when state.PendingMutationCount > 0 => state.MutationFilePaths.Count > 1 &&
+                state.ActiveFilePath is null &&
+                !HasCurrentDirectToolTarget(state, sessionInspection)
                 ? CodexActivityKind.CoordinatingChanges
                 : CodexActivityKind.ApplyingEdits,
             CodexOperationKind.Edit => CodexActivityKind.AnalyzingProject,
@@ -253,6 +242,34 @@ internal sealed class CodexActivityResolver
             _ when sessionInspection?.CollaborationMode is "plan" => CodexActivityKind.Planning,
             _ => CodexActivityKind.AnalyzingProject
         };
+    }
+
+    private static bool HasCurrentDirectToolTarget(
+        CodexActivityState state,
+        SessionInspection? sessionInspection)
+    {
+        if (sessionInspection is null ||
+            string.IsNullOrWhiteSpace(sessionInspection.LastDirectToolFilePath) ||
+            !sessionInspection.LastDirectToolFileAt.HasValue)
+        {
+            return false;
+        }
+
+        var directAt = sessionInspection.LastDirectToolFileAt.Value;
+        if (sessionInspection.LastTaskStartedAt.HasValue &&
+            directAt < sessionInspection.LastTaskStartedAt.Value)
+        {
+            return false;
+        }
+
+        if (state.TriggerEvent?.TimestampUtc is { } operationStartedAt &&
+            directAt < operationStartedAt)
+        {
+            return false;
+        }
+
+        return state.MutationFilePaths.Count == 0 ||
+            state.MutationFilePaths.Contains(sessionInspection.LastDirectToolFilePath, StringComparer.OrdinalIgnoreCase);
     }
 
     private static DateTime? MaxTimestamp(params DateTime?[] timestamps)

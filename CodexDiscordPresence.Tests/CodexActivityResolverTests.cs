@@ -38,7 +38,7 @@ public sealed class CodexActivityResolverTests
     }
 
     [Fact]
-    public void Resolve_NewTaskStartedAfterCompletionRemainsActive()
+    public void Resolve_NewTaskStartedAfterCompletionDoesNotInventEditing()
     {
         var resolver = new CodexActivityResolver();
         var now = DateTime.UtcNow;
@@ -61,12 +61,12 @@ public sealed class CodexActivityResolverTests
 
         var activity = resolver.Resolve(context, out _, out _, out var reason, out _);
 
-        Assert.Equal(CodexActivityKind.ApplyingEdits, activity);
+        Assert.Equal(CodexActivityKind.AnalyzingProject, activity);
         Assert.Contains("task_started", reason);
     }
 
     [Fact]
-    public void Resolve_TaskStartedWithDiff_PrefersApplyingEdits()
+    public void Resolve_TaskStartedWithDiffWithoutToolEventRemainsAnalyzing()
     {
         var resolver = new CodexActivityResolver();
         var now = DateTime.UtcNow;
@@ -77,8 +77,8 @@ public sealed class CodexActivityResolverTests
 
         var activity = resolver.Resolve(context, out var provenance, out var confidence, out var reason, out var lastObservedAt);
 
-        Assert.Equal(CodexActivityKind.ApplyingEdits, activity);
-        Assert.Equal(ActivityProvenance.Mixed, provenance);
+        Assert.Equal(CodexActivityKind.AnalyzingProject, activity);
+        Assert.Equal(ActivityProvenance.Inferred, provenance);
         Assert.Equal(ActivityConfidence.High, confidence);
         Assert.Contains("task_started", reason);
         Assert.Equal(now, lastObservedAt);

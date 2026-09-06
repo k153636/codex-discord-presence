@@ -69,7 +69,9 @@ public sealed class CodexProcessDetector
             };
         }
 
-        var recentEditedFiles = _recentEditedFileTracker.GetRecentEditedFiles(projectSnapshot);
+        var recentEditedFiles = _recentEditedFileTracker.GetRecentEditedFiles(
+            projectSnapshot,
+            _presenceOptions.EditingFreshnessSeconds);
         var changedFileCount = gitSnapshot?.ChangedFileCount ?? 0;
         var context = new CodexActivityContext(
             recentEditedFiles,
