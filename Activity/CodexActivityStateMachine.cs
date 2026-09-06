@@ -147,7 +147,20 @@ internal sealed class CodexActivityStateMachine
                 }
 
                 case CodexActivityEventKind.OperationCompleted:
+                    if (IsMutation(activityEvent.OperationKind))
+                    {
+                        foreach (var path in activityEvent.TargetPaths.Where(path => !string.IsNullOrWhiteSpace(path)))
+                        {
+                            mutationPaths.Add(path);
+                        }
+                    }
+
                     CompleteOperation(activityEvent, pendingOperations, pendingOperationsWithoutId);
+                    if (!string.IsNullOrWhiteSpace(activityEvent.CallId))
+                    {
+                        pendingInputs.Remove(activityEvent.CallId);
+                    }
+
                     lifecycle = CodexTurnLifecycle.Open;
                     break;
 

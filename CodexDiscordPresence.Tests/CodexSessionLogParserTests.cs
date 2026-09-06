@@ -6,6 +6,121 @@ namespace CodexDiscordPresence.Tests;
 public sealed class CodexSessionLogParserTests
 {
     [Fact]
+    public void InspectRecentSessions_EmitsTurnAndToolLifecycleEvents()
+    {
+        var homePath = CreateTempCodexHome();
+        var projectPath = Path.Combine(Path.GetTempPath(), "CodexEventProject_" + Guid.NewGuid());
+        Directory.CreateDirectory(projectPath);
+
+        try
+        {
+            var now = DateTime.UtcNow;
+            WriteSession(homePath, "session.jsonl",
+            [
+                CreateSessionLine(now, new
+                {
+                    type = "task_started",
+                    turn_id = "turn-1",
+                    cwd = projectPath
+                }, "event_msg"),
+                CreateSessionLine(now.AddMilliseconds(1), new
+                {
+                    type = "custom_tool_call",
+                    turn_id = "turn-1",
+                    call_id = "call-1",
+                    name = "apply_patch",
+                    input = $"*** Begin Patch\\n*** Update File: {Path.Combine(projectPath, "First.cs")}\\n*** Update File: {Path.Combine(projectPath, "Second.cs")}\\n*** End Patch"
+                }, "response_item"),
+                CreateSessionLine(now.AddMilliseconds(2), new
+                {
+                    type = "custom_tool_call_output",
+                    turn_id = "turn-1",
+                    call_id = "call-1"
+                }, "response_item"),
+                CreateSessionLine(now.AddMilliseconds(3), new
+                {
+                    type = "task_complete",
+                    turn_id = "turn-1"
+                }, "event_msg")
+            ]);
+
+            var parser = new CodexSessionLogParser(
+                new CodexDetectionOptions { HomePath = homePath },
+                new PresenceTemplateOptions());
+
+            var inspection = parser.InspectRecentSessions(projectPath);
+
+            Assert.NotNull(inspection);
+            Assert.Equal(
+                [
+                    CodexActivityEventKind.TurnStarted,
+                    CodexActivityEventKind.OperationStarted,
+                    CodexActivityEventKind.OperationCompleted,
+                    CodexActivityEventKind.TurnCompleted
+                ],
+                inspection!.ActivityEvents.Select(activityEvent => activityEvent.Kind).ToArray());
+
+            var operation = inspection.ActivityEvents[1];
+            Assert.Equal(CodexOperationKind.Edit, operation.OperationKind);
+            Assert.Equal(2, operation.TargetPaths.Count);
+            Assert.Equal("turn-1", operation.TurnId);
+            Assert.Equal("call-1", operation.CallId);
+        }
+        finally
+        {
+            Directory.Delete(homePath, true);
+            Directory.Delete(projectPath, true);
+        }
+    }
+
+    [Fact]
+    public void InspectRecentSessions_ClassifiesReadShellCommandSeparatelyFromMutation()
+    {
+        var homePath = CreateTempCodexHome();
+        var projectPath = Path.Combine(Path.GetTempPath(), "CodexReadEventProject_" + Guid.NewGuid());
+        Directory.CreateDirectory(projectPath);
+
+        try
+        {
+            var now = DateTime.UtcNow;
+            WriteSession(homePath, "session.jsonl",
+            [
+                CreateSessionLine(now, new
+                {
+                    type = "task_started",
+                    turn_id = "turn-1",
+                    cwd = projectPath
+                }, "event_msg"),
+                CreateSessionLine(now.AddMilliseconds(1), new
+                {
+                    type = "function_call",
+                    turn_id = "turn-1",
+                    call_id = "call-1",
+                    name = "shell_command",
+                    arguments = JsonSerializer.Serialize(new { command = "Get-Content README.md" })
+                }, "response_item")
+            ]);
+
+            var parser = new CodexSessionLogParser(
+                new CodexDetectionOptions { HomePath = homePath },
+                new PresenceTemplateOptions());
+
+            var inspection = parser.InspectRecentSessions(projectPath);
+
+            Assert.NotNull(inspection);
+            var operation = Assert.Single(inspection!.ActivityEvents.Skip(1));
+            Assert.Equal(CodexActivityEventKind.OperationStarted, operation.Kind);
+            Assert.Equal(CodexOperationKind.Read, operation.OperationKind);
+            Assert.Equal(RunningCommandKind.Search, operation.CommandKind);
+        }
+        finally
+        {
+            Directory.Delete(homePath, true);
+            Directory.Delete(projectPath, true);
+        }
+    }
+
+    [Fact]
     public void InspectRecentSessions_UsesLastFileFromApplyPatchAsDirectTarget()
     {
         var homePath = CreateTempCodexHome();

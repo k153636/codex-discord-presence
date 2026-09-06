@@ -102,6 +102,8 @@ internal sealed class CodexSessionLogParser
         string? collaborationMode = null;
         var pendingShellCommands = new HashSet<string>(StringComparer.Ordinal);
         var completedShellCommands = new HashSet<string>(StringComparer.Ordinal);
+        var activityEvents = new List<CodexActivityEvent>();
+        var sequence = 0L;
         string? runningCommandReason = null;
 
         try
@@ -140,6 +142,18 @@ internal sealed class CodexSessionLogParser
                 }
 
                 var payloadType = TryGetString(payload, "type", out var type) ? type : null;
+
+                sequence++;
+                if (TryNormalizeActivityEvent(
+                        sequence,
+                        timestamp ?? DateTime.UtcNow,
+                        payload,
+                        payloadType,
+                        latestProjectPath,
+                        out var activityEvent))
+                {
+                    activityEvents.Add(activityEvent);
+                }
 
                 var directToolFilePath = TryGetDirectToolFilePath(payload, payloadType, latestProjectPath);
                 if (directToolFilePath is not null && timestamp.HasValue &&
@@ -258,11 +272,265 @@ internal sealed class CodexSessionLogParser
             LastRunningCommandName = lastRunningCommandName,
             LastShellCommandWasInvestigative = lastShellCommandWasInvestigative,
             LastDirectToolFilePath = lastDirectToolFilePath,
-            LastDirectToolFileAt = lastDirectToolFileAt
+            LastDirectToolFileAt = lastDirectToolFileAt,
+            ActivityEvents = activityEvents
         };
     }
 
+    private static bool TryNormalizeActivityEvent(
+        long sequence,
+        DateTime timestampUtc,
+        JsonElement payload,
+        string? payloadType,
+        string? projectPath,
+        out CodexActivityEvent activityEvent)
+    {
+        activityEvent = new CodexActivityEvent
+        {
+            Sequence = sequence,
+            TimestampUtc = timestampUtc,
+            Kind = CodexActivityEventKind.ContextUpdated,
+            TurnId = TryGetFirstString(payload, "turn_id", "turnId"),
+            CallId = TryGetFirstString(payload, "call_id", "callId", "id"),
+            Source = CodexActivitySource.SessionLog
+        };
+
+        switch (payloadType?.Trim().ToLowerInvariant())
+        {
+            case "task_started":
+                activityEvent = activityEvent with
+                {
+                    Kind = CodexActivityEventKind.TurnStarted,
+                    Reason = "task_started"
+                };
+                return true;
+
+            case "task_complete":
+            case "turn_completed":
+                activityEvent = activityEvent with
+                {
+                    Kind = ResolveTerminalEventKind(payload),
+                    Reason = "turn completed"
+                };
+                return true;
+
+            case "turn_aborted":
+            case "task_aborted":
+            case "turn_interrupted":
+                activityEvent = activityEvent with
+                {
+                    Kind = CodexActivityEventKind.TurnInterrupted,
+                    Reason = "turn interrupted"
+                };
+                return true;
+
+            case "turn_failed":
+            case "task_failed":
+                activityEvent = activityEvent with
+                {
+                    Kind = CodexActivityEventKind.TurnFailed,
+                    Reason = "turn failed"
+                };
+                return true;
+
+            case "reasoning":
+            case "agent_reasoning":
+            case "agent_message":
+                activityEvent = activityEvent with
+                {
+                    Kind = CodexActivityEventKind.Reasoning,
+                    Reason = payloadType
+                };
+                return true;
+
+            case "request_user_input":
+            case "permission_request":
+            case "permission_requested":
+            case "input_request":
+            case "approval_request":
+                activityEvent = activityEvent with
+                {
+                    Kind = CodexActivityEventKind.InputRequested,
+                    Reason = "input or permission requested"
+                };
+                return true;
+
+            case "input_resolved":
+            case "permission_resolved":
+            case "approval_resolved":
+                activityEvent = activityEvent with
+                {
+                    Kind = CodexActivityEventKind.InputResolved,
+                    Reason = "input or permission resolved"
+                };
+                return true;
+
+            case "turn_context":
+                activityEvent = activityEvent with
+                {
+                    Kind = CodexActivityEventKind.ContextUpdated,
+                    Reason = "turn context updated"
+                };
+                return true;
+
+            case "function_call":
+            case "custom_tool_call":
+            {
+                var toolName = TryGetString(payload, "name");
+                if (IsInputTool(toolName))
+                {
+                    activityEvent = activityEvent with
+                    {
+                        Kind = CodexActivityEventKind.InputRequested,
+                        Reason = $"{toolName} requested input"
+                    };
+                    return true;
+                }
+
+                var targetPaths = TryGetDirectToolFilePaths(payload, payloadType, projectPath);
+                var commandText = TryGetShellCommandText(payload, out var shellCommand)
+                    ? shellCommand
+                    : null;
+                var operationKind = ClassifyOperationKind(toolName, commandText, targetPaths);
+                activityEvent = activityEvent with
+                {
+                    Kind = CodexActivityEventKind.OperationStarted,
+                    OperationKind = operationKind,
+                    TargetPaths = targetPaths,
+                    CommandKind = ClassifyShellCommand(commandText ?? "") ?? RunningCommandKind.Unknown,
+                    CommandName = commandText is null ? null : ExtractCommandName(commandText),
+                    Reason = string.IsNullOrWhiteSpace(toolName)
+                        ? "tool operation started"
+                        : $"{toolName} operation started"
+                };
+                return true;
+            }
+
+            case "function_call_output":
+            case "custom_tool_call_output":
+            case "mcp_tool_call_end":
+                activityEvent = activityEvent with
+                {
+                    Kind = CodexActivityEventKind.OperationCompleted,
+                    TargetPaths = TryGetDirectToolFilePaths(payload, payloadType, projectPath),
+                    Reason = "tool operation completed"
+                };
+                return true;
+
+            case "mcp_tool_call":
+            {
+                var toolName = TryGetInvocationToolName(payload);
+                activityEvent = activityEvent with
+                {
+                    Kind = CodexActivityEventKind.OperationStarted,
+                    OperationKind = ClassifyOperationKind(toolName, null, TryGetDirectToolFilePaths(payload, payloadType, projectPath)),
+                    TargetPaths = TryGetDirectToolFilePaths(payload, payloadType, projectPath),
+                    Reason = string.IsNullOrWhiteSpace(toolName)
+                        ? "MCP operation started"
+                        : $"MCP {toolName} operation started"
+                };
+                return true;
+            }
+
+            default:
+                return false;
+        }
+    }
+
+    private static CodexActivityEventKind ResolveTerminalEventKind(JsonElement payload)
+    {
+        var status = TryGetFirstString(payload, "status", "outcome", "result")?.ToLowerInvariant();
+        return status switch
+        {
+            "failed" or "error" => CodexActivityEventKind.TurnFailed,
+            "interrupted" or "aborted" or "cancelled" or "canceled" => CodexActivityEventKind.TurnInterrupted,
+            _ => CodexActivityEventKind.TurnCompleted
+        };
+    }
+
+    private static CodexOperationKind ClassifyOperationKind(
+        string? toolName,
+        string? commandText,
+        IReadOnlyList<string> targetPaths)
+    {
+        if (IsFileMutationTool(toolName) || targetPaths.Count > 0)
+        {
+            var normalizedName = toolName?.ToLowerInvariant() ?? "";
+            if (normalizedName.Contains("create", StringComparison.Ordinal) ||
+                normalizedName.Contains("add", StringComparison.Ordinal))
+            {
+                return CodexOperationKind.Create;
+            }
+
+            if (normalizedName.Contains("delete", StringComparison.Ordinal) ||
+                normalizedName.Contains("remove", StringComparison.Ordinal))
+            {
+                return CodexOperationKind.Delete;
+            }
+
+            return CodexOperationKind.Edit;
+        }
+
+        if (!string.IsNullOrWhiteSpace(commandText))
+        {
+            var commandKind = ClassifyShellCommand(commandText);
+            return commandKind == RunningCommandKind.Search
+                ? CodexOperationKind.Read
+                : CodexOperationKind.Command;
+        }
+
+        var normalizedToolName = toolName?.ToLowerInvariant() ?? "";
+        if (normalizedToolName.Contains("read", StringComparison.Ordinal) ||
+            normalizedToolName.Contains("search", StringComparison.Ordinal) ||
+            normalizedToolName.Contains("view", StringComparison.Ordinal))
+        {
+            return CodexOperationKind.Read;
+        }
+
+        return CodexOperationKind.Unknown;
+    }
+
+    private static bool IsInputTool(string? toolName)
+    {
+        if (string.IsNullOrWhiteSpace(toolName))
+        {
+            return false;
+        }
+
+        return toolName.Equals("request_user_input", StringComparison.OrdinalIgnoreCase) ||
+            toolName.Equals("request_permission", StringComparison.OrdinalIgnoreCase) ||
+            toolName.Equals("permission_request", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static string? TryGetInvocationToolName(JsonElement payload)
+    {
+        return payload.TryGetProperty("invocation", out var invocation)
+            ? TryGetString(invocation, "tool")
+            : null;
+    }
+
+    private static string? TryGetFirstString(JsonElement element, params string[] propertyNames)
+    {
+        foreach (var propertyName in propertyNames)
+        {
+            if (TryGetString(element, propertyName, out var value) && !string.IsNullOrWhiteSpace(value))
+            {
+                return value;
+            }
+        }
+
+        return null;
+    }
+
     private static string? TryGetDirectToolFilePath(
+        JsonElement payload,
+        string? payloadType,
+        string? projectPath)
+    {
+        return TryGetDirectToolFilePaths(payload, payloadType, projectPath).LastOrDefault();
+    }
+
+    private static IReadOnlyList<string> TryGetDirectToolFilePaths(
         JsonElement payload,
         string? payloadType,
         string? projectPath)
@@ -275,30 +543,38 @@ internal sealed class CodexSessionLogParser
                 var input = TryGetString(payload, "input");
                 if (input is not null)
                 {
-                    var patchPath = ExtractLastPatchFilePath(input);
-                    if (patchPath is not null)
+                    var patchPaths = ExtractPatchFilePaths(input)
+                        .Select(path => ResolveToolFilePath(path, projectPath))
+                        .Where(path => path is not null)
+                        .Cast<string>()
+                        .ToArray();
+                    if (patchPaths.Length > 0)
                     {
-                        return ResolveToolFilePath(patchPath, projectPath);
+                        return patchPaths;
                     }
                 }
 
                 return IsFileMutationTool(toolName)
-                    ? TryGetMutationTargetFromText(input, projectPath)
-                    : null;
+                    ? TryGetMutationTargetPathsFromText(input, projectPath)
+                    : Array.Empty<string>();
             }
             case "function_call":
             {
                 var functionName = TryGetString(payload, "name");
                 var arguments = TryGetString(payload, "arguments");
-                var patchPath = ExtractLastPatchFilePath(arguments);
-                if (patchPath is not null)
+                var patchPaths = ExtractPatchFilePaths(arguments)
+                    .Select(path => ResolveToolFilePath(path, projectPath))
+                    .Where(path => path is not null)
+                    .Cast<string>()
+                    .ToArray();
+                if (patchPaths.Length > 0)
                 {
-                    return ResolveToolFilePath(patchPath, projectPath);
+                    return patchPaths;
                 }
 
                 return IsFileMutationTool(functionName)
-                    ? TryGetMutationTargetFromText(arguments, projectPath)
-                    : null;
+                    ? TryGetMutationTargetPathsFromText(arguments, projectPath)
+                    : Array.Empty<string>();
             }
             case "mcp_tool_call":
             case "mcp_tool_call_end":
@@ -308,13 +584,115 @@ internal sealed class CodexSessionLogParser
                     !IsFileMutationTool(toolName) ||
                     !invocation.TryGetProperty("arguments", out var arguments))
                 {
-                    return null;
+                    return Array.Empty<string>();
                 }
 
-                return TryGetMutationTargetFromElement(arguments, projectPath);
+                return TryGetMutationTargetPathsFromElement(arguments, projectPath);
             }
             default:
-                return null;
+                return Array.Empty<string>();
+        }
+    }
+
+    private static IReadOnlyList<string> TryGetMutationTargetPathsFromText(string? value, string? projectPath)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return Array.Empty<string>();
+        }
+
+        var patchPaths = ExtractPatchFilePaths(value)
+            .Select(path => ResolveToolFilePath(path, projectPath))
+            .Where(path => path is not null)
+            .Cast<string>()
+            .ToArray();
+        if (patchPaths.Length > 0)
+        {
+            return patchPaths;
+        }
+
+        try
+        {
+            using var document = JsonDocument.Parse(value);
+            return TryGetMutationTargetPathsFromElement(document.RootElement, projectPath);
+        }
+        catch
+        {
+            return Array.Empty<string>();
+        }
+    }
+
+    private static IReadOnlyList<string> TryGetMutationTargetPathsFromElement(JsonElement element, string? projectPath)
+    {
+        var paths = new List<string>();
+        CollectMutationTargetPaths(element, projectPath, paths);
+        return paths
+            .Where(path => !string.IsNullOrWhiteSpace(path))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+    }
+
+    private static void CollectMutationTargetPaths(JsonElement element, string? projectPath, ICollection<string> paths)
+    {
+        switch (element.ValueKind)
+        {
+            case JsonValueKind.Object:
+                foreach (var property in element.EnumerateObject())
+                {
+                    if (IsFilePathProperty(property.Name) && property.Value.ValueKind == JsonValueKind.String)
+                    {
+                        var path = property.Value.GetString();
+                        if (!string.IsNullOrWhiteSpace(path))
+                        {
+                            var resolved = ResolveToolFilePath(path, projectPath);
+                            if (!string.IsNullOrWhiteSpace(resolved))
+                            {
+                                paths.Add(resolved);
+                            }
+                        }
+                    }
+                }
+
+                foreach (var property in element.EnumerateObject())
+                {
+                    if (property.Value.ValueKind is JsonValueKind.Object or JsonValueKind.Array)
+                    {
+                        CollectMutationTargetPaths(property.Value, projectPath, paths);
+                    }
+                    else if (property.Value.ValueKind == JsonValueKind.String)
+                    {
+                        foreach (var patchPath in ExtractPatchFilePaths(property.Value.GetString()))
+                        {
+                            var resolved = ResolveToolFilePath(patchPath, projectPath);
+                            if (!string.IsNullOrWhiteSpace(resolved))
+                            {
+                                paths.Add(resolved);
+                            }
+                        }
+                    }
+                }
+
+                break;
+
+            case JsonValueKind.Array:
+                foreach (var item in element.EnumerateArray())
+                {
+                    CollectMutationTargetPaths(item, projectPath, paths);
+                }
+
+                break;
+
+            case JsonValueKind.String:
+                foreach (var patchPath in ExtractPatchFilePaths(element.GetString()))
+                {
+                    var resolved = ResolveToolFilePath(patchPath, projectPath);
+                    if (!string.IsNullOrWhiteSpace(resolved))
+                    {
+                        paths.Add(resolved);
+                    }
+                }
+
+                break;
         }
     }
 
@@ -401,12 +779,17 @@ internal sealed class CodexSessionLogParser
 
     private static string? ExtractLastPatchFilePath(string? text)
     {
+        return ExtractPatchFilePaths(text).LastOrDefault();
+    }
+
+    private static IReadOnlyList<string> ExtractPatchFilePaths(string? text)
+    {
         if (string.IsNullOrWhiteSpace(text))
         {
-            return null;
+            return Array.Empty<string>();
         }
 
-        string? lastPath = null;
+        var paths = new List<string>();
         var normalizedText = text
             .Replace("\r\n", "\n", StringComparison.Ordinal)
             .Replace("\\r\\n***", "\n***", StringComparison.Ordinal)
@@ -430,14 +813,16 @@ internal sealed class CodexSessionLogParser
                 var candidate = line[(markerIndex + marker.Length)..].Trim().Trim('"', '\'', '`');
                 if (candidate.Length > 0)
                 {
-                    lastPath = candidate;
+                    paths.Add(candidate);
                 }
 
                 break;
             }
         }
 
-        return lastPath;
+        return paths
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToArray();
     }
 
     private static string? ResolveToolFilePath(string path, string? projectPath)

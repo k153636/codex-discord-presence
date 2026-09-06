@@ -31,7 +31,10 @@ public enum CodexActivityKind
     DeletingFiles = 6,
     RunningCommand = 7,
     Planning = 8,
-    Refactoring = 9
+    Refactoring = 9,
+    WaitingForInput = 10,
+    ReadingFiles = 11,
+    Stalled = 12
 }
 
 public enum RunningCommandKind
@@ -60,7 +63,7 @@ public static class CodexActivityKindExtensions
 {
     public static bool IsActive(this CodexActivityKind kind)
     {
-        return kind is not CodexActivityKind.Offline and not CodexActivityKind.Ready;
+        return kind is not (CodexActivityKind.Offline or CodexActivityKind.Ready or CodexActivityKind.WaitingForInput or CodexActivityKind.Stalled);
     }
 }
 
