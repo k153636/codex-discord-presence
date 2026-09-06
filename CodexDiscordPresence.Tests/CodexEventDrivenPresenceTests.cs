@@ -80,6 +80,97 @@ public sealed class CodexEventDrivenPresenceTests
     }
 
     [Fact]
+    public void Render_NestedMcpReadThroughExecWrapper_UsesMcpIdentity()
+    {
+        var now = DateTime.UtcNow;
+        var projectPath = CreateProjectPath();
+        var homePath = CreateHomePath();
+
+        try
+        {
+            WriteSession(homePath, "session.jsonl",
+            [
+                CreateSessionLine(now, new
+                {
+                    type = "task_started",
+                    turn_id = "turn-1",
+                    cwd = projectPath
+                }, "event_msg"),
+                CreateSessionLine(now.AddMilliseconds(1), new
+                {
+                    type = "custom_tool_call",
+                    turn_id = "turn-1",
+                    call_id = "call-1",
+                    name = "exec",
+                    input = "const result = await tools.mcp__chrome_devtools__list_pages({});"
+                }, "response_item")
+            ]);
+
+            var snapshot = CreateDetector(homePath).GetSnapshot(projectPath);
+            var presence = Render(projectPath, snapshot);
+
+            Assert.Equal(CodexActivityKind.ReadingFiles, snapshot.ActivityKind);
+            Assert.True(snapshot.IsMcpOperation);
+            Assert.Equal("chrome_devtools", snapshot.McpServerName);
+            Assert.Equal("MCP chrome-devtools Reading", presence.State);
+        }
+        finally
+        {
+            DeleteDirectory(homePath);
+        }
+    }
+
+    [Fact]
+    public void Render_NestedMcpEditThroughExecWrapper_UsesMcpIdentityAndActiveFile()
+    {
+        var now = DateTime.UtcNow;
+        var projectPath = CreateProjectPath();
+        var filePath = Path.Combine(projectPath, "src", "PresenceRuntime.cs");
+        var homePath = CreateHomePath();
+
+        try
+        {
+            var patch = string.Join(
+                "\n",
+                [
+                    "*** Begin Patch",
+                    $"*** Update File: {filePath}",
+                    "*** End Patch"
+                ]);
+            WriteSession(homePath, "session.jsonl",
+            [
+                CreateSessionLine(now, new
+                {
+                    type = "task_started",
+                    turn_id = "turn-1",
+                    cwd = projectPath
+                }, "event_msg"),
+                CreateSessionLine(now.AddMilliseconds(1), new
+                {
+                    type = "custom_tool_call",
+                    turn_id = "turn-1",
+                    call_id = "call-1",
+                    name = "exec",
+                    input = $"const result = await tools.mcp__chrome_devtools__apply_patch({{ patch: {JsonSerializer.Serialize(patch)} }});"
+                }, "response_item")
+            ]);
+
+            var snapshot = CreateDetector(homePath).GetSnapshot(projectPath);
+            var presence = Render(projectPath, snapshot);
+
+            Assert.Equal(CodexActivityKind.ApplyingEdits, snapshot.ActivityKind);
+            Assert.True(snapshot.IsMcpOperation);
+            Assert.Equal("chrome_devtools", snapshot.McpServerName);
+            Assert.Equal(filePath, snapshot.ActiveToolFilePath);
+            Assert.Equal("MCP chrome-devtools Editing PresenceRuntime.cs", presence.State);
+        }
+        finally
+        {
+            DeleteDirectory(homePath);
+        }
+    }
+
+    [Fact]
     public void Render_TwoOrThreeSequentialEdits_UsesCurrentToolFileWithoutHistoryList()
     {
         var now = DateTime.UtcNow;

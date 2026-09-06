@@ -490,19 +490,22 @@ internal sealed class CodexSessionLogParser
             case "function_call":
             case "custom_tool_call":
             {
-                var toolName = TryGetString(payload, "name");
-                if (IsInputTool(toolName))
+                var rawToolName = TryGetString(payload, "name");
+                var toolInput = TryGetString(payload, "input") ?? TryGetString(payload, "arguments");
+                var nestedMcpToolName = ExtractNestedMcpToolName(toolInput);
+                var toolName = nestedMcpToolName ?? rawToolName;
+                var isMcpOperation = nestedMcpToolName is not null || IsMcpToolName(rawToolName);
+                if (IsInputTool(rawToolName))
                 {
                     activityEvent = activityEvent with
                     {
                         Kind = CodexActivityEventKind.InputRequested,
-                        Reason = $"{toolName} requested input"
+                        Reason = $"{rawToolName} requested input"
                     };
                     return true;
                 }
 
                 var targetPaths = TryGetDirectToolFilePaths(payload, payloadType, projectPath);
-                var toolInput = TryGetString(payload, "input") ?? TryGetString(payload, "arguments");
                 var commandText = TryGetShellCommandText(payload, out var shellCommand)
                     ? shellCommand
                     : null;
@@ -519,9 +522,11 @@ internal sealed class CodexSessionLogParser
                     TargetPaths = targetPaths,
                     CommandKind = ClassifyShellCommand(commandText ?? "") ?? RunningCommandKind.Unknown,
                     CommandName = commandText is null ? null : ExtractCommandName(commandText),
-                    IsMcpOperation = IsMcpToolName(toolName),
+                    IsMcpOperation = isMcpOperation,
                     McpServerName = McpServerNameFormatter.ExtractServerName(toolName),
-                    Reason = string.IsNullOrWhiteSpace(toolName)
+                    Reason = isMcpOperation
+                        ? $"MCP {McpServerNameFormatter.ExtractToolName(toolName) ?? toolName ?? "operation"} operation started"
+                        : string.IsNullOrWhiteSpace(toolName)
                         ? "tool operation started"
                         : $"{toolName} operation started"
                 };
@@ -663,7 +668,26 @@ internal sealed class CodexSessionLogParser
             return CodexOperationKind.Read;
         }
 
+        if (toolName is not null && IsMcpToolName(toolName))
+        {
+            return ClassifyMcpOperationKind(toolName);
+        }
+
         return CodexOperationKind.Unknown;
+    }
+
+    private static CodexOperationKind ClassifyMcpOperationKind(string toolName)
+    {
+        var normalizedToolName = (McpServerNameFormatter.ExtractToolName(toolName) ?? toolName).ToLowerInvariant();
+        if (normalizedToolName.Contains("exec", StringComparison.Ordinal) ||
+            normalizedToolName.Contains("command", StringComparison.Ordinal) ||
+            normalizedToolName.Contains("evaluate", StringComparison.Ordinal) ||
+            normalizedToolName.StartsWith("run", StringComparison.Ordinal))
+        {
+            return CodexOperationKind.Command;
+        }
+
+        return CodexOperationKind.Read;
     }
 
     private static string? TryGetInvocationArgumentsText(JsonElement payload)
@@ -683,6 +707,61 @@ internal sealed class CodexSessionLogParser
     {
         return !string.IsNullOrWhiteSpace(input) &&
             signatures.Any(signature => input.Contains(signature, StringComparison.OrdinalIgnoreCase));
+    }
+
+    private static string? ResolveEffectiveToolName(string? rawToolName, string? toolInput)
+    {
+        return ExtractNestedMcpToolName(toolInput) ?? rawToolName;
+    }
+
+    private static string? ExtractNestedMcpToolName(string? toolInput)
+    {
+        if (string.IsNullOrWhiteSpace(toolInput))
+        {
+            return null;
+        }
+
+        var searchStart = 0;
+        while (searchStart < toolInput.Length)
+        {
+            var markerIndex = toolInput.IndexOf("mcp__", searchStart, StringComparison.OrdinalIgnoreCase);
+            if (markerIndex < 0)
+            {
+                return null;
+            }
+
+            if (markerIndex > 0 && IsToolNameBoundaryCharacter(toolInput[markerIndex - 1]))
+            {
+                searchStart = markerIndex + "mcp__".Length;
+                continue;
+            }
+
+            var endIndex = markerIndex + "mcp__".Length;
+            while (endIndex < toolInput.Length && IsToolNameCharacter(toolInput[endIndex]))
+            {
+                endIndex++;
+            }
+
+            var candidate = toolInput[markerIndex..endIndex];
+            if (McpServerNameFormatter.ExtractServerName(candidate) is not null)
+            {
+                return candidate;
+            }
+
+            searchStart = endIndex;
+        }
+
+        return null;
+    }
+
+    private static bool IsToolNameCharacter(char character)
+    {
+        return char.IsLetterOrDigit(character) || character is '_' or '-' or '.';
+    }
+
+    private static bool IsToolNameBoundaryCharacter(char character)
+    {
+        return char.IsLetterOrDigit(character) || character is '_' or '-';
     }
 
     private static bool IsInputTool(string? toolName)
@@ -751,8 +830,8 @@ internal sealed class CodexSessionLogParser
         {
             case "custom_tool_call":
             {
-                var toolName = TryGetString(payload, "name");
                 var input = TryGetString(payload, "input");
+                var toolName = ResolveEffectiveToolName(TryGetString(payload, "name"), input);
                 if (input is not null)
                 {
                     var patchPaths = ExtractPatchFilePaths(input)
@@ -772,8 +851,8 @@ internal sealed class CodexSessionLogParser
             }
             case "function_call":
             {
-                var functionName = TryGetString(payload, "name");
                 var arguments = TryGetString(payload, "arguments");
+                var functionName = ResolveEffectiveToolName(TryGetString(payload, "name"), arguments);
                 var patchPaths = ExtractPatchFilePaths(arguments)
                     .Select(path => ResolveToolFilePath(path, projectPath))
                     .Where(path => path is not null)
