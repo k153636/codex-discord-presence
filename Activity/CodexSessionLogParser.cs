@@ -266,10 +266,6 @@ internal sealed class CodexSessionLogParser
             runningCommandReason = "pending shell_command function call in session log";
         }
 
-        var activityState = activityEvents.Count == 0
-            ? null
-            : new CodexActivityStateMachine().Evaluate(activityEvents, DateTime.UtcNow);
-
         return new SessionInspection(
             hasProjectPath,
             false,
@@ -290,8 +286,7 @@ internal sealed class CodexSessionLogParser
             LastShellCommandWasInvestigative = lastShellCommandWasInvestigative,
             LastDirectToolFilePath = lastDirectToolFilePath,
             LastDirectToolFileAt = lastDirectToolFileAt,
-            ActivityEvents = activityEvents,
-            ActivityState = activityState
+            ActivityEvents = activityEvents
         };
     }
 
@@ -1674,11 +1669,24 @@ internal sealed class CodexSessionLogParser
 
     private SessionInspectionCandidate? PickBest(IEnumerable<SessionInspectionCandidate> candidates)
     {
+        var nowUtc = DateTime.UtcNow;
         return candidates
-            .OrderByDescending(candidate => candidate.Inspection.HasRecentActivity(_presenceOptions.ThinkingStaleTimeoutMinutes))
+            .OrderByDescending(candidate => HasPendingMutation(candidate.Inspection, nowUtc))
+            .ThenByDescending(candidate => HasPendingOperation(candidate.Inspection, nowUtc))
+            .ThenByDescending(candidate => candidate.Inspection.HasRecentActivity(_presenceOptions.ThinkingStaleTimeoutMinutes))
             .ThenByDescending(candidate => candidate.Inspection.LastObservedAt ?? DateTime.MinValue)
             .ThenByDescending(candidate => candidate.SessionLastWriteTimeUtc)
             .FirstOrDefault();
+    }
+
+    private static bool HasPendingMutation(SessionInspection inspection, DateTime nowUtc)
+    {
+        return inspection.GetActivityStateAt(nowUtc)?.PendingMutationCount > 0;
+    }
+
+    private static bool HasPendingOperation(SessionInspection inspection, DateTime nowUtc)
+    {
+        return inspection.GetActivityStateAt(nowUtc)?.PendingOperationCount > 0;
     }
 
     private sealed record PatchFile(string Path, CodexOperationKind OperationKind);

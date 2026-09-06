@@ -21,7 +21,6 @@ internal sealed record SessionInspection(
     public string? LastDirectToolFilePath { get; init; }
     public DateTime? LastDirectToolFileAt { get; init; }
     public IReadOnlyList<CodexActivityEvent> ActivityEvents { get; init; } = Array.Empty<CodexActivityEvent>();
-    public CodexActivityState? ActivityState { get; init; }
 
     public bool HasRecentActivity(int staleTimeoutMinutes)
     {
@@ -32,6 +31,13 @@ internal sealed record SessionInspection(
         }
 
         return DateTime.UtcNow - freshest.Value <= TimeSpan.FromMinutes(staleTimeoutMinutes);
+    }
+
+    public CodexActivityState? GetActivityStateAt(DateTime nowUtc)
+    {
+        return ActivityEvents.Count == 0
+            ? null
+            : new CodexActivityStateMachine().Evaluate(ActivityEvents, nowUtc);
     }
 
     public bool HasTaskCompletedSinceStart =>

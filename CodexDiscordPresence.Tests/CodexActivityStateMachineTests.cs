@@ -262,6 +262,31 @@ public sealed class CodexActivityStateMachineTests
         Assert.Contains("45 seconds", state.Reason);
     }
 
+    [Fact]
+    public void Evaluate_PendingOperationBecomesStalledWhenCompletionIsMissing()
+    {
+        var startedAt = Utc(75);
+        var machine = new CodexActivityStateMachine(staleAfter: TimeSpan.FromSeconds(45));
+
+        var state = machine.Evaluate(
+            [
+                Event(1, startedAt, CodexActivityEventKind.TurnStarted, turnId: "turn-1"),
+                Event(
+                    2,
+                    startedAt.AddMilliseconds(100),
+                    CodexActivityEventKind.OperationStarted,
+                    turnId: "turn-1",
+                    callId: "call-1",
+                    operationKind: CodexOperationKind.Edit,
+                    targetPaths: [@"E:\repo\Stalled.cs"])
+            ],
+            startedAt.AddSeconds(46));
+
+        Assert.Equal(CodexTurnLifecycle.Stalled, state.Lifecycle);
+        Assert.Equal(1, state.PendingOperationCount);
+        Assert.Contains("completion", state.Reason);
+    }
+
     private static CodexActivityState Evaluate(params CodexActivityEvent[] events)
     {
         return new CodexActivityStateMachine().Evaluate(events, events[^1].TimestampUtc.AddSeconds(1));

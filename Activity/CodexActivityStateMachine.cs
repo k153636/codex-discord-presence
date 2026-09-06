@@ -277,6 +277,32 @@ internal sealed class CodexActivityStateMachine
             .ToArray();
         if (pending.Length > 0)
         {
+            var pendingEffectiveAge = lastEffectiveSignalAtUtc.HasValue
+                ? nowUtc - lastEffectiveSignalAtUtc.Value
+                : _staleAfter;
+            if (pendingEffectiveAge >= _staleAfter)
+            {
+                return new CodexActivityState
+                {
+                    Lifecycle = CodexTurnLifecycle.Stalled,
+                    TurnId = currentTurnId,
+                    TurnStartedAtUtc = turnStartedAtUtc,
+                    LastEventAtUtc = lastEventAtUtc,
+                    LastEffectiveSignalAtUtc = lastEffectiveSignalAtUtc,
+                    MutationFilePaths = mutationPaths.OrderBy(path => path, StringComparer.OrdinalIgnoreCase).ToArray(),
+                    PendingTargetPaths = pending
+                        .SelectMany(operation => operation.Event.TargetPaths)
+                        .Where(path => !string.IsNullOrWhiteSpace(path))
+                        .Distinct(StringComparer.OrdinalIgnoreCase)
+                        .ToArray(),
+                    PendingOperationCount = pending.Length,
+                    PendingMutationCount = pending.Count(operation => IsMutation(operation.Event.OperationKind)),
+                    TriggerEvent = lastEffectiveEvent,
+                    Reason = $"pending operation produced no completion for {Math.Max(0, (int)pendingEffectiveAge.TotalSeconds)} seconds",
+                    Source = lastEffectiveEvent?.Source ?? CodexActivitySource.SessionLog
+                };
+            }
+
             var activeOperation = pending[0];
             var pendingTargetPaths = pending
                 .SelectMany(operation => operation.Event.TargetPaths)

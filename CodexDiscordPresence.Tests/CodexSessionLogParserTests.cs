@@ -327,6 +327,68 @@ public sealed class CodexSessionLogParserTests
     }
 
     [Fact]
+    public void InspectRecentSessions_PrefersSessionWithPendingMutationOverNewerIdleSession()
+    {
+        var homePath = CreateTempCodexHome();
+        var projectPath = Path.Combine(Path.GetTempPath(), "CodexPendingSessionProject_" + Guid.NewGuid());
+        Directory.CreateDirectory(projectPath);
+
+        try
+        {
+            var now = DateTime.UtcNow;
+            var activeFile = Path.Combine(projectPath, "Active.cs");
+            WriteSession(homePath, "idle-session.jsonl",
+            [
+                CreateSessionLine(now.AddSeconds(2), new
+                {
+                    type = "task_started",
+                    turn_id = "idle-turn",
+                    cwd = projectPath
+                }, "event_msg"),
+                CreateSessionLine(now.AddSeconds(3), new
+                {
+                    type = "reasoning",
+                    turn_id = "idle-turn"
+                }, "event_msg")
+            ]);
+            WriteSession(homePath, "pending-session.jsonl",
+            [
+                CreateSessionLine(now, new
+                {
+                    type = "task_started",
+                    turn_id = "pending-turn",
+                    cwd = projectPath
+                }, "event_msg"),
+                CreateSessionLine(now.AddMilliseconds(1), new
+                {
+                    type = "custom_tool_call",
+                    turn_id = "pending-turn",
+                    call_id = "pending-call",
+                    name = "apply_patch",
+                    input = $"*** Begin Patch\\n*** Update File: {activeFile}\\n*** End Patch"
+                }, "response_item")
+            ]);
+
+            var parser = new CodexSessionLogParser(
+                new CodexDetectionOptions { HomePath = homePath },
+                new PresenceTemplateOptions());
+
+            var inspection = parser.InspectRecentSessions(projectPath);
+
+            Assert.NotNull(inspection);
+            Assert.Equal(Path.GetFullPath(activeFile), inspection!.LastDirectToolFilePath);
+            Assert.Contains(inspection.ActivityEvents, activityEvent =>
+                activityEvent.Kind == CodexActivityEventKind.OperationStarted &&
+                activityEvent.OperationKind == CodexOperationKind.Edit);
+        }
+        finally
+        {
+            Directory.Delete(homePath, true);
+            Directory.Delete(projectPath, true);
+        }
+    }
+
+    [Fact]
     public void InspectRecentSessions_IgnoresInterpolatedPatchPlaceholder()
     {
         var homePath = CreateTempCodexHome();
