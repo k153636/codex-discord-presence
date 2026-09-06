@@ -71,7 +71,8 @@ internal sealed class CodexActivityStateMachine
                     nextTurnId = $"implicit:{syntheticTurnSequence}";
                 }
 
-                if (!string.Equals(currentTurnId, nextTurnId, StringComparison.Ordinal))
+                if (!string.Equals(currentTurnId, nextTurnId, StringComparison.Ordinal) ||
+                    lifecycle is CodexTurnLifecycle.Completed or CodexTurnLifecycle.Failed or CodexTurnLifecycle.Interrupted)
                 {
                     currentTurnId = nextTurnId;
                     turnStartedAtUtc = activityEvent.TimestampUtc;
