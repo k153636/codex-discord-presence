@@ -240,11 +240,14 @@ internal sealed class CodexActivityResolver
     {
         return state.OperationKind switch
         {
-            CodexOperationKind.Edit => state.MutationFilePaths.Count > 1 && state.ActiveFilePath is null
+            CodexOperationKind.Edit when state.PendingMutationCount > 0 => state.MutationFilePaths.Count > 1 && state.ActiveFilePath is null
                 ? CodexActivityKind.CoordinatingChanges
                 : CodexActivityKind.ApplyingEdits,
-            CodexOperationKind.Create => CodexActivityKind.CreatingFiles,
-            CodexOperationKind.Delete => CodexActivityKind.DeletingFiles,
+            CodexOperationKind.Edit => CodexActivityKind.AnalyzingProject,
+            CodexOperationKind.Create when state.PendingMutationCount > 0 => CodexActivityKind.CreatingFiles,
+            CodexOperationKind.Create => CodexActivityKind.AnalyzingProject,
+            CodexOperationKind.Delete when state.PendingMutationCount > 0 => CodexActivityKind.DeletingFiles,
+            CodexOperationKind.Delete => CodexActivityKind.AnalyzingProject,
             CodexOperationKind.Command => CodexActivityKind.RunningCommand,
             CodexOperationKind.Read => CodexActivityKind.ReadingFiles,
             _ when sessionInspection?.CollaborationMode is "plan" => CodexActivityKind.Planning,

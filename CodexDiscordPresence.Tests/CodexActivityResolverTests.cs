@@ -148,6 +148,73 @@ public sealed class CodexActivityResolverTests
     }
 
     [Fact]
+    public void Resolve_CompletedEditEventDoesNotRemainApplyingEdits()
+    {
+        var now = DateTime.UtcNow;
+        var filePath = @"E:\repo\Completed.cs";
+        var resolver = new CodexActivityResolver(
+            new CodexActivityStateMachine(),
+            () => now);
+        var sessionInspection = new SessionInspection(
+            true,
+            true,
+            true,
+            false,
+            now.AddSeconds(-3),
+            null,
+            now,
+            null,
+            false,
+            null,
+            null)
+        {
+            ActivityEvents =
+            [
+                new CodexActivityEvent
+                {
+                    Sequence = 1,
+                    TimestampUtc = now.AddSeconds(-3),
+                    Kind = CodexActivityEventKind.TurnStarted,
+                    TurnId = "turn-1",
+                    Reason = "task_started"
+                },
+                new CodexActivityEvent
+                {
+                    Sequence = 2,
+                    TimestampUtc = now.AddSeconds(-2),
+                    Kind = CodexActivityEventKind.OperationStarted,
+                    TurnId = "turn-1",
+                    CallId = "call-1",
+                    OperationKind = CodexOperationKind.Edit,
+                    TargetPaths = [filePath],
+                    Reason = "edit operation started"
+                },
+                new CodexActivityEvent
+                {
+                    Sequence = 3,
+                    TimestampUtc = now.AddSeconds(-1),
+                    Kind = CodexActivityEventKind.OperationCompleted,
+                    TurnId = "turn-1",
+                    CallId = "call-1",
+                    Reason = "tool operation completed"
+                }
+            ]
+        };
+        var context = CreateContext(
+            sessionInspection,
+            new GitSnapshot(true, 1, null),
+            CodexActivityKind.ApplyingEdits,
+            [new RecentProjectFileSnapshot("Completed.cs", filePath, now)],
+            changedFileCount: 1);
+
+        var activity = resolver.Resolve(context, out var provenance, out _, out var reason, out _);
+
+        Assert.Equal(CodexActivityKind.AnalyzingProject, activity);
+        Assert.Equal(ActivityProvenance.Observed, provenance);
+        Assert.Contains("without a pending operation", reason);
+    }
+
+    [Fact]
     public void Resolve_CommandInSession_ReturnsRunningCommand()
     {
         var resolver = new CodexActivityResolver();

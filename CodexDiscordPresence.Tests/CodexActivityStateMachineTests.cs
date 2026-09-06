@@ -55,7 +55,7 @@ public sealed class CodexActivityStateMachineTests
     }
 
     [Fact]
-    public void Evaluate_RecentlyCompletedEditRemainsVisibleDuringShortDisplayGrace()
+    public void Evaluate_CompletedEditStopsBeingActiveAfterCompletion()
     {
         var startedAt = Utc(24);
         var state = EvaluateAt(
@@ -77,15 +77,15 @@ public sealed class CodexActivityStateMachineTests
             startedAt.AddSeconds(1));
 
         Assert.Equal(CodexTurnLifecycle.Open, state.Lifecycle);
-        Assert.Equal(CodexOperationKind.Edit, state.OperationKind);
-        Assert.Equal(@"E:\repo\PresenceRuntime.cs", state.ActiveFilePath);
+        Assert.Equal(CodexOperationKind.Unknown, state.OperationKind);
+        Assert.Null(state.ActiveFilePath);
         Assert.Equal(0, state.PendingOperationCount);
     }
 
     [Theory]
     [InlineData((int)CodexOperationKind.Create)]
     [InlineData((int)CodexOperationKind.Delete)]
-    public void Evaluate_RecentlyCompletedFileMutationRemainsVisibleDuringObservedDelay(
+    public void Evaluate_CompletedFileMutationIsNotActiveAfterCompletion(
         int operationKindValue)
     {
         var operationKind = (CodexOperationKind)operationKindValue;
@@ -112,8 +112,8 @@ public sealed class CodexActivityStateMachineTests
             startedAt.AddSeconds(6));
 
         Assert.Equal(CodexTurnLifecycle.Open, state.Lifecycle);
-        Assert.Equal(operationKind, state.OperationKind);
-        Assert.Equal(filePath, state.ActiveFilePath);
+        Assert.Equal(CodexOperationKind.Unknown, state.OperationKind);
+        Assert.Null(state.ActiveFilePath);
         Assert.Equal(0, state.PendingOperationCount);
     }
 
