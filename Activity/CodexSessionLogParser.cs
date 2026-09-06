@@ -1013,15 +1013,15 @@ internal sealed class CodexSessionLogParser
         var normalizedText = NormalizePatchText(text);
         foreach (var line in normalizedText.Split('\n'))
         {
+            var patchLine = line.TrimStart();
             foreach (var marker in PatchFileMarkers)
             {
-                var markerIndex = line.IndexOf(marker, StringComparison.Ordinal);
-                if (markerIndex < 0)
+                if (!patchLine.StartsWith(marker, StringComparison.Ordinal))
                 {
                     continue;
                 }
 
-                var candidate = line[(markerIndex + marker.Length)..].Trim().Trim('"', '\'', '`');
+                var candidate = patchLine[marker.Length..].Trim().Trim('"', '\'', '`');
                 if (IsPlausiblePatchPath(candidate))
                 {
                     files.Add(new PatchFile(candidate, GetPatchOperationKind(marker)));
