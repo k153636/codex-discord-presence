@@ -99,8 +99,9 @@ public sealed class PresenceEditedFileActivityTests
             new PresenceTemplateOptions { State = "{ActivityLine}" },
             context);
 
-        Assert.Equal("Editing src/Direct.cs", presence.State);
+        Assert.Equal("Editing Direct.cs", presence.State);
         Assert.DoesNotContain(projectPath, presence.State, StringComparison.Ordinal);
+        Assert.DoesNotContain("src/", presence.State, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -122,7 +123,23 @@ public sealed class PresenceEditedFileActivityTests
             new PresenceTemplateOptions { State = "{ActivityLine}" },
             context);
 
-        Assert.Equal("Editing src/Current.cs", presence.State);
+        Assert.Equal("Editing Current.cs", presence.State);
+    }
+
+    [Fact]
+    public void Render_NestedEditedFile_UsesOnlyLeafFileName()
+    {
+        var now = DateTime.UtcNow;
+        var projectPath = CreateProjectPath();
+        var nestedPath = Path.Combine(projectPath, "src", "features", "Active.cs");
+        var file = new RecentProjectFileSnapshot("src/features/Active.cs", nestedPath, now);
+
+        var presence = Render(CodexActivityKind.ApplyingEdits, projectPath, [file]);
+
+        Assert.Equal("Editing Active.cs", presence.State);
+        Assert.DoesNotContain("/", presence.State, StringComparison.Ordinal);
+        Assert.DoesNotContain("src", presence.State, StringComparison.Ordinal);
+        Assert.DoesNotContain("features", presence.State, StringComparison.Ordinal);
     }
 
     [Fact]

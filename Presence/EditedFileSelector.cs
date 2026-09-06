@@ -54,23 +54,9 @@ internal static class EditedFileSelector
 
     public static string FormatForDisplay(ProjectSnapshot project, RecentProjectFileSnapshot file)
     {
-        var projectRoot = ResolveFilePath(null, project.Path);
         var filePath = ResolveFilePath(project.Path, file.Path);
-        if (projectRoot is not null && filePath is not null)
-        {
-            try
-            {
-                var relativePath = Path.GetRelativePath(projectRoot, filePath);
-                if (IsInsideProject(relativePath))
-                {
-                    return NormalizeSeparators(relativePath);
-                }
-            }
-            catch
-            {
-            }
-        }
-
+        // Discord's activity line should identify the active file, not its
+        // parent folders or the path history that led to it.
         var safeName = Path.GetFileName(file.Name);
         if (string.IsNullOrWhiteSpace(safeName))
         {
@@ -131,16 +117,4 @@ internal static class EditedFileSelector
         }
     }
 
-    private static bool IsInsideProject(string relativePath)
-    {
-        return relativePath != "." &&
-            relativePath != ".." &&
-            !relativePath.StartsWith(".." + Path.DirectorySeparatorChar, StringComparison.Ordinal) &&
-            !relativePath.StartsWith(".." + Path.AltDirectorySeparatorChar, StringComparison.Ordinal);
-    }
-
-    private static string NormalizeSeparators(string value)
-    {
-        return value.Replace(Path.DirectorySeparatorChar, '/').Replace(Path.AltDirectorySeparatorChar, '/');
-    }
 }
