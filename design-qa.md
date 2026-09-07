@@ -1,8 +1,8 @@
 # Discord activity preview design QA
 
 source visual truth path: E:\tool\discord-reference\codex-activity-card.png
-implementation screenshot path: E:\tool\codex-dashboard-smoke\preview-font-check.png
-comparison image path: E:\tool\codex-dashboard-smoke\activity-card-side-by-side-font-check.png
+implementation screenshot path: E:\tool\codex-dashboard-smoke\preview-icon-alpha-fix.png
+comparison image path: E:\tool\codex-dashboard-smoke\activity-card-aligned-side-by-side-icon-alpha-fix.png
 
 ## Normalized comparison
 
@@ -15,18 +15,18 @@ comparison image path: E:\tool\codex-dashboard-smoke\activity-card-side-by-side-
 
 ## Full-view comparison evidence
 
-The rendered WinForms dashboard shows the same Preview tab, dark surface, left status rail, fixed Discord activity-card proportions, 100 x 100 large image, 32 x 32 circular small image, title, details, state, game icon, and elapsed line. No P0, P1, or P2 difference was observed in the visible implementation.
+The rendered WinForms dashboard shows the same Preview tab, dark surface, left status rail, fixed Discord activity-card proportions, 100 x 100 large image, 32 x 32 circular small image, title, details, state, game icon, and elapsed line. The activity icon now uses the actual 14 px rendered Discord glyph shape, including its dark-green edge pixels and transparent cutouts. No P0, P1, or P2 difference was observed in the visible implementation.
 
 ## Focused region comparison evidence
 
-activity-card-side-by-side-font-check.png places the 390 x 180 source crop beside the same-size implementation crop. Card bounds, image slots, text baselines, gradient direction, corner radius, and content order are aligned. The implementation uses the actual published payload values. The elapsed value differs only because it is computed from the current published start timestamp.
+activity-card-aligned-side-by-side-icon-alpha-fix.png places the aligned 360 x 148 source card beside the same-size implementation card. Card bounds, image slots, text baselines, gradient direction, corner radius, content order, and the elapsed-line icon position are aligned. The source icon's 100 chroma pixels are reproduced exactly in the implementation capture; only the surrounding gradient and elapsed value can differ because they are rendered by the local preview at capture time.
 
 ## Fidelity surfaces
 
 - Fonts and typography: the preview now resolves Discord's `gg sans` family when it is installed and otherwise uses the installed `Segoe UI Variable Text` fallback. The current host does not register `gg sans`; the fallback keeps the reference's compact widths, weights, wrapping, and ellipsis within native WinForms rasterization differences.
 - Spacing and layout rhythm: card dimensions, 12 px image inset, 100/32 px image sizes, content column, and vertical line spacing match the reference.
 - Colors and visual tokens: dark vertical card gradient, Discord text colors, and green elapsed line are aligned to the reference.
-- Image quality and asset fidelity: the source RPC GIFs remain GIFs, are copied beside the published single-file executable, and are rendered through ImageAnimator with the original stream retained.
+- Image quality and asset fidelity: the source RPC GIFs remain GIFs, are copied beside the published single-file executable, and are rendered through ImageAnimator with the original stream retained. The Discord activity glyph is a 14 x 14 transparent raster matching the actual desktop-card render, including the dark-green edge pixels.
 - Copy and content: state and details are read from the last payload successfully sent to Discord, so they are not reinterpreted by a state-name switch.
 
 ## GIF evidence
@@ -35,14 +35,15 @@ Two screenshots of the same implementation state were captured 1.5 seconds apart
 
 ## Findings
 
-No actionable P0, P1, or P2 findings.
+Previous P1 finding: the preview used a different solid gamepad glyph, so its shape and edge treatment did not match the real Discord activity card. Fixed by replacing that asset with the source card's rendered 14 px glyph and removing only the reference background pixels. Post-fix comparison confirms the icon pixels and cutouts match.
 
 ## Comparison history
 
 - Initial implementation already matched the reference card geometry and content order.
 - The previous iteration changed payload selection to prefer the last successfully published Discord payload, preserved animated GIF streams, enabled ImageAnimator frame callbacks, and copied all RPC GIF assets to the published output.
 - This iteration changed elapsed rendering from an hour/minute clock to Discord-style minutes/seconds, switching to hours/minutes/seconds after one hour, and added automatic Discord-compatible font-family selection for the preview card.
-- Post-fix evidence: activity-card-side-by-side-font-check.png and the GIF frame pixel comparison above.
+- This iteration replaced only the elapsed-line gamepad icon with the actual rendered Discord glyph, preserving its pixel edge and transparent cutouts.
+- Post-fix evidence: activity-card-aligned-side-by-side-icon-alpha-fix.png, timer-line-aligned-side-by-side-icon-alpha-fix.png, and the GIF frame pixel comparison above.
 
 ## Implementation Checklist
 
@@ -52,6 +53,7 @@ No actionable P0, P1, or P2 findings.
 - [x] Animate GIF frames and invalidate the WinForms preview safely.
 - [x] Format elapsed time as minutes/seconds, then hours/minutes/seconds after one hour.
 - [x] Resolve `gg sans` when installed with an automatic Windows fallback.
+- [x] Match the elapsed-line control icon to the actual Discord desktop-card render.
 - [x] Validate focused tests, full tests, Release publish, running process, RPC initialization, and rendered presence log.
 
 ## Follow-up Polish
