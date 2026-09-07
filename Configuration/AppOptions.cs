@@ -282,7 +282,14 @@ public sealed class PresenceTemplateOptions
     public bool EnableLargeImageText { get; set; } = true;
     public string LargeImageText { get; set; } = "{ProjectName}";
     public string SmallImageText { get; set; } = "{ProjectFileCount} files \u2022 session {SessionElapsed}";
-    public PresenceButtonOptions[] Buttons { get; set; } = [];
+    public PresenceButtonOptions[] Buttons { get; set; } =
+    [
+        new()
+        {
+            Label = "Codex RPC",
+            Url = "https://github.com/k153636/codex-discord-presence"
+        }
+    ];
     public string AnalyzingProjectText { get; set; } = "Thinking";
     public string CoordinatingChangesText { get; set; } = "Coordinating {n} files";
     public string CreatingFilesText { get; set; } = "Creating files";

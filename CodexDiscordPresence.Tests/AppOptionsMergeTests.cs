@@ -54,6 +54,9 @@ public sealed class AppOptionsMergeTests
             Assert.Equal(9, options.UpdateIntervalSeconds);
             Assert.Equal(3, options.Presence.ActiveUpdateIntervalSeconds);
             Assert.Equal("FromExe", options.Presence.ModelName);
+            var button = Assert.Single(options.Presence.Buttons);
+            Assert.Equal("Codex RPC", button.Label);
+            Assert.Equal("https://github.com/k153636/codex-discord-presence", button.Url);
         }
         finally
         {
