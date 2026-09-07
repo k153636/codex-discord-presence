@@ -82,7 +82,7 @@ For quiet idle periods, the app shows `Waiting` for the first 5 minutes, then sw
 - `State`: `{ActivityLine}`
 - `LargeImageText`: `{ProjectName}`
 - `SmallImageText`: `{ProjectFileCount} files &bull; session {SessionElapsed}`
-- Button: `Codex RPC` → `https://github.com/k153636/codex-discord-presence`
+- Button: `K's Codex RPC` → `https://github.com/k153636/codex-discord-presence`
 
 When no usable reasoning summary is available, repeated generic analysis states can still render with an `x2`, `x3`, and so on repeat suffix.
 Use `{ActivityLabel}` if you want the file name omitted for a cleaner one-line status.
@@ -135,7 +135,7 @@ That makes it easier to verify why Discord is showing a specific state.
 
 The GitHub Release contains only `discord-presence-for-codex.exe` for the normal desktop launch flow.
 `appsettings.json` is an optional executable-directory override, and `appsettings.cli.json` is an optional separate CLI-profile override; both remain available in the repository for users who need to customize or run the CLI profile.
-When they are absent, the executable uses the compiled defaults, including the `Codex RPC` repository button.
+When they are absent, the executable uses the compiled defaults, including the `K's Codex RPC` repository button.
 The published executable is framework-dependent, so the .NET 9 Desktop Runtime is still required on the target PC.
 
 ## Configuration

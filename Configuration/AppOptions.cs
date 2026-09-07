@@ -286,7 +286,7 @@ public sealed class PresenceTemplateOptions
     [
         new()
         {
-            Label = "Codex RPC",
+            Label = "K's Codex RPC",
             Url = "https://github.com/k153636/codex-discord-presence"
         }
     ];

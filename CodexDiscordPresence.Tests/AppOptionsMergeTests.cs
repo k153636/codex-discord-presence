@@ -55,7 +55,7 @@ public sealed class AppOptionsMergeTests
             Assert.Equal(3, options.Presence.ActiveUpdateIntervalSeconds);
             Assert.Equal("FromExe", options.Presence.ModelName);
             var button = Assert.Single(options.Presence.Buttons);
-            Assert.Equal("Codex RPC", button.Label);
+            Assert.Equal("K's Codex RPC", button.Label);
             Assert.Equal("https://github.com/k153636/codex-discord-presence", button.Url);
         }
         finally
@@ -87,7 +87,7 @@ public sealed class AppOptionsMergeTests
             var options = AppOptions.Load(Array.Empty<string>(), paths);
 
             var button = Assert.Single(options.Presence.Buttons);
-            Assert.Equal("Codex RPC", button.Label);
+            Assert.Equal("K's Codex RPC", button.Label);
             Assert.Equal("https://github.com/k153636/codex-discord-presence", button.Url);
         }
         finally
