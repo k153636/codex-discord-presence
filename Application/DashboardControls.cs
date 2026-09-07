@@ -148,6 +148,7 @@ internal sealed class DashboardPreviewSurface : Control
     private bool _enabled = true;
     private readonly Image _fallbackImage;
     private readonly Image _gameIcon;
+    private readonly FontFamily _discordFontFamily;
     private readonly DashboardPresenceImageSlot _largeImage;
     private readonly DashboardPresenceImageSlot _smallImage;
 
@@ -162,6 +163,7 @@ internal sealed class DashboardPreviewSurface : Control
         BackColor = DashboardPalette.Window;
         _fallbackImage = LoadCodexImage();
         _gameIcon = DashboardDiscordActivityIcon.Load();
+        _discordFontFamily = DashboardTypography.CreateDiscordFontFamily();
         _largeImage = new DashboardPresenceImageSlot(_fallbackImage, InvalidateIfAlive);
         _smallImage = new DashboardPresenceImageSlot(_fallbackImage, InvalidateIfAlive);
     }
@@ -182,6 +184,7 @@ internal sealed class DashboardPreviewSurface : Control
         {
             _largeImage.Dispose();
             _smallImage.Dispose();
+            _discordFontFamily.Dispose();
             _gameIcon.Dispose();
             _fallbackImage.Dispose();
         }
@@ -207,7 +210,7 @@ internal sealed class DashboardPreviewSurface : Control
 
         DashboardDrawing.DrawText(
             graphics,
-            Font.FontFamily,
+            _discordFontFamily,
             "現在のアクティビティ",
             new Rectangle(origin.X, origin.Y, 360, 20),
             10f,
@@ -242,7 +245,7 @@ internal sealed class DashboardPreviewSurface : Control
 
         DashboardDrawing.DrawText(
             graphics,
-            Font.FontFamily,
+            _discordFontFamily,
             "プレイ中：",
             new Rectangle(cardRect.Left + 12, cardRect.Top + 11, 160, 18),
             10f,
@@ -250,7 +253,7 @@ internal sealed class DashboardPreviewSurface : Control
             DashboardPalette.DiscordText);
         DashboardDrawing.DrawText(
             graphics,
-            Font.FontFamily,
+            _discordFontFamily,
             "...",
             new Rectangle(cardRect.Right - 38, cardRect.Top + 6, 30, 20),
             10f,
@@ -276,7 +279,7 @@ internal sealed class DashboardPreviewSurface : Control
         var contentWidth = cardRect.Width - 135;
         DashboardDrawing.DrawText(
             graphics,
-            Font.FontFamily,
+            _discordFontFamily,
             "Codex",
             new Rectangle(contentLeft, cardRect.Top + 51, contentWidth, 18),
             11f,
@@ -284,7 +287,7 @@ internal sealed class DashboardPreviewSurface : Control
             DashboardPalette.DiscordText);
         DashboardDrawing.DrawText(
             graphics,
-            Font.FontFamily,
+            _discordFontFamily,
             details,
             new Rectangle(contentLeft, cardRect.Top + 69, contentWidth, 17),
             9f,
@@ -293,7 +296,7 @@ internal sealed class DashboardPreviewSurface : Control
             TextFormatFlags.NoPadding | TextFormatFlags.EndEllipsis);
         DashboardDrawing.DrawText(
             graphics,
-            Font.FontFamily,
+            _discordFontFamily,
             state,
             new Rectangle(contentLeft, cardRect.Top + 86, contentWidth, 17),
             9f,
@@ -310,7 +313,7 @@ internal sealed class DashboardPreviewSurface : Control
         DrawDiscordGameIcon(graphics, new Rectangle(contentLeft, cardRect.Top + 106, 14, 14));
         DashboardDrawing.DrawText(
             graphics,
-            Font.FontFamily,
+            _discordFontFamily,
             elapsed,
             new Rectangle(contentLeft + 17, cardRect.Top + 104, contentWidth - 17, 18),
             9f,
