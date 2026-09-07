@@ -24,8 +24,8 @@ public sealed class CodexDashboardForm : Form
 
         Text = "Codex Discord RPC";
         StartPosition = FormStartPosition.CenterScreen;
-        ClientSize = new Size(900, 640);
-        MinimumSize = new Size(720, 480);
+        ClientSize = new Size(960, 660);
+        MinimumSize = new Size(760, 520);
         BackColor = DashboardPalette.Window;
         ForeColor = DashboardPalette.Text;
         Font = new Font("Segoe UI", 9f);
@@ -33,6 +33,7 @@ public sealed class CodexDashboardForm : Form
         FormBorderStyle = FormBorderStyle.Sizable;
         MaximizeBox = true;
         MinimizeBox = true;
+        Icon = LoadWindowIcon();
 
         _overviewSurface = new DashboardOverviewSurface { Dock = DockStyle.Fill };
         _statusRail = new DashboardStatusRail { Dock = DockStyle.Fill };
@@ -67,6 +68,12 @@ public sealed class CodexDashboardForm : Form
             BackColor = DashboardPalette.Window,
             Padding = new Padding(0)
         };
+        tabStrip.Resize += (_, _) => tabStrip.Invalidate();
+        tabStrip.Paint += (_, e) =>
+        {
+            using var divider = new Pen(DashboardPalette.Divider);
+            e.Graphics.DrawLine(divider, 0, tabStrip.ClientSize.Height - 1, tabStrip.ClientSize.Width, tabStrip.ClientSize.Height - 1);
+        };
 
         _overviewTab.Location = new Point(22, 0);
         _previewTab.Location = new Point(182, 0);
@@ -88,7 +95,11 @@ public sealed class CodexDashboardForm : Form
         _refreshTimer = new System.Windows.Forms.Timer { Interval = 500 };
         _refreshTimer.Tick += (_, _) => RefreshSnapshot();
         _refreshTimer.Start();
-        FormClosed += (_, _) => _refreshTimer.Dispose();
+        FormClosed += (_, _) =>
+        {
+            _refreshTimer.Dispose();
+            Icon?.Dispose();
+        };
         Shown += (_, _) => RefreshSnapshot();
     }
 
@@ -139,6 +150,13 @@ public sealed class CodexDashboardForm : Form
             var enabled = 1;
             _ = DwmSetWindowAttribute(Handle, 20, ref enabled, sizeof(int));
             _ = DwmSetWindowAttribute(Handle, 19, ref enabled, sizeof(int));
+
+            var captionColor = ToColorRef(DashboardPalette.Window);
+            var borderColor = ToColorRef(DashboardPalette.Border);
+            var textColor = ToColorRef(DashboardPalette.Text);
+            _ = DwmSetWindowAttribute(Handle, 35, ref captionColor, sizeof(int));
+            _ = DwmSetWindowAttribute(Handle, 34, ref borderColor, sizeof(int));
+            _ = DwmSetWindowAttribute(Handle, 36, ref textColor, sizeof(int));
         }
         catch (DllNotFoundException)
         {
@@ -148,8 +166,45 @@ public sealed class CodexDashboardForm : Form
         }
     }
 
+    private static int ToColorRef(Color color)
+    {
+        return color.R | (color.G << 8) | (color.B << 16);
+    }
+
+    private static System.Drawing.Icon? LoadWindowIcon()
+    {
+        var path = Path.Combine(AppContext.BaseDirectory, "Assets", "RpcArt", "rpc_codex.png");
+        try
+        {
+            if (!File.Exists(path))
+            {
+                return null;
+            }
+
+            using var source = Image.FromFile(path);
+            using var bitmap = new Bitmap(source, new Size(32, 32));
+            var handle = bitmap.GetHicon();
+            try
+            {
+                using var icon = System.Drawing.Icon.FromHandle(handle);
+                return (System.Drawing.Icon)icon.Clone();
+            }
+            finally
+            {
+                _ = DestroyIcon(handle);
+            }
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
     [DllImport("dwmapi.dll")]
     private static extern int DwmSetWindowAttribute(IntPtr hwnd, int attribute, ref int value, int valueSize);
+
+    [DllImport("user32.dll")]
+    private static extern bool DestroyIcon(IntPtr hIcon);
 }
 
 internal sealed class DashboardTabButton : Button
@@ -190,21 +245,38 @@ internal sealed class DashboardTabButton : Button
 
     protected override void OnPaint(PaintEventArgs e)
     {
-        e.Graphics.Clear(BackColor);
-        using var font = new Font(Font.FontFamily, 14f, Selected ? FontStyle.Bold : FontStyle.Regular);
+        e.Graphics.Clear(Selected ? DashboardPalette.Surface : BackColor);
+        using var font = new Font(Font.FontFamily, 13f, Selected ? FontStyle.Bold : FontStyle.Regular);
         var textColor = Selected ? DashboardPalette.Text : DashboardPalette.MutedText;
         TextRenderer.DrawText(
             e.Graphics,
             Text,
             font,
-            new Rectangle(8, 16, ClientSize.Width - 16, 28),
+            new Rectangle(8, 17, ClientSize.Width - 16, 26),
             textColor,
             TextFormatFlags.NoPadding);
 
         if (Selected)
         {
             using var accent = new SolidBrush(DashboardPalette.Accent);
-            e.Graphics.FillRectangle(accent, 4, ClientSize.Height - 4, ClientSize.Width - 8, 4);
+            e.Graphics.FillRectangle(accent, 4, ClientSize.Height - 3, ClientSize.Width - 8, 3);
         }
+        else if (ClientRectangle.Contains(PointToClient(Cursor.Position)))
+        {
+            using var hover = new SolidBrush(DashboardPalette.Surface);
+            e.Graphics.FillRectangle(hover, 4, ClientSize.Height - 3, ClientSize.Width - 8, 3);
+        }
+    }
+
+    protected override void OnMouseEnter(EventArgs e)
+    {
+        base.OnMouseEnter(e);
+        Invalidate();
+    }
+
+    protected override void OnMouseLeave(EventArgs e)
+    {
+        base.OnMouseLeave(e);
+        Invalidate();
     }
 }
