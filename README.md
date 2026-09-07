@@ -131,6 +131,13 @@ The activity logger includes:
 
 That makes it easier to verify why Discord is showing a specific state.
 
+## Release distribution
+
+The GitHub Release contains only `discord-presence-for-codex.exe` for the normal desktop launch flow.
+`appsettings.json` is an optional executable-directory override, and `appsettings.cli.json` is an optional separate CLI-profile override; both remain available in the repository for users who need to customize or run the CLI profile.
+When they are absent, the executable uses the compiled defaults, including the `Codex RPC` repository button.
+The published executable is framework-dependent, so the .NET 9 Desktop Runtime is still required on the target PC.
+
 ## Configuration
 
 Common settings live in `appsettings.json`:
