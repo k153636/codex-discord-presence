@@ -4,15 +4,21 @@ namespace CodexDiscordPresence;
 
 public sealed class GitInspector
 {
-    public GitSnapshot GetSnapshot(string projectPath)
+    public GitSnapshot GetSnapshot(string projectPath, CancellationToken cancellationToken = default)
     {
-        var output = RunGit(projectPath, ["-C", projectPath, "status", "--porcelain=v1"]);
+        var output = RunGit(
+            projectPath,
+            ["-C", projectPath, "status", "--porcelain=v1"],
+            cancellationToken);
         if (output is null)
         {
             return new GitSnapshot(false, 0, null);
         }
 
-        var latestCommitMessage = RunGit(projectPath, ["-C", projectPath, "log", "-1", "--pretty=%s"])?.Trim();
+        var latestCommitMessage = RunGit(
+            projectPath,
+            ["-C", projectPath, "log", "-1", "--pretty=%s"],
+            cancellationToken)?.Trim();
         var createdFileCount = CountCreatedFiles(output);
         var deletedFileCount = CountDeletedFiles(output);
 
@@ -48,10 +54,16 @@ public sealed class GitInspector
             .Count(IsDeletedStatusLine);
     }
 
-    private static string? RunGit(string projectPath, IReadOnlyList<string> arguments)
+    private static string? RunGit(
+        string projectPath,
+        IReadOnlyList<string> arguments,
+        CancellationToken cancellationToken)
     {
+        Process? process = null;
         try
         {
+            cancellationToken.ThrowIfCancellationRequested();
+
             if (!Directory.Exists(projectPath))
             {
                 return null;
@@ -71,33 +83,67 @@ public sealed class GitInspector
                 startInfo.ArgumentList.Add(argument);
             }
 
-            using var process = Process.Start(startInfo);
+            process = Process.Start(startInfo);
 
             if (process is null)
             {
                 return null;
             }
 
-            var output = process.StandardOutput.ReadToEnd();
-            if (!process.WaitForExit(3000))
+            // Read both streams while polling so a stalled Git process cannot block
+            // shutdown on ReadToEnd, and cancellation can terminate it promptly.
+            var outputTask = process.StandardOutput.ReadToEndAsync();
+            var errorTask = process.StandardError.ReadToEndAsync();
+            var deadlineUtc = DateTime.UtcNow.AddSeconds(3);
+            while (!process.WaitForExit(100))
             {
-                try
+                cancellationToken.ThrowIfCancellationRequested();
+                if (DateTime.UtcNow >= deadlineUtc)
                 {
-                    process.Kill(entireProcessTree: true);
+                    TerminateProcess(process);
+                    return null;
                 }
-                catch
-                {
-                    // Ignore cleanup failures after a git timeout.
-                }
-
-                return null;
             }
 
+            cancellationToken.ThrowIfCancellationRequested();
+            var output = outputTask.GetAwaiter().GetResult();
+            _ = errorTask.GetAwaiter().GetResult();
             return process.ExitCode == 0 ? output : null;
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            TerminateProcess(process);
+            throw;
         }
         catch
         {
+            TerminateProcess(process);
             return null;
+        }
+        finally
+        {
+            process?.Dispose();
+        }
+    }
+
+    private static void TerminateProcess(Process? process)
+    {
+        if (process is null)
+        {
+            return;
+        }
+
+        try
+        {
+            if (!process.HasExited)
+            {
+                process.Kill(entireProcessTree: true);
+                process.WaitForExit(500);
+            }
+        }
+        catch
+        {
+            // Ignore cleanup failures after a Git timeout or cancellation.
         }
     }
 

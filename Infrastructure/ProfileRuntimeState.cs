@@ -27,6 +27,7 @@ public sealed class ProfileRuntimeState
     public CodexProcessSnapshot? LastActivitySnapshot { get; set; }
     public string? LastPresenceDetails { get; set; }
     public string? LastPresenceState { get; set; }
+    public string? LastPresenceLargeImageKey { get; set; }
     public string? StableCostModelName { get; set; }
     public CodexActivityKind LastActivityKind { get; set; } = CodexActivityKind.Ready;
     public int LastAnalyzingRepeatCount { get; set; } = 1;
@@ -42,6 +43,7 @@ public sealed class ProfileRuntimeState
         LastActivitySnapshot = null;
         LastPresenceDetails = null;
         LastPresenceState = null;
+        LastPresenceLargeImageKey = null;
         StableCostModelName = null;
         LastActivityKind = CodexActivityKind.Ready;
         LastAnalyzingRepeatCount = 1;

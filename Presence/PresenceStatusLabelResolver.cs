@@ -10,6 +10,11 @@ public sealed class PresenceStatusLabelResolver
         CodexActivityKind activityKind,
         int changedFileCount)
     {
+        if (context.Codex.IsError)
+        {
+            return FirstNonEmpty(template.ErrorText, "Error");
+        }
+
         var label = activityKind switch
         {
             CodexActivityKind.Planning => FirstNonEmpty(template.PlanningText, "Planning"),
@@ -45,7 +50,26 @@ public sealed class PresenceStatusLabelResolver
             return thinkingSummary;
         }
 
+        if (HasCurrentThinkingBoundary(context))
+        {
+            return FirstNonEmpty(template.ThinkingText, template.AnalyzingProjectText, "Thinking");
+        }
+
+        if (!context.Codex.IsThinking)
+        {
+            return FirstNonEmpty(template.WaitingText, "Waiting");
+        }
+
         return FirstNonEmpty(template.WorkingText, "Working");
+    }
+
+    private static bool HasCurrentThinkingBoundary(PresenceContext context)
+    {
+        return context.Codex.IsThinking &&
+            context.Codex.LatestActivityEventKind is
+                CodexActivityEventKind.Reasoning or
+                CodexActivityEventKind.OperationCompleted or
+                CodexActivityEventKind.InputResolved;
     }
 
     private static string ResolveReadyLabel(PresenceTemplateOptions template, PresenceContext context)

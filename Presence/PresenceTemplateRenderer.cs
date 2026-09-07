@@ -23,7 +23,13 @@ public sealed class PresenceTemplateRenderer
             context.Codex.RunningCommandKind,
             context.Codex.RunningCommandName)
         {
-            PartySize = context.Codex.PartySize
+            PartySize = context.Codex.PartySize,
+            IsSuccessfulCompletion = context.Codex.IsSuccessfulCompletion,
+            IsError = context.Codex.IsError,
+            IsThinking = context.Codex.IsThinking,
+            WaitingStartedAt = context.Codex.ActivityKind is CodexActivityKind.Ready or CodexActivityKind.WaitingForInput
+                ? context.Codex.ActivityStartedAt ?? context.Codex.LastEffectiveSignalAt ?? context.Codex.LastObservedAt
+                : null
         };
     }
 
@@ -229,6 +235,10 @@ public sealed record RenderedPresence(
     string RunningCommandName)
 {
     public int? PartySize { get; init; }
+    public bool IsSuccessfulCompletion { get; init; }
+    public bool IsError { get; init; }
+    public bool IsThinking { get; init; }
+    public DateTime? WaitingStartedAt { get; init; }
 }
 
 public sealed record RenderedButton(string Label, string Url);

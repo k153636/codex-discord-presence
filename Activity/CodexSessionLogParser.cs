@@ -22,7 +22,9 @@ internal sealed class CodexSessionLogParser
         _presenceOptions = presenceOptions;
     }
 
-    public SessionInspection? InspectRecentSessions(string? projectPath)
+    public SessionInspection? InspectRecentSessions(
+        string? projectPath,
+        CancellationToken cancellationToken = default)
     {
         var resolvedPath = _options.GetResolvedHomePath();
         var sessionsPath = Path.Combine(resolvedPath, "sessions");
@@ -48,11 +50,16 @@ internal sealed class CodexSessionLogParser
 
             foreach (var file in files)
             {
-                var inspection = GetCachedInspection(file, normalizedProjectPath);
+                cancellationToken.ThrowIfCancellationRequested();
+                var inspection = GetCachedInspection(file, normalizedProjectPath, cancellationToken);
                 candidates.Add(new SessionInspectionCandidate(inspection, file.LastWriteTimeUtc));
             }
 
             return SelectInspection(candidates, normalizedProjectPath);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
         }
         catch
         {
@@ -92,7 +99,10 @@ internal sealed class CodexSessionLogParser
         }
     }
 
-    private SessionInspection GetCachedInspection(FileInfo file, string? normalizedProjectPath)
+    private SessionInspection GetCachedInspection(
+        FileInfo file,
+        string? normalizedProjectPath,
+        CancellationToken cancellationToken = default)
     {
         var cacheKey = file.FullName;
         if (_sessionCache.TryGetValue(cacheKey, out var cached) &&
@@ -102,7 +112,7 @@ internal sealed class CodexSessionLogParser
             return ApplyProjectMatch(cached.Inspection, normalizedProjectPath);
         }
 
-        var inspection = AnalyzeSessionFile(file.FullName);
+        var inspection = AnalyzeSessionFile(file.FullName, cancellationToken);
         _sessionCache[cacheKey] = new CachedSessionInspection(
             file.Length,
             file.LastWriteTimeUtc,
@@ -110,7 +120,7 @@ internal sealed class CodexSessionLogParser
         return ApplyProjectMatch(inspection, normalizedProjectPath);
     }
 
-    private SessionInspection AnalyzeSessionFile(string path)
+    private SessionInspection AnalyzeSessionFile(string path, CancellationToken cancellationToken)
     {
         var hasProjectPath = false;
         string? latestProjectPath = null;
@@ -133,8 +143,9 @@ internal sealed class CodexSessionLogParser
 
         try
         {
-            foreach (var line in ReadSessionLines(path))
+            foreach (var line in ReadSessionLines(path, cancellationToken))
             {
+                cancellationToken.ThrowIfCancellationRequested();
                 if (!line.Contains("\"payload\"", StringComparison.Ordinal))
                 {
                     continue;
@@ -263,6 +274,10 @@ internal sealed class CodexSessionLogParser
                 }
             }
         }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
         catch
         {
             // Fall through with what we were able to infer.
@@ -307,37 +322,57 @@ internal sealed class CodexSessionLogParser
         return inspection with { MatchesProject = matchesProject };
     }
 
-    private static IEnumerable<string> ReadSessionLines(string path)
+    private static IEnumerable<string> ReadSessionLines(
+        string path,
+        CancellationToken cancellationToken)
     {
+        cancellationToken.ThrowIfCancellationRequested();
         var fileLength = new FileInfo(path).Length;
         if (fileLength <= MaxTailBytesToScan)
         {
-            return ReadLinesFromOffset(path, 0, includePartialFirstLine: true);
+            return ReadLinesFromOffset(
+                path,
+                0,
+                includePartialFirstLine: true,
+                cancellationToken: cancellationToken);
         }
 
-        return ReadLargeSessionLines(path, fileLength);
+        return ReadLargeSessionLines(path, fileLength, cancellationToken);
     }
 
-    private static IEnumerable<string> ReadLargeSessionLines(string path, long fileLength)
+    private static IEnumerable<string> ReadLargeSessionLines(
+        string path,
+        long fileLength,
+        CancellationToken cancellationToken)
     {
-        foreach (var line in ReadLinesFromHead(path))
+        foreach (var line in ReadLinesFromHead(path, cancellationToken))
         {
             yield return line;
         }
 
-        var tailOffset = FindLineStart(path, Math.Max(0, fileLength - MaxTailBytesToScan));
-        foreach (var line in ReadLinesFromOffset(path, tailOffset, includePartialFirstLine: true))
+        var tailOffset = FindLineStart(
+            path,
+            Math.Max(0, fileLength - MaxTailBytesToScan),
+            cancellationToken);
+        foreach (var line in ReadLinesFromOffset(
+                     path,
+                     tailOffset,
+                     includePartialFirstLine: true,
+                     cancellationToken: cancellationToken))
         {
             yield return line;
         }
     }
 
-    private static IEnumerable<string> ReadLinesFromHead(string path)
+    private static IEnumerable<string> ReadLinesFromHead(
+        string path,
+        CancellationToken cancellationToken)
     {
         using var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
         using var reader = new StreamReader(stream, System.Text.Encoding.UTF8);
         for (var lineNumber = 0; lineNumber < MaxHeaderLinesToScan; lineNumber++)
         {
+            cancellationToken.ThrowIfCancellationRequested();
             var line = reader.ReadLine();
             if (line is null)
             {
@@ -351,8 +386,10 @@ internal sealed class CodexSessionLogParser
     private static IEnumerable<string> ReadLinesFromOffset(
         string path,
         long offset,
-        bool includePartialFirstLine)
+        bool includePartialFirstLine,
+        CancellationToken cancellationToken)
     {
+        cancellationToken.ThrowIfCancellationRequested();
         using var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
         stream.Seek(Math.Max(0, offset), SeekOrigin.Begin);
         using var reader = new StreamReader(stream, System.Text.Encoding.UTF8);
@@ -364,11 +401,15 @@ internal sealed class CodexSessionLogParser
         string? line;
         while ((line = reader.ReadLine()) is not null)
         {
+            cancellationToken.ThrowIfCancellationRequested();
             yield return line;
         }
     }
 
-    private static long FindLineStart(string path, long offset)
+    private static long FindLineStart(
+        string path,
+        long offset,
+        CancellationToken cancellationToken)
     {
         if (offset <= 0)
         {
@@ -380,6 +421,7 @@ internal sealed class CodexSessionLogParser
         var searchEnd = offset;
         while (searchEnd > 0)
         {
+            cancellationToken.ThrowIfCancellationRequested();
             var blockStart = Math.Max(0, searchEnd - buffer.Length);
             var blockLength = (int)(searchEnd - blockStart);
             stream.Seek(blockStart, SeekOrigin.Begin);
@@ -637,7 +679,7 @@ internal sealed class CodexSessionLogParser
         var status = TryGetFirstString(payload, "status", "outcome", "result")?.ToLowerInvariant();
         return status switch
         {
-            "failed" or "error" => CodexActivityEventKind.TurnFailed,
+            "failed" or "failure" or "error" or "errored" => CodexActivityEventKind.TurnFailed,
             "interrupted" or "aborted" or "cancelled" or "canceled" => CodexActivityEventKind.TurnInterrupted,
             _ => CodexActivityEventKind.TurnCompleted
         };
@@ -2153,6 +2195,7 @@ internal sealed class CodexSessionLogParser
     private static readonly string[] TestingShellCommandMarkers =
     [
         "dotnet test",
+        "dotnet vstest",
         "npm test",
         "npm run test",
         "pnpm test",
@@ -2162,15 +2205,24 @@ internal sealed class CodexSessionLogParser
         "bun test",
         "go test",
         "cargo test",
+        "cargo nextest",
         "pytest",
         "mvn test",
+        "mvn verify",
         "gradle test",
         "make test",
         "make check",
         "jest",
         "vitest",
         "playwright test",
-        "npx playwright test"
+        "npx playwright test",
+        "mocha",
+        "phpunit",
+        "rspec",
+        "mix test",
+        "swift test",
+        "flutter test",
+        "xcodebuild test"
     ];
 
     private static string? TryGetCollaborationMode(JsonElement payload)

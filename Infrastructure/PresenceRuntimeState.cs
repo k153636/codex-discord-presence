@@ -9,6 +9,4 @@ public sealed class PresenceRuntimeState
         get => Volatile.Read(ref _enabled) == 1;
         set => Interlocked.Exchange(ref _enabled, value ? 1 : 0);
     }
-
-    public DateTime? SessionStartedAtUtc { get; set; }
 }

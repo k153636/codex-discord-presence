@@ -164,6 +164,36 @@ public sealed class TokenUsageProviderTests
         }
     }
 
+    [Fact]
+    public void GetSnapshot_WithoutSessionScan_DefersTokenRead()
+    {
+        var tempHome = CreateTempCodexHome();
+        try
+        {
+            var projectPath = @"E:\tool\discord-presence-for-codex";
+            WriteSession(tempHome, "session.jsonl", new[]
+            {
+                $"{{\"timestamp\":\"2026-06-17T13:00:00.000Z\",\"type\":\"session_meta\",\"payload\":{{\"cwd\":\"{EscapeJson(projectPath)}\"}}}}",
+                "{\"timestamp\":\"2026-06-17T13:00:01.000Z\",\"type\":\"event_msg\",\"payload\":{\"type\":\"token_count\",\"info\":{\"total_token_usage\":{\"input_tokens\":10,\"cached_input_tokens\":0,\"output_tokens\":5,\"reasoning_output_tokens\":0,\"total_tokens\":15}}}}"
+            });
+
+            var provider = new TokenUsageProvider(
+                new CodexDetectionOptions { HomePath = tempHome, ModelEnvironmentVariables = [] },
+                new TokenUsageOptions { Enabled = true });
+
+            var snapshot = provider.GetSnapshot(
+                projectPath,
+                includeSessionScan: false);
+
+            Assert.Null(snapshot.TotalTokens);
+            Assert.Null(snapshot.EstimatedCostUsd);
+        }
+        finally
+        {
+            Directory.Delete(tempHome, true);
+        }
+    }
+
     private static string CreateTempCodexHome()
     {
         var tempPath = Path.Combine(Path.GetTempPath(), "CodexTokenTests_" + Guid.NewGuid());

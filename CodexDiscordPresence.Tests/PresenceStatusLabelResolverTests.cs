@@ -72,6 +72,22 @@ public sealed class PresenceStatusLabelResolverTests
     }
 
     [Fact]
+    public void ResolveStateLabel_ExplicitReasoningWithoutSummary_ReturnsThinking()
+    {
+        var resolver = new PresenceStatusLabelResolver();
+        var context = CreateContext(
+            new CodexProcessSnapshot(true, "codex", true)
+            {
+                DetectedActivityKind = CodexActivityKind.AnalyzingProject,
+                LatestActivityEventKind = CodexActivityEventKind.Reasoning
+            });
+
+        var label = resolver.ResolveStateLabel(new PresenceTemplateOptions(), context, CodexActivityKind.AnalyzingProject, 0);
+
+        Assert.Equal("Thinking", label);
+    }
+
+    [Fact]
     public void ResolveStateLabel_AnalyzingProjectWithSearchEvidenceAndThinkingSummaryPrefersSummary()
     {
         var resolver = new PresenceStatusLabelResolver();
@@ -119,6 +135,21 @@ public sealed class PresenceStatusLabelResolverTests
         var label = resolver.ResolveStateLabel(new PresenceTemplateOptions(), context, CodexActivityKind.AnalyzingProject, 0);
 
         Assert.Equal("Working", label);
+    }
+
+    [Fact]
+    public void ResolveStateLabel_AnalyzingProjectWithoutThinkingEvidence_ReturnsWaiting()
+    {
+        var resolver = new PresenceStatusLabelResolver();
+        var context = CreateContext(
+            new CodexProcessSnapshot(true, "codex", false)
+            {
+                DetectedActivityKind = CodexActivityKind.AnalyzingProject
+            });
+
+        var label = resolver.ResolveStateLabel(new PresenceTemplateOptions(), context, CodexActivityKind.AnalyzingProject, 0);
+
+        Assert.Equal("Waiting", label);
     }
 
     [Fact]
@@ -193,6 +224,22 @@ public sealed class PresenceStatusLabelResolverTests
         var label = resolver.ResolveStateLabel(new PresenceTemplateOptions(), context, CodexActivityKind.Offline, 0);
 
         Assert.Equal("Idling", label);
+    }
+
+    [Fact]
+    public void ResolveStateLabel_ExplicitError_ReturnsError()
+    {
+        var resolver = new PresenceStatusLabelResolver();
+        var context = CreateContext(
+            new CodexProcessSnapshot(true, "codex", false)
+            {
+                DetectedActivityKind = CodexActivityKind.Ready,
+                IsError = true
+            });
+
+        var label = resolver.ResolveStateLabel(new PresenceTemplateOptions(), context, CodexActivityKind.Ready, 0);
+
+        Assert.Equal("Error", label);
     }
 
     private static PresenceContext CreateContext(

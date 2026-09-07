@@ -223,19 +223,38 @@ Set `Presence.EnableLargeImageText` to `false` if you want Discord to show only 
 
 ## Discord Art Assets
 
-The RPC art pack is stored in `Assets/RpcArt`. The source GIFs remain unchanged. The Discord application's Rich Presence art assets retain static fallbacks under the same internal keys, while `Discord.ExternalImageUrls` points the runtime presence at the original public images.
+The RPC art pack is stored in `Assets/RpcArt`. The remaining source GIFs stay
+as GIFs. The retired building asset is no longer part of the pack. The Discord
+application's Rich Presence art assets retain static fallbacks under the same
+internal keys, while `Discord.ExternalImageUrls` points the runtime presence
+at the original public images.
 
 The application uses these internal keys:
 
 - `rpc_codex`: fixed small image
-- `rpc_thinking`: analysis and planning
-- `rpc_coding`: edits, file creation/deletion, and refactoring
-- `rpc_sleeping`: offline and ready/idle states
+- `rpc_thinking`: evidence-backed reasoning and planning only; concrete commands, MCP calls, edits, research, and unresolved operations use their own or the waiting mapping
+- `rpc_coding`: edits, file creation/deletion, refactoring, and unclassified build/command activity
+- `rpc_sleeping`: offline, waiting after the completion hold, and ready/idle states
 - `rpc_reading`: Git commands
 - `rpc_searching`: search commands
-- `rpc_building`: build and unknown commands
 - `rpc_debugging`: test commands
-- `rpc_deploying`, `rpc_success`, `rpc_error`: uploaded keys reserved for future event-specific states
+- `rpc_success`: a freshly successful Codex turn (configured by `Discord.CompletedImageKey`)
+- `rpc_error`: an explicitly failed Codex turn only (configured by `Discord.ErrorImageKey`)
+- `rpc_deploying`: reserved for future event-specific states
+
+`Stalled` means that observable activity stopped before a terminal result was
+received; it is not treated as an error and therefore uses the neutral waiting
+asset. `rpc_error` is selected only when the session contains a failed terminal
+event such as `turn_failed`, `task_failed`, or a failed terminal status.
+
+When Codex enters the semantic `Waiting` state after a successful turn, the
+runtime uses `Discord.CompletedImageKey` for the first
+`Discord.CompletedImageHoldSeconds` seconds (60 by default), then switches to
+`rpc_sleeping`. The resolved image key is part of the dispatch signature, so
+the one-minute transition is sent to Discord even when the text state is
+unchanged. If a current active event cannot prove Thinking, the text state is
+`Waiting` and the waiting asset mapping is used; the runtime no longer uses a
+generic build-style fallback.
 
 Discord's Developer Portal currently accepts PNG, JPEG, and WebP for uploaded Rich Presence assets, and uploaded animations are not supported. For GIF-backed keys, the runtime therefore sends the configured external GIF URL; if a URL is missing or invalid, it falls back to the internal portal key.
 

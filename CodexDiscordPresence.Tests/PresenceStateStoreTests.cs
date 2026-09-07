@@ -5,7 +5,7 @@ namespace CodexDiscordPresence.Tests;
 public sealed class PresenceStateStoreTests
 {
     [Fact]
-    public void SaveAndLoad_RoundTripsEnabledState()
+    public void SaveAndLoad_PersistsEnabledStateOnly()
     {
         var tempDir = Path.Combine(Path.GetTempPath(), "CodexPresenceStateTests_" + Guid.NewGuid());
         Directory.CreateDirectory(tempDir);
@@ -19,7 +19,6 @@ public sealed class PresenceStateStoreTests
             var loaded = store.Load(statePath);
 
             Assert.False(loaded.Enabled);
-            Assert.Null(loaded.SessionStartedAtUtc);
         }
         finally
         {
@@ -28,7 +27,7 @@ public sealed class PresenceStateStoreTests
     }
 
     [Fact]
-    public void SaveAndLoad_RoundTripsSessionStartedAt()
+    public void Save_PersistsEnabledStateOnly()
     {
         var tempDir = Path.Combine(Path.GetTempPath(), "CodexPresenceStateTests_" + Guid.NewGuid());
         Directory.CreateDirectory(tempDir);
@@ -36,14 +35,13 @@ public sealed class PresenceStateStoreTests
 
         try
         {
-            var startedAt = new DateTime(2026, 6, 20, 12, 0, 0, DateTimeKind.Utc);
             var store = new PresenceStateStore();
-            store.Save(statePath, new PresenceRuntimeState { Enabled = true, SessionStartedAtUtc = startedAt });
+            store.Save(statePath, new PresenceRuntimeState { Enabled = true });
 
-            var loaded = store.Load(statePath);
+            var json = File.ReadAllText(statePath);
 
-            Assert.True(loaded.Enabled);
-            Assert.Equal(startedAt, loaded.SessionStartedAtUtc);
+            Assert.Contains("\"Enabled\": true", json);
+            Assert.DoesNotContain("SessionStartedAtUtc", json);
         }
         finally
         {
@@ -65,7 +63,6 @@ public sealed class PresenceStateStoreTests
             var loaded = store.Load(statePath);
 
             Assert.True(loaded.Enabled);
-            Assert.Null(loaded.SessionStartedAtUtc);
         }
         finally
         {
@@ -89,7 +86,6 @@ public sealed class PresenceStateStoreTests
             var loaded = store.Load(statePath);
 
             Assert.False(loaded.Enabled);
-            Assert.Null(loaded.SessionStartedAtUtc);
         }
         finally
         {

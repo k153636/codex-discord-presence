@@ -22,6 +22,7 @@ public sealed class DiscordPresenceClient : IDisposable
 
     public Task StartAsync(CancellationToken cancellationToken)
     {
+        cancellationToken.ThrowIfCancellationRequested();
         TryInitialize(logSuccess: true);
         return Task.CompletedTask;
     }
@@ -33,6 +34,9 @@ public sealed class DiscordPresenceClient : IDisposable
         if (string.Equals(_options.ClientId, options.ClientId, StringComparison.Ordinal) &&
             string.Equals(_options.LargeImageKey, options.LargeImageKey, StringComparison.Ordinal) &&
             string.Equals(_options.SmallImageKey, options.SmallImageKey, StringComparison.Ordinal) &&
+            string.Equals(_options.CompletedImageKey, options.CompletedImageKey, StringComparison.Ordinal) &&
+            _options.CompletedImageHoldSeconds == options.CompletedImageHoldSeconds &&
+            string.Equals(_options.ErrorImageKey, options.ErrorImageKey, StringComparison.Ordinal) &&
             AssetMappingsEqual(_options.ActivityImageKeys, options.ActivityImageKeys) &&
             AssetMappingsEqual(_options.RunningCommandImageKeys, options.RunningCommandImageKeys) &&
             AssetMappingsEqual(_options.ExternalImageUrls, options.ExternalImageUrls))
@@ -124,7 +128,16 @@ public sealed class DiscordPresenceClient : IDisposable
 
     public void Dispose()
     {
-        _client?.Dispose();
+        try
+        {
+            _client?.Dispose();
+        }
+        finally
+        {
+            _client = null;
+            _isReady = false;
+            _needsPresenceRefresh = true;
+        }
     }
 
     private bool EnsureReady()

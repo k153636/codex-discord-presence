@@ -2,6 +2,40 @@ namespace CodexDiscordPresence;
 
 internal static class CodexActivityEvidence
 {
+    public static bool IsThinkingPhase(
+        CodexActivityKind activityKind,
+        CodexActivityState? activityState)
+    {
+        if (!activityKind.IsThinking())
+        {
+            return false;
+        }
+
+        // A kind-level fallback can still be returned for an unclassified
+        // operation. A pending operation is stronger evidence than the
+        // generic analysis label, so do not expose it as Thinking.
+        if (activityState is null)
+        {
+            return true;
+        }
+
+        if (activityState.Lifecycle != CodexTurnLifecycle.Open ||
+            activityState.PendingOperationCount > 0)
+        {
+            return false;
+        }
+
+        // These events represent a new reasoning phase in Codex's session
+        // stream. OperationCompleted is intentionally included so the
+        // presence can show Thinking while Codex decides what to do with a
+        // command/MCP result, after the concrete operation grace period.
+        return activityState.TriggerEvent?.Kind is null or
+            CodexActivityEventKind.TurnStarted or
+            CodexActivityEventKind.Reasoning or
+            CodexActivityEventKind.OperationCompleted or
+            CodexActivityEventKind.InputResolved;
+    }
+
     public static bool HasFreshRecentEdits(
         IReadOnlyList<RecentProjectFileSnapshot> recentEditedFiles,
         int editingFreshnessSeconds)

@@ -36,7 +36,7 @@ public sealed class CodexEventDrivenPresenceTests
             var presence = Render(projectPath, snapshot);
 
             Assert.Equal(CodexActivityKind.Researching, snapshot.ActivityKind);
-            Assert.True(snapshot.IsThinking);
+            Assert.False(snapshot.IsThinking);
             Assert.Equal(1, snapshot.PendingOperationCount);
             Assert.Equal("Researching", presence.State);
         }
@@ -237,7 +237,7 @@ public sealed class CodexEventDrivenPresenceTests
 
             Assert.Equal(CodexActivityKind.AnalyzingProject, snapshot.ActivityKind);
             Assert.Equal(0, snapshot.PendingOperationCount);
-            Assert.Equal("Working", presence.State);
+            Assert.Equal("Thinking", presence.State);
         }
         finally
         {

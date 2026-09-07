@@ -32,21 +32,104 @@ internal static class DiscordAssetKeyResolver
         ArgumentNullException.ThrowIfNull(options);
         ArgumentNullException.ThrowIfNull(presence);
 
+        if (presence.IsError)
+        {
+            if (TryNormalize(options.ErrorImageKey, out var errorImageKey))
+            {
+                return errorImageKey;
+            }
+        }
+
+        if (presence.IsSuccessfulCompletion &&
+            presence.ActivityKind is (CodexActivityKind.Ready or CodexActivityKind.WaitingForInput) &&
+            IsWithinCompletedImageHold(presence.WaitingStartedAt, options.CompletedImageHoldSeconds) &&
+            TryNormalize(options.CompletedImageKey, out var completedImageKey))
+        {
+            return completedImageKey;
+        }
+
         if (presence.ActivityKind == CodexActivityKind.RunningCommand &&
             TryGetConfiguredKey(
                 options.RunningCommandImageKeys,
                 presence.RunningCommandKind.ToString(),
                 out var commandImageKey))
         {
-            return commandImageKey;
+            return SanitizeNonErrorImageKey(options, presence, commandImageKey);
+        }
+
+        if (!presence.IsThinking &&
+            presence.ActivityKind.IsThinking())
+        {
+            return TryGetConfiguredKey(
+                    options.ActivityImageKeys,
+                    nameof(CodexActivityKind.Ready),
+                    out var waitingImageKey)
+                ? waitingImageKey
+                : "rpc_sleeping";
+        }
+
+        if (presence.ActivityKind == CodexActivityKind.Stalled)
+        {
+            return ResolveWaitingImageKey(options);
         }
 
         return TryGetConfiguredKey(
                 options.ActivityImageKeys,
                 presence.ActivityKind.ToString(),
                 out var activityImageKey)
-            ? activityImageKey
-            : Normalize(options.LargeImageKey);
+            ? SanitizeNonErrorImageKey(options, presence, activityImageKey)
+            : ResolveFallbackImageKey(options, presence);
+    }
+
+    private static string? ResolveFallbackImageKey(DiscordOptions options, RenderedPresence presence)
+    {
+        var fallbackImageKey = Normalize(options.LargeImageKey);
+        return fallbackImageKey is null
+            ? null
+            : SanitizeNonErrorImageKey(options, presence, fallbackImageKey);
+    }
+
+    private static string SanitizeNonErrorImageKey(
+        DiscordOptions options,
+        RenderedPresence presence,
+        string imageKey)
+    {
+        if (presence.IsError ||
+            !IsErrorImageKey(options, imageKey))
+        {
+            return imageKey;
+        }
+
+        return ResolveWaitingImageKey(options);
+    }
+
+    private static string ResolveWaitingImageKey(DiscordOptions options)
+    {
+        return TryGetConfiguredKey(
+                options.ActivityImageKeys,
+                nameof(CodexActivityKind.Ready),
+                out var waitingImageKey) &&
+            !IsErrorImageKey(options, waitingImageKey)
+            ? waitingImageKey
+            : "rpc_sleeping";
+    }
+
+    private static bool IsErrorImageKey(DiscordOptions options, string imageKey)
+    {
+        return (TryNormalize(options.ErrorImageKey, out var errorImageKey) &&
+                string.Equals(imageKey, errorImageKey, StringComparison.OrdinalIgnoreCase)) ||
+            string.Equals(imageKey, "rpc_error", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static bool IsWithinCompletedImageHold(DateTime? waitingStartedAt, int holdSeconds)
+    {
+        if (!waitingStartedAt.HasValue)
+        {
+            return false;
+        }
+
+        var elapsed = DateTime.UtcNow - waitingStartedAt.Value;
+        return elapsed >= TimeSpan.Zero && elapsed < TimeSpan.FromSeconds(Math.Max(0, holdSeconds));
     }
 
     private static bool TryGetConfiguredKey(

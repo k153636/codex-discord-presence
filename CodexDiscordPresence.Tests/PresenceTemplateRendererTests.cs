@@ -36,6 +36,62 @@ public sealed class PresenceTemplateRendererTests
     }
 
     [Fact]
+    public void Render_CarriesThinkingEvidenceIntoRenderedPresence()
+    {
+        var renderer = new PresenceTemplateRenderer();
+        var template = new PresenceTemplateOptions { State = "{ActivityLine}" };
+        var context = CreateContext(
+            new CodexProcessSnapshot(true, "codex", true)
+            {
+                DetectedActivityKind = CodexActivityKind.AnalyzingProject
+            },
+            new ProjectSnapshot("Nexstrap", @"E:\tool\Nexstrap", null, null, 128, 128, 42000, []),
+            new GitSnapshot(true, 0, null));
+
+        var presence = renderer.Render(template, context);
+
+        Assert.True(presence.IsThinking);
+    }
+
+    [Fact]
+    public void Render_CarriesMissingThinkingEvidenceIntoRenderedPresence()
+    {
+        var renderer = new PresenceTemplateRenderer();
+        var template = new PresenceTemplateOptions { State = "{ActivityLine}" };
+        var context = CreateContext(
+            new CodexProcessSnapshot(true, "codex", false)
+            {
+                DetectedActivityKind = CodexActivityKind.AnalyzingProject
+            },
+            new ProjectSnapshot("Nexstrap", @"E:\tool\Nexstrap", null, null, 128, 128, 42000, []),
+            new GitSnapshot(true, 0, null));
+
+        var presence = renderer.Render(template, context);
+
+        Assert.False(presence.IsThinking);
+    }
+
+    [Fact]
+    public void Render_CarriesExplicitErrorIntoRenderedPresence()
+    {
+        var renderer = new PresenceTemplateRenderer();
+        var template = new PresenceTemplateOptions { State = "{ActivityLine}" };
+        var context = CreateContext(
+            new CodexProcessSnapshot(true, "codex", false)
+            {
+                DetectedActivityKind = CodexActivityKind.Ready,
+                IsError = true
+            },
+            new ProjectSnapshot("Nexstrap", @"E:\tool\Nexstrap", null, null, 128, 128, 42000, []),
+            new GitSnapshot(true, 0, null));
+
+        var presence = renderer.Render(template, context);
+
+        Assert.True(presence.IsError);
+        Assert.Equal("Error", presence.State);
+    }
+
+    [Fact]
     public void Render_ReadyWithinFiveMinutes_UsesWaitingLabel()
     {
         var renderer = new PresenceTemplateRenderer();
@@ -552,6 +608,25 @@ public sealed class PresenceTemplateRendererTests
         var presence = renderer.Render(template, context);
 
         Assert.Equal("1532 files", presence.LargeImageText);
+    }
+
+    [Fact]
+    public void Render_WhenLargeImageTextDisabled_OmitsLargeImageText()
+    {
+        var renderer = new PresenceTemplateRenderer();
+        var template = new PresenceTemplateOptions
+        {
+            EnableLargeImageText = false,
+            LargeImageText = "{ProjectName}"
+        };
+        var context = CreateContext(
+            new CodexProcessSnapshot(true, "codex", false),
+            new ProjectSnapshot("Nexstrap", @"E:\tool\Nexstrap", null, null, 1532, 1532, 142_400, []),
+            new GitSnapshot(true, 0, null));
+
+        var presence = renderer.Render(template, context);
+
+        Assert.Null(presence.LargeImageText);
     }
 
     [Fact]

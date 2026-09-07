@@ -27,14 +27,23 @@ public sealed class TokenUsageProvider
         _codexHomePath = codexOptions.GetResolvedHomePath();
     }
 
-    public TokenUsageSnapshot GetSnapshot(string? projectPath = null, string? fallbackModelName = null)
+    public TokenUsageSnapshot GetSnapshot(
+        string? projectPath = null,
+        string? fallbackModelName = null,
+        bool includeSessionScan = true,
+        CancellationToken cancellationToken = default)
     {
         if (!_options.Enabled)
         {
             return new TokenUsageSnapshot(null, null);
         }
 
-        var inspection = InspectRecentSessions(projectPath, fallbackModelName);
+        if (!includeSessionScan)
+        {
+            return new TokenUsageSnapshot(null, null);
+        }
+
+        var inspection = InspectRecentSessions(projectPath, fallbackModelName, cancellationToken);
         if (inspection is null)
         {
             return new TokenUsageSnapshot(null, null);
@@ -43,7 +52,10 @@ public sealed class TokenUsageProvider
         return new TokenUsageSnapshot(inspection.TotalTokens, inspection.EstimatedCostUsd);
     }
 
-    private SessionUsageInspection? InspectRecentSessions(string? projectPath, string? fallbackModelName)
+    private SessionUsageInspection? InspectRecentSessions(
+        string? projectPath,
+        string? fallbackModelName,
+        CancellationToken cancellationToken)
     {
         var sessionsPath = Path.Combine(_codexHomePath, "sessions");
         if (!Directory.Exists(sessionsPath))
@@ -63,7 +75,12 @@ public sealed class TokenUsageProvider
 
         foreach (var file in recentFiles)
         {
-            var inspection = AnalyzeSessionFile(file.FullName, normalizedProjectPath, fallbackModelName);
+            cancellationToken.ThrowIfCancellationRequested();
+            var inspection = AnalyzeSessionFile(
+                file.FullName,
+                normalizedProjectPath,
+                fallbackModelName,
+                cancellationToken);
             if (inspection.MatchesProject && inspection.HasTokenUsage)
             {
                 return inspection;
@@ -73,7 +90,11 @@ public sealed class TokenUsageProvider
         return null;
     }
 
-    private SessionUsageInspection AnalyzeSessionFile(string path, string? normalizedProjectPath, string? fallbackModelName)
+    private SessionUsageInspection AnalyzeSessionFile(
+        string path,
+        string? normalizedProjectPath,
+        string? fallbackModelName,
+        CancellationToken cancellationToken)
     {
         var matchesProject = false;
         var hasTokenUsage = false;
@@ -89,6 +110,7 @@ public sealed class TokenUsageProvider
             string? line;
             while ((line = reader.ReadLine()) is not null)
             {
+                cancellationToken.ThrowIfCancellationRequested();
                 if (!line.Contains("\"payload\"", StringComparison.Ordinal))
                 {
                     continue;
@@ -130,6 +152,10 @@ public sealed class TokenUsageProvider
                 latestTotalTokens = totals.TotalTokens;
                 latestTotals = totals;
             }
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
         }
         catch
         {

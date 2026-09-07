@@ -31,6 +31,11 @@ public sealed class PresenceRuntime
 
     public async Task RunAsync()
     {
+        if (_cancellationToken.IsCancellationRequested)
+        {
+            return;
+        }
+
         var session = new SessionClock(DateTime.UtcNow);
         var profileStates = BuildProfileStates();
         var projectInspector = new ProjectInspector(_options.Project);
@@ -45,118 +50,139 @@ public sealed class PresenceRuntime
         _log.Info($"Project path: {activeProjectPath}");
         _log.Info("Press Ctrl+C or Quit to stop.");
 
-        var initialProfileSnapshots = CaptureProfileSnapshots(profileStates);
+        var initialProfileSnapshots = CaptureProfileSnapshots(profileStates, _cancellationToken);
         var currentProfile = AppProfileSelectionPolicy.Select(
             AppProfileKind.Codex,
             new AppProfileSelectionCandidate(AppProfileKind.Codex, initialProfileSnapshots[AppProfileKind.Codex], profileStates[AppProfileKind.Codex].DiscordOptions),
             new AppProfileSelectionCandidate(AppProfileKind.CodexCli, initialProfileSnapshots[AppProfileKind.CodexCli], profileStates[AppProfileKind.CodexCli].DiscordOptions));
         var rpc = new DiscordPresenceClient(profileStates[currentProfile].DiscordOptions, _log);
 
-        await rpc.StartAsync(_cancellationToken);
-
-        var keepAliveInterval = TimeSpan.FromSeconds(15);
-        var lastLoggedProjectPath = activeProjectPath;
-        var wasDisabled = false;
-
-        while (!_cancellationToken.IsCancellationRequested)
+        try
         {
-            try
-            {
-                RefreshTimingSettingsIfNeeded();
+            await rpc.StartAsync(_cancellationToken);
 
-                if (!HandleDisabledState(rpc, wasDisabled))
+            var keepAliveInterval = TimeSpan.FromSeconds(15);
+            var lastLoggedProjectPath = activeProjectPath;
+            var wasDisabled = false;
+            var useInitialProfileSnapshots = true;
+            var deferSessionEnrichment = true;
+
+            while (!_cancellationToken.IsCancellationRequested)
+            {
+                try
                 {
-                    wasDisabled = true;
-                    await Delay(TimeSpan.FromSeconds(1));
-                    continue;
+                    RefreshTimingSettingsIfNeeded();
+
+                    if (!HandleDisabledState(rpc, wasDisabled))
+                    {
+                        wasDisabled = true;
+                        await Delay(TimeSpan.FromSeconds(1));
+                        continue;
+                    }
+
+                    if (wasDisabled)
+                    {
+                        _log.Info("Presence enabled.");
+                        wasDisabled = false;
+                        ResetAllProfilePresenceCaches(profileStates);
+                    }
+
+                    var observedProfileSnapshots = useInitialProfileSnapshots
+                        ? initialProfileSnapshots
+                        : CaptureProfileSnapshots(profileStates, _cancellationToken);
+                    useInitialProfileSnapshots = false;
+                    var observedCodexSnapshot = observedProfileSnapshots[AppProfileKind.Codex];
+                    var observedCliSnapshot = observedProfileSnapshots[AppProfileKind.CodexCli];
+
+                    var (nextProjectPath, projectPathChanged) = UpdateActiveProjectPath(
+                        projectInspector,
+                        activeProjectPath,
+                        observedCodexSnapshot,
+                        observedCliSnapshot,
+                        _foregroundProjectPathDetector.GetFocusedProjectPath(),
+                        _log,
+                        ref lastLoggedProjectPath);
+                    activeProjectPath = nextProjectPath;
+
+                    if (projectPathChanged)
+                    {
+                        ResetAllProfilePresenceCaches(profileStates);
+                    }
+
+                    var selectedProfile = SelectProfile(profileStates, currentProfile, observedProfileSnapshots);
+                    var selectedProfileState = profileStates[selectedProfile];
+                    var selectedProfileProjectPath = ResolveProfileProjectPath(
+                        observedProfileSnapshots[selectedProfile],
+                        activeProjectPath);
+
+                    rpc.UpdateOptions(selectedProfileState.DiscordOptions);
+
+                    if (selectedProfile != currentProfile)
+                    {
+                        _log.Info($"Profile switched: {currentProfile} -> {selectedProfile}");
+                        currentProfile = selectedProfile;
+                    }
+
+                    var projectSnapshot = projectSnapshotCache.GetSnapshot(projectInspector, selectedProfileProjectPath);
+                    var gitSnapshot = gitSnapshotCache.GetSnapshot(
+                        gitInspector,
+                        selectedProfileProjectPath,
+                        _cancellationToken);
+                    var codexSnapshot = BuildCodexSnapshot(
+                        selectedProfileProjectPath,
+                        projectSnapshot,
+                        gitSnapshot,
+                        selectedProfileState,
+                        _cancellationToken);
+                    var modelSnapshot = UpdateModelSnapshot(
+                        selectedProfileProjectPath,
+                        selectedProfileState,
+                        includeSessionScan: !deferSessionEnrichment);
+                    var context = BuildPresenceContext(
+                        session,
+                        selectedProfileProjectPath,
+                        selectedProfileState,
+                        modelSnapshot,
+                        projectSnapshot,
+                        gitSnapshot,
+                        codexSnapshot,
+                        includeSessionUsage: !deferSessionEnrichment);
+
+                    var presence = renderer.Render(_options.Presence, context);
+                    UpdateDiscordPresence(
+                        rpc,
+                        keepAliveInterval,
+                        selectedProfileState,
+                        presence);
+
+                    UpdateProfileActivityState(selectedProfileState, codexSnapshot);
+                    deferSessionEnrichment = false;
+                }
+                catch (OperationCanceledException) when (_cancellationToken.IsCancellationRequested)
+                {
+                    break;
+                }
+                catch (Exception ex)
+                {
+                    _log.Error("Presence update loop failed", ex);
+                    deferSessionEnrichment = false;
                 }
 
-                if (wasDisabled)
+                var delay = PresenceRefreshPolicy.GetNextDelay(_options.Presence, profileStates[currentProfile].LastActivityKind, _options.UpdateIntervalSeconds);
+                if (delay > projectSwitchDetectionInterval)
                 {
-                    _log.Info("Presence enabled.");
-                    wasDisabled = false;
-                    ResetAllProfilePresenceCaches(profileStates);
+                    delay = projectSwitchDetectionInterval;
                 }
 
-                var observedProfileSnapshots = CaptureProfileSnapshots(profileStates);
-                var observedCodexSnapshot = observedProfileSnapshots[AppProfileKind.Codex];
-                var observedCliSnapshot = observedProfileSnapshots[AppProfileKind.CodexCli];
-
-                var (nextProjectPath, projectPathChanged) = UpdateActiveProjectPath(
-                    projectInspector,
-                    activeProjectPath,
-                    observedCodexSnapshot,
-                    observedCliSnapshot,
-                    _foregroundProjectPathDetector.GetFocusedProjectPath(),
-                    _log,
-                    ref lastLoggedProjectPath);
-                activeProjectPath = nextProjectPath;
-
-                if (projectPathChanged)
-                {
-                    ResetAllProfilePresenceCaches(profileStates);
-                }
-
-                var selectedProfile = SelectProfile(profileStates, currentProfile, observedProfileSnapshots);
-                var selectedProfileState = profileStates[selectedProfile];
-                var selectedProfileProjectPath = ResolveProfileProjectPath(
-                    observedProfileSnapshots[selectedProfile],
-                    activeProjectPath);
-
-                rpc.UpdateOptions(selectedProfileState.DiscordOptions);
-
-                if (selectedProfile != currentProfile)
-                {
-                    _log.Info($"Profile switched: {currentProfile} -> {selectedProfile}");
-                    currentProfile = selectedProfile;
-                }
-
-                var projectSnapshot = projectSnapshotCache.GetSnapshot(projectInspector, selectedProfileProjectPath);
-                var gitSnapshot = gitSnapshotCache.GetSnapshot(gitInspector, selectedProfileProjectPath);
-                var codexSnapshot = BuildCodexSnapshot(
-                    selectedProfileProjectPath,
-                    projectSnapshot,
-                    gitSnapshot,
-                    selectedProfileState);
-                var modelSnapshot = UpdateModelSnapshot(selectedProfileProjectPath, selectedProfileState);
-                var context = BuildPresenceContext(
-                    session,
-                    selectedProfileProjectPath,
-                    selectedProfileState,
-                    modelSnapshot,
-                    projectSnapshot,
-                    gitSnapshot,
-                    codexSnapshot);
-
-                var presence = renderer.Render(_options.Presence, context);
-                UpdateDiscordPresence(
-                    rpc,
-                    keepAliveInterval,
-                    selectedProfileState,
-                    presence);
-
-                UpdateProfileActivityState(selectedProfileState, codexSnapshot);
+                await Delay(delay);
             }
-            catch (OperationCanceledException) when (_cancellationToken.IsCancellationRequested)
-            {
-                break;
-            }
-            catch (Exception ex)
-            {
-                _log.Error("Presence update loop failed", ex);
-            }
-
-            var delay = PresenceRefreshPolicy.GetNextDelay(_options.Presence, profileStates[currentProfile].LastActivityKind, _options.UpdateIntervalSeconds);
-            if (delay > projectSwitchDetectionInterval)
-            {
-                delay = projectSwitchDetectionInterval;
-            }
-
-            await Delay(delay);
         }
-
-        rpc.Clear();
-        _log.Info("Stopped Codex Discord RPC.");
+        finally
+        {
+            rpc.Clear();
+            rpc.Dispose();
+            _log.Info("Stopped Codex Discord RPC.");
+        }
     }
 
     private bool HandleDisabledState(DiscordPresenceClient rpc, bool wasDisabled)
@@ -202,11 +228,12 @@ public sealed class PresenceRuntime
     }
 
     private static ProfileDetectionSnapshots CaptureProfileSnapshots(
-        Dictionary<AppProfileKind, ProfileRuntimeState> profileStates)
+        Dictionary<AppProfileKind, ProfileRuntimeState> profileStates,
+        CancellationToken cancellationToken)
     {
         return new ProfileDetectionSnapshots(
-            profileStates[AppProfileKind.Codex].Detector.GetSnapshot(),
-            profileStates[AppProfileKind.CodexCli].Detector.GetSnapshot());
+            profileStates[AppProfileKind.Codex].Detector.GetSnapshot(cancellationToken: cancellationToken),
+            profileStates[AppProfileKind.CodexCli].Detector.GetSnapshot(cancellationToken: cancellationToken));
     }
 
     private (string ActiveProjectPath, bool Changed) UpdateActiveProjectPath(
@@ -276,13 +303,15 @@ public sealed class PresenceRuntime
         string activeProjectPath,
         ProjectSnapshot projectSnapshot,
         GitSnapshot gitSnapshot,
-        ProfileRuntimeState selectedProfileState)
+        ProfileRuntimeState selectedProfileState,
+        CancellationToken cancellationToken)
     {
         var codexSnapshot = selectedProfileState.Detector.GetSnapshot(
             activeProjectPath,
             projectSnapshot,
             gitSnapshot,
-            selectedProfileState.LastActivityKind);
+            selectedProfileState.LastActivityKind,
+            cancellationToken);
         var analyzingRepeatCount = ActivityRepeatCountTracker.GetAnalyzingRepeatCount(
             codexSnapshot.ActivityKind,
             selectedProfileState.LastActivityKind,
@@ -303,9 +332,15 @@ public sealed class PresenceRuntime
         };
     }
 
-    private ModelNameSnapshot UpdateModelSnapshot(string activeProjectPath, ProfileRuntimeState selectedProfileState)
+    private ModelNameSnapshot UpdateModelSnapshot(
+        string activeProjectPath,
+        ProfileRuntimeState selectedProfileState,
+        bool includeSessionScan)
     {
-        var modelSnapshot = selectedProfileState.ModelNameProvider.GetSnapshot(activeProjectPath);
+        var modelSnapshot = selectedProfileState.ModelNameProvider.GetSnapshot(
+            activeProjectPath,
+            includeSessionScan,
+            _cancellationToken);
         if (selectedProfileState.LastModelSnapshot is null ||
             !string.Equals(modelSnapshot.SelectedUiModel, selectedProfileState.LastModelSnapshot.SelectedUiModel, StringComparison.Ordinal) ||
             !string.Equals(modelSnapshot.LastUsedSessionModel, selectedProfileState.LastModelSnapshot.LastUsedSessionModel, StringComparison.Ordinal) ||
@@ -341,7 +376,8 @@ public sealed class PresenceRuntime
         ModelNameSnapshot modelSnapshot,
         ProjectSnapshot projectSnapshot,
         GitSnapshot gitSnapshot,
-        CodexProcessSnapshot codexSnapshot)
+        CodexProcessSnapshot codexSnapshot,
+        bool includeSessionUsage)
     {
         return new PresenceContext(
             modelSnapshot.DisplayLabel,
@@ -349,7 +385,11 @@ public sealed class PresenceRuntime
             projectSnapshot,
             gitSnapshot,
             session.GetSnapshot(),
-            selectedProfileState.TokenUsageProvider.GetSnapshot(activeProjectPath, selectedProfileState.StableCostModelName));
+            selectedProfileState.TokenUsageProvider.GetSnapshot(
+                activeProjectPath,
+                selectedProfileState.StableCostModelName,
+                includeSessionScan: includeSessionUsage,
+                cancellationToken: _cancellationToken));
     }
 
     private void UpdateDiscordPresence(
@@ -358,7 +398,10 @@ public sealed class PresenceRuntime
         ProfileRuntimeState selectedProfileState,
         RenderedPresence presence)
     {
-        var presenceSignature = BuildPresenceSignature(presence);
+        var largeImageKey = DiscordAssetKeyResolver.ResolveLargeImageKey(
+            selectedProfileState.DiscordOptions,
+            presence);
+        var presenceSignature = BuildPresenceSignature(presence, largeImageKey);
         var keepAliveDue = PresenceUpdatePolicy.ShouldSendKeepAlive(selectedProfileState.LastSuccessfulUpdateUtc, DateTime.UtcNow, keepAliveInterval);
         var shouldSendPresence = PresenceDispatchPolicy.ShouldSendPresence(
             presenceSignature,
@@ -367,13 +410,16 @@ public sealed class PresenceRuntime
             rpc.NeedsPresenceRefresh);
 
         if (!string.Equals(presence.Details, selectedProfileState.LastPresenceDetails, StringComparison.Ordinal) ||
-            !string.Equals(presence.State, selectedProfileState.LastPresenceState, StringComparison.Ordinal))
+            !string.Equals(presence.State, selectedProfileState.LastPresenceState, StringComparison.Ordinal) ||
+            !string.Equals(largeImageKey, selectedProfileState.LastPresenceLargeImageKey, StringComparison.Ordinal))
         {
             _log.Info(
                 $"Presence rendered: Details={FormatLogValueForMultiline(presence.Details)}; " +
-                $"State={FormatLogValueForMultiline(presence.State)}");
+                $"State={FormatLogValueForMultiline(presence.State)}; " +
+                $"LargeImage={FormatLogValue(largeImageKey)}");
             selectedProfileState.LastPresenceDetails = presence.Details;
             selectedProfileState.LastPresenceState = presence.State;
+            selectedProfileState.LastPresenceLargeImageKey = largeImageKey;
         }
 
         if (shouldSendPresence && rpc.Update(presence))
@@ -415,6 +461,7 @@ public sealed class PresenceRuntime
                  $"activityFiles={activityFilesText}, " +
                  $"pendingOperations={codexSnapshot.PendingOperationCount}, " +
                  $"pendingMutations={codexSnapshot.PendingMutationCount}, " +
+                 $"isError={codexSnapshot.IsError}, " +
                  $"isMcpOperation={codexSnapshot.IsMcpOperation}, " +
                  $"mcpServerName={FormatLogValue(codexSnapshot.McpServerName)}, " +
                  $"activeMcpServers={FormatLogValue(string.Join(",", codexSnapshot.ActiveMcpServerNames))}, " +
@@ -590,7 +637,7 @@ public sealed class PresenceRuntime
         return $"{duration.Seconds}s";
     }
 
-    private static string BuildPresenceSignature(RenderedPresence presence)
+    private static string BuildPresenceSignature(RenderedPresence presence, string? largeImageKey)
     {
         var buttons = string.Join(
             "|",
@@ -605,6 +652,9 @@ public sealed class PresenceRuntime
             presence.ActivityKind.ToString(),
             presence.RunningCommandKind.ToString(),
             presence.RunningCommandName,
+            largeImageKey,
+            presence.IsThinking ? "thinking" : "working",
+            presence.IsSuccessfulCompletion ? "success" : "",
             presence.PartySize?.ToString(System.Globalization.CultureInfo.InvariantCulture) ?? "",
             buttons);
     }
@@ -709,7 +759,10 @@ public sealed class PresenceRuntime
         private DateTime _capturedAtUtc;
         private GitSnapshot? _snapshot;
 
-        public GitSnapshot GetSnapshot(GitInspector inspector, string projectPath)
+        public GitSnapshot GetSnapshot(
+            GitInspector inspector,
+            string projectPath,
+            CancellationToken cancellationToken)
         {
             var nowUtc = DateTime.UtcNow;
             if (_snapshot is not null &&
@@ -719,7 +772,7 @@ public sealed class PresenceRuntime
                 return _snapshot;
             }
 
-            _snapshot = inspector.GetSnapshot(projectPath);
+            _snapshot = inspector.GetSnapshot(projectPath, cancellationToken);
             _projectPath = projectPath;
             _capturedAtUtc = nowUtc;
             return _snapshot;

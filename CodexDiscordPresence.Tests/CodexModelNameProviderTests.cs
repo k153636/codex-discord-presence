@@ -249,6 +249,36 @@ public sealed class CodexModelNameProviderTests
         }
     }
 
+    [Fact]
+    public void GetSnapshot_WithoutSessionScan_UsesImmediateConfigEvidence()
+    {
+        var tempPath = CreateTempCodexHome();
+        try
+        {
+            File.WriteAllText(Path.Combine(tempPath, "config.toml"), "model = \"gpt-5.6-luna\"\n");
+            WriteSession(tempPath, "session.jsonl", new[]
+            {
+                "{\"timestamp\":\"2026-06-17T13:00:00.000Z\",\"type\":\"turn_context\",\"payload\":{\"cwd\":\"E:\\\\tool\\\\codex-discord-RPC\",\"model\":\"gpt-5.5\"}}"
+            });
+
+            var provider = new CodexModelNameProvider(
+                new CodexDetectionOptions { HomePath = tempPath, ModelEnvironmentVariables = [] },
+                new PresenceTemplateOptions { AutoDetectModelName = true, ModelName = "Codex" });
+
+            var snapshot = provider.GetSnapshot(
+                @"E:\tool\codex-discord-RPC",
+                includeSessionScan: false);
+
+            Assert.Equal("gpt-5.6-luna", snapshot.FinalDisplayedModel);
+            Assert.Equal("selected-ui", snapshot.Source);
+            Assert.Null(snapshot.LastUsedSessionModel);
+        }
+        finally
+        {
+            Directory.Delete(tempPath, true);
+        }
+    }
+
     private static string CreateTempCodexHome()
     {
         var tempPath = Path.Combine(Path.GetTempPath(), "CodexModelTests_" + Guid.NewGuid());

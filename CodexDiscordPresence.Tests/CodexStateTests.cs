@@ -308,6 +308,36 @@ public class CodexStateTests
 
             Assert.False(snapshot.IsThinking);
             Assert.Equal(CodexActivityKind.Ready, snapshot.ActivityKind);
+            Assert.True(snapshot.IsSuccessfulCompletion);
+        }
+        finally
+        {
+            Directory.Delete(tempPath, true);
+        }
+    }
+
+    [Fact]
+    public void Test_4b_FailedTaskDoesNotUseSuccessfulCompletion()
+    {
+        var tempPath = CreateTempSessionDirectory();
+        try
+        {
+            var now = DateTime.UtcNow;
+            var time1 = now.AddSeconds(-5).ToString("yyyy-MM-ddTHH:mm:ss.fffZ");
+            var time2 = now.ToString("yyyy-MM-ddTHH:mm:ss.fffZ");
+            WriteMockSessionLog(tempPath, "session1.jsonl", new[]
+            {
+                $"{{\"timestamp\":\"{time1}\",\"type\":\"event_msg\",\"payload\":{{\"type\":\"task_started\",\"turn_id\":\"123\"}}}}",
+                $"{{\"timestamp\":\"{time2}\",\"type\":\"event_msg\",\"payload\":{{\"type\":\"task_complete\",\"turn_id\":\"123\",\"status\":\"failed\"}}}}"
+            });
+
+            var detector = new CodexProcessDetector(new CodexDetectionOptions { HomePath = tempPath }, new PresenceTemplateOptions());
+
+            var snapshot = detector.GetSnapshot();
+
+            Assert.Equal(CodexActivityKind.Ready, snapshot.ActivityKind);
+            Assert.False(snapshot.IsSuccessfulCompletion);
+            Assert.True(snapshot.IsError);
         }
         finally
         {
@@ -712,6 +742,7 @@ public class CodexStateTests
             Assert.Equal(CodexActivityKind.RunningCommand, snapshot.ActivityKind);
             Assert.Equal(RunningCommandKind.Test, snapshot.RunningCommandKind);
             Assert.Equal("dotnet", snapshot.RunningCommandName);
+            Assert.False(snapshot.IsThinking);
         }
         finally
         {

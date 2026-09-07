@@ -22,10 +22,13 @@ public sealed class CodexProcessDetector
         string? projectPath = null,
         ProjectSnapshot? projectSnapshot = null,
         GitSnapshot? gitSnapshot = null,
-        CodexActivityKind? previousActivityKind = null)
+        CodexActivityKind? previousActivityKind = null,
+        CancellationToken cancellationToken = default)
     {
-        var sessionInspection = InspectRecentSessions(projectPath);
-        var matchedProcess = _processNameMatcher.FindMatchingProcess();
+        var sessionInspection = InspectRecentSessions(projectPath, cancellationToken);
+        cancellationToken.ThrowIfCancellationRequested();
+        var matchedProcess = _processNameMatcher.FindMatchingProcess(cancellationToken);
+        cancellationToken.ThrowIfCancellationRequested();
         var matchedProcessName = matchedProcess?.ProcessName;
         var projectPathMismatch = sessionInspection is not null &&
             sessionInspection.HasProjectPath &&
@@ -91,8 +94,12 @@ public sealed class CodexProcessDetector
             out var reason,
             out var activityState,
             out var lastObservedAt);
+        var isSuccessfulCompletion = IsFreshSuccessfulCompletion(activityState, sessionInspection);
 
-        return new CodexProcessSnapshot(true, matchedProcessName, activity.IsActive())
+        return new CodexProcessSnapshot(
+            true,
+            matchedProcessName,
+            CodexActivityEvidence.IsThinkingPhase(activity, activityState))
         {
             DetectedActivityKind = activity,
             ActivityProvenance = provenance,
@@ -119,10 +126,36 @@ public sealed class CodexProcessDetector
             LastEffectiveSignalAt = activityState?.LastEffectiveSignalAtUtc,
             LatestThinkingSummary = activityState?.LatestThinkingSummary,
             PartySize = sessionInspection?.PartySize ?? 1,
+            IsSuccessfulCompletion = isSuccessfulCompletion,
+            IsError = activityState?.Lifecycle == CodexTurnLifecycle.Failed,
             TurnLifecycle = activityState?.Lifecycle ?? CodexTurnLifecycle.None,
             ObservedProjectPath = sessionInspection?.ProjectPath,
             RecentEditedFiles = recentEditedFiles
         };
+    }
+
+    private bool IsFreshSuccessfulCompletion(
+        CodexActivityState? activityState,
+        SessionInspection? sessionInspection)
+    {
+        var terminalAtUtc = activityState?.Lifecycle == CodexTurnLifecycle.Completed
+            ? activityState.TerminalAtUtc
+            : null;
+        if (!terminalAtUtc.HasValue &&
+            activityState is null &&
+            sessionInspection?.HasTaskCompletedSinceStart == true)
+        {
+            terminalAtUtc = sessionInspection.LastTaskCompletedAt;
+        }
+
+        if (!terminalAtUtc.HasValue)
+        {
+            return false;
+        }
+
+        var completionAge = DateTime.UtcNow - terminalAtUtc.Value;
+        var freshnessWindow = TimeSpan.FromMinutes(Math.Max(1, _presenceOptions.ThinkingStaleTimeoutMinutes));
+        return completionAge >= TimeSpan.Zero && completionAge <= freshnessWindow;
     }
 
     public string? GetObservedProjectPath(string? projectPath = null)
@@ -149,8 +182,10 @@ public sealed class CodexProcessDetector
         return GetSnapshot(projectPath).IsThinking;
     }
 
-    private SessionInspection? InspectRecentSessions(string? projectPath)
+    private SessionInspection? InspectRecentSessions(
+        string? projectPath,
+        CancellationToken cancellationToken = default)
     {
-        return _sessionLogParser.InspectRecentSessions(projectPath);
+        return _sessionLogParser.InspectRecentSessions(projectPath, cancellationToken);
     }
 }

@@ -66,6 +66,11 @@ public static class CodexActivityKindExtensions
     {
         return kind is not (CodexActivityKind.Offline or CodexActivityKind.Ready or CodexActivityKind.WaitingForInput or CodexActivityKind.Stalled);
     }
+
+    public static bool IsThinking(this CodexActivityKind kind)
+    {
+        return kind is CodexActivityKind.AnalyzingProject or CodexActivityKind.Planning;
+    }
 }
 
 public sealed partial record CodexProcessSnapshot
@@ -96,6 +101,8 @@ public sealed partial record CodexProcessSnapshot
     public DateTime? LastEffectiveSignalAt { get; init; }
     public string? LatestThinkingSummary { get; init; }
     public int? PartySize { get; init; }
+    public bool IsSuccessfulCompletion { get; init; }
+    public bool IsError { get; init; }
     internal CodexTurnLifecycle TurnLifecycle { get; init; } = CodexTurnLifecycle.None;
     public IReadOnlyList<RecentProjectFileSnapshot> RecentEditedFiles { get; init; } = Array.Empty<RecentProjectFileSnapshot>();
     public int ActivityRepeatCount { get; init; } = 1;

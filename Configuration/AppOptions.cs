@@ -154,6 +154,9 @@ public sealed class DiscordOptions
     public string ClientId { get; set; } = "1516846793873424474";
     public string? LargeImageKey { get; set; } = "rpc_thinking";
     public string? SmallImageKey { get; set; } = "rpc_codex";
+    public string? CompletedImageKey { get; set; } = "rpc_success";
+    public int CompletedImageHoldSeconds { get; set; } = 60;
+    public string? ErrorImageKey { get; set; } = "rpc_error";
     public Dictionary<string, string> ActivityImageKeys { get; set; } = new(StringComparer.OrdinalIgnoreCase)
     {
         [nameof(CodexActivityKind.Offline)] = "rpc_sleeping",
@@ -163,26 +166,25 @@ public sealed class DiscordOptions
         [nameof(CodexActivityKind.CoordinatingChanges)] = "rpc_coding",
         [nameof(CodexActivityKind.CreatingFiles)] = "rpc_coding",
         [nameof(CodexActivityKind.DeletingFiles)] = "rpc_coding",
-        [nameof(CodexActivityKind.RunningCommand)] = "rpc_building",
+        [nameof(CodexActivityKind.RunningCommand)] = "rpc_coding",
         [nameof(CodexActivityKind.Planning)] = "rpc_thinking",
         [nameof(CodexActivityKind.Refactoring)] = "rpc_coding",
         [nameof(CodexActivityKind.ReadingFiles)] = "rpc_reading",
         [nameof(CodexActivityKind.Researching)] = "rpc_searching",
         [nameof(CodexActivityKind.WaitingForInput)] = "rpc_sleeping",
-        [nameof(CodexActivityKind.Stalled)] = "rpc_error"
+        [nameof(CodexActivityKind.Stalled)] = "rpc_sleeping"
     };
     public Dictionary<string, string> RunningCommandImageKeys { get; set; } = new(StringComparer.OrdinalIgnoreCase)
     {
-        [nameof(RunningCommandKind.Unknown)] = "rpc_building",
+        [nameof(RunningCommandKind.Unknown)] = "rpc_coding",
         [nameof(RunningCommandKind.Git)] = "rpc_reading",
         [nameof(RunningCommandKind.Search)] = "rpc_searching",
-        [nameof(RunningCommandKind.Build)] = "rpc_building",
+        [nameof(RunningCommandKind.Build)] = "rpc_coding",
         [nameof(RunningCommandKind.Test)] = "rpc_debugging"
     };
     public Dictionary<string, string> ExternalImageUrls { get; set; } = new(StringComparer.OrdinalIgnoreCase)
     {
         ["rpc_codex"] = "https://raw.githubusercontent.com/SSHdotCodes/codex-rpc/1a44161a554c4de584c0af7d5eb47c4545983410/assets/codex.png",
-        ["rpc_building"] = "https://raw.githubusercontent.com/SSHdotCodes/codex-rpc/1a44161a554c4de584c0af7d5eb47c4545983410/assets/building.gif",
         ["rpc_coding"] = "https://raw.githubusercontent.com/SSHdotCodes/codex-rpc/1a44161a554c4de584c0af7d5eb47c4545983410/assets/coding.gif",
         ["rpc_debugging"] = "https://raw.githubusercontent.com/SSHdotCodes/codex-rpc/1a44161a554c4de584c0af7d5eb47c4545983410/assets/debugging.gif",
         ["rpc_deploying"] = "https://raw.githubusercontent.com/SSHdotCodes/codex-rpc/1a44161a554c4de584c0af7d5eb47c4545983410/assets/deploying.gif",
@@ -291,6 +293,7 @@ public sealed class PresenceTemplateOptions
     public string RefactoringText { get; set; } = "Refactoring";
     public string ReadingText { get; set; } = "Reading";
     public string StalledText { get; set; } = "Stalled";
+    public string ErrorText { get; set; } = "Error";
     public string ThinkingText { get; set; } = "Thinking";
     public string WorkingText { get; set; } = "Working";
     public string ResearchingText { get; set; } = "Researching";

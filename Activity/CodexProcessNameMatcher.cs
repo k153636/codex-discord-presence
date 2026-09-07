@@ -18,11 +18,11 @@ internal sealed class CodexProcessNameMatcher
         _options = options;
     }
 
-    public CodexProcessMatch? FindMatchingProcess()
+    public CodexProcessMatch? FindMatchingProcess(CancellationToken cancellationToken = default)
     {
         if (_options.CommandLineContains.Length > 0)
         {
-            var commandLineProcessMatch = FindMatchingCommandLineProcess();
+            var commandLineProcessMatch = FindMatchingCommandLineProcess(cancellationToken);
             if (commandLineProcessMatch is not null)
             {
                 return commandLineProcessMatch;
@@ -33,6 +33,7 @@ internal sealed class CodexProcessNameMatcher
         {
             try
             {
+                cancellationToken.ThrowIfCancellationRequested();
                 if (Matches(process.ProcessName, _options.ProcessNameContains))
                 {
                     return new CodexProcessMatch(process.ProcessName, CodexProcessDetectionKind.ProcessName, null, null);
@@ -61,12 +62,13 @@ internal sealed class CodexProcessNameMatcher
         return null;
     }
 
-    private CodexProcessMatch? FindMatchingCommandLineProcess()
+    private CodexProcessMatch? FindMatchingCommandLineProcess(CancellationToken cancellationToken)
     {
         foreach (var process in Process.GetProcessesByName("node").Concat(Process.GetProcessesByName("codex")))
         {
             try
             {
+                cancellationToken.ThrowIfCancellationRequested();
                 if (TryGetCommandLine(process.Id, out var commandLine) &&
                     Matches(commandLine, _options.CommandLineContains))
                 {

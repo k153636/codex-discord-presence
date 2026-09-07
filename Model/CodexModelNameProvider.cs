@@ -24,13 +24,23 @@ public sealed class CodexModelNameProvider
 
     public ModelNameSnapshot GetSnapshot(string projectPath)
     {
+        return GetSnapshot(projectPath, includeSessionScan: true);
+    }
+
+    public ModelNameSnapshot GetSnapshot(
+        string projectPath,
+        bool includeSessionScan,
+        CancellationToken cancellationToken = default)
+    {
         var fallback = FallbackModelName();
         var environmentModel = DetectFromEnvironment();
         var selectedUiModel = DetectFromConfig();
         var selectedUiReasoningEffort = DetectReasoningEffortFromConfig();
         var selectedUiServiceTier = DetectServiceTierFromConfig();
         var selectedUiModelTime = GetConfigLastWriteTimeUtc();
-        var sessionModel = DetectFromRecentSessions(projectPath);
+        var sessionModel = includeSessionScan
+            ? DetectFromRecentSessions(projectPath, cancellationToken)
+            : null;
         var currentProjectSession = sessionModel is { IsProjectMatch: true } &&
             sessionModel.LastActivityAt >= selectedUiModelTime
             ? sessionModel
@@ -118,7 +128,9 @@ public sealed class CodexModelNameProvider
         return null;
     }
 
-    private SessionModelDetection? DetectFromRecentSessions(string projectPath)
+    private SessionModelDetection? DetectFromRecentSessions(
+        string projectPath,
+        CancellationToken cancellationToken)
     {
         var sessionsPath = Path.Combine(_codexHomePath, "sessions");
         if (!Directory.Exists(sessionsPath))
@@ -137,7 +149,8 @@ public sealed class CodexModelNameProvider
 
         foreach (var file in files)
         {
-            var session = InspectSessionFile(file.FullName, normalizedProjectPath);
+            cancellationToken.ThrowIfCancellationRequested();
+            var session = InspectSessionFile(file.FullName, normalizedProjectPath, cancellationToken);
             if (!session.HasUsableSettings)
             {
                 continue;
@@ -160,7 +173,10 @@ public sealed class CodexModelNameProvider
                 .FirstOrDefault();
     }
 
-    private SessionModelInspection InspectSessionFile(string path, string normalizedProjectPath)
+    private SessionModelInspection InspectSessionFile(
+        string path,
+        string normalizedProjectPath,
+        CancellationToken cancellationToken)
     {
         var matchesProject = false;
         string? modelName = null;
@@ -175,6 +191,7 @@ public sealed class CodexModelNameProvider
             string? line;
             while ((line = reader.ReadLine()) != null)
             {
+                cancellationToken.ThrowIfCancellationRequested();
                 if (!line.Contains("\"payload\"", StringComparison.Ordinal) ||
                     (!line.Contains("\"turn_context\"", StringComparison.Ordinal) &&
                      !line.Contains("\"session_meta\"", StringComparison.Ordinal) &&
@@ -272,6 +289,10 @@ public sealed class CodexModelNameProvider
                     serviceTier = threadServiceTier;
                 }
             }
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
         }
         catch
         {
