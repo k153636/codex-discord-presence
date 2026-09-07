@@ -2,41 +2,55 @@
 
 source visual truth path: E:\tool\discord-reference\codex-activity-card.png
 implementation screenshot paths:
-- E:\tool\codex-dashboard-smoke\dashboard-single-overview-default-final2.png
-- E:\tool\codex-dashboard-smoke\dashboard-single-overview-minimum-final2.png
+- E:\tool\codex-dashboard-smoke\preview-polished.png
 
 ## Intent
 
 Overview is now the complete dashboard. The separate Preview tab and duplicate
 status rail were removed so the screen communicates current activity, the
-existing Discord preview, and the existing usage metadata at a glance. This is
-a composition change, not a spacing-only pass: hierarchy, grouping, density,
-alignment, proportions, and minimum-size behavior were reconsidered.
+existing usage metadata, and the existing Discord preview at a glance. The
+dashboard uses one vertical reading order: the former left-side information is
+at the top and the RPC preview is below it. This is a composition change, not a
+spacing-only pass: hierarchy, grouping, density, alignment, proportions, and
+minimum-size behavior were reconsidered.
 
 ## Visual evidence
 
-- The left zone contains one compact `Current Activity` card with the state as
-  the largest visual element and the model/project line below it.
-- The right zone contains the unchanged 360 x 148 Discord activity card in a
-  restrained stage. The stage has no duplicate explanatory heading; the real
-  Discord `Playing:` label remains inside the card.
-- The four existing values — Discord, Billing, Usage, and Reset — are balanced
-  in a 2 x 2 grid below the activity card. Each uses the same label/value
-  hierarchy and accent rail.
-- The default and minimum outer baseline is 880 x 420; the resulting client
-  capture is 864 x 381. The app opens at this minimum geometry with no overlap,
-  off-screen card, or clipped essential value.
-- Long model/project content wraps inside its activity card. Narrow metric
-  cards switch to a vertical label/value layout so `Connected` and
-  `5h 25% used` remain readable at the minimum size.
+- The window uses one near-black flat `SurfaceInset` background. The top zone
+  has no sidebar panel or extra surface; the activity type, live state, and all
+  existing metadata are drawn directly on the background. The model/project
+  helper line is intentionally absent so the dashboard never presents stale or
+  invented context.
+- The lower preview zone stays on the same background and contains only the
+  unchanged 360 x 148 Discord activity card centered directly below the
+  overview. Its activity type label is read from the published RPC payload
+  rather than fixed to `Playing:`.
+- The live values — Discord, Billing, Usage, and Reset when available — are
+  rendered one per row below the activity hero. Billing is a compact pill;
+  Usage retains its live percentage and adds a matching progress rail.
+- Missing Billing, Usage, or Reset data is omitted. The Overview does not show
+  fixed `Waiting` or `unavailable` values.
+- When no live activity state exists, the activity indicator and state text are
+  both omitted instead of leaving a status dot without a status.
+- The default and minimum outer baseline is 400 x 660. The app opens at this
+  compact portrait-oriented geometry with no overlap, off-screen card, or clipped
+  essential value.
+- The overview uses a single 16px spacing rhythm for its content margins and
+  vertical gaps. The lower preview region is 180px high, giving the 148px card
+  16px of vertical breathing room. At the narrow minimum width, the shared
+  horizontal inset contracts only as much as needed to keep the 360px preview
+  card intact.
+- Long live activity content is ellipsized inside the top region. Metrics
+  remain vertically stacked at every window width so `Connected` and
+  `5h 25% used` remain readable without horizontal compression.
 
 ## Discord preview fidelity
 
 The Discord card keeps its existing payload-driven details/state, elapsed-time
 formatting, 100 x 100 large image, 32 x 32 circular small image, gradient,
-corner radius, Discord activity icon, English `Playing:` label, and GIF frame
-animation. No RPC payload, asset key, image-slot, or elapsed-time behavior was
-changed.
+corner radius, Discord activity icon, and GIF frame animation. The activity
+type label now follows the published RPC payload. A missing token measurement
+does not produce the fixed `Tokens pending` text or a dangling separator.
 
 The source card remains the visual truth for card proportions. Native preview
 font resolution continues to use the existing `gg sans` lookup and installed
@@ -50,13 +64,15 @@ outside Discord.
 - Snapshot refresh, tray lifecycle, image invalidation, and disposal remain in
   the existing form/runtime path.
 - No new data, provider, metric, action, or user-facing feature was added.
+- The existing metrics were only restyled and conditionally rendered from
+  their live values; no new source of data was introduced.
 
 ## Findings
 
-The previous two-tab composition made the user change pages to see the preview
-and repeated connection/usage information in a side rail. The single-page
-composition removes that navigation cost, gives the preview a direct visual
-relationship to the current state, and uses the minimum window area that still
-fits the card and all existing values.
+The previous side-by-side composition made the user scan across separate
+regions. The unified flat canvas puts the current information first and lets the
+real Discord card sit directly below it in the same reading order. The
+portrait-oriented minimum still fits the card and all existing values while
+keeping the information groups vertical.
 
 final result: passed

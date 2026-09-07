@@ -6,6 +6,8 @@ namespace CodexDiscordPresence;
 
 public sealed class CodexDashboardForm : Form
 {
+    private const int PreviewRegionHeight = 180;
+
     private readonly PresenceRuntimeState _runtimeState;
     private readonly DashboardOverviewSurface _overviewSurface;
     private readonly DashboardPreviewSurface _previewSurface;
@@ -17,7 +19,7 @@ public sealed class CodexDashboardForm : Form
 
         Text = "Codex Discord RPC";
         StartPosition = FormStartPosition.CenterScreen;
-        MinimumSize = new Size(880, 420);
+        MinimumSize = new Size(400, 660);
         Size = MinimumSize;
         BackColor = DashboardPalette.Window;
         ForeColor = DashboardPalette.Text;
@@ -30,23 +32,26 @@ public sealed class CodexDashboardForm : Form
         Icon = LoadWindowIcon();
 
         _overviewSurface = new DashboardOverviewSurface { Dock = DockStyle.Fill };
-        _previewSurface = new DashboardPreviewSurface { Dock = DockStyle.Fill };
+        _previewSurface = new DashboardPreviewSurface
+        {
+            Dock = DockStyle.Fill,
+            Margin = new Padding(0)
+        };
 
         var overviewLayout = new TableLayoutPanel
         {
             Dock = DockStyle.Fill,
-            BackColor = DashboardPalette.Window,
-            ColumnCount = 3,
-            RowCount = 1,
+            BackColor = DashboardPalette.SurfaceInset,
+            ColumnCount = 1,
+            RowCount = 2,
             Margin = new Padding(0),
-            Padding = new Padding(24)
+            Padding = new Padding(0)
         };
         overviewLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100f));
-        overviewLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 16f));
-        overviewLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 420f));
         overviewLayout.RowStyles.Add(new RowStyle(SizeType.Percent, 100f));
+        overviewLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, PreviewRegionHeight));
         overviewLayout.Controls.Add(_overviewSurface, 0, 0);
-        overviewLayout.Controls.Add(_previewSurface, 2, 0);
+        overviewLayout.Controls.Add(_previewSurface, 0, 1);
         Controls.Add(overviewLayout);
 
         _refreshTimer = new System.Windows.Forms.Timer { Interval = 500 };
