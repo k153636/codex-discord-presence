@@ -49,8 +49,13 @@ internal static class DashboardTextFormatter
             elapsed = TimeSpan.Zero;
         }
 
-        var totalHours = (int)elapsed.TotalHours;
-        return $"{totalHours}:{elapsed.Minutes:00}";
+        var totalSeconds = Math.Max(0L, (long)elapsed.TotalSeconds);
+        var totalMinutes = totalSeconds / 60;
+        var seconds = totalSeconds % 60;
+
+        return totalMinutes >= 60
+            ? $"{totalMinutes / 60}:{totalMinutes % 60:00}:{seconds:00}"
+            : $"{totalMinutes}:{seconds:00}";
     }
 
     public static string FormatActivity(PresenceDashboardSnapshot snapshot, bool enabled)

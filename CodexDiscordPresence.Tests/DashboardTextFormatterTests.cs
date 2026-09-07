@@ -33,11 +33,27 @@ public sealed class DashboardTextFormatterTests
     }
 
     [Fact]
-    public void FormatElapsed_UsesHourAndMinuteClock()
+    public void FormatElapsed_UsesMinutesAndSecondsBelowAnHour()
     {
         var now = new DateTime(2026, 9, 7, 3, 0, 0, DateTimeKind.Utc);
 
-        Assert.Equal("3:02", DashboardTextFormatter.FormatElapsed(now.AddHours(-3).AddMinutes(-2), now));
+        Assert.Equal("22:18", DashboardTextFormatter.FormatElapsed(now.AddMinutes(-22).AddSeconds(-18), now));
+    }
+
+    [Fact]
+    public void FormatElapsed_UsesHoursMinutesAndSecondsAfterAnHour()
+    {
+        var now = new DateTime(2026, 9, 7, 3, 0, 0, DateTimeKind.Utc);
+
+        Assert.Equal("3:02:18", DashboardTextFormatter.FormatElapsed(now.AddHours(-3).AddMinutes(-2).AddSeconds(-18), now));
+    }
+
+    [Fact]
+    public void FormatElapsed_ClampsFutureStartToZero()
+    {
+        var now = new DateTime(2026, 9, 7, 3, 0, 0, DateTimeKind.Utc);
+
+        Assert.Equal("0:00", DashboardTextFormatter.FormatElapsed(now.AddSeconds(1), now));
     }
 
     [Fact]
