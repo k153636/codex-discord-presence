@@ -144,6 +144,9 @@ internal static class DashboardDrawing
 
 internal sealed class DashboardPreviewSurface : Control
 {
+    internal const string CurrentActivityLabel = "Current Activity";
+    internal const string PlayingLabel = "Playing:";
+
     private PresenceDashboardSnapshot _snapshot = PresenceDashboardSnapshot.Empty;
     private bool _enabled = true;
     private readonly Image _fallbackImage;
@@ -211,7 +214,7 @@ internal sealed class DashboardPreviewSurface : Control
         DashboardDrawing.DrawText(
             graphics,
             _discordFontFamily,
-            "現在のアクティビティ",
+            CurrentActivityLabel,
             new Rectangle(origin.X, origin.Y, 360, 20),
             10f,
             FontStyle.Regular,
@@ -246,7 +249,7 @@ internal sealed class DashboardPreviewSurface : Control
         DashboardDrawing.DrawText(
             graphics,
             _discordFontFamily,
-            "プレイ中：",
+            PlayingLabel,
             new Rectangle(cardRect.Left + 12, cardRect.Top + 11, 160, 18),
             10f,
             FontStyle.Bold,

@@ -34,4 +34,11 @@ public sealed class CodexDashboardFormTests
         Assert.Equal(["Overview", "Preview"], tabNames!);
         Assert.Equal(1, selectedIndex);
     }
+
+    [Fact]
+    public void Preview_UsesEnglishDiscordUiLabels()
+    {
+        Assert.Equal("Current Activity", DashboardPreviewSurface.CurrentActivityLabel);
+        Assert.Equal("Playing:", DashboardPreviewSurface.PlayingLabel);
+    }
 }
