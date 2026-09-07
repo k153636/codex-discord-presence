@@ -13,7 +13,9 @@ internal static class PresenceActivityComposer
             return stateLabel;
         }
 
-        var thinkingSummary = ThinkingSummaryFormatter.FormatForPresence(context.Codex.LatestThinkingSummary);
+        var thinkingSummary = ThinkingSummaryFormatter.FormatForCurrentReasoning(
+            context.Codex.LatestThinkingSummary,
+            context.Codex.LatestActivityEventKind);
         if (ShouldDisplayThinkingSummary(context, thinkingSummary))
         {
             return MainAgentActivityComposer.AddRole(context, thinkingSummary!);
@@ -66,12 +68,20 @@ internal static class PresenceActivityComposer
             return false;
         }
 
-        if (context.Codex.IsMcpOperation && context.Codex.LatestActivityEventKind is null)
+        // A directly observed reasoning event is stronger than a stale
+        // operation/file fallback. Otherwise, only generic thinking phases
+        // may expose the retained summary after an operation completes.
+        if (context.Codex.LatestActivityEventKind == CodexActivityEventKind.Reasoning)
+        {
+            return true;
+        }
+
+        if (context.Codex.PendingOperationCount > 0)
         {
             return false;
         }
 
-        return context.Codex.LatestActivityEventKind is null or CodexActivityEventKind.Reasoning;
+        return !context.Codex.IsMcpOperation && context.Codex.ActivityKind.IsThinking();
     }
 
     private static bool ShouldDisplayMcpIdentity(

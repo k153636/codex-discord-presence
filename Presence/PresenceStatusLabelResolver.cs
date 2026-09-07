@@ -44,7 +44,9 @@ public sealed class PresenceStatusLabelResolver
             return ResolveRunningCommandLabel(template, context);
         }
 
-        var thinkingSummary = ThinkingSummaryFormatter.FormatForPresence(context.Codex.LatestThinkingSummary);
+        var thinkingSummary = ThinkingSummaryFormatter.FormatForCurrentReasoning(
+            context.Codex.LatestThinkingSummary,
+            context.Codex.LatestActivityEventKind);
         if (!string.IsNullOrWhiteSpace(thinkingSummary))
         {
             return thinkingSummary;

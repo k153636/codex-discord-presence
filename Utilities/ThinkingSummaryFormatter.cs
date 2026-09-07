@@ -37,4 +37,25 @@ internal static class ThinkingSummaryFormatter
             ? normalized
             : normalized[..(MaxPresenceLength - 1)] + "…";
     }
+
+    public static string? FormatForCurrentReasoning(
+        string? value,
+        CodexActivityEventKind? latestActivityEventKind)
+    {
+        // The state machine keeps the latest summary for the current turn while
+        // Codex transitions through a completed operation or resolved input.
+        // Only a new operation, an unresolved input, or a terminal event makes
+        // the previous summary ineligible for the current presence line.
+        if (latestActivityEventKind is not null &&
+            latestActivityEventKind is not (
+                CodexActivityEventKind.TurnStarted or
+                CodexActivityEventKind.Reasoning or
+                CodexActivityEventKind.OperationCompleted or
+                CodexActivityEventKind.InputResolved))
+        {
+            return null;
+        }
+
+        return FormatForPresence(value);
+    }
 }

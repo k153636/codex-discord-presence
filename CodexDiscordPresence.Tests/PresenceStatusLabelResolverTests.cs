@@ -72,6 +72,23 @@ public sealed class PresenceStatusLabelResolverTests
     }
 
     [Fact]
+    public void ResolveStateLabel_CompletedOperationUsesCurrentThinkingSummary()
+    {
+        var resolver = new PresenceStatusLabelResolver();
+        var context = CreateContext(
+            new CodexProcessSnapshot(true, "codex", true)
+            {
+                DetectedActivityKind = CodexActivityKind.AnalyzingProject,
+                LatestActivityEventKind = CodexActivityEventKind.OperationCompleted,
+                LatestThinkingSummary = "Previous reasoning summary"
+            });
+
+        var label = resolver.ResolveStateLabel(new PresenceTemplateOptions(), context, CodexActivityKind.AnalyzingProject, 0);
+
+        Assert.Equal("Previous reasoning summary", label);
+    }
+
+    [Fact]
     public void ResolveStateLabel_ExplicitReasoningWithoutSummary_ReturnsThinking()
     {
         var resolver = new PresenceStatusLabelResolver();

@@ -246,6 +246,53 @@ public sealed class CodexEventDrivenPresenceTests
     }
 
     [Fact]
+    public void Render_CompletedExecAfterReasoning_UsesCurrentThinkingSummary()
+    {
+        var now = DateTime.UtcNow;
+        var projectPath = CreateProjectPath();
+        var homePath = CreateHomePath();
+
+        try
+        {
+            WriteSession(homePath, "session.jsonl",
+            [
+                CreateSessionLine(now, new
+                {
+                    type = "task_started",
+                    turn_id = "turn-1",
+                    cwd = projectPath
+                }, "event_msg"),
+                CreateSessionLine(now.AddMilliseconds(1), new
+                {
+                    type = "reasoning",
+                    turn_id = "turn-1",
+                    summary = new[] { new { type = "summary_text", text = "Previous reasoning summary" } }
+                }, "response_item"),
+                CreateSessionLine(now.AddMilliseconds(2), new
+                {
+                    type = "custom_tool_call",
+                    turn_id = "turn-1",
+                    call_id = "call-completed-after-reasoning-1",
+                    name = "exec",
+                    status = "completed",
+                    input = "const r = await tools.exec_command({cmd: 'dotnet test'}); text(r.output);"
+                }, "response_item")
+            ]);
+
+            var snapshot = CreateDetector(homePath).GetSnapshot(projectPath);
+            var presence = Render(projectPath, snapshot);
+
+            Assert.Equal(CodexActivityEventKind.OperationCompleted, snapshot.LatestActivityEventKind);
+            Assert.Equal("Previous reasoning summary", snapshot.LatestThinkingSummary);
+            Assert.Equal("Previous reasoning summary", presence.State);
+        }
+        finally
+        {
+            DeleteDirectory(homePath);
+        }
+    }
+
+    [Fact]
     public void GetSnapshot_CompletedShellCommandWithoutTurnStart_IsNotRunningCommand()
     {
         var now = DateTime.UtcNow;

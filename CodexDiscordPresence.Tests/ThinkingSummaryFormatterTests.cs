@@ -15,4 +15,24 @@ public sealed class ThinkingSummaryFormatterTests
         Assert.Equal(96, formatted!.Length);
         Assert.EndsWith("…", formatted, StringComparison.Ordinal);
     }
+
+    [Fact]
+    public void FormatForCurrentReasoning_PreservesSummaryAfterOperationCompleted()
+    {
+        var formatted = ThinkingSummaryFormatter.FormatForCurrentReasoning(
+            "Previous reasoning summary",
+            CodexActivityEventKind.OperationCompleted);
+
+        Assert.Equal("Previous reasoning summary", formatted);
+    }
+
+    [Fact]
+    public void FormatForCurrentReasoning_ClearsSummaryWhenNewOperationStarts()
+    {
+        var formatted = ThinkingSummaryFormatter.FormatForCurrentReasoning(
+            "Previous reasoning summary",
+            CodexActivityEventKind.OperationStarted);
+
+        Assert.Null(formatted);
+    }
 }
