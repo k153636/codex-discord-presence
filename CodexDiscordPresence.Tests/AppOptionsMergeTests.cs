@@ -65,6 +65,38 @@ public sealed class AppOptionsMergeTests
     }
 
     [Fact]
+    public void Load_WhenSettingsFilesAreMissing_UsesCompiledCodexRpcButton()
+    {
+        var root = Path.Combine(Path.GetTempPath(), "CodexAppOptionsDefaultsTests_" + Guid.NewGuid());
+        var exeDir = Path.Combine(root, "exe");
+        var appDataDir = Path.Combine(root, "appdata");
+        Directory.CreateDirectory(exeDir);
+        Directory.CreateDirectory(appDataDir);
+
+        try
+        {
+            var paths = new AppPaths(
+                exeDir,
+                Path.Combine(exeDir, "appsettings.json"),
+                appDataDir,
+                Path.Combine(appDataDir, "logs"),
+                Path.Combine(appDataDir, "user-settings.json"),
+                Path.Combine(appDataDir, "presence-state.json"),
+                AppProfileKind.Codex);
+
+            var options = AppOptions.Load(Array.Empty<string>(), paths);
+
+            var button = Assert.Single(options.Presence.Buttons);
+            Assert.Equal("Codex RPC", button.Label);
+            Assert.Equal("https://github.com/k153636/codex-discord-presence", button.Url);
+        }
+        finally
+        {
+            Directory.Delete(root, true);
+        }
+    }
+
+    [Fact]
     public void Load_UsesCliSettingsFilesForCliProfile()
     {
         var root = Path.Combine(Path.GetTempPath(), "CodexAppOptionsCliTests_" + Guid.NewGuid());
