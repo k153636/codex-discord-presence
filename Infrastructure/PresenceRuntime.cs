@@ -156,14 +156,18 @@ public sealed class PresenceRuntime
                         presence);
 
                     UpdateProfileActivityState(selectedProfileState, codexSnapshot);
-                    _state.PublishDashboardSnapshot(new PresenceDashboardSnapshot(
+                    var dashboardSnapshot = new PresenceDashboardSnapshot(
                         currentProfile,
                         context.ModelName,
                         context.Project.Name,
                         presence,
                         context.TokenUsage,
                         rpc.IsConnected,
-                        DateTime.UtcNow));
+                        DateTime.UtcNow)
+                    {
+                        PublishedPresence = rpc.LastPublishedPresence
+                    };
+                    _state.PublishDashboardSnapshot(dashboardSnapshot);
                     deferSessionEnrichment = false;
                 }
                 catch (OperationCanceledException) when (_cancellationToken.IsCancellationRequested)

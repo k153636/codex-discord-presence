@@ -60,9 +60,13 @@ internal static class DashboardTextFormatter
             return "Disabled";
         }
 
-        if (!string.IsNullOrWhiteSpace(snapshot.Presence?.State))
+        var state = snapshot.PublishedPresence is not null
+            ? snapshot.PublishedPresence.State
+            : snapshot.Presence?.State;
+
+        if (!string.IsNullOrWhiteSpace(state))
         {
-            return snapshot.Presence.State;
+            return state;
         }
 
         return "Waiting";

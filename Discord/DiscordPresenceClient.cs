@@ -1,5 +1,4 @@
 using DiscordRPC;
-using RpcButton = DiscordRPC.Button;
 
 namespace CodexDiscordPresence;
 
@@ -31,6 +30,8 @@ public sealed class DiscordPresenceClient : IDisposable
 
     public bool IsConnected => _isReady;
 
+    public DiscordPresenceSnapshot? LastPublishedPresence { get; private set; }
+
     public void UpdateOptions(DiscordOptions options)
     {
         if (string.Equals(_options.ClientId, options.ClientId, StringComparison.Ordinal) &&
@@ -53,6 +54,7 @@ public sealed class DiscordPresenceClient : IDisposable
         {
             _isReady = false;
             ResetClient();
+            LastPublishedPresence = null;
             _failedInitializeAttempts = 0;
             _nextInitializeAttemptUtc = DateTime.MinValue;
         }
@@ -75,27 +77,9 @@ public sealed class DiscordPresenceClient : IDisposable
 
         try
         {
-            var buttons = presence.Buttons
-                .Where(button => !string.IsNullOrWhiteSpace(button.Label) && !string.IsNullOrWhiteSpace(button.Url))
-                .Select(button => new RpcButton { Label = button.Label, Url = button.Url })
-                .Take(2)
-                .ToArray();
-
-            client.SetPresence(new RichPresence
-            {
-                Details = presence.Details,
-                State = presence.State,
-                Assets = new Assets
-                {
-                    LargeImageKey = DiscordAssetKeyResolver.ResolveLargeImageReference(_options, presence),
-                    LargeImageText = presence.LargeImageText,
-                    SmallImageKey = DiscordAssetKeyResolver.ResolveImageReference(_options, _options.SmallImageKey),
-                    SmallImageText = presence.SmallImageText
-                },
-                Party = DiscordPartyBuilder.Create(presence.PartySize, _partyId),
-                Buttons = buttons.Length == 0 ? null : buttons,
-                Timestamps = presence.StartedAt is null ? null : new Timestamps(presence.StartedAt.Value)
-            });
+            var publishedPresence = DiscordRichPresenceBuilder.Create(_options, presence, _partyId);
+            client.SetPresence(publishedPresence);
+            LastPublishedPresence = DiscordPresenceSnapshot.From(publishedPresence);
             _needsPresenceRefresh = false;
             return true;
         }
@@ -103,6 +87,7 @@ public sealed class DiscordPresenceClient : IDisposable
         {
             _isReady = false;
             ResetClient();
+            LastPublishedPresence = null;
             _needsPresenceRefresh = true;
             _failedInitializeAttempts = Math.Min(_failedInitializeAttempts + 1, int.MaxValue);
             var delay = DiscordReconnectBackoff.GetDelay(_failedInitializeAttempts);
@@ -124,6 +109,7 @@ public sealed class DiscordPresenceClient : IDisposable
         }
         finally
         {
+            LastPublishedPresence = null;
             _needsPresenceRefresh = true;
         }
     }
@@ -138,6 +124,7 @@ public sealed class DiscordPresenceClient : IDisposable
         {
             _client = null;
             _isReady = false;
+            LastPublishedPresence = null;
             _needsPresenceRefresh = true;
         }
     }
@@ -159,6 +146,7 @@ public sealed class DiscordPresenceClient : IDisposable
             if (IsMissingClientId(_options.ClientId))
             {
                 _isReady = false;
+                LastPublishedPresence = null;
                 _needsPresenceRefresh = true;
                 _failedInitializeAttempts = Math.Min(_failedInitializeAttempts + 1, int.MaxValue);
                 var delay = DiscordReconnectBackoff.GetDelay(_failedInitializeAttempts);
@@ -174,6 +162,7 @@ public sealed class DiscordPresenceClient : IDisposable
             if (_isReady)
             {
                 _failedInitializeAttempts = 0;
+                LastPublishedPresence = null;
                 _needsPresenceRefresh = true;
                 if (logSuccess)
                 {
@@ -183,6 +172,7 @@ public sealed class DiscordPresenceClient : IDisposable
             else if (!_isReady)
             {
                 ResetClient();
+                LastPublishedPresence = null;
                 _failedInitializeAttempts = Math.Min(_failedInitializeAttempts + 1, int.MaxValue);
                 var delay = DiscordReconnectBackoff.GetDelay(_failedInitializeAttempts);
                 _log.Warn($"Discord RPC is not ready. Reconnecting in {delay.TotalSeconds:0}s.");
@@ -193,6 +183,7 @@ public sealed class DiscordPresenceClient : IDisposable
         {
             _isReady = false;
             ResetClient();
+            LastPublishedPresence = null;
             _needsPresenceRefresh = true;
             _failedInitializeAttempts = Math.Min(_failedInitializeAttempts + 1, int.MaxValue);
             var delay = DiscordReconnectBackoff.GetDelay(_failedInitializeAttempts);

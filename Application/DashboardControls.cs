@@ -9,8 +9,8 @@ internal static class DashboardPalette
     public static readonly Color Window = Color.FromArgb(18, 19, 23);
     public static readonly Color Surface = Color.FromArgb(28, 30, 36);
     public static readonly Color SurfaceInset = Color.FromArgb(24, 26, 31);
-    public static readonly Color SurfaceRaised = Color.FromArgb(36, 38, 46);
-    public static readonly Color Border = Color.FromArgb(66, 69, 80);
+    public static readonly Color SurfaceRaised = Color.FromArgb(32, 33, 38);
+    public static readonly Color Border = Color.FromArgb(44, 46, 52);
     public static readonly Color Divider = Color.FromArgb(48, 51, 60);
     public static readonly Color Text = Color.FromArgb(239, 241, 245);
     public static readonly Color MutedText = Color.FromArgb(177, 180, 191);
@@ -20,6 +20,10 @@ internal static class DashboardPalette
     public static readonly Color Green = Color.FromArgb(92, 196, 135);
     public static readonly Color GreenSoft = Color.FromArgb(35, 68, 51);
     public static readonly Color Disabled = Color.FromArgb(110, 115, 125);
+    public static readonly Color DiscordCardTop = Color.FromArgb(58, 58, 60);
+    public static readonly Color DiscordCardBottom = Color.FromArgb(26, 26, 28);
+    public static readonly Color DiscordText = Color.FromArgb(219, 221, 223);
+    public static readonly Color DiscordGreen = Color.FromArgb(126, 193, 145);
 }
 
 internal static class DashboardDrawing
@@ -89,21 +93,17 @@ internal static class DashboardDrawing
         return path;
     }
 
-    public static void DrawValueCard(
+    public static void DrawValueRow(
         Graphics graphics,
         FontFamily fontFamily,
         Rectangle bounds,
-        string value,
-        Color accent)
+        string value)
     {
-        DrawRoundedSurface(graphics, bounds, 10, DashboardPalette.SurfaceInset, DashboardPalette.Divider);
-        using var accentBrush = new SolidBrush(accent);
-        graphics.FillRectangle(accentBrush, bounds.Left, bounds.Top + 10, 3, bounds.Height - 20);
         DrawText(
             graphics,
             fontFamily,
             value,
-            new Rectangle(bounds.Left + 18, bounds.Top + 9, bounds.Width - 30, bounds.Height - 18),
+            new Rectangle(bounds.Left, bounds.Top + 9, bounds.Width, bounds.Height - 18),
             14f,
             FontStyle.Regular,
             DashboardPalette.Text,
@@ -146,7 +146,10 @@ internal sealed class DashboardPreviewSurface : Control
 {
     private PresenceDashboardSnapshot _snapshot = PresenceDashboardSnapshot.Empty;
     private bool _enabled = true;
-    private readonly Image _codexImage;
+    private readonly Image _fallbackImage;
+    private readonly Image _gameIcon;
+    private readonly DashboardPresenceImageSlot _largeImage;
+    private readonly DashboardPresenceImageSlot _smallImage;
 
     public DashboardPreviewSurface()
     {
@@ -157,13 +160,19 @@ internal sealed class DashboardPreviewSurface : Control
             ControlStyles.UserPaint,
             true);
         BackColor = DashboardPalette.Window;
-        _codexImage = LoadCodexImage();
+        _fallbackImage = LoadCodexImage();
+        _gameIcon = DashboardDiscordActivityIcon.Load();
+        _largeImage = new DashboardPresenceImageSlot(_fallbackImage, InvalidateIfAlive);
+        _smallImage = new DashboardPresenceImageSlot(_fallbackImage, InvalidateIfAlive);
     }
 
     public void SetSnapshot(PresenceDashboardSnapshot snapshot, bool enabled)
     {
         _snapshot = snapshot;
         _enabled = enabled;
+        _largeImage.SetReference(snapshot.PublishedPresence?.LargeImageKey);
+        _smallImage.SetReference(snapshot.PublishedPresence?.SmallImageKey);
+
         Invalidate();
     }
 
@@ -171,7 +180,10 @@ internal sealed class DashboardPreviewSurface : Control
     {
         if (disposing)
         {
-            _codexImage.Dispose();
+            _largeImage.Dispose();
+            _smallImage.Dispose();
+            _gameIcon.Dispose();
+            _fallbackImage.Dispose();
         }
 
         base.Dispose(disposing);
@@ -187,141 +199,188 @@ internal sealed class DashboardPreviewSurface : Control
         graphics.TextRenderingHint = TextRenderingHint.ClearTypeGridFit;
         graphics.Clear(BackColor);
 
-        var cardWidth = Math.Max(200, ClientSize.Width - 68);
-        var availableHeight = Math.Max(220, ClientSize.Height - 64);
-        var cardHeight = Math.Min(availableHeight, Math.Max(280, (int)(cardWidth * 0.52f)));
-        var cardRect = new Rectangle(
-            34,
-            Math.Max(24, (ClientSize.Height - cardHeight) / 2),
-            cardWidth,
-            cardHeight);
-        DashboardDrawing.DrawShadow(graphics, cardRect, 18);
-        DashboardDrawing.DrawRoundedSurface(graphics, cardRect, 18, DashboardPalette.SurfaceRaised, DashboardPalette.Border);
+        var renderedWidth = 360;
+        var renderedHeight = 172;
+        var origin = new Point(
+            Math.Max(24, (ClientSize.Width - renderedWidth) / 2),
+            Math.Max(24, (ClientSize.Height - renderedHeight) / 2));
 
         DashboardDrawing.DrawText(
             graphics,
             Font.FontFamily,
-            "Playing",
-            new Rectangle(cardRect.Left + 28, cardRect.Top + 22, cardRect.Width - 88, 24),
-            12f,
+            "現在のアクティビティ",
+            new Rectangle(origin.X, origin.Y, 360, 20),
+            10f,
+            FontStyle.Regular,
+            DashboardPalette.DiscordText);
+        DrawDiscordActivityCard(graphics, new Rectangle(origin.X, origin.Y + 24, 360, 148));
+    }
+
+    private void DrawDiscordActivityCard(Graphics graphics, Rectangle cardRect)
+    {
+        var publishedPresence = _snapshot.PublishedPresence;
+        var presence = _snapshot.Presence;
+        var details = publishedPresence is not null
+            ? publishedPresence.Details
+            : string.IsNullOrWhiteSpace(presence?.Details) ? "Waiting for presence update" : presence.Details;
+        var state = publishedPresence is not null
+            ? publishedPresence.State
+            : string.IsNullOrWhiteSpace(presence?.State) ? "Waiting" : presence.State;
+        var startedAt = publishedPresence is not null
+            ? publishedPresence.StartedAtUtc
+            : presence?.StartedAt;
+
+        using (var cardPath = DashboardDrawing.CreateRoundedPath(cardRect, 14))
+        using (var cardBrush = new LinearGradientBrush(
+                   cardRect,
+                   DashboardPalette.DiscordCardTop,
+                   DashboardPalette.DiscordCardBottom,
+                   LinearGradientMode.Vertical))
+        {
+            graphics.FillPath(cardBrush, cardPath);
+        }
+
+        DashboardDrawing.DrawText(
+            graphics,
+            Font.FontFamily,
+            "プレイ中：",
+            new Rectangle(cardRect.Left + 12, cardRect.Top + 11, 160, 18),
+            10f,
             FontStyle.Bold,
-            DashboardPalette.MutedText);
+            DashboardPalette.DiscordText);
         DashboardDrawing.DrawText(
             graphics,
             Font.FontFamily,
             "...",
-            new Rectangle(cardRect.Right - 60, cardRect.Top + 20, 32, 26),
-            15f,
+            new Rectangle(cardRect.Right - 38, cardRect.Top + 6, 30, 20),
+            10f,
             FontStyle.Bold,
-            DashboardPalette.MutedText,
+            DashboardPalette.DiscordText,
             TextFormatFlags.NoPadding | TextFormatFlags.HorizontalCenter);
 
-        var body = new Rectangle(
-            cardRect.Left + 42,
-            cardRect.Top + 62,
-            Math.Max(120, cardRect.Width - 84),
-            Math.Max(120, cardRect.Height - 94));
-        if (body.Width >= 500)
+        var largeImageRect = new Rectangle(cardRect.Left + 12, cardRect.Top + 36, 100, 100);
+        DrawRoundedImage(graphics, _largeImage.CurrentImage, largeImageRect, 8);
+        var smallImageRect = new Rectangle(cardRect.Left + 84, cardRect.Top + 104, 32, 32);
+        using (var smallImageBorder = new SolidBrush(DashboardPalette.DiscordCardBottom))
         {
-            DrawWideCard(graphics, body);
+            graphics.FillEllipse(
+                smallImageBorder,
+                smallImageRect.Left - 2,
+                smallImageRect.Top - 2,
+                smallImageRect.Width + 4,
+                smallImageRect.Height + 4);
         }
-        else
-        {
-            DrawCompactCard(graphics, body);
-        }
-    }
+        DrawCircularImage(graphics, _smallImage.CurrentImage, smallImageRect);
 
-    private void DrawWideCard(Graphics graphics, Rectangle body)
-    {
-        var iconSize = Math.Min(190, Math.Max(150, Math.Min(body.Height - 18, body.Width / 2 - 22)));
-        var iconRect = new Rectangle(
-            body.Left,
-            body.Top + 24,
-            iconSize,
-            iconSize);
-        graphics.DrawImage(_codexImage, iconRect);
-
-        var contentLeft = iconRect.Right + 38;
-        var contentWidth = Math.Max(120, body.Right - contentLeft);
-        var contentTop = body.Top + 28;
-        var contentHeight = body.Bottom - contentTop;
-        DrawPresenceText(graphics, contentLeft, contentTop, contentWidth, contentHeight);
-    }
-
-    private void DrawCompactCard(Graphics graphics, Rectangle body)
-    {
-        var iconSize = Math.Min(132, Math.Max(96, Math.Min(body.Width - 24, body.Height / 3)));
-        var iconRect = new Rectangle(
-            body.Left + Math.Max(0, (body.Width - iconSize) / 2),
-            body.Top,
-            iconSize,
-            iconSize);
-        graphics.DrawImage(_codexImage, iconRect);
-
-        var contentTop = iconRect.Bottom + 18;
-        DrawPresenceText(graphics, body.Left, contentTop, body.Width, body.Bottom - contentTop);
-    }
-
-    private void DrawPresenceText(Graphics graphics, int contentLeft, int contentTop, int contentWidth, int contentHeight)
-    {
-        var presence = _snapshot.Presence;
-        var modelProject = DashboardTextFormatter.FormatModelProject(_snapshot);
-        var details = string.IsNullOrWhiteSpace(presence?.Details) ? "Waiting for presence update" : presence.Details;
-        var state = string.IsNullOrWhiteSpace(presence?.State) ? "Waiting" : presence.State;
-
+        var contentLeft = cardRect.Left + 123;
+        var contentWidth = cardRect.Width - 135;
         DashboardDrawing.DrawText(
             graphics,
             Font.FontFamily,
             "Codex",
-            new Rectangle(contentLeft, contentTop, contentWidth, 34),
-            25f,
+            new Rectangle(contentLeft, cardRect.Top + 51, contentWidth, 18),
+            11f,
             FontStyle.Bold,
-            DashboardPalette.Text);
-        DashboardDrawing.DrawText(
-            graphics,
-            Font.FontFamily,
-            modelProject,
-            new Rectangle(contentLeft, contentTop + 44, contentWidth, 42),
-            12f,
-            FontStyle.Regular,
-            DashboardPalette.MutedText,
-            TextFormatFlags.NoPadding | TextFormatFlags.WordBreak | TextFormatFlags.EndEllipsis);
+            DashboardPalette.DiscordText);
         DashboardDrawing.DrawText(
             graphics,
             Font.FontFamily,
             details,
-            new Rectangle(contentLeft, contentTop + 88, contentWidth, 46),
-            13f,
+            new Rectangle(contentLeft, cardRect.Top + 69, contentWidth, 17),
+            9f,
             FontStyle.Regular,
-            DashboardPalette.Text,
-            TextFormatFlags.NoPadding | TextFormatFlags.WordBreak | TextFormatFlags.EndEllipsis);
+            DashboardPalette.DiscordText,
+            TextFormatFlags.NoPadding | TextFormatFlags.EndEllipsis);
         DashboardDrawing.DrawText(
             graphics,
             Font.FontFamily,
             state,
-            new Rectangle(contentLeft, contentTop + 136, contentWidth, 40),
-            14f,
+            new Rectangle(contentLeft, cardRect.Top + 86, contentWidth, 17),
+            9f,
             FontStyle.Regular,
-            _enabled ? DashboardPalette.Text : DashboardPalette.Disabled,
-            TextFormatFlags.NoPadding | TextFormatFlags.WordBreak | TextFormatFlags.EndEllipsis);
+            _enabled ? DashboardPalette.DiscordText : DashboardPalette.Disabled,
+            TextFormatFlags.NoPadding | TextFormatFlags.EndEllipsis);
 
-        var elapsed = DashboardTextFormatter.FormatElapsed(presence?.StartedAt, DateTime.UtcNow);
-        if (elapsed.Length == 0 || contentHeight < 180)
+        var elapsed = DashboardTextFormatter.FormatElapsed(startedAt, DateTime.UtcNow);
+        if (elapsed.Length == 0)
         {
             return;
         }
 
-        var timerTop = contentTop + contentHeight - 36;
-        using var timerDot = new SolidBrush(DashboardPalette.Green);
-        graphics.FillEllipse(timerDot, contentLeft, timerTop + 8, 9, 9);
+        DrawDiscordGameIcon(graphics, new Rectangle(contentLeft, cardRect.Top + 106, 14, 14));
         DashboardDrawing.DrawText(
             graphics,
             Font.FontFamily,
             elapsed,
-            new Rectangle(contentLeft + 18, timerTop, contentWidth - 18, 30),
-            14f,
+            new Rectangle(contentLeft + 17, cardRect.Top + 104, contentWidth - 17, 18),
+            9f,
             FontStyle.Regular,
-            DashboardPalette.Green);
+            DashboardPalette.DiscordGreen);
+    }
+
+    private void DrawRoundedImage(Graphics graphics, Image image, Rectangle bounds, int radius)
+    {
+        using var path = DashboardDrawing.CreateRoundedPath(bounds, radius);
+        var savedState = graphics.Save();
+        try
+        {
+            graphics.SetClip(path);
+            ImageAnimator.UpdateFrames(image);
+            graphics.DrawImage(image, bounds);
+        }
+        catch
+        {
+            graphics.DrawImage(_fallbackImage, bounds);
+        }
+        finally
+        {
+            graphics.Restore(savedState);
+        }
+    }
+
+    private void DrawCircularImage(Graphics graphics, Image image, Rectangle bounds)
+    {
+        using var path = new GraphicsPath();
+        path.AddEllipse(bounds);
+        var savedState = graphics.Save();
+        try
+        {
+            graphics.SetClip(path);
+            ImageAnimator.UpdateFrames(image);
+            graphics.DrawImage(image, bounds);
+        }
+        finally
+        {
+            graphics.Restore(savedState);
+        }
+    }
+
+    private void DrawDiscordGameIcon(Graphics graphics, Rectangle bounds)
+    {
+        graphics.DrawImageUnscaled(_gameIcon, bounds.Location);
+    }
+
+    private void InvalidateIfAlive()
+    {
+        if (IsDisposed || Disposing)
+        {
+            return;
+        }
+
+        if (IsHandleCreated && InvokeRequired)
+        {
+            try
+            {
+                BeginInvoke(new MethodInvoker(InvalidateIfAlive));
+            }
+            catch (InvalidOperationException)
+            {
+            }
+
+            return;
+        }
+
+        Invalidate();
     }
 
     private static Image LoadCodexImage()
@@ -379,11 +438,7 @@ internal sealed class DashboardStatusRail : Control
         graphics.DrawLine(divider, ClientSize.Width - 1, 0, ClientSize.Width - 1, ClientSize.Height);
 
         var activity = DashboardTextFormatter.FormatActivity(_snapshot, _enabled);
-        var statusColor = !_enabled
-            ? DashboardPalette.Disabled
-            : _snapshot.IsDiscordConnected
-                ? DashboardPalette.Green
-                : DashboardPalette.Accent;
+        var statusColor = !_enabled ? DashboardPalette.Disabled : DashboardPalette.Accent;
 
         using var dot = new SolidBrush(statusColor);
         graphics.FillEllipse(dot, 34, 50, 16, 16);
@@ -415,25 +470,22 @@ internal sealed class DashboardStatusRail : Control
         graphics.DrawLine(sectionDivider, 34, 184, ClientSize.Width - 34, 184);
 
         var usage = _snapshot.TokenUsage;
-        var valueWidth = Math.Max(150, ClientSize.Width - 68);
-        DashboardDrawing.DrawValueCard(
+        var valueWidth = Math.Max(140, ClientSize.Width - 100);
+        DashboardDrawing.DrawValueRow(
             graphics,
             Font.FontFamily,
-            new Rectangle(34, 218, valueWidth, 46),
-            DashboardTextFormatter.FormatBillingType(usage?.BillingType),
-            DashboardPalette.Accent);
-        DashboardDrawing.DrawValueCard(
+            new Rectangle(66, 218, valueWidth, 46),
+            DashboardTextFormatter.FormatBillingType(usage?.BillingType));
+        DashboardDrawing.DrawValueRow(
             graphics,
             Font.FontFamily,
-            new Rectangle(34, 278, valueWidth, 46),
-            DashboardTextFormatter.FormatRateLimitUsage(usage?.RateLimit),
-            DashboardPalette.Green);
-        DashboardDrawing.DrawValueCard(
+            new Rectangle(66, 278, valueWidth, 46),
+            DashboardTextFormatter.FormatRateLimitUsage(usage?.RateLimit));
+        DashboardDrawing.DrawValueRow(
             graphics,
             Font.FontFamily,
-            new Rectangle(34, 338, valueWidth, 46),
-            DashboardTextFormatter.FormatRateLimitReset(usage?.RateLimit, DateTime.UtcNow),
-            DashboardPalette.Accent);
+            new Rectangle(66, 338, valueWidth, 46),
+            DashboardTextFormatter.FormatRateLimitReset(usage?.RateLimit, DateTime.UtcNow));
     }
 }
 
@@ -482,11 +534,7 @@ internal sealed class DashboardOverviewSurface : Control
             FontStyle.Bold,
             DashboardPalette.MutedText);
 
-        var activityColor = !_enabled
-            ? DashboardPalette.Disabled
-            : _snapshot.IsDiscordConnected
-                ? DashboardPalette.Green
-                : DashboardPalette.Accent;
+        var activityColor = !_enabled ? DashboardPalette.Disabled : DashboardPalette.Accent;
         using var dot = new SolidBrush(activityColor);
         graphics.FillEllipse(dot, hero.Left + 28, hero.Top + 70, 12, 12);
         DashboardDrawing.DrawText(

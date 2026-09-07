@@ -9,6 +9,8 @@ public sealed record PresenceDashboardSnapshot(
     bool IsDiscordConnected,
     DateTime UpdatedAtUtc)
 {
+    public DiscordPresenceSnapshot? PublishedPresence { get; init; }
+
     public static PresenceDashboardSnapshot Empty { get; } = new(
         AppProfileKind.Codex,
         null,

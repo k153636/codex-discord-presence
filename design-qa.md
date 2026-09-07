@@ -1,30 +1,58 @@
-# Dashboard Design QA
+# Discord activity preview design QA
 
-## Comparison target
+source visual truth path: E:\tool\discord-reference\codex-activity-card.png
+implementation screenshot path: E:\tool\codex-dashboard-smoke\preview-gif-frame-2.png
+comparison image path: E:\tool\codex-dashboard-smoke\activity-card-side-by-side-gif-aligned.png
 
-- Source visual truth: `E:\codex\home\generated_images\01a07b36-1c05-7500-91fe-25a2e974e34c\exec-0df4e1e2-3d35-40be-89d8-c8b434ac2122.png`
-- Implementation screenshot: `E:\tool\codex-dashboard-smoke\preview-polished-final.png`
-- Combined comparison: `E:\tool\codex-dashboard-smoke\design-comparison.png`
-- State: `Preview` selected, `Waiting`, `subsc`, `5h 25% used`, `reset 3h 2m`
+## Normalized comparison
 
-## Dimensions and normalization
+- Source pixels: 390 x 180.
+- Implementation window pixels: 976 x 699.
+- Comparison crop: 390 x 180 from the implementation window.
+- Display scale: 100%; no resampling was used for the focused card comparison.
+- State: Preview tab, dark theme, Codex activity, Thinking, gpt 5.6 luna max 1.5x • 75.3M Token.
+- Dynamic exception: the elapsed time is expected to advance, and the large GIF frame is expected to differ from the captured source frame.
 
-- Source: 1487 x 1058 pixels, desktop mockup with window frame.
-- Implementation: 976 x 699 pixels, native WinForms window capture with window frame.
-- Comparison: implementation was scaled to 1058 pixels high with high-quality bicubic interpolation; no density correction was needed because both captures are raster screenshots of the full window.
+## Full-view comparison evidence
 
-## Evidence
+The rendered WinForms dashboard shows the same Preview tab, dark surface, left status rail, fixed Discord activity-card proportions, 100 x 100 large image, 32 x 32 circular small image, title, details, state, game icon, and elapsed line. No P0, P1, or P2 difference was observed in the visible implementation.
 
-- Full-view comparison: `design-comparison.png` shows the same two-tab structure, dark title bar, left status rail, and Discord Preview card in the selected state.
-- Focused comparison: the tab strip, status rail, and Preview card were inspected at full source resolution and at the normalized implementation size. The card aspect ratio and vertical rhythm were corrected after the first pass.
-- Interaction: the Overview and Preview tabs were clicked in the native form; both states rendered without layout breakage.
+## Focused region comparison evidence
+
+activity-card-side-by-side-gif-aligned.png places the 390 x 180 source crop beside the same-size implementation crop. Card bounds, image slots, text baselines, gradient direction, corner radius, and content order are aligned. The implementation uses the actual published payload values. The elapsed value differs only because it is computed from the current published start timestamp.
+
+## Fidelity surfaces
+
+- Fonts and typography: Segoe UI rendering, weights, sizes, wrapping, and ellipsis match the reference card within native WinForms rasterization differences.
+- Spacing and layout rhythm: card dimensions, 12 px image inset, 100/32 px image sizes, content column, and vertical line spacing match the reference.
+- Colors and visual tokens: dark vertical card gradient, Discord text colors, and green elapsed line are aligned to the reference.
+- Image quality and asset fidelity: the source RPC GIFs remain GIFs, are copied beside the published single-file executable, and are rendered through ImageAnimator with the original stream retained.
+- Copy and content: state and details are read from the last payload successfully sent to Discord, so they are not reinterpreted by a state-name switch.
+
+## GIF evidence
+
+Two screenshots of the same implementation state were captured 1.5 seconds apart. The large-image region changed in 3,984 of 10,000 pixels, confirming animated-frame redraw.
+
+## Findings
+
+No actionable P0, P1, or P2 findings.
 
 ## Comparison history
 
-1. First pass: P2 visual issue. The Preview card filled most of the vertical surface and was too tall compared with the selected mock.
-2. Fix: changed the card to a width-based horizontal ratio, centered it in the preview surface, and aligned the icon/content group near the card's upper body while keeping the elapsed time at the bottom.
-3. Final pass: no actionable P0, P1, or P2 findings. The remaining native text rasterization and the mock's small status icons are P3 differences and are intentionally accepted to preserve the compact WinForms scope and real existing asset usage.
+- Initial implementation already matched the reference card geometry and content order.
+- This iteration changed payload selection to prefer the last successfully published Discord payload, preserved animated GIF streams, enabled ImageAnimator frame callbacks, and copied all RPC GIF assets to the published output.
+- Post-fix evidence: activity-card-side-by-side-gif-aligned.png and the GIF frame pixel comparison above.
 
-## Final result
+## Implementation Checklist
 
-passed
+- [x] Mirror the state and details from the successfully published Discord payload.
+- [x] Keep future state strings data-driven without UI state enumeration.
+- [x] Resolve future GIF keys from local Assets\RpcArt files or HTTP(S) references.
+- [x] Animate GIF frames and invalidate the WinForms preview safely.
+- [x] Validate focused tests, full tests, Release publish, running process, RPC initialization, and rendered presence log.
+
+## Follow-up Polish
+
+- P3: Discord's private native font rasterization and live desktop-card timing cannot be reproduced pixel-for-pixel outside Discord itself.
+
+final result: passed

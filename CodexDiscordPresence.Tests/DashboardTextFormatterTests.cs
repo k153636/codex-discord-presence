@@ -39,4 +39,41 @@ public sealed class DashboardTextFormatterTests
 
         Assert.Equal("3:02", DashboardTextFormatter.FormatElapsed(now.AddHours(-3).AddMinutes(-2), now));
     }
+
+    [Fact]
+    public void FormatActivity_PrefersTheStateLastPublishedToDiscord()
+    {
+        var snapshot = new PresenceDashboardSnapshot(
+            AppProfileKind.Codex,
+            null,
+            null,
+            new RenderedPresence(
+                "details",
+                "predicted state",
+                null,
+                "small",
+                [],
+                null,
+                CodexActivityKind.AnalyzingProject,
+                RunningCommandKind.Unknown,
+                ""),
+            null,
+            true,
+            DateTime.UtcNow)
+        {
+            PublishedPresence = new DiscordPresenceSnapshot(
+                "details",
+                "new state from Discord payload",
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                [])
+        };
+
+        Assert.Equal("new state from Discord payload", DashboardTextFormatter.FormatActivity(snapshot, enabled: true));
+    }
 }
