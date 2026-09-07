@@ -82,7 +82,7 @@ For quiet idle periods, the app shows `Waiting` for the first 5 minutes, then sw
 - `State`: `{ActivityLine}`
 - `LargeImageText`: `{ProjectName}`
 - `SmallImageText`: `{ProjectFileCount} files &bull; session {SessionElapsed}`
-- Button: `GitHub`
+- Button: `use Codex RPC` → `https://github.com/k153636/codex-discord-presence`
 
 When no usable reasoning summary is available, repeated generic analysis states can still render with an `x2`, `x3`, and so on repeat suffix.
 Use `{ActivityLabel}` if you want the file name omitted for a cleaner one-line status.
