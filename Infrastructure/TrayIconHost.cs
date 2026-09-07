@@ -13,6 +13,7 @@ public sealed class TrayIconHost : ApplicationContext
     private readonly Action _quitCallback;
     private readonly NotifyIcon _notifyIcon;
     private readonly ToolStripMenuItem _enableMenuItem;
+    private CodexDashboardForm? _dashboardForm;
     private bool _exitRequested;
 
     public TrayIconHost(
@@ -31,6 +32,9 @@ public sealed class TrayIconHost : ApplicationContext
         _enableMenuItem = new ToolStripMenuItem();
         _enableMenuItem.Click += (_, _) => ToggleEnabled();
 
+        var openDashboardMenuItem = new ToolStripMenuItem("Open Dashboard");
+        openDashboardMenuItem.Click += (_, _) => OpenDashboard();
+
         var editMenuItem = new ToolStripMenuItem("Edit Discord RPC");
         editMenuItem.Click += (_, _) => OpenSettingsJson();
 
@@ -39,6 +43,7 @@ public sealed class TrayIconHost : ApplicationContext
 
         var menu = new ContextMenuStrip();
         menu.Items.Add(_enableMenuItem);
+        menu.Items.Add(openDashboardMenuItem);
         menu.Items.Add(new ToolStripSeparator());
         menu.Items.Add(editMenuItem);
         menu.Items.Add(quitMenuItem);
@@ -66,8 +71,35 @@ public sealed class TrayIconHost : ApplicationContext
         _stateStore.Save(_statePath, _state);
         _notifyIcon.Visible = false;
         _notifyIcon.Dispose();
+        _dashboardForm?.Close();
+        _dashboardForm = null;
         _quitCallback();
         ExitThread();
+    }
+
+    public void OpenDashboard()
+    {
+        if (_dashboardForm is null || _dashboardForm.IsDisposed)
+        {
+            var dashboard = new CodexDashboardForm(_state);
+            dashboard.FormClosed += (_, _) =>
+            {
+                if (ReferenceEquals(_dashboardForm, dashboard))
+                {
+                    _dashboardForm = null;
+                }
+            };
+            _dashboardForm = dashboard;
+        }
+
+        if (_dashboardForm.WindowState == FormWindowState.Minimized)
+        {
+            _dashboardForm.WindowState = FormWindowState.Normal;
+        }
+
+        _dashboardForm.Show();
+        _dashboardForm.BringToFront();
+        _dashboardForm.Activate();
     }
 
     private void ToggleEnabled()

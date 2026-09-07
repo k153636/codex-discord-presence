@@ -29,6 +29,8 @@ public sealed class DiscordPresenceClient : IDisposable
 
     public bool NeedsPresenceRefresh => _needsPresenceRefresh;
 
+    public bool IsConnected => _isReady;
+
     public void UpdateOptions(DiscordOptions options)
     {
         if (string.Equals(_options.ClientId, options.ClientId, StringComparison.Ordinal) &&
