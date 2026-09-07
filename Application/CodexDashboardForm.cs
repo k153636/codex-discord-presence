@@ -1,5 +1,4 @@
 using System.Drawing;
-using System.ComponentModel;
 using System.Runtime.InteropServices;
 using System.Windows.Forms;
 
@@ -9,14 +8,8 @@ public sealed class CodexDashboardForm : Form
 {
     private readonly PresenceRuntimeState _runtimeState;
     private readonly DashboardOverviewSurface _overviewSurface;
-    private readonly DashboardStatusRail _statusRail;
     private readonly DashboardPreviewSurface _previewSurface;
-    private readonly DashboardTabButton _overviewTab;
-    private readonly DashboardTabButton _previewTab;
-    private readonly Panel _overviewPage;
-    private readonly Panel _previewPage;
     private readonly System.Windows.Forms.Timer _refreshTimer;
-    private int _selectedTabIndex = 1;
 
     public CodexDashboardForm(PresenceRuntimeState runtimeState)
     {
@@ -24,13 +17,12 @@ public sealed class CodexDashboardForm : Form
 
         Text = "Codex Discord RPC";
         StartPosition = FormStartPosition.CenterScreen;
-        ClientSize = new Size(960, 660);
-        MinimumSize = new Size(760, 520);
+        MinimumSize = new Size(880, 420);
+        Size = MinimumSize;
         BackColor = DashboardPalette.Window;
         ForeColor = DashboardPalette.Text;
         Font = new Font("Segoe UI", 9f);
         AccessibleName = "Codex Discord RPC dashboard";
-        KeyPreview = true;
         AutoScaleMode = AutoScaleMode.Dpi;
         FormBorderStyle = FormBorderStyle.Sizable;
         MaximizeBox = true;
@@ -38,63 +30,24 @@ public sealed class CodexDashboardForm : Form
         Icon = LoadWindowIcon();
 
         _overviewSurface = new DashboardOverviewSurface { Dock = DockStyle.Fill };
-        _statusRail = new DashboardStatusRail { Dock = DockStyle.Fill };
         _previewSurface = new DashboardPreviewSurface { Dock = DockStyle.Fill };
 
-        _overviewPage = CreatePage(_overviewSurface);
-        var previewLayout = new TableLayoutPanel
+        var overviewLayout = new TableLayoutPanel
         {
             Dock = DockStyle.Fill,
             BackColor = DashboardPalette.Window,
-            ColumnCount = 2,
+            ColumnCount = 3,
             RowCount = 1,
             Margin = new Padding(0),
-            Padding = new Padding(0)
+            Padding = new Padding(24)
         };
-        previewLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 260f));
-        previewLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100f));
-        previewLayout.RowStyles.Add(new RowStyle(SizeType.Percent, 100f));
-        previewLayout.Controls.Add(_statusRail, 0, 0);
-        previewLayout.Controls.Add(_previewSurface, 1, 0);
-        _previewPage = CreatePage(previewLayout);
-
-        _overviewTab = new DashboardTabButton("Overview");
-        _previewTab = new DashboardTabButton("Preview");
-        _overviewTab.TabIndex = 0;
-        _previewTab.TabIndex = 1;
-        _overviewTab.Click += (_, _) => SelectTab(0);
-        _previewTab.Click += (_, _) => SelectTab(1);
-
-        var tabStrip = new Panel
-        {
-            Dock = DockStyle.Top,
-            Height = 56,
-            BackColor = DashboardPalette.Window,
-            Padding = new Padding(0)
-        };
-        tabStrip.Resize += (_, _) => tabStrip.Invalidate();
-        tabStrip.Paint += (_, e) =>
-        {
-            using var divider = new Pen(DashboardPalette.Divider);
-            e.Graphics.DrawLine(divider, 0, tabStrip.ClientSize.Height - 1, tabStrip.ClientSize.Width, tabStrip.ClientSize.Height - 1);
-        };
-
-        _overviewTab.Location = new Point(20, 0);
-        _previewTab.Location = new Point(168, 0);
-        tabStrip.Controls.Add(_overviewTab);
-        tabStrip.Controls.Add(_previewTab);
-
-        var pageHost = new Panel
-        {
-            Dock = DockStyle.Fill,
-            BackColor = DashboardPalette.Window,
-            Padding = new Padding(0)
-        };
-        pageHost.Controls.Add(_overviewPage);
-        pageHost.Controls.Add(_previewPage);
-        Controls.Add(pageHost);
-        Controls.Add(tabStrip);
-        SelectTab(1);
+        overviewLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100f));
+        overviewLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 16f));
+        overviewLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 420f));
+        overviewLayout.RowStyles.Add(new RowStyle(SizeType.Percent, 100f));
+        overviewLayout.Controls.Add(_overviewSurface, 0, 0);
+        overviewLayout.Controls.Add(_previewSurface, 2, 0);
+        Controls.Add(overviewLayout);
 
         _refreshTimer = new System.Windows.Forms.Timer { Interval = 500 };
         _refreshTimer.Tick += (_, _) => RefreshSnapshot();
@@ -113,58 +66,12 @@ public sealed class CodexDashboardForm : Form
         TryUseDarkTitleBar();
     }
 
-    internal IReadOnlyList<string> TabNames => ["Overview", "Preview"];
-
-    internal int SelectedTabIndex => _selectedTabIndex;
-
-    private static Panel CreatePage(Control content)
-    {
-        var page = new Panel
-        {
-            Dock = DockStyle.Fill,
-            BackColor = DashboardPalette.Window,
-            Padding = new Padding(0)
-        };
-        page.Controls.Add(content);
-        return page;
-    }
-
     private void RefreshSnapshot()
     {
         var snapshot = _runtimeState.DashboardSnapshot;
         var enabled = _runtimeState.Enabled;
         _overviewSurface.SetSnapshot(snapshot, enabled);
-        _statusRail.SetSnapshot(snapshot, enabled);
         _previewSurface.SetSnapshot(snapshot, enabled);
-    }
-
-    private void SelectTab(int index)
-    {
-        if (index is < 0 or > 1)
-        {
-            return;
-        }
-
-        _selectedTabIndex = index;
-        _overviewPage.Visible = index == 0;
-        _previewPage.Visible = index == 1;
-        _overviewTab.Selected = index == 0;
-        _previewTab.Selected = index == 1;
-    }
-
-    protected override bool ProcessCmdKey(ref Message msg, Keys keyData)
-    {
-        if (keyData is Keys.Left or Keys.Right)
-        {
-            var nextIndex = keyData == Keys.Right
-                ? Math.Min(1, _selectedTabIndex + 1)
-                : Math.Max(0, _selectedTabIndex - 1);
-            SelectTab(nextIndex);
-            (nextIndex == 0 ? _overviewTab : _previewTab).Focus();
-            return true;
-        }
-
-        return base.ProcessCmdKey(ref msg, keyData);
     }
 
     private void TryUseDarkTitleBar()
@@ -229,105 +136,4 @@ public sealed class CodexDashboardForm : Form
 
     [DllImport("user32.dll")]
     private static extern bool DestroyIcon(IntPtr hIcon);
-}
-
-internal sealed class DashboardTabButton : Button
-{
-    private bool _selected;
-
-    public DashboardTabButton(string text)
-    {
-        Text = text;
-        AccessibleName = text;
-        AccessibleRole = AccessibleRole.PageTab;
-        FlatStyle = FlatStyle.Flat;
-        FlatAppearance.BorderSize = 0;
-        UseVisualStyleBackColor = false;
-        BackColor = DashboardPalette.Window;
-        ForeColor = DashboardPalette.MutedText;
-        AccessibleDescription = $"Switch to {text} view";
-        Size = new Size(140, 56);
-        TabStop = true;
-        Cursor = Cursors.Hand;
-    }
-
-    [Browsable(false)]
-    [DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)]
-    public bool Selected
-    {
-        get => _selected;
-        set
-        {
-            if (_selected == value)
-            {
-                return;
-            }
-
-            _selected = value;
-            Invalidate();
-        }
-    }
-
-    protected override void OnPaint(PaintEventArgs e)
-    {
-        var isHovered = ClientRectangle.Contains(PointToClient(Cursor.Position));
-        e.Graphics.Clear(
-            Selected
-                ? DashboardPalette.Surface
-                : isHovered
-                    ? DashboardPalette.SurfaceInset
-                    : BackColor);
-        using var font = new Font(Font.FontFamily, 13f, Selected ? FontStyle.Bold : FontStyle.Regular);
-        var textColor = Selected ? DashboardPalette.Text : DashboardPalette.MutedText;
-        TextRenderer.DrawText(
-            e.Graphics,
-            Text,
-            font,
-            new Rectangle(8, 17, ClientSize.Width - 16, 26),
-            textColor,
-            TextFormatFlags.NoPadding);
-
-        if (Selected)
-        {
-            using var accent = new SolidBrush(DashboardPalette.Accent);
-            e.Graphics.FillRectangle(accent, 4, ClientSize.Height - 3, ClientSize.Width - 8, 3);
-        }
-        else if (isHovered)
-        {
-            using var hover = new SolidBrush(DashboardPalette.AccentSoft);
-            e.Graphics.FillRectangle(hover, 4, ClientSize.Height - 2, ClientSize.Width - 8, 2);
-        }
-
-        if (Focused && ShowFocusCues)
-        {
-            using var focus = new Pen(DashboardPalette.Accent);
-            var focusBounds = ClientRectangle;
-            focusBounds.Inflate(-6, -6);
-            e.Graphics.DrawRectangle(focus, focusBounds);
-        }
-    }
-
-    protected override void OnMouseEnter(EventArgs e)
-    {
-        base.OnMouseEnter(e);
-        Invalidate();
-    }
-
-    protected override void OnMouseLeave(EventArgs e)
-    {
-        base.OnMouseLeave(e);
-        Invalidate();
-    }
-
-    protected override void OnGotFocus(EventArgs e)
-    {
-        base.OnGotFocus(e);
-        Invalidate();
-    }
-
-    protected override void OnLostFocus(EventArgs e)
-    {
-        base.OnLostFocus(e);
-        Invalidate();
-    }
 }

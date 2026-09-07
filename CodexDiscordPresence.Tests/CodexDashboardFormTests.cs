@@ -1,5 +1,6 @@
 using System.Drawing;
 using System.Threading;
+using System.Windows.Forms;
 using Xunit;
 
 namespace CodexDiscordPresence.Tests;
@@ -7,47 +8,13 @@ namespace CodexDiscordPresence.Tests;
 public sealed class CodexDashboardFormTests
 {
     [Fact]
-    public void Form_UsesOverviewAndPreviewTabs_WithPreviewSelected()
+    public void Form_UsesSingleOverviewPage_WithCompactDesktopBaseline()
     {
-        string[]? tabNames = null;
-        var selectedIndex = -1;
-        Exception? failure = null;
-
-        var thread = new Thread(() =>
-        {
-            try
-            {
-                using var form = new CodexDashboardForm(new PresenceRuntimeState());
-                tabNames = form.TabNames.ToArray();
-                selectedIndex = form.SelectedTabIndex;
-            }
-            catch (Exception ex)
-            {
-                failure = ex;
-            }
-        });
-        thread.SetApartmentState(ApartmentState.STA);
-        thread.Start();
-        thread.Join();
-
-        Assert.Null(failure);
-        Assert.NotNull(tabNames);
-        Assert.Equal(["Overview", "Preview"], tabNames!);
-        Assert.Equal(1, selectedIndex);
-    }
-
-    [Fact]
-    public void Preview_UsesEnglishDiscordUiLabels()
-    {
-        Assert.Equal("Current Activity", DashboardPreviewSurface.CurrentActivityLabel);
-        Assert.Equal("Playing:", DashboardPreviewSurface.PlayingLabel);
-    }
-
-    [Fact]
-    public void Form_PreservesDesktopMinimumAndKeyboardNavigationBaseline()
-    {
+        Size? windowSize = null;
         Size? minimumSize = null;
-        bool? keyPreview = null;
+        var rootControlCount = -1;
+        TableLayoutPanel? layout = null;
+        Control? preview = null;
         Exception? failure = null;
 
         var thread = new Thread(() =>
@@ -55,8 +22,12 @@ public sealed class CodexDashboardFormTests
             try
             {
                 using var form = new CodexDashboardForm(new PresenceRuntimeState());
+                windowSize = form.Size;
                 minimumSize = form.MinimumSize;
-                keyPreview = form.KeyPreview;
+                rootControlCount = form.Controls.Count;
+                var overviewLayout = form.Controls.OfType<TableLayoutPanel>().Single();
+                layout = overviewLayout;
+                preview = overviewLayout.GetControlFromPosition(2, 0);
             }
             catch (Exception ex)
             {
@@ -68,7 +39,18 @@ public sealed class CodexDashboardFormTests
         thread.Join();
 
         Assert.Null(failure);
-        Assert.Equal(new Size(760, 520), minimumSize);
-        Assert.True(keyPreview);
+        Assert.Equal(new Size(880, 420), windowSize);
+        Assert.Equal(new Size(880, 420), minimumSize);
+        Assert.Equal(1, rootControlCount);
+        Assert.NotNull(layout);
+        Assert.Equal(3, layout!.ColumnCount);
+        Assert.IsType<DashboardPreviewSurface>(preview);
+    }
+
+    [Fact]
+    public void Dashboard_UsesEnglishDiscordUiLabels()
+    {
+        Assert.Equal("Current Activity", DashboardLabels.CurrentActivity);
+        Assert.Equal("Playing:", DashboardLabels.Playing);
     }
 }
