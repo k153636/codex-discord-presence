@@ -29,6 +29,8 @@ public sealed class CodexDashboardForm : Form
         BackColor = DashboardPalette.Window;
         ForeColor = DashboardPalette.Text;
         Font = new Font("Segoe UI", 9f);
+        AccessibleName = "Codex Discord RPC dashboard";
+        KeyPreview = true;
         AutoScaleMode = AutoScaleMode.Dpi;
         FormBorderStyle = FormBorderStyle.Sizable;
         MaximizeBox = true;
@@ -58,6 +60,8 @@ public sealed class CodexDashboardForm : Form
 
         _overviewTab = new DashboardTabButton("Overview");
         _previewTab = new DashboardTabButton("Preview");
+        _overviewTab.TabIndex = 0;
+        _previewTab.TabIndex = 1;
         _overviewTab.Click += (_, _) => SelectTab(0);
         _previewTab.Click += (_, _) => SelectTab(1);
 
@@ -75,8 +79,8 @@ public sealed class CodexDashboardForm : Form
             e.Graphics.DrawLine(divider, 0, tabStrip.ClientSize.Height - 1, tabStrip.ClientSize.Width, tabStrip.ClientSize.Height - 1);
         };
 
-        _overviewTab.Location = new Point(22, 0);
-        _previewTab.Location = new Point(182, 0);
+        _overviewTab.Location = new Point(20, 0);
+        _previewTab.Location = new Point(168, 0);
         tabStrip.Controls.Add(_overviewTab);
         tabStrip.Controls.Add(_previewTab);
 
@@ -136,11 +140,31 @@ public sealed class CodexDashboardForm : Form
 
     private void SelectTab(int index)
     {
+        if (index is < 0 or > 1)
+        {
+            return;
+        }
+
         _selectedTabIndex = index;
         _overviewPage.Visible = index == 0;
         _previewPage.Visible = index == 1;
         _overviewTab.Selected = index == 0;
         _previewTab.Selected = index == 1;
+    }
+
+    protected override bool ProcessCmdKey(ref Message msg, Keys keyData)
+    {
+        if (keyData is Keys.Left or Keys.Right)
+        {
+            var nextIndex = keyData == Keys.Right
+                ? Math.Min(1, _selectedTabIndex + 1)
+                : Math.Max(0, _selectedTabIndex - 1);
+            SelectTab(nextIndex);
+            (nextIndex == 0 ? _overviewTab : _previewTab).Focus();
+            return true;
+        }
+
+        return base.ProcessCmdKey(ref msg, keyData);
     }
 
     private void TryUseDarkTitleBar()
@@ -221,6 +245,7 @@ internal sealed class DashboardTabButton : Button
         UseVisualStyleBackColor = false;
         BackColor = DashboardPalette.Window;
         ForeColor = DashboardPalette.MutedText;
+        AccessibleDescription = $"Switch to {text} view";
         Size = new Size(140, 56);
         TabStop = true;
         Cursor = Cursors.Hand;
@@ -245,7 +270,13 @@ internal sealed class DashboardTabButton : Button
 
     protected override void OnPaint(PaintEventArgs e)
     {
-        e.Graphics.Clear(Selected ? DashboardPalette.Surface : BackColor);
+        var isHovered = ClientRectangle.Contains(PointToClient(Cursor.Position));
+        e.Graphics.Clear(
+            Selected
+                ? DashboardPalette.Surface
+                : isHovered
+                    ? DashboardPalette.SurfaceInset
+                    : BackColor);
         using var font = new Font(Font.FontFamily, 13f, Selected ? FontStyle.Bold : FontStyle.Regular);
         var textColor = Selected ? DashboardPalette.Text : DashboardPalette.MutedText;
         TextRenderer.DrawText(
@@ -261,10 +292,18 @@ internal sealed class DashboardTabButton : Button
             using var accent = new SolidBrush(DashboardPalette.Accent);
             e.Graphics.FillRectangle(accent, 4, ClientSize.Height - 3, ClientSize.Width - 8, 3);
         }
-        else if (ClientRectangle.Contains(PointToClient(Cursor.Position)))
+        else if (isHovered)
         {
-            using var hover = new SolidBrush(DashboardPalette.Surface);
-            e.Graphics.FillRectangle(hover, 4, ClientSize.Height - 3, ClientSize.Width - 8, 3);
+            using var hover = new SolidBrush(DashboardPalette.AccentSoft);
+            e.Graphics.FillRectangle(hover, 4, ClientSize.Height - 2, ClientSize.Width - 8, 2);
+        }
+
+        if (Focused && ShowFocusCues)
+        {
+            using var focus = new Pen(DashboardPalette.Accent);
+            var focusBounds = ClientRectangle;
+            focusBounds.Inflate(-6, -6);
+            e.Graphics.DrawRectangle(focus, focusBounds);
         }
     }
 
@@ -277,6 +316,18 @@ internal sealed class DashboardTabButton : Button
     protected override void OnMouseLeave(EventArgs e)
     {
         base.OnMouseLeave(e);
+        Invalidate();
+    }
+
+    protected override void OnGotFocus(EventArgs e)
+    {
+        base.OnGotFocus(e);
+        Invalidate();
+    }
+
+    protected override void OnLostFocus(EventArgs e)
+    {
+        base.OnLostFocus(e);
         Invalidate();
     }
 }

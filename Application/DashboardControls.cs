@@ -28,6 +28,32 @@ internal static class DashboardPalette
 
 internal static class DashboardDrawing
 {
+    private const int StatusIndicatorRingPadding = 4;
+    private const int VerticalMetricLayoutThreshold = 76;
+
+    public static void DrawStatusIndicator(
+        Graphics graphics,
+        Point center,
+        int diameter,
+        Color color)
+    {
+        var ringBounds = new Rectangle(
+            center.X - diameter / 2 - StatusIndicatorRingPadding,
+            center.Y - diameter / 2 - StatusIndicatorRingPadding,
+            diameter + StatusIndicatorRingPadding * 2,
+            diameter + StatusIndicatorRingPadding * 2);
+        using var ring = new SolidBrush(Color.FromArgb(42, color));
+        graphics.FillEllipse(ring, ringBounds);
+
+        var dotBounds = new Rectangle(
+            center.X - diameter / 2,
+            center.Y - diameter / 2,
+            diameter,
+            diameter);
+        using var dot = new SolidBrush(color);
+        graphics.FillEllipse(dot, dotBounds);
+    }
+
     public static void DrawRoundedSurface(
         Graphics graphics,
         Rectangle bounds,
@@ -93,23 +119,6 @@ internal static class DashboardDrawing
         return path;
     }
 
-    public static void DrawValueRow(
-        Graphics graphics,
-        FontFamily fontFamily,
-        Rectangle bounds,
-        string value)
-    {
-        DrawText(
-            graphics,
-            fontFamily,
-            value,
-            new Rectangle(bounds.Left, bounds.Top + 9, bounds.Width, bounds.Height - 18),
-            14f,
-            FontStyle.Regular,
-            DashboardPalette.Text,
-            TextFormatFlags.NoPadding | TextFormatFlags.EndEllipsis | TextFormatFlags.VerticalCenter);
-    }
-
     public static void DrawMetricCard(
         Graphics graphics,
         FontFamily fontFamily,
@@ -121,6 +130,30 @@ internal static class DashboardDrawing
         DrawRoundedSurface(graphics, bounds, 10, DashboardPalette.SurfaceInset, DashboardPalette.Divider);
         using var accentBrush = new SolidBrush(accent);
         graphics.FillRectangle(accentBrush, bounds.Left, bounds.Top + 12, 3, bounds.Height - 24);
+
+        if (bounds.Height >= VerticalMetricLayoutThreshold)
+        {
+            DrawText(
+                graphics,
+                fontFamily,
+                label,
+                new Rectangle(bounds.Left + 18, bounds.Top + 10, bounds.Width - 36, 16),
+                10f,
+                FontStyle.Regular,
+                DashboardPalette.SubtleText,
+                TextFormatFlags.NoPadding | TextFormatFlags.EndEllipsis);
+            DrawText(
+                graphics,
+                fontFamily,
+                value,
+                new Rectangle(bounds.Left + 18, bounds.Top + 29, bounds.Width - 36, 22),
+                14f,
+                FontStyle.Regular,
+                DashboardPalette.Text,
+                TextFormatFlags.NoPadding | TextFormatFlags.EndEllipsis);
+            return;
+        }
+
         DrawText(
             graphics,
             fontFamily,
@@ -144,6 +177,14 @@ internal static class DashboardDrawing
 
 internal sealed class DashboardPreviewSurface : Control
 {
+    private const int DiscordCardWidth = 360;
+    private const int DiscordCardHeight = 148;
+    private const int StageWidth = 420;
+    private const int StageHeight = 220;
+    private const int StageMargin = 24;
+    private const int StageLabelTop = 18;
+    private const int StageCardTop = 48;
+
     internal const string CurrentActivityLabel = "Current Activity";
     internal const string PlayingLabel = "Playing:";
 
@@ -205,21 +246,36 @@ internal sealed class DashboardPreviewSurface : Control
         graphics.TextRenderingHint = TextRenderingHint.ClearTypeGridFit;
         graphics.Clear(BackColor);
 
-        var renderedWidth = 360;
-        var renderedHeight = 172;
-        var origin = new Point(
-            Math.Max(24, (ClientSize.Width - renderedWidth) / 2),
-            Math.Max(24, (ClientSize.Height - renderedHeight) / 2));
+        var stage = CreateStageBounds();
+        DashboardDrawing.DrawShadow(graphics, stage, 14);
+        DashboardDrawing.DrawRoundedSurface(
+            graphics,
+            stage,
+            14,
+            DashboardPalette.Surface,
+            DashboardPalette.Border);
+
+        var cardLeft = stage.Left + (stage.Width - DiscordCardWidth) / 2;
+        var cardRect = new Rectangle(cardLeft, stage.Top + StageCardTop, DiscordCardWidth, DiscordCardHeight);
 
         DashboardDrawing.DrawText(
             graphics,
             _discordFontFamily,
             CurrentActivityLabel,
-            new Rectangle(origin.X, origin.Y, 360, 20),
+            new Rectangle(cardRect.Left, stage.Top + StageLabelTop, DiscordCardWidth, 20),
             10f,
             FontStyle.Regular,
             DashboardPalette.DiscordText);
-        DrawDiscordActivityCard(graphics, new Rectangle(origin.X, origin.Y + 24, 360, 148));
+        DrawDiscordActivityCard(graphics, cardRect);
+    }
+
+    private Rectangle CreateStageBounds()
+    {
+        var width = Math.Min(StageWidth, Math.Max(392, ClientSize.Width - StageMargin * 2));
+        var height = Math.Min(StageHeight, Math.Max(192, ClientSize.Height - StageMargin * 2));
+        var left = Math.Max(StageMargin, (ClientSize.Width - width) / 2);
+        var top = Math.Max(StageMargin, (ClientSize.Height - height) / 2);
+        return new Rectangle(left, top, width, height);
     }
 
     private void DrawDiscordActivityCard(Graphics graphics, Rectangle cardRect)
@@ -410,6 +466,11 @@ internal sealed class DashboardPreviewSurface : Control
 
 internal sealed class DashboardStatusRail : Control
 {
+    private const int HorizontalInset = 30;
+    private const int ContentLeft = 66;
+    private const int MetricStartY = 174;
+    private const int MetricGap = 62;
+
     private PresenceDashboardSnapshot _snapshot = PresenceDashboardSnapshot.Empty;
     private bool _enabled = true;
 
@@ -443,16 +504,15 @@ internal sealed class DashboardStatusRail : Control
         using var divider = new Pen(DashboardPalette.Divider);
         graphics.DrawLine(divider, ClientSize.Width - 1, 0, ClientSize.Width - 1, ClientSize.Height);
 
+        var contentWidth = Math.Max(0, ClientSize.Width - ContentLeft - HorizontalInset);
         var activity = DashboardTextFormatter.FormatActivity(_snapshot, _enabled);
         var statusColor = !_enabled ? DashboardPalette.Disabled : DashboardPalette.Accent;
-
-        using var dot = new SolidBrush(statusColor);
-        graphics.FillEllipse(dot, 34, 50, 16, 16);
+        DashboardDrawing.DrawStatusIndicator(graphics, new Point(42, 58), 12, statusColor);
         DashboardDrawing.DrawText(
             graphics,
             Font.FontFamily,
             activity,
-            new Rectangle(66, 41, ClientSize.Width - 96, 36),
+            new Rectangle(ContentLeft, 39, contentWidth, 30),
             16f,
             FontStyle.Bold,
             DashboardPalette.Text);
@@ -462,41 +522,98 @@ internal sealed class DashboardStatusRail : Control
             : _snapshot.IsDiscordConnected
                 ? "Connected to Discord"
                 : "Connecting to Discord";
+        var connectionColor = !_enabled
+            ? DashboardPalette.Disabled
+            : _snapshot.IsDiscordConnected
+                ? DashboardPalette.Green
+                : DashboardPalette.Accent;
+        DashboardDrawing.DrawStatusIndicator(graphics, new Point(42, 102), 6, connectionColor);
         DashboardDrawing.DrawText(
             graphics,
             Font.FontFamily,
             connection,
-            new Rectangle(66, 91, ClientSize.Width - 96, 50),
+            new Rectangle(ContentLeft, 83, contentWidth, 44),
             13f,
             FontStyle.Regular,
             DashboardPalette.MutedText,
             TextFormatFlags.NoPadding | TextFormatFlags.WordBreak | TextFormatFlags.EndEllipsis);
 
         using var sectionDivider = new Pen(DashboardPalette.Divider);
-        graphics.DrawLine(sectionDivider, 34, 184, ClientSize.Width - 34, 184);
+        graphics.DrawLine(
+            sectionDivider,
+            HorizontalInset,
+            148,
+            Math.Max(HorizontalInset, ClientSize.Width - HorizontalInset),
+            148);
 
         var usage = _snapshot.TokenUsage;
-        var valueWidth = Math.Max(140, ClientSize.Width - 100);
-        DashboardDrawing.DrawValueRow(
+        DrawRailMetric(
             graphics,
             Font.FontFamily,
-            new Rectangle(66, 218, valueWidth, 46),
-            DashboardTextFormatter.FormatBillingType(usage?.BillingType));
-        DashboardDrawing.DrawValueRow(
+            new Rectangle(ContentLeft, MetricStartY, contentWidth, 48),
+            "Billing",
+            DashboardTextFormatter.FormatBillingType(usage?.BillingType),
+            DashboardPalette.Accent);
+        DrawRailMetric(
             graphics,
             Font.FontFamily,
-            new Rectangle(66, 278, valueWidth, 46),
-            DashboardTextFormatter.FormatRateLimitUsage(usage?.RateLimit));
-        DashboardDrawing.DrawValueRow(
+            new Rectangle(ContentLeft, MetricStartY + MetricGap, contentWidth, 48),
+            "Usage",
+            DashboardTextFormatter.FormatRateLimitUsage(usage?.RateLimit),
+            DashboardPalette.Green);
+        DrawRailMetric(
             graphics,
             Font.FontFamily,
-            new Rectangle(66, 338, valueWidth, 46),
-            DashboardTextFormatter.FormatRateLimitReset(usage?.RateLimit, DateTime.UtcNow));
+            new Rectangle(ContentLeft, MetricStartY + MetricGap * 2, contentWidth, 48),
+            "Reset",
+            DashboardTextFormatter.FormatRateLimitReset(usage?.RateLimit, DateTime.UtcNow),
+            DashboardPalette.Accent);
+    }
+
+    private static void DrawRailMetric(
+        Graphics graphics,
+        FontFamily fontFamily,
+        Rectangle bounds,
+        string label,
+        string value,
+        Color accent)
+    {
+        using var accentBrush = new SolidBrush(accent);
+        graphics.FillRectangle(accentBrush, bounds.Left - 32, bounds.Top + 6, 3, 36);
+        DashboardDrawing.DrawText(
+            graphics,
+            fontFamily,
+            label,
+            new Rectangle(bounds.Left, bounds.Top, bounds.Width, 16),
+            10f,
+            FontStyle.Regular,
+            DashboardPalette.SubtleText,
+            TextFormatFlags.NoPadding | TextFormatFlags.EndEllipsis);
+        DashboardDrawing.DrawText(
+            graphics,
+            fontFamily,
+            value,
+            new Rectangle(bounds.Left, bounds.Top + 17, bounds.Width, 24),
+            13f,
+            FontStyle.Regular,
+            DashboardPalette.Text,
+            TextFormatFlags.NoPadding | TextFormatFlags.EndEllipsis);
     }
 }
 
 internal sealed class DashboardOverviewSurface : Control
 {
+    private const int ContentMargin = 40;
+    private const int ContentTop = 32;
+    private const int ContentMaxWidth = 1120;
+    private const int LayoutGap = 16;
+    private const int WideLayoutThreshold = 760;
+    private const int WideHeroWidth = 520;
+    private const int MinimumHeroWidth = 420;
+    private const int WideHeroHeight = 230;
+    private const int CompactHeroHeight = 184;
+    private const int MetricGap = 14;
+
     private PresenceDashboardSnapshot _snapshot = PresenceDashboardSnapshot.Empty;
     private bool _enabled = true;
 
@@ -527,71 +644,151 @@ internal sealed class DashboardOverviewSurface : Control
         graphics.TextRenderingHint = TextRenderingHint.ClearTypeGridFit;
         graphics.Clear(BackColor);
 
-        var hero = new Rectangle(40, 32, Math.Max(220, ClientSize.Width - 80), 184);
-        DashboardDrawing.DrawShadow(graphics, hero, 16);
-        DashboardDrawing.DrawRoundedSurface(graphics, hero, 16, DashboardPalette.SurfaceRaised, DashboardPalette.Border);
+        var content = CreateContentBounds();
+        if (content.Width >= WideLayoutThreshold)
+        {
+            DrawWideLayout(graphics, content);
+        }
+        else
+        {
+            DrawCompactLayout(graphics, content);
+        }
+    }
+
+    private Rectangle CreateContentBounds()
+    {
+        var width = Math.Min(
+            ContentMaxWidth,
+            Math.Max(220, ClientSize.Width - ContentMargin * 2));
+        var left = Math.Max(ContentMargin, (ClientSize.Width - width) / 2);
+        var height = Math.Max(0, ClientSize.Height - ContentTop - ContentMargin);
+        return new Rectangle(left, ContentTop, width, height);
+    }
+
+    private void DrawWideLayout(Graphics graphics, Rectangle content)
+    {
+        var heroWidth = Math.Min(
+            WideHeroWidth,
+            Math.Max(MinimumHeroWidth, content.Width - 360));
+        var hero = new Rectangle(content.Left, content.Top, heroWidth, WideHeroHeight);
+        DrawActivityHero(graphics, hero);
+
+        var metrics = new Rectangle(
+            hero.Right + LayoutGap,
+            content.Top,
+            content.Width - hero.Width - LayoutGap,
+            WideHeroHeight);
+        DrawMetricGrid(graphics, metrics, columns: 2);
+    }
+
+    private void DrawCompactLayout(Graphics graphics, Rectangle content)
+    {
+        var hero = new Rectangle(content.Left, content.Top, content.Width, CompactHeroHeight);
+        DrawActivityHero(graphics, hero);
+
+        var metrics = new Rectangle(
+            content.Left,
+            hero.Bottom + LayoutGap,
+            content.Width,
+            content.Height - hero.Height - LayoutGap);
+        DrawMetricGrid(graphics, metrics, columns: content.Width >= 620 ? 2 : 1);
+    }
+
+    private void DrawActivityHero(Graphics graphics, Rectangle bounds)
+    {
+        DashboardDrawing.DrawShadow(graphics, bounds, 16);
+        DashboardDrawing.DrawRoundedSurface(
+            graphics,
+            bounds,
+            16,
+            DashboardPalette.SurfaceRaised,
+            DashboardPalette.Border);
 
         DashboardDrawing.DrawText(
             graphics,
             Font.FontFamily,
-            "Current activity",
-            new Rectangle(hero.Left + 26, hero.Top + 22, hero.Width - 52, 24),
+            "Current Activity",
+            new Rectangle(bounds.Left + 26, bounds.Top + 22, bounds.Width - 52, 24),
             12f,
             FontStyle.Bold,
             DashboardPalette.MutedText);
 
         var activityColor = !_enabled ? DashboardPalette.Disabled : DashboardPalette.Accent;
-        using var dot = new SolidBrush(activityColor);
-        graphics.FillEllipse(dot, hero.Left + 28, hero.Top + 70, 12, 12);
+        var stateTop = bounds.Height >= WideHeroHeight ? 64 : 58;
+        var stateCenterY = bounds.Top + stateTop + 18;
+        DashboardDrawing.DrawStatusIndicator(
+            graphics,
+            new Point(bounds.Left + 40, stateCenterY),
+            12,
+            activityColor);
         DashboardDrawing.DrawText(
             graphics,
             Font.FontFamily,
             DashboardTextFormatter.FormatActivity(_snapshot, _enabled),
-            new Rectangle(hero.Left + 52, hero.Top + 58, hero.Width - 78, 36),
+            new Rectangle(bounds.Left + 64, bounds.Top + stateTop, bounds.Width - 90, 36),
             24f,
             FontStyle.Bold,
             DashboardPalette.Text);
+
+        var dividerY = bounds.Top + (bounds.Height >= WideHeroHeight ? 116 : 106);
+        using var divider = new Pen(DashboardPalette.Divider);
+        graphics.DrawLine(divider, bounds.Left + 28, dividerY, bounds.Right - 28, dividerY);
+        var modelTop = dividerY + 14;
+        var modelHeight = Math.Max(42, bounds.Bottom - modelTop - 18);
         DashboardDrawing.DrawText(
             graphics,
             Font.FontFamily,
             DashboardTextFormatter.FormatModelProject(_snapshot),
-            new Rectangle(hero.Left + 28, hero.Top + 112, hero.Width - 56, 42),
+            new Rectangle(bounds.Left + 28, modelTop, bounds.Width - 56, modelHeight),
             13f,
             FontStyle.Regular,
             DashboardPalette.MutedText,
             TextFormatFlags.NoPadding | TextFormatFlags.WordBreak | TextFormatFlags.EndEllipsis);
+    }
 
-        var usage = _snapshot.TokenUsage;
-        var metrics = new (string Label, string Value, Color Accent)[]
+    private void DrawMetricGrid(Graphics graphics, Rectangle bounds, int columns)
+    {
+        var metrics = CreateMetrics();
+        var safeColumns = Math.Max(1, Math.Min(columns, metrics.Length));
+        var rows = (metrics.Length + safeColumns - 1) / safeColumns;
+        var gap = safeColumns == 1 ? 12 : MetricGap;
+        var cardWidth = (bounds.Width - gap * (safeColumns - 1)) / safeColumns;
+        var cardHeight = (bounds.Height - gap * (rows - 1)) / rows;
+
+        if (cardWidth <= 0 || cardHeight <= 0)
         {
+            return;
+        }
+
+        for (var index = 0; index < metrics.Length; index++)
+        {
+            var column = index % safeColumns;
+            var row = index / safeColumns;
+            var cardBounds = new Rectangle(
+                bounds.Left + column * (cardWidth + gap),
+                bounds.Top + row * (cardHeight + gap),
+                cardWidth,
+                cardHeight);
+            var metric = metrics[index];
+            DashboardDrawing.DrawMetricCard(
+                graphics,
+                Font.FontFamily,
+                cardBounds,
+                metric.Label,
+                metric.Value,
+                metric.Accent);
+        }
+    }
+
+    private (string Label, string Value, Color Accent)[] CreateMetrics()
+    {
+        var usage = _snapshot.TokenUsage;
+        return
+        [
             ("Discord", _snapshot.IsDiscordConnected ? "Connected" : "Disconnected", _snapshot.IsDiscordConnected ? DashboardPalette.Green : DashboardPalette.Accent),
             ("Billing", DashboardTextFormatter.FormatBillingType(usage?.BillingType), DashboardPalette.Accent),
             ("Usage", DashboardTextFormatter.FormatRateLimitUsage(usage?.RateLimit), DashboardPalette.Green),
             ("Reset", DashboardTextFormatter.FormatRateLimitReset(usage?.RateLimit, DateTime.UtcNow).Replace("reset ", "", StringComparison.Ordinal), DashboardPalette.Accent)
-        };
-
-        var left = 40;
-        var top = 244;
-        var gap = 14;
-        var width = Math.Max(220, ClientSize.Width - 80);
-        if (width >= 620)
-        {
-            var columnWidth = (width - gap) / 2;
-            for (var index = 0; index < metrics.Length; index++)
-            {
-                var column = index % 2;
-                var row = index / 2;
-                var bounds = new Rectangle(left + column * (columnWidth + gap), top + row * 68, columnWidth, 54);
-                DashboardDrawing.DrawMetricCard(graphics, Font.FontFamily, bounds, metrics[index].Label, metrics[index].Value, metrics[index].Accent);
-            }
-        }
-        else
-        {
-            for (var index = 0; index < metrics.Length; index++)
-            {
-                var bounds = new Rectangle(left, top + index * 62, width, 50);
-                DashboardDrawing.DrawMetricCard(graphics, Font.FontFamily, bounds, metrics[index].Label, metrics[index].Value, metrics[index].Accent);
-            }
-        }
+        ];
     }
 }
