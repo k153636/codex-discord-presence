@@ -237,8 +237,16 @@ a:focus-visible {
   transform: translate3d(0, 0, 0);
 }
 
+.rpc-preview-track.is-positioned-left {
+  transform: translate3d(-50%, 0, 0);
+}
+
 .rpc-preview-track.is-moving-left {
   transform: translate3d(-50%, 0, 0);
+}
+
+.rpc-preview-track.is-moving-right {
+  transform: translate3d(0, 0, 0);
 }
 
 .rpc-preview-card {
