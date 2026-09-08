@@ -255,34 +255,43 @@ a:focus-visible {
 .presence-figure {
   min-width: 0;
   margin: 0;
-  padding: 1.25rem;
+  padding: 1rem;
   border: 1px solid var(--border);
-  border-radius: 1.15rem;
-  background: rgba(19, 23, 26, 0.78);
-  box-shadow: 0 2rem 5rem rgba(0, 0, 0, 0.28);
-  animation: hero-reveal 720ms 90ms cubic-bezier(0.22, 0.61, 0.36, 1) both;
+  border-radius: 1rem;
+  background: var(--surface);
+  box-shadow: 0 1.5rem 4rem rgba(0, 0, 0, 0.22);
+  overflow-x: auto;
+}
+
+.rpc-preview-frame {
+  width: 360px;
+  min-width: 360px;
+  max-width: 360px;
+  margin-inline: auto;
 }
 
 .figure-topline {
   display: flex;
   justify-content: space-between;
   gap: 1rem;
-  margin-bottom: 1rem;
+  margin-bottom: 0.85rem;
   color: var(--muted);
-  font-size: 0.76rem;
+  font-size: 0.78rem;
 }
 
 .rpc-preview-shell {
   display: grid;
   justify-items: center;
   gap: 0.75rem;
-  margin-bottom: 1.15rem;
+  margin-bottom: 1.1rem;
 }
 
 .rpc-preview-carousel {
   position: relative;
-  width: min(100%, 410px);
-  min-width: 0;
+  flex: 0 0 360px;
+  width: 360px;
+  min-width: 360px;
+  max-width: 360px;
 }
 
 .rpc-preview-viewport {
@@ -332,7 +341,7 @@ a:focus-visible {
   padding: 9px 12px 4px;
   border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: 14px;
-  background: #17191d;
+  background: linear-gradient(180deg, #3a3a3c 0%, #1a1a1c 100%);
   box-shadow: 0 1rem 2.5rem rgba(0, 0, 0, 0.24);
   color: #dbdddf;
   font-family: "gg sans", "Segoe UI Variable Text", "Segoe UI", ui-sans-serif, system-ui, sans-serif;
@@ -355,7 +364,7 @@ a:focus-visible {
   color: var(--text);
   cursor: pointer;
   transform: translateY(-50%);
-  transition: transform 180ms ease, border-color 160ms ease, background 160ms ease, color 160ms ease;
+  transition: border-color 160ms ease, background 160ms ease, color 160ms ease;
 }
 
 .rpc-preview-nav--previous {
@@ -370,7 +379,6 @@ a:focus-visible {
   border-color: var(--accent);
   background: var(--surface-strong);
   color: var(--accent);
-  transform: translateY(-50%) scale(1.06);
 }
 
 .rpc-preview-nav:focus-visible {
@@ -444,7 +452,7 @@ a:focus-visible {
   display: block;
   width: 32px;
   height: 32px;
-  border: 2px solid #17191d;
+  border: 2px solid #1a1a1c;
   border-radius: 50%;
   object-fit: cover;
 }
@@ -508,11 +516,9 @@ a:focus-visible {
 .rpc-preview-live-dot {
   width: 0.5rem;
   height: 0.5rem;
-  flex: 0 0 auto;
   border-radius: 50%;
   background: var(--accent);
   box-shadow: 0 0 0 0.2rem rgba(155, 231, 176, 0.12);
-  animation: live-pulse 2.6s ease-in-out infinite;
 }
 
 .output-fields {
@@ -522,7 +528,7 @@ a:focus-visible {
 
 .output-fields > div {
   display: grid;
-  grid-template-columns: 4.8rem minmax(0, 1fr);
+  grid-template-columns: 5.5rem 1fr;
   gap: 1rem;
   height: 3.125rem;
   padding: 0.8rem 0;
@@ -538,7 +544,7 @@ a:focus-visible {
 .output-fields dd {
   min-width: 0;
   margin: 0;
-  font-size: 0.82rem;
+  font-size: 0.88rem;
 }
 
 .output-fields dt {
@@ -569,10 +575,12 @@ a:focus-visible {
   overflow-wrap: anywhere;
 }
 
-.preview-caption {
+.capture-note {
   margin: 1rem 0 0;
   color: var(--muted);
   font-size: 0.76rem;
+  line-height: 1.6;
+  overflow-wrap: anywhere;
 }
 
 .signal-rail {
@@ -737,17 +745,6 @@ th {
   }
 }
 
-@keyframes live-pulse {
-  0%,
-  100% {
-    box-shadow: 0 0 0 0.18rem rgba(155, 231, 176, 0.1);
-  }
-
-  50% {
-    box-shadow: 0 0 0 0.38rem rgba(155, 231, 176, 0.02);
-  }
-}
-
 @media (max-width: 900px) {
   .hero-grid {
     grid-template-columns: minmax(0, 0.9fr) minmax(360px, 1.1fr);
@@ -849,12 +846,6 @@ th {
     right: 0.45rem;
   }
 
-  .figure-topline {
-    align-items: flex-start;
-    flex-direction: column;
-    gap: 0.25rem;
-  }
-
   .hero-meta span {
     padding: 0.35rem 0.6rem 0.35rem 0;
   }
@@ -869,12 +860,10 @@ th {
     scroll-behavior: auto;
   }
 
-  .hero-copy,
-  .presence-figure {
+  .hero-copy {
     animation: none;
   }
 
-  .rpc-preview-live-dot,
   .button,
   .rpc-preview-nav,
   a {

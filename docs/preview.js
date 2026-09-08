@@ -118,7 +118,7 @@
     outputState?.replaceChildren(document.createTextNode(slide.state));
     outputParty?.replaceChildren(document.createTextNode(slide.party));
     outputImage?.replaceChildren(document.createTextNode(slide.imageKey));
-    slideNote.textContent = `State ${index + 1} / ${slides.length}`;
+    slideNote.textContent = `State ${index + 1} / ${slides.length} · animated GIF · timer starts at ${formatElapsed(safeSeconds(slide.initialElapsedSeconds))}`;
     slideStatus.textContent = `RPC preview state ${index + 1} of ${slides.length}: ${slide.state}`;
   };
 
