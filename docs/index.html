@@ -13,6 +13,7 @@
   <meta property="og:image" content="https://raw.githubusercontent.com/k153636/codex-discord-presence/main/Assets/RpcArt/rpc_codex.png">
   <link rel="icon" type="image/png" href="https://raw.githubusercontent.com/k153636/codex-discord-presence/main/Assets/RpcArt/rpc_codex.png">
   <link rel="stylesheet" href="styles.css">
+  <script src="preview.js" defer></script>
   <script type="application/ld+json">
   {
     "@context": "https://schema.org",
@@ -64,16 +65,41 @@
         <figure class="presence-figure">
           <div class="figure-topline">
             <span>Dashboard preview</span>
-            <span>Log-backed showcase</span>
+            <span>Live browser render</span>
           </div>
-          <img class="presence-screenshot" src="assets/rpc-preview-current.png" alt="Codex Discord Rich Presence dashboard preview showing MCP chrome-devtools and a five-agent party" width="360" height="148">
+          <div class="rpc-preview-shell" data-rpc-preview data-initial-elapsed-seconds="120">
+            <div class="rpc-preview-card" role="group" aria-label="Animated Discord Rich Presence preview">
+              <div class="rpc-preview-header">
+                <span>Playing:</span>
+                <span aria-hidden="true">...</span>
+              </div>
+              <div class="rpc-preview-content">
+                <div class="rpc-preview-art" aria-hidden="true">
+                  <img class="rpc-preview-large" src="assets/rpc_reading.gif" alt="" width="100" height="100">
+                  <img class="rpc-preview-small" src="assets/rpc_codex.png" alt="" width="32" height="32">
+                </div>
+                <div class="rpc-preview-copy">
+                  <strong>Codex</strong>
+                  <span>gpt 5.6 luna max 1.5x • 125M Token</span>
+                  <span>MCP chrome-devtools</span>
+                  <span class="rpc-preview-elapsed" role="timer" aria-live="off" aria-label="Elapsed time">
+                    <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                      <path d="M6.25 7.4h11.5c2.1 0 3.8 1.7 3.8 3.8v1.6c0 2.1-1.7 3.8-3.8 3.8h-3.2l-1.4 1.9h-.8l-1.4-1.9H6.25c-2.1 0-3.8-1.7-3.8-3.8v-1.6c0-2.1 1.7-3.8 3.8-3.8Zm-.9 4.6H7v-1.8H5.35V12Zm.82-2.62a.75.75 0 1 0 0 1.5.75.75 0 0 0 0-1.5Zm11.1 0a.75.75 0 1 0 0 1.5.75.75 0 0 0 0-1.5Z"></path>
+                    </svg>
+                    <span data-rpc-elapsed>2:00</span>
+                  </span>
+                </div>
+              </div>
+            </div>
+            <p class="rpc-preview-runtime-note"><span class="rpc-preview-live-dot" aria-hidden="true"></span>Animated GIF · timer starts at 2:00</p>
+          </div>
           <dl class="output-fields">
             <div><dt>Details</dt><dd>gpt 5.6 luna max 1.5x • 125M Token</dd></div>
             <div><dt>State</dt><dd>MCP chrome-devtools</dd></div>
             <div><dt>Party</dt><dd>5 / 5 from session evidence</dd></div>
             <div><dt>Large image</dt><dd><code>rpc_reading</code></dd></div>
           </dl>
-          <p class="capture-note">Evidence: <code>Presence rendered</code> at <time datetime="2026-09-06T13:10:04.6017402Z">2026-09-06 13:10:04 UTC</time>, followed by activity detection with <code>partySize=5</code>. The card status is normalized to the current MCP display contract.</p>
+          <p class="capture-note">The card is rendered in the browser from fixed, sanitized values taken from <code>Presence rendered</code> evidence at <time datetime="2026-09-06T13:10:04.6017402Z">2026-09-06 13:10:04 UTC</time>. The <code>rpc_reading.gif</code> asset remains animated, while the timer advances from a fixed showcase start value.</p>
         </figure>
       </div>
     </section>
