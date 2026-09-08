@@ -2418,12 +2418,14 @@ internal sealed class CodexSessionLogParser
 
     private static bool HasPendingMutation(SessionInspection inspection, DateTime nowUtc)
     {
-        return inspection.GetActivityStateAt(nowUtc)?.PendingMutationCount > 0;
+        var state = inspection.GetActivityStateAt(nowUtc);
+        return state?.Lifecycle == CodexTurnLifecycle.Open && state.PendingMutationCount > 0;
     }
 
     private static bool HasPendingOperation(SessionInspection inspection, DateTime nowUtc)
     {
-        return inspection.GetActivityStateAt(nowUtc)?.PendingOperationCount > 0;
+        var state = inspection.GetActivityStateAt(nowUtc);
+        return state?.Lifecycle == CodexTurnLifecycle.Open && state.PendingOperationCount > 0;
     }
 
     private sealed record PatchFile(string Path, CodexOperationKind OperationKind);
