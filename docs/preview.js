@@ -47,10 +47,8 @@
 
   const trackMotionClasses = [
     "is-preparing",
-    "is-positioned-left",
     "is-positioned-right",
-    "is-moving-left",
-    "is-moving-right"
+    "is-moving-left"
   ];
 
   const getCardParts = (card) => ({
@@ -152,16 +150,12 @@
     updateElapsed();
   };
 
-  const animateTrack = (outgoingCard, incomingCard, direction, onFinish) => {
+  const animateTrack = (outgoingCard, incomingCard, onFinish) => {
     track.classList.remove(...trackMotionClasses);
-    if (direction > 0) {
-      track.insertBefore(outgoingCard, incomingCard);
-    } else {
-      track.insertBefore(incomingCard, outgoingCard);
-    }
+    track.insertBefore(outgoingCard, incomingCard);
 
-    const prepareClass = direction > 0 ? "is-positioned-right" : "is-positioned-left";
-    const moveClass = direction > 0 ? "is-moving-left" : "is-moving-right";
+    const prepareClass = "is-positioned-right";
+    const moveClass = "is-moving-left";
     track.classList.add("is-preparing", prepareClass);
     incomingCard.setAttribute("aria-hidden", "false");
     outgoingCard.setAttribute("aria-hidden", "true");
@@ -220,7 +214,7 @@
     updateButtons();
     renderCard(incomingCard, incomingParts, nextSlide, nextIndex);
     renderOutputs(nextSlide, nextIndex);
-    animateTrack(outgoingCard, incomingCard, direction, () => {
+    animateTrack(outgoingCard, incomingCard, () => {
       resetTrack(incomingCard, outgoingCard);
       swapCardReferences();
       activeIndex = nextIndex;
