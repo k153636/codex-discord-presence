@@ -507,13 +507,6 @@ a:focus-visible {
   fill: currentColor;
 }
 
-.rpc-preview-elapsed svg path {
-  /* Match the 14px Discord activity glyph's 12x10px visible bounds. */
-  transform-box: fill-box;
-  transform-origin: center;
-  transform: scale(1.08, 1.55) translateY(-0.55px);
-}
-
 .rpc-preview-runtime-note {
   display: flex;
   align-items: center;
