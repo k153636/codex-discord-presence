@@ -502,11 +502,11 @@ a:focus-visible {
   color: #7ec191;
 }
 
-.rpc-preview-elapsed svg {
+.rpc-preview-elapsed img {
   flex: 0 0 auto;
   width: 14px;
   height: 14px;
-  fill: currentColor;
+  display: block;
 }
 
 .rpc-preview-runtime-note {
