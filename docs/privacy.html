@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Data flow and privacy | Codex Discord Rich Presence</title>
+  <meta name="description" content="The local data sources, Discord payload, release-check requests, and external asset boundaries of Codex Discord Rich Presence.">
+  <link rel="canonical" href="https://k153636.github.io/codex-discord-presence/privacy.html">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <header class="site-header">
+    <div class="shell nav-row">
+      <a class="brand" href="./">K's Codex RPC</a>
+      <nav aria-label="Primary navigation">
+        <a href="./">Home</a>
+        <a href="faq.html">FAQ</a>
+        <a href="compatibility.html">Compatibility</a>
+        <a href="https://github.com/k153636/codex-discord-presence">GitHub</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="shell section prose">
+    <p class="eyebrow">DATA FLOW</p>
+    <h1>What the app reads and publishes</h1>
+    <p class="lead">The app is local-first, but a Discord activity is still shared with Discord and can contain the text configured by the user.</p>
+
+    <h2>Local inputs</h2>
+    <ul>
+      <li>Codex session JSONL under the configured Codex home.</li>
+      <li>Codex configuration and model environment variables.</li>
+      <li>Process and window signals used to select the active Codex profile.</li>
+      <li>Project and Git metadata used for the configured activity context.</li>
+      <li>Local application settings and the saved tray enable state.</li>
+    </ul>
+
+    <h2>Discord output</h2>
+    <p>The app connects to Discord Desktop through the Discord RPC client and publishes the configured Rich Presence fields: details, state, images, timestamps, party metadata when applicable, and buttons. Depending on configuration and current evidence, those fields can include a project name, file label, model, reasoning effort, activity summary, MCP server name, command kind, token text, or Git count.</p>
+
+    <h2>Network requests</h2>
+    <ul>
+      <li>The release checker can call the public GitHub Releases API to look for a newer release.</li>
+      <li>Discord handles the Rich Presence connection and delivery through its local desktop client.</li>
+      <li>Configured external image URLs can be requested by the dashboard preview or referenced in the Discord presence payload.</li>
+    </ul>
+
+    <h2>What this project does not provide</h2>
+    <p>There is no project-operated cloud account, hosted session database, or team analytics backend in the current application. The project does not claim that Discord or configured third-party image hosts receive no metadata; users should review their Discord settings and custom configuration before sharing sensitive names or summaries.</p>
+
+    <p><a href="faq.html">Read the FAQ →</a></p>
+  </main>
+
+  <footer class="site-footer">
+    <div class="shell footer-row">
+      <span>K's Codex RPC · Unofficial community project</span>
+      <a href="https://github.com/k153636/codex-discord-presence">Source repository</a>
+    </div>
+  </footer>
+</body>
+</html>

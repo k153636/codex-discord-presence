@@ -1,0 +1,114 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>FAQ | Codex Discord Rich Presence</title>
+  <meta name="description" content="Frequently asked questions about the unofficial Windows Codex CLI and Codex Desktop Discord Rich Presence app.">
+  <link rel="canonical" href="https://k153636.github.io/codex-discord-presence/faq.html">
+  <link rel="stylesheet" href="styles.css">
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "FAQPage",
+    "mainEntity": [
+      {
+        "@type": "Question",
+        "name": "What is Codex Discord Rich Presence?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "It is an unofficial Windows tray app that reads observable Codex CLI or Codex Desktop session activity and publishes a readable Discord Rich Presence through Discord's local RPC connection."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "Does it support Codex CLI and Codex Desktop?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "The published Windows profile supports Codex Desktop process detection and the separate CLI profile supports Codex CLI process and session detection."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "Does it show MCP activity?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "When current structured evidence identifies an MCP operation, the activity line can show the active MCP server name, such as MCP chrome-devtools."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "Does it upload source code to a project server?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "The project does not provide a hosted backend or user account. It reads local session and project metadata, then sends the configured rendered activity to Discord's local RPC client. The configured activity may include a project name, file label, or reasoning summary."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "What are the current requirements?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "The current published build targets Windows x64, requires the .NET 9 Desktop Runtime, and requires Discord Desktop to be running for Rich Presence delivery."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "Is this an official OpenAI or Discord product?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "No. This is an unofficial community project and is not endorsed by OpenAI or Discord."
+        }
+      }
+    ]
+  }
+  </script>
+</head>
+<body>
+  <header class="site-header">
+    <div class="shell nav-row">
+      <a class="brand" href="./">K's Codex RPC</a>
+      <nav aria-label="Primary navigation">
+        <a href="./">Home</a>
+        <a href="compatibility.html">Compatibility</a>
+        <a href="privacy.html">Data flow</a>
+        <a href="https://github.com/k153636/codex-discord-presence">GitHub</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="shell section prose">
+    <p class="eyebrow">FACTS AND LIMITS</p>
+    <h1>Frequently asked questions</h1>
+    <p class="lead">Answers are intentionally specific so users and search assistants can distinguish the project from other Codex RPC tools.</p>
+
+    <h2>What is Codex Discord Rich Presence?</h2>
+    <p>It is an unofficial Windows tray app that reads observable Codex CLI or Codex Desktop session activity and publishes a readable Discord Rich Presence through Discord's local RPC connection.</p>
+
+    <h2>Does it support Codex CLI and Codex Desktop?</h2>
+    <p>The published Windows profile supports Codex Desktop process detection. A separate CLI profile supports Codex CLI process and session detection. See the <a href="compatibility.html">compatibility notes</a>.</p>
+
+    <h2>Does it show MCP activity?</h2>
+    <p>When current structured evidence identifies an MCP operation, the activity line can show the active MCP server name, such as <code>MCP chrome-devtools</code>. The MCP identity takes precedence over normal thinking, file, and command labels for that current operation.</p>
+
+    <h2>Does it upload source code to a project server?</h2>
+    <p>The project does not provide a hosted backend or user account. It reads local session and project metadata, then sends the configured rendered activity to Discord's local RPC client. The configured activity may include a project name, file label, or reasoning summary. Review the <a href="privacy.html">data-flow notes</a> before using custom templates.</p>
+
+    <h2>What are the current requirements?</h2>
+    <p>The current published build targets Windows x64, requires the .NET 9 Desktop Runtime, and requires Discord Desktop to be running for Rich Presence delivery.</p>
+
+    <h2>Is this an official OpenAI or Discord product?</h2>
+    <p>No. This is an unofficial community project and is not endorsed by OpenAI or Discord.</p>
+
+    <h2>Where can I download it?</h2>
+    <p>Use the <a href="https://github.com/k153636/codex-discord-presence/releases/latest">latest GitHub Release</a>. The release currently provides <code>discord-presence-for-codex.exe</code>.</p>
+</main>
+
+  <footer class="site-footer">
+    <div class="shell footer-row">
+      <span>K's Codex RPC · Unofficial community project</span>
+      <a href="https://github.com/k153636/codex-discord-presence/releases/latest">Latest release</a>
+    </div>
+  </footer>
+</body>
+</html>

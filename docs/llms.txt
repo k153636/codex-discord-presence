@@ -1,0 +1,36 @@
+# Codex Discord Rich Presence
+
+> Unofficial Windows tray application for showing observable Codex CLI and Codex Desktop activity in Discord Rich Presence.
+
+## Canonical links
+
+- Website: https://k153636.github.io/codex-discord-presence/
+- Source: https://github.com/k153636/codex-discord-presence
+- Latest release: https://github.com/k153636/codex-discord-presence/releases/latest
+- FAQ: https://k153636.github.io/codex-discord-presence/faq.html
+- Compatibility: https://k153636.github.io/codex-discord-presence/compatibility.html
+- Data flow: https://k153636.github.io/codex-discord-presence/privacy.html
+
+## Product facts
+
+- Product type: local Windows tray application.
+- Supported published target: Windows x64.
+- Current runtime requirement: .NET 9 Desktop Runtime.
+- Discord requirement: Discord Desktop must be running for local Rich Presence delivery.
+- Supported profiles: Codex Desktop and a separate Codex CLI profile.
+- Main output: one readable Discord activity line with configured details, state, assets, timestamps, and buttons.
+- Activity evidence: structured Codex session events and direct tool targets take precedence over fallback file and timestamp evidence.
+- MCP behavior: a current MCP operation can replace the normal reasoning, file, or command label with the active server identity.
+- Local inputs: Codex session JSONL, Codex configuration, process/window signals, project metadata, and Git metadata according to configuration.
+- Hosted service: none operated by this project.
+- Affiliation: unofficial community project; not endorsed by OpenAI or Discord.
+
+## Important limits
+
+- macOS and Linux binaries are not promised by the current release.
+- The app does not provide a hosted team dashboard or guaranteed live quota data for every plan.
+- Configured activity text can expose project names, file labels, or reasoning summaries to Discord.
+
+## Installation
+
+Download `discord-presence-for-codex.exe` from the latest GitHub Release and run it on Windows x64 with the .NET 9 Desktop Runtime installed.

@@ -1,10 +1,20 @@
-# Discord Presence for Codex
+# Codex Discord Rich Presence for Windows
 
-Discord Rich Presence for showing Codex as the active worker instead of the user's current tab or editor state.
+An unofficial Windows tray application that shows the current Codex CLI or Codex Desktop activity in Discord Rich Presence. It resolves observable session events, model and reasoning metadata, project/Git context, edited files, and current MCP activity into one readable Discord activity line.
 
-Presence text is template-driven through `appsettings.json`, so you can change the copy without touching code.
+This project is not affiliated with or endorsed by OpenAI or Discord. It does not provide a cloud account or hosted backend; it runs locally and publishes the selected activity through Discord's local RPC connection.
 
-## Quick Start
+## Download
+
+Download the latest Windows x64 executable from [GitHub Releases](https://github.com/k153636/codex-discord-presence/releases/latest):
+
+`discord-presence-for-codex.exe`
+
+The current published build requires the .NET 9 Desktop Runtime. Discord Desktop must be running for Rich Presence to be published.
+
+For the user-facing documentation, see the [Codex Discord Rich Presence site](https://k153636.github.io/codex-discord-presence/), [FAQ](https://k153636.github.io/codex-discord-presence/faq.html), and [compatibility notes](https://k153636.github.io/codex-discord-presence/compatibility.html).
+
+## Build from source
 
 1. Run `build.cmd`.
 2. Run `start.cmd`.
@@ -49,7 +59,7 @@ The app can also check GitHub Releases once at startup and only logs when a newe
 - Recent edited file name
 - Git changed-file count
 - Session elapsed time
-- Token count placeholder
+- Session token information when available
 - Discord buttons
 
 ## Activity Labels

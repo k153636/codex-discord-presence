@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Compatibility | Codex Discord Rich Presence</title>
+  <meta name="description" content="Current platform, profile, runtime, and evidence boundaries for Codex Discord Rich Presence.">
+  <link rel="canonical" href="https://k153636.github.io/codex-discord-presence/compatibility.html">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <header class="site-header">
+    <div class="shell nav-row">
+      <a class="brand" href="./">K's Codex RPC</a>
+      <nav aria-label="Primary navigation">
+        <a href="./">Home</a>
+        <a href="faq.html">FAQ</a>
+        <a href="privacy.html">Data flow</a>
+        <a href="https://github.com/k153636/codex-discord-presence">GitHub</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="shell section prose">
+    <p class="eyebrow">CURRENT RELEASE BOUNDARIES</p>
+    <h1>Compatibility notes</h1>
+    <p class="lead">This page describes what the current published build supports and where its evidence falls back.</p>
+
+    <h2>Runtime</h2>
+    <ul>
+      <li>Target platform: Windows x64.</li>
+      <li>Runtime: .NET 9 Desktop Runtime for the current framework-dependent executable.</li>
+      <li>Discord: Discord Desktop must be running for local Rich Presence delivery.</li>
+      <li>Distribution: the latest release is published as <code>discord-presence-for-codex.exe</code>.</li>
+    </ul>
+
+    <h2>Codex profiles</h2>
+    <table>
+      <thead>
+        <tr><th>Profile</th><th>Detection source</th><th>Purpose</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>Desktop</td><td>Codex process and window signals, local session JSONL, Codex configuration</td><td>Default desktop launch flow</td></tr>
+        <tr><td>CLI</td><td>CLI command-line signatures, local session JSONL, Codex configuration</td><td>Separate CLI launch flow via <code>start-cli.cmd</code></td></tr>
+      </tbody>
+    </table>
+
+    <h2>Evidence behavior</h2>
+    <p>Current structured Codex session events and direct tool targets take precedence. Current reasoning, MCP, file, command, waiting, and completed states are resolved from that evidence when available. If direct evidence is unavailable, recent edited-file and timestamp evidence can be used as a fallback. The fallback is not a claim that the app observed a current tool action.</p>
+
+    <h2>Not currently promised</h2>
+    <ul>
+      <li>macOS or Linux binaries</li>
+      <li>A hosted dashboard or team account</li>
+      <li>Guaranteed live quota values from every Codex plan</li>
+      <li>Official affiliation with OpenAI or Discord</li>
+    </ul>
+
+    <p><a href="https://github.com/k153636/codex-discord-presence/releases/latest">Download the latest release →</a></p>
+  </main>
+
+  <footer class="site-footer">
+    <div class="shell footer-row">
+      <span>K's Codex RPC · Unofficial community project</span>
+      <a href="https://github.com/k153636/codex-discord-presence">Source repository</a>
+    </div>
+  </footer>
+</body>
+</html>
