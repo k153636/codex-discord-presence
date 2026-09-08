@@ -29,7 +29,7 @@
     },
     {
       details: "gpt 5.6 luna max 1.5x • 125M Token",
-      state: "Considering frontend design usage",
+      state: "Detailing AI indexing criteria",
       party: "5 / 5 from session evidence",
       image: "assets/rpc_thinking.gif",
       imageKey: "rpc_thinking",
