@@ -255,7 +255,7 @@ a:focus-visible {
   min-width: 0;
   height: 148px;
   overflow: hidden;
-  padding: 9px 12px 12px;
+  padding: 9px 12px 4px;
   border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: 14px;
   background: linear-gradient(180deg, #3a3a3c 0%, #1a1a1c 100%);
@@ -342,7 +342,7 @@ a:focus-visible {
 .rpc-preview-content {
   display: flex;
   align-items: flex-start;
-  height: 100px;
+  height: 108px;
   margin-top: 7px;
 }
 
@@ -375,9 +375,14 @@ a:focus-visible {
 }
 
 .rpc-preview-copy {
+  display: grid;
+  grid-template-rows: 21px 18px 39px 18px;
+  align-content: start;
   min-width: 0;
+  height: 108px;
   margin-left: 11px;
   padding-top: 12px;
+  overflow: hidden;
   font-size: 9px;
   line-height: 18px;
 }
@@ -483,21 +488,50 @@ a:focus-visible {
 
 .output-fields > div {
   display: grid;
-  grid-template-columns: 5rem 1fr;
+  grid-template-columns: 5.5rem 1fr;
   gap: 1rem;
+  height: 3.125rem;
   padding: 0.8rem 0;
+  overflow: hidden;
   border-bottom: 1px solid var(--border);
+}
+
+.output-fields > .output-field--state {
+  height: 6rem;
 }
 
 .output-fields dt,
 .output-fields dd {
+  min-width: 0;
   margin: 0;
   font-size: 0.88rem;
 }
 
 .output-fields dt {
+  overflow: hidden;
   color: var(--text);
   font-weight: 700;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.output-fields dd {
+  overflow: hidden;
+}
+
+.output-fields > .output-field:not(.output-field--state) dd {
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.output-fields > .output-field--state dd {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  line-clamp: 3;
+  line-height: 1.45;
+  white-space: normal;
+  overflow-wrap: anywhere;
 }
 
 .presence-figure figcaption {
