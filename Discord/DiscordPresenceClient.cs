@@ -9,6 +9,8 @@ public sealed class DiscordPresenceClient : IDisposable
     private DiscordRpcClient? _client;
     private bool _isReady;
     private bool _needsPresenceRefresh = true;
+    private readonly DiscordPresenceUpdateThrottle _updateThrottle = new();
+    private DateTime? _lastRateLimitLogUtc;
     private DateTime _nextInitializeAttemptUtc = DateTime.MinValue;
     private int _failedInitializeAttempts;
     private readonly string _partyId = $"codex-party-{Guid.NewGuid():N}";
@@ -57,6 +59,8 @@ public sealed class DiscordPresenceClient : IDisposable
             LastPublishedPresence = null;
             _failedInitializeAttempts = 0;
             _nextInitializeAttemptUtc = DateTime.MinValue;
+            _updateThrottle.Reset();
+            _lastRateLimitLogUtc = null;
         }
 
         _needsPresenceRefresh = true;
@@ -78,9 +82,17 @@ public sealed class DiscordPresenceClient : IDisposable
         try
         {
             var publishedPresence = DiscordRichPresenceBuilder.Create(_options, presence, _partyId);
+            var nowUtc = DateTime.UtcNow;
+            if (!_updateThrottle.TryReserve(nowUtc, out var retryAtUtc))
+            {
+                LogRateLimitDeferral(nowUtc, retryAtUtc);
+                return false;
+            }
+
             client.SetPresence(publishedPresence);
             LastPublishedPresence = DiscordPresenceSnapshot.From(publishedPresence);
             _needsPresenceRefresh = false;
+            _lastRateLimitLogUtc = null;
             return true;
         }
         catch (Exception ex)
@@ -200,6 +212,18 @@ public sealed class DiscordPresenceClient : IDisposable
     {
         _client?.Dispose();
         _client = null;
+    }
+
+    private void LogRateLimitDeferral(DateTime nowUtc, DateTime retryAtUtc)
+    {
+        if (_lastRateLimitLogUtc.HasValue && nowUtc - _lastRateLimitLogUtc.Value < TimeSpan.FromSeconds(5))
+        {
+            return;
+        }
+
+        var retrySeconds = Math.Max(1, (int)Math.Ceiling((retryAtUtc - nowUtc).TotalSeconds));
+        _log.Warn($"Discord RPC update deferred by local rate limit. Retrying in {retrySeconds}s.");
+        _lastRateLimitLogUtc = nowUtc;
     }
 
     private static bool IsMissingClientId(string? clientId)

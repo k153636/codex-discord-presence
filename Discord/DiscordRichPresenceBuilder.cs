@@ -14,25 +14,33 @@ internal static class DiscordRichPresenceBuilder
         ArgumentNullException.ThrowIfNull(presence);
 
         var buttons = presence.Buttons
-            .Where(button => !string.IsNullOrWhiteSpace(button.Label) && !string.IsNullOrWhiteSpace(button.Url))
-            .Select(button => new RpcButton { Label = button.Label, Url = button.Url })
+            .Select(CreateButton)
+            .Where(button => button is not null)
+            .Cast<RpcButton>()
             .Take(2)
             .ToArray();
 
         return new RichPresence
         {
-            Details = presence.Details,
-            State = presence.State,
+            Details = DiscordPresencePayloadPolicy.NormalizeText(presence.Details),
+            State = DiscordPresencePayloadPolicy.NormalizeText(presence.State),
             Assets = new Assets
             {
                 LargeImageKey = DiscordAssetKeyResolver.ResolveLargeImageReference(options, presence),
-                LargeImageText = presence.LargeImageText,
+                LargeImageText = DiscordPresencePayloadPolicy.NormalizeOptionalText(presence.LargeImageText),
                 SmallImageKey = DiscordAssetKeyResolver.ResolveImageReference(options, options.SmallImageKey),
-                SmallImageText = presence.SmallImageText
+                SmallImageText = DiscordPresencePayloadPolicy.NormalizeOptionalText(presence.SmallImageText)
             },
             Party = DiscordPartyBuilder.Create(presence.PartySize, partyId),
             Buttons = buttons.Length == 0 ? null : buttons,
             Timestamps = presence.StartedAt is null ? null : new Timestamps(presence.StartedAt.Value)
         };
+    }
+
+    private static RpcButton? CreateButton(RenderedButton button)
+    {
+        return DiscordPresencePayloadPolicy.TryNormalizeButton(button, out var normalized)
+            ? new RpcButton { Label = normalized.Label, Url = normalized.Url }
+            : null;
     }
 }
