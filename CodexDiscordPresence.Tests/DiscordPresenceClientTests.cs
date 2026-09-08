@@ -115,6 +115,66 @@ public sealed class DiscordPresenceClientTests
         }
     }
 
+    [Fact]
+    public async Task Clear_ClearsEvenWhenNoPresenceWasPublishedOnThisConnection()
+    {
+        var transport = new FakeDiscordPresenceTransport();
+        var tempPath = CreateTempDirectory();
+
+        try
+        {
+            using var log = new DiagnosticLog(Path.Combine(tempPath, "rpc.log"));
+            using var client = new DiscordPresenceClient(
+                CreateOptions(),
+                log,
+                _ => transport,
+                () => DateTime.UtcNow);
+
+            await client.StartAsync(CancellationToken.None);
+            client.Clear();
+
+            Assert.Single(transport.ClearPresenceCalls);
+        }
+        finally
+        {
+            Directory.Delete(tempPath, true);
+        }
+    }
+
+    [Fact]
+    public async Task ClearFailure_RemainsPendingAcrossReconnectAndRetriesBeforeNextUpdate()
+    {
+        var firstTransport = new FakeDiscordPresenceTransport { ThrowOnClearPresence = true };
+        var secondTransport = new FakeDiscordPresenceTransport();
+        var transports = new Queue<FakeDiscordPresenceTransport>([firstTransport, secondTransport]);
+        var now = DateTime.UtcNow;
+        var tempPath = CreateTempDirectory();
+
+        try
+        {
+            using var log = new DiagnosticLog(Path.Combine(tempPath, "rpc.log"));
+            using var client = new DiscordPresenceClient(
+                CreateOptions(),
+                log,
+                _ => transports.Dequeue(),
+                () => now);
+
+            await client.StartAsync(CancellationToken.None);
+            client.Clear();
+            Assert.Empty(secondTransport.ClearPresenceCalls);
+
+            now = now.Add(DiscordReconnectBackoff.GetDelay(1) + TimeSpan.FromMilliseconds(1));
+
+            Assert.True(client.Update(CreatePresence()));
+            Assert.Single(secondTransport.ClearPresenceCalls);
+            Assert.Single(secondTransport.SetPresenceCalls);
+        }
+        finally
+        {
+            Directory.Delete(tempPath, true);
+        }
+    }
+
     private static DiscordOptions CreateOptions() => new()
     {
         ClientId = "test-client-id"
@@ -144,6 +204,8 @@ public sealed class DiscordPresenceClientTests
 
         public bool ThrowOnSetPresence { get; init; }
 
+        public bool ThrowOnClearPresence { get; init; }
+
         public List<RichPresence> SetPresenceCalls { get; } = [];
 
         public List<bool> ClearPresenceCalls { get; } = [];
@@ -162,6 +224,11 @@ public sealed class DiscordPresenceClientTests
 
         public void ClearPresence()
         {
+            if (ThrowOnClearPresence)
+            {
+                throw new InvalidOperationException("fake ClearPresence failure");
+            }
+
             ClearPresenceCalls.Add(true);
         }
 

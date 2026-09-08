@@ -11,6 +11,7 @@ public sealed class DiscordPresenceClient : IDisposable
     private IDiscordPresenceTransport? _client;
     private bool _isReady;
     private bool _clearPending;
+    private bool _clearSentForCurrentConnection;
     private bool _needsPresenceRefresh = true;
     private readonly DiscordPresenceUpdateThrottle _updateThrottle = new();
     private DateTime? _lastRateLimitLogUtc;
@@ -72,6 +73,7 @@ public sealed class DiscordPresenceClient : IDisposable
             ResetClient();
             LastPublishedPresence = null;
             _clearPending = false;
+            _clearSentForCurrentConnection = false;
             _failedInitializeAttempts = 0;
             _nextInitializeAttemptUtc = DateTime.MinValue;
             _updateThrottle.Reset();
@@ -122,6 +124,7 @@ public sealed class DiscordPresenceClient : IDisposable
 
             client.SetPresence(publishedPresence);
             LastPublishedPresence = DiscordPresenceSnapshot.From(publishedPresence);
+            _clearSentForCurrentConnection = false;
             _needsPresenceRefresh = false;
             _lastRateLimitLogUtc = null;
             return true;
@@ -144,13 +147,12 @@ public sealed class DiscordPresenceClient : IDisposable
     {
         if (_client is null)
         {
-            _clearPending = false;
             LastPublishedPresence = null;
             _needsPresenceRefresh = true;
             return;
         }
 
-        if (LastPublishedPresence is null && !_clearPending)
+        if (_clearSentForCurrentConnection && LastPublishedPresence is null && !_clearPending)
         {
             _needsPresenceRefresh = true;
             return;
@@ -169,6 +171,7 @@ public sealed class DiscordPresenceClient : IDisposable
         {
             _client.ClearPresence();
             _clearPending = false;
+            _clearSentForCurrentConnection = true;
             LastPublishedPresence = null;
             _needsPresenceRefresh = true;
             _lastRateLimitLogUtc = null;
@@ -177,7 +180,8 @@ public sealed class DiscordPresenceClient : IDisposable
         {
             _isReady = false;
             ResetClient();
-            _clearPending = false;
+            _clearPending = true;
+            _clearSentForCurrentConnection = false;
             LastPublishedPresence = null;
             _needsPresenceRefresh = true;
             _failedInitializeAttempts = Math.Min(_failedInitializeAttempts + 1, int.MaxValue);
@@ -199,6 +203,7 @@ public sealed class DiscordPresenceClient : IDisposable
             _isReady = false;
             LastPublishedPresence = null;
             _clearPending = false;
+            _clearSentForCurrentConnection = false;
             _needsPresenceRefresh = true;
         }
     }
@@ -237,7 +242,7 @@ public sealed class DiscordPresenceClient : IDisposable
             {
                 _failedInitializeAttempts = 0;
                 LastPublishedPresence = null;
-                _clearPending = false;
+                _clearSentForCurrentConnection = false;
                 _needsPresenceRefresh = true;
                 if (logSuccess)
                 {
@@ -248,7 +253,7 @@ public sealed class DiscordPresenceClient : IDisposable
             {
                 ResetClient();
                 LastPublishedPresence = null;
-                _clearPending = false;
+                _clearSentForCurrentConnection = false;
                 _failedInitializeAttempts = Math.Min(_failedInitializeAttempts + 1, int.MaxValue);
                 var delay = DiscordReconnectBackoff.GetDelay(_failedInitializeAttempts);
                 _log.Warn($"Discord RPC is not ready. Reconnecting in {delay.TotalSeconds:0}s.");
@@ -260,7 +265,7 @@ public sealed class DiscordPresenceClient : IDisposable
             _isReady = false;
             ResetClient();
             LastPublishedPresence = null;
-            _clearPending = false;
+            _clearSentForCurrentConnection = false;
             _needsPresenceRefresh = true;
             _failedInitializeAttempts = Math.Min(_failedInitializeAttempts + 1, int.MaxValue);
             var delay = DiscordReconnectBackoff.GetDelay(_failedInitializeAttempts);
