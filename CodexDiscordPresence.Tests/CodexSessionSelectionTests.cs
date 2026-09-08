@@ -72,6 +72,71 @@ public sealed class CodexSessionSelectionTests
         }
     }
 
+    [Fact]
+    public void InspectRecentSessions_FindsProjectSessionOutsideGlobalRecentFileLimit()
+    {
+        var homePath = CreateTempCodexHome();
+        var projectPath = Path.Combine(Path.GetTempPath(), "CodexSessionProjectLimitProject_" + Guid.NewGuid());
+        var otherProjectPath = Path.Combine(Path.GetTempPath(), "CodexSessionProjectLimitOther_" + Guid.NewGuid());
+        Directory.CreateDirectory(projectPath);
+        Directory.CreateDirectory(otherProjectPath);
+
+        try
+        {
+            var now = DateTime.UtcNow;
+            WriteSession(homePath, "project-session.jsonl",
+            [
+                CreateSessionLine(now, new
+                {
+                    type = "task_started",
+                    turn_id = "project-turn",
+                    cwd = projectPath
+                }, "event_msg"),
+                CreateSessionLine(now.AddMilliseconds(1), new
+                {
+                    type = "reasoning",
+                    turn_id = "project-turn",
+                    summary = new[]
+                    {
+                        new { type = "summary_text", text = "**Project session**" }
+                    }
+                }, "response_item")
+            ]);
+            var projectSessionPath = Path.Combine(homePath, "sessions", "project-session.jsonl");
+            File.SetLastWriteTimeUtc(projectSessionPath, now.AddMinutes(-1));
+
+            WriteSession(homePath, "unrelated-session.jsonl",
+            [
+                CreateSessionLine(now, new
+                {
+                    type = "task_started",
+                    turn_id = "other-turn",
+                    cwd = otherProjectPath
+                }, "event_msg")
+            ]);
+
+            var parser = new CodexSessionLogParser(
+                new CodexDetectionOptions
+                {
+                    HomePath = homePath,
+                    RecentSessionFilesToScan = 1
+                },
+                new PresenceTemplateOptions());
+
+            var inspection = parser.InspectRecentSessions(projectPath);
+
+            Assert.NotNull(inspection);
+            Assert.True(inspection!.MatchesProject);
+            Assert.Equal("Project session", inspection.LatestThinkingSummary);
+        }
+        finally
+        {
+            Directory.Delete(homePath, true);
+            Directory.Delete(projectPath, true);
+            Directory.Delete(otherProjectPath, true);
+        }
+    }
+
     private static string CreateTempCodexHome()
     {
         var path = Path.Combine(Path.GetTempPath(), "CodexSessionSelectionTests_" + Guid.NewGuid());

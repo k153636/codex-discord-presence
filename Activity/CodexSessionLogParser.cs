@@ -39,14 +39,13 @@ internal sealed class CodexSessionLogParser
                 ? null
                 : NormalizePath(projectPath);
 
-            var files = Directory
+            var orderedFiles = Directory
                 .EnumerateFiles(sessionsPath, "*.jsonl", SearchOption.AllDirectories)
                 .Select(path => new FileInfo(path))
-                .OrderByDescending(file => file.LastWriteTimeUtc)
-                .Take(Math.Max(1, _options.RecentSessionFilesToScan))
-                .ToArray();
+                .OrderByDescending(file => file.LastWriteTimeUtc);
+            var files = SelectSessionFiles(orderedFiles, normalizedProjectPath, cancellationToken);
 
-            var candidates = new List<SessionInspectionCandidate>(files.Length);
+            var candidates = new List<SessionInspectionCandidate>(files.Count);
 
             foreach (var file in files)
             {
@@ -1331,6 +1330,77 @@ internal sealed class CodexSessionLogParser
         }
     }
 
+    private IReadOnlyList<FileInfo> SelectSessionFiles(
+        IEnumerable<FileInfo> orderedFiles,
+        string? normalizedProjectPath,
+        CancellationToken cancellationToken)
+    {
+        var allFiles = orderedFiles.ToArray();
+        var scanLimit = Math.Max(1, _options.RecentSessionFilesToScan);
+        var recentFiles = allFiles.Take(scanLimit).ToArray();
+        if (string.IsNullOrWhiteSpace(normalizedProjectPath))
+        {
+            return recentFiles;
+        }
+
+        var projectFiles = allFiles
+            .Where(file => HasMatchingProjectHeader(file, normalizedProjectPath, cancellationToken))
+            .Take(scanLimit)
+            .ToArray();
+
+        return recentFiles
+            .Concat(projectFiles)
+            .DistinctBy(file => file.FullName, StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+    }
+
+    private bool HasMatchingProjectHeader(FileInfo file, string normalizedProjectPath, CancellationToken cancellationToken)
+    {
+        var cacheKey = file.FullName;
+        if (_sessionProjectPathCache.TryGetValue(cacheKey, out var cached) &&
+            cached.Length == file.Length &&
+            cached.LastWriteTimeUtc == file.LastWriteTimeUtc)
+        {
+            return cached.ProjectPath is not null && NormalizePath(cached.ProjectPath) == normalizedProjectPath;
+        }
+
+        var projectPath = ReadProjectPathFromHeader(file.FullName, cancellationToken);
+        _sessionProjectPathCache[cacheKey] = (file.Length, file.LastWriteTimeUtc, projectPath);
+        return projectPath is not null && NormalizePath(projectPath) == normalizedProjectPath;
+    }
+
+    private static string? ReadProjectPathFromHeader(string path, CancellationToken cancellationToken)
+    {
+        try
+        {
+            foreach (var line in ReadLinesFromHead(path, cancellationToken))
+            {
+                if (!line.Contains("\"payload\"", StringComparison.Ordinal))
+                {
+                    continue;
+                }
+
+                using var document = JsonDocument.Parse(line);
+                if (document.RootElement.TryGetProperty("payload", out var payload) &&
+                    TryGetString(payload, "cwd", out var projectPath) &&
+                    !string.IsNullOrWhiteSpace(projectPath))
+                {
+                    return projectPath;
+                }
+            }
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch
+        {
+            // Fall back to the existing recent-file scan for malformed or unavailable files.
+        }
+
+        return null;
+    }
+
     private static string? TryGetMutationTargetFromElement(JsonElement element, string? projectPath)
     {
         switch (element.ValueKind)
@@ -2360,6 +2430,8 @@ internal sealed class CodexSessionLogParser
             return path.Trim().ToUpperInvariant();
         }
     }
+
+    private readonly Dictionary<string, (long Length, DateTime LastWriteTimeUtc, string? ProjectPath)> _sessionProjectPathCache = new(StringComparer.OrdinalIgnoreCase);
 
     private SessionInspection? SelectInspection(
         IReadOnlyList<SessionInspectionCandidate> candidates,
