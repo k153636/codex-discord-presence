@@ -29,7 +29,7 @@
     },
     {
       details: "gpt 5.6 luna max 1.5x • 125M Token",
-      state: "Detailing AI indexing criteria",
+      state: "I’m thinking about building a local-first AI coding observability tool with privacy and reliability as key selling points, while considering paid features like multi-tool support and custom templates.",
       party: "5 / 5 from session evidence",
       image: "assets/rpc_thinking.gif",
       imageKey: "rpc_thinking",
