@@ -19,13 +19,15 @@ For the user-facing documentation, see the [Codex Discord Rich Presence site](ht
 1. Run `build.cmd`.
 2. Run `start.cmd`.
 3. Run `stop.cmd` to shut it down.
-4. Run `install.cmd` to create desktop and Start Menu shortcuts.
-5. Run `install.cmd --autostart` to also register Windows startup.
-6. Run `uninstall.cmd` to remove created shortcuts.
+4. Run `install.cmd` to create desktop and Start Menu shortcuts and install the PowerShell `codex-rpc` command.
+5. Open a new PowerShell session, then run `codex-rpc` from any directory.
+6. Run `install.cmd --autostart` to also register Windows startup.
+7. Run `uninstall.cmd` to remove the created shortcuts and `codex-rpc` command.
 
 The app is configured as a `win-x64` single-file publish that requires the .NET 9 Desktop Runtime on the target machine.
 It runs in the background with a system tray icon, where you can toggle `Enable`, open `appsettings.json`, or `Quit`.
 `start.cmd` stops the previous process, waits for it to exit, rebuilds, and launches the latest published build so the tray app stays in sync with the current source.
+The installed `codex-rpc` command delegates to that same `start.cmd` flow. Each invocation removes the disposable `publish` and `publish-next` output before publishing, while retaining the reusable `bin` and `obj` compiler caches. After installation or removal, an already-open PowerShell session must be reopened to observe the PATH change.
 The tray `Enable` state is saved under `%LOCALAPPDATA%\CodexDiscordPresence\presence-state.json`.
 The app can also check GitHub Releases once at startup and only logs when a newer release exists.
 
