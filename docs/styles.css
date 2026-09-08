@@ -10,6 +10,9 @@
   --accent: #9be7b0;
   --accent-strong: #b2f5c1;
   --accent-ink: #102318;
+  --button-primary: #2563eb;
+  --button-primary-hover: #1d4ed8;
+  --button-primary-ink: #ffffff;
   --max-width: 1180px;
 }
 
@@ -195,15 +198,15 @@ h3 {
 }
 
 .button.primary {
-  border-color: var(--accent);
-  background: var(--accent);
-  color: var(--accent-ink);
+  border-color: var(--button-primary);
+  background: var(--button-primary);
+  color: var(--button-primary-ink);
 }
 
 .button.primary:hover {
-  border-color: var(--accent-strong);
-  background: var(--accent-strong);
-  color: var(--accent-ink);
+  border-color: var(--button-primary-hover);
+  background: var(--button-primary-hover);
+  color: var(--button-primary-ink);
 }
 
 .button.secondary {
@@ -216,7 +219,11 @@ h3 {
   color: var(--text);
 }
 
-.button:focus-visible,
+.button:focus-visible {
+  outline: 3px solid var(--button-primary);
+  outline-offset: 3px;
+}
+
 a:focus-visible {
   outline: 3px solid var(--accent);
   outline-offset: 3px;
