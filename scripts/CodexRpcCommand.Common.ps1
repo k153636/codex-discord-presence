@@ -7,6 +7,8 @@ function Get-CodexRpcCommandPaths {
         BinDir = $binDir
         CommandPath = Join-Path $binDir 'codex-rpc.cmd'
         LauncherPath = Join-Path $binDir 'codex-rpc-launcher.ps1'
+        QuitCommandPath = Join-Path $binDir 'codex-rpc-quit.cmd'
+        QuitLauncherPath = Join-Path $binDir 'codex-rpc-quit-launcher.ps1'
         LegacyLauncherPath = Join-Path $binDir 'codex-rpc.ps1'
     }
 }

@@ -1,12 +1,12 @@
 @echo off
 setlocal
 set "ROOT_DIR=%~dp0"
-set "APP_EXE=%ROOT_DIR%publish\discord-presence-for-codex.exe"
+if "%ROOT_DIR:~-1%"=="\" set "ROOT_DIR=%ROOT_DIR:~0,-1%"
+set "SCRIPT_PATH=%ROOT_DIR%\scripts\StopPublishedBuild.ps1"
 
-if not exist "%APP_EXE%" (
-  echo Build output not found: "%APP_EXE%"
-  echo Run build.cmd first.
+if not exist "%SCRIPT_PATH%" (
+  echo Stop script not found: "%SCRIPT_PATH%"
   exit /b 1
 )
 
-"%APP_EXE%" --stop
+powershell -NoProfile -ExecutionPolicy Bypass -File "%SCRIPT_PATH%" -RootDir "%ROOT_DIR%"

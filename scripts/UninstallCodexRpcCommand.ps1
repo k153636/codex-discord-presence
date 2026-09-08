@@ -3,7 +3,12 @@ $ErrorActionPreference = 'Stop'
 
 try {
     $paths = Get-CodexRpcCommandPaths
-    $managedPaths = @($paths.CommandPath, $paths.LauncherPath, $paths.LegacyLauncherPath)
+    $managedPaths = @(
+        $paths.CommandPath,
+        $paths.LauncherPath,
+        $paths.QuitCommandPath,
+        $paths.QuitLauncherPath,
+        $paths.LegacyLauncherPath)
     foreach ($path in $managedPaths) {
         Assert-CodexRpcManagedFile -Path $path -Marker $paths.Marker
     }
@@ -34,7 +39,7 @@ try {
         }
     }
 
-    Write-Host 'Removed the PowerShell command: codex-rpc'
+    Write-Host 'Removed the PowerShell commands: codex-rpc, codex-rpc-quit'
     if ($pathChanged) {
         Write-Host 'User PATH updated. Open a new PowerShell session to finish removing codex-rpc.'
     }
