@@ -33,6 +33,7 @@ internal sealed class CodexActivityStateMachine
 {
     private static readonly TimeSpan CompletedMutationDisplayGrace = TimeSpan.FromSeconds(2);
     private static readonly TimeSpan CompletedMcpDisplayGrace = TimeSpan.FromSeconds(2);
+    private static readonly TimeSpan CompletedResearchDisplayGrace = TimeSpan.FromSeconds(2);
     private readonly TimeSpan _staleAfter;
     private readonly TimeSpan _reasoningGrace;
 
@@ -74,6 +75,9 @@ internal sealed class CodexActivityStateMachine
         PendingOperation? lastCompletedMcpOperation = null;
         var lastCompletedMcpOperationSequence = 0L;
         DateTime? lastCompletedMcpOperationAtUtc = null;
+        PendingOperation? lastCompletedResearchOperation = null;
+        var lastCompletedResearchOperationSequence = 0L;
+        DateTime? lastCompletedResearchOperationAtUtc = null;
 
         foreach (var activityEvent in orderedEvents)
         {
@@ -102,6 +106,9 @@ internal sealed class CodexActivityStateMachine
                     lastCompletedMcpOperation = null;
                     lastCompletedMcpOperationSequence = 0L;
                     lastCompletedMcpOperationAtUtc = null;
+                    lastCompletedResearchOperation = null;
+                    lastCompletedResearchOperationSequence = 0L;
+                    lastCompletedResearchOperationAtUtc = null;
                 }
 
                 lastEventAtUtc = Max(lastEventAtUtc, activityEvent.TimestampUtc);
@@ -208,6 +215,17 @@ internal sealed class CodexActivityStateMachine
                         lastCompletedMutation = completedOperation;
                         lastCompletedMutationSequence = activityEvent.Sequence;
                         lastCompletedMutationAtUtc = activityEvent.TimestampUtc;
+                    }
+                    var completedResearchEvent = activityEvent.OperationKind == CodexOperationKind.Research
+                        ? activityEvent
+                        : completedOperation?.Event.OperationKind == CodexOperationKind.Research
+                            ? completedOperation.Event
+                            : null;
+                    if (completedResearchEvent is not null)
+                    {
+                        lastCompletedResearchOperation = new PendingOperation(activityEvent.Sequence, completedResearchEvent);
+                        lastCompletedResearchOperationSequence = activityEvent.Sequence;
+                        lastCompletedResearchOperationAtUtc = activityEvent.TimestampUtc;
                     }
                     if (!string.IsNullOrWhiteSpace(activityEvent.CallId))
                     {
@@ -447,6 +465,36 @@ internal sealed class CodexActivityStateMachine
             };
         }
 
+        if (lastCompletedResearchOperation is not null &&
+            IsCompletedResearchStillCurrent(
+                lastCompletedResearchOperation,
+                lastCompletedResearchOperationSequence,
+                lastEffectiveEvent) &&
+            lastCompletedResearchOperationAtUtc.HasValue &&
+            nowUtc - lastCompletedResearchOperationAtUtc.Value <= CompletedResearchDisplayGrace)
+        {
+            var completedResearch = lastCompletedResearchOperation.Event;
+            return new CodexActivityState
+            {
+                Lifecycle = CodexTurnLifecycle.Open,
+                OperationKind = CodexOperationKind.Research,
+                IsMcpOperation = completedResearch.IsMcpOperation,
+                McpServerName = completedResearch.McpServerName,
+                ActiveMcpServerNames = completedResearch.IsMcpOperation &&
+                    !string.IsNullOrWhiteSpace(completedResearch.McpServerName)
+                    ? [completedResearch.McpServerName]
+                    : Array.Empty<string>(),
+                TurnId = currentTurnId,
+                LatestThinkingSummary = latestThinkingSummary,
+                PendingOperationCount = 0,
+                PendingMutationCount = 0,
+                TriggerEvent = lastEffectiveEvent,
+                ActiveOperationEvent = completedResearch,
+                Reason = "research operation completed; waiting for next Codex event",
+                Source = completedResearch.Source
+            };
+        }
+
         var effectiveAge = lastEffectiveSignalAtUtc.HasValue
             ? nowUtc - lastEffectiveSignalAtUtc.Value
             : _staleAfter;
@@ -534,6 +582,25 @@ internal sealed class CodexActivityStateMachine
         }
 
         return null;
+    }
+
+    private static bool IsCompletedResearchStillCurrent(
+        PendingOperation completedResearchOperation,
+        long completedResearchOperationSequence,
+        CodexActivityEvent? lastEffectiveEvent)
+    {
+        if (lastEffectiveEvent?.Sequence == completedResearchOperationSequence)
+        {
+            return true;
+        }
+
+        return lastEffectiveEvent?.Kind == CodexActivityEventKind.OperationCompleted &&
+            lastEffectiveEvent.OperationKind == CodexOperationKind.Unknown &&
+            !string.IsNullOrWhiteSpace(completedResearchOperation.Event.CallId) &&
+            string.Equals(
+                lastEffectiveEvent.CallId,
+                completedResearchOperation.Event.CallId,
+                StringComparison.Ordinal);
     }
 
     private static int CountPendingMutations(

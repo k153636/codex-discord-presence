@@ -47,6 +47,48 @@ public sealed class CodexEventDrivenPresenceTests
     }
 
     [Fact]
+    public void Render_CompletedWebResearch_UsesResearchingActivityDuringGrace()
+    {
+        var now = DateTime.UtcNow;
+        var projectPath = CreateProjectPath();
+        var homePath = CreateHomePath();
+
+        try
+        {
+            WriteSession(homePath, "session.jsonl",
+            [
+                CreateSessionLine(now, new
+                {
+                    type = "task_started",
+                    turn_id = "turn-1",
+                    cwd = projectPath
+                }, "event_msg"),
+                CreateSessionLine(now.AddMilliseconds(1), new
+                {
+                    type = "custom_tool_call",
+                    turn_id = "turn-1",
+                    call_id = "call-research-completed-1",
+                    name = "exec",
+                    status = "completed",
+                    input = "const result = await tools.web__run({search_query: [{ q: 'Codex activity state' }]});"
+                }, "response_item")
+            ]);
+
+            var snapshot = CreateDetector(homePath).GetSnapshot(projectPath);
+            var presence = Render(projectPath, snapshot);
+
+            Assert.Equal(CodexActivityKind.Researching, snapshot.ActivityKind);
+            Assert.Equal(CodexActivityEventKind.OperationCompleted, snapshot.LatestActivityEventKind);
+            Assert.Equal(0, snapshot.PendingOperationCount);
+            Assert.Equal("Researching", presence.State);
+        }
+        finally
+        {
+            DeleteDirectory(homePath);
+        }
+    }
+
+    [Fact]
     public void GetSnapshot_SinglePendingEdit_UsesDirectToolTarget()
     {
         var now = DateTime.UtcNow;

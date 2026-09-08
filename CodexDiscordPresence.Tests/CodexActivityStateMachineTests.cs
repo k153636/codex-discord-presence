@@ -267,6 +267,60 @@ public sealed class CodexActivityStateMachineTests
     }
 
     [Fact]
+    public void Evaluate_CompletedResearchRemainsVisibleThroughTrailingToolOutput()
+    {
+        var startedAt = Utc(48);
+        var completedAt = startedAt.AddSeconds(2);
+        var state = EvaluateAt(
+            Event(1, startedAt, CodexActivityEventKind.TurnStarted, turnId: "turn-1"),
+            Event(
+                2,
+                completedAt,
+                CodexActivityEventKind.OperationCompleted,
+                turnId: "turn-1",
+                callId: "research-call-1",
+                operationKind: CodexOperationKind.Research),
+            Event(
+                3,
+                completedAt.AddMilliseconds(1),
+                CodexActivityEventKind.OperationCompleted,
+                turnId: "turn-1",
+                callId: "research-call-1"),
+            completedAt.AddSeconds(1));
+
+        Assert.Equal(CodexOperationKind.Research, state.OperationKind);
+        Assert.Equal(CodexActivityEventKind.OperationCompleted, state.TriggerEvent?.Kind);
+        Assert.Equal(0, state.PendingOperationCount);
+        Assert.Equal("research operation completed; waiting for next Codex event", state.Reason);
+    }
+
+    [Fact]
+    public void Evaluate_CompletedResearchExpiresAfterDisplayGrace()
+    {
+        var startedAt = Utc(49);
+        var completedAt = startedAt.AddSeconds(2);
+        var state = EvaluateAt(
+            Event(1, startedAt, CodexActivityEventKind.TurnStarted, turnId: "turn-1"),
+            Event(
+                2,
+                completedAt,
+                CodexActivityEventKind.OperationCompleted,
+                turnId: "turn-1",
+                callId: "research-call-1",
+                operationKind: CodexOperationKind.Research),
+            Event(
+                3,
+                completedAt.AddMilliseconds(1),
+                CodexActivityEventKind.OperationCompleted,
+                turnId: "turn-1",
+                callId: "research-call-1"),
+            completedAt.AddSeconds(3));
+
+        Assert.Equal(CodexOperationKind.Unknown, state.OperationKind);
+        Assert.Equal(0, state.PendingOperationCount);
+    }
+
+    [Fact]
     public void Evaluate_LatestThinkingSummaryOverridesEarlierMcpOperation()
     {
         var startedAt = Utc(48);
