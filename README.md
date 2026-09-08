@@ -21,7 +21,7 @@ For the user-facing documentation, see the [Codex Discord Rich Presence site](ht
 3. Run `stop.cmd` to shut it down.
 4. Run `install.cmd` to create desktop and Start Menu shortcuts and install the PowerShell `codex-rpc` command.
 5. Open a new PowerShell session, then run `codex-rpc` from any directory.
-6. Run `codex-rpc-quit` from any directory to close the running RPC process.
+6. Run `codex-rpc-stop` from any directory to close the running RPC process.
 7. Run `install.cmd --autostart` to also register Windows startup.
 8. Run `uninstall.cmd` to remove the created shortcuts and PowerShell commands.
 
@@ -29,7 +29,7 @@ The app is configured as a `win-x64` single-file publish that requires the .NET 
 It runs in the background with a system tray icon, where you can toggle `Enable`, open `appsettings.json`, or `Quit`.
 `start.cmd` stops the previous process, waits for it to exit, rebuilds, and launches the latest published build so the tray app stays in sync with the current source.
 The installed `codex-rpc` command opens the existing `publish\discord-presence-for-codex.exe` without rebuilding. Run `build.cmd` explicitly when source changes should be included; if no published build exists, `codex-rpc` exits with that instruction instead of invoking the SDK. After installation or removal, an already-open PowerShell session must be reopened to observe the PATH change.
-The installed `codex-rpc-quit` command uses the same graceful `--stop` path as `stop.cmd` and is safe to repeat when no RPC process is running.
+The installed `codex-rpc-stop` command uses the same graceful `--stop` path as `stop.cmd` and is safe to repeat when no RPC process is running. Re-running the installer migrates the previous managed `codex-rpc-quit` files to the new command name.
 The tray `Enable` state is saved under `%LOCALAPPDATA%\CodexDiscordPresence\presence-state.json`.
 The app can also check GitHub Releases once at startup and only logs when a newer release exists.
 
@@ -313,7 +313,7 @@ The default small image key is:
 
 - `start.cmd` stops the previous process, rebuilds, and launches the latest published exe in the background
 - `codex-rpc` stops the previous process and launches the latest existing published exe without rebuilding
-- `codex-rpc-quit` stops the running instance without rebuilding or starting a replacement
+- `codex-rpc-stop` stops the running instance without rebuilding or starting a replacement
 - `stop.cmd` stops the running instance
 - Install the .NET 9 Desktop Runtime if the app says the runtime is missing
 - `git diff`, recent file writes, and session logs are used together to infer active work

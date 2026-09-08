@@ -38,8 +38,10 @@ try {
 
     Assert-CodexRpcManagedFile -Path $paths.CommandPath -Marker $paths.Marker
     Assert-CodexRpcManagedFile -Path $paths.LauncherPath -Marker $paths.Marker
-    Assert-CodexRpcManagedFile -Path $paths.QuitCommandPath -Marker $paths.Marker
-    Assert-CodexRpcManagedFile -Path $paths.QuitLauncherPath -Marker $paths.Marker
+    Assert-CodexRpcManagedFile -Path $paths.StopCommandPath -Marker $paths.Marker
+    Assert-CodexRpcManagedFile -Path $paths.StopLauncherPath -Marker $paths.Marker
+    Assert-CodexRpcManagedFile -Path $paths.LegacyQuitCommandPath -Marker $paths.Marker
+    Assert-CodexRpcManagedFile -Path $paths.LegacyQuitLauncherPath -Marker $paths.Marker
     Assert-CodexRpcManagedFile -Path $paths.LegacyLauncherPath -Marker $paths.Marker
     New-Item -ItemType Directory -Force -Path $paths.BinDir | Out-Null
 
@@ -86,15 +88,15 @@ exit $exitCode
 '@
     $launcherContent = $launcherContent.Replace('__CODEX_RPC_ROOT__', $rootLiteral)
 
-    $quitCommandContent = @(
+    $stopCommandContent = @(
         '@echo off'
         "rem $($paths.Marker)"
         'setlocal'
-        'powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%~dp0codex-rpc-quit-launcher.ps1"'
+        'powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%~dp0codex-rpc-stop-launcher.ps1"'
         'exit /b %ERRORLEVEL%'
     ) -join [Environment]::NewLine
 
-    $quitLauncherContent = @'
+    $stopLauncherContent = @'
 # CodexDiscordPresenceLauncher
 $ErrorActionPreference = 'Stop'
 $root = '__CODEX_RPC_ROOT__'
@@ -112,14 +114,20 @@ if ($null -eq $exitCode) {
 }
 exit $exitCode
 '@
-    $quitLauncherContent = $quitLauncherContent.Replace('__CODEX_RPC_ROOT__', $rootLiteral)
+    $stopLauncherContent = $stopLauncherContent.Replace('__CODEX_RPC_ROOT__', $rootLiteral)
 
     Set-Content -LiteralPath $paths.CommandPath -Value $commandContent -Encoding ascii
     Set-Content -LiteralPath $paths.LauncherPath -Value $launcherContent -Encoding utf8
-    Set-Content -LiteralPath $paths.QuitCommandPath -Value $quitCommandContent -Encoding ascii
-    Set-Content -LiteralPath $paths.QuitLauncherPath -Value $quitLauncherContent -Encoding utf8
+    Set-Content -LiteralPath $paths.StopCommandPath -Value $stopCommandContent -Encoding ascii
+    Set-Content -LiteralPath $paths.StopLauncherPath -Value $stopLauncherContent -Encoding utf8
     if (Test-Path -LiteralPath $paths.LegacyLauncherPath) {
         Remove-Item -LiteralPath $paths.LegacyLauncherPath -Force
+    }
+    if (Test-Path -LiteralPath $paths.LegacyQuitCommandPath) {
+        Remove-Item -LiteralPath $paths.LegacyQuitCommandPath -Force
+    }
+    if (Test-Path -LiteralPath $paths.LegacyQuitLauncherPath) {
+        Remove-Item -LiteralPath $paths.LegacyQuitLauncherPath -Force
     }
 
     $binPathKey = Get-CodexRpcCanonicalPath -Path $paths.BinDir
@@ -135,7 +143,7 @@ exit $exitCode
         [Environment]::SetEnvironmentVariable('Path', $newUserPath, 'User')
     }
 
-    Write-Host 'Installed the PowerShell commands: codex-rpc, codex-rpc-quit'
+    Write-Host 'Installed the PowerShell commands: codex-rpc, codex-rpc-stop'
     Write-Host "Project root: $root"
     Write-Host "Launcher: $($paths.CommandPath)"
     if ($pathChanged) {
