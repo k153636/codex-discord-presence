@@ -304,8 +304,10 @@ a:focus-visible {
 }
 
 .rpc-preview-track {
+  --rpc-preview-card-gap: 36px;
   display: flex;
-  width: 200%;
+  width: calc(200% + var(--rpc-preview-card-gap));
+  column-gap: var(--rpc-preview-card-gap);
   height: 148px;
   transform: translate3d(0, 0, 0);
   transition: transform 420ms cubic-bezier(0.22, 0.61, 0.36, 1);
@@ -321,11 +323,11 @@ a:focus-visible {
 }
 
 .rpc-preview-track.is-positioned-left {
-  transform: translate3d(-50%, 0, 0);
+  transform: translate3d(calc(-50% - var(--rpc-preview-card-gap) / 2), 0, 0);
 }
 
 .rpc-preview-track.is-moving-left {
-  transform: translate3d(-50%, 0, 0);
+  transform: translate3d(calc(-50% - var(--rpc-preview-card-gap) / 2), 0, 0);
 }
 
 .rpc-preview-track.is-moving-right {
@@ -333,8 +335,8 @@ a:focus-visible {
 }
 
 .rpc-preview-card {
-  flex: 0 0 50%;
-  width: 50%;
+  flex: 0 0 calc((100% - var(--rpc-preview-card-gap)) / 2);
+  width: calc((100% - var(--rpc-preview-card-gap)) / 2);
   min-width: 0;
   height: 148px;
   overflow: hidden;
