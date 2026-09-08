@@ -459,7 +459,7 @@ a:focus-visible {
 
 .rpc-preview-copy {
   display: grid;
-  grid-template-rows: 21px 18px 39px 18px;
+  grid-template-rows: 21px 18px auto 18px;
   align-content: start;
   min-width: 0;
   height: 108px;
@@ -479,6 +479,7 @@ a:focus-visible {
 }
 
 .rpc-preview-copy > span.rpc-preview-card-state--wrapped {
+  max-height: 39px;
   line-height: 13px;
   white-space: pre-line;
   text-overflow: clip;
@@ -502,6 +503,13 @@ a:focus-visible {
   width: 14px;
   height: 14px;
   fill: currentColor;
+}
+
+.rpc-preview-elapsed svg path {
+  /* Match the 14px Discord activity glyph's 12x10px visible bounds. */
+  transform-box: fill-box;
+  transform-origin: center;
+  transform: scale(1.08, 1.55) translateY(-0.55px);
 }
 
 .rpc-preview-runtime-note {
