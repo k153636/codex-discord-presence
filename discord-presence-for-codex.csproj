@@ -50,6 +50,8 @@
   <ItemGroup>
     <Compile Remove="CodexDiscordPresence.Tests\**" />
     <None Include="CodexDiscordPresence.Tests\**" />
+    <Compile Remove="scripts\PreviewCapture\**" />
+    <None Include="scripts\PreviewCapture\**" />
   </ItemGroup>
 
 </Project>
