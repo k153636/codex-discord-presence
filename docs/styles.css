@@ -305,12 +305,14 @@ a:focus-visible {
 
 .rpc-preview-track {
   --rpc-preview-card-gap: 36px;
+  --rpc-preview-slide-duration: 480ms;
+  --rpc-preview-slide-ease: cubic-bezier(0.4, 0, 0.2, 1);
   display: flex;
   width: calc(200% + var(--rpc-preview-card-gap));
   column-gap: var(--rpc-preview-card-gap);
   height: 148px;
   transform: translate3d(0, 0, 0);
-  transition: transform 420ms cubic-bezier(0.22, 0.61, 0.36, 1);
+  transition: transform var(--rpc-preview-slide-duration) var(--rpc-preview-slide-ease);
   will-change: transform;
 }
 
