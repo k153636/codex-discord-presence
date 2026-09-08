@@ -29,7 +29,7 @@
     },
     {
       details: "gpt 5.6 luna max 1.5x • 125M Token",
-      state: "I’m thinking about building a local-first AI coding observability tool with privacy and reliability as key selling points, while considering paid features like multi-tool support and custom templates.",
+      state: "I’m thinking about building a\nlocal-first AI coding observability tool\nwith privacy and reliability as key selling points.",
       party: "5 / 5 from session evidence",
       image: "assets/rpc_thinking.gif",
       imageKey: "rpc_thinking",
@@ -107,6 +107,7 @@
   const renderCard = (card, parts, slide, index) => {
     parts.details.textContent = slide.details;
     parts.state.textContent = slide.state;
+    parts.state.classList.toggle("rpc-preview-card-state--wrapped", slide.state.includes("\n"));
     parts.image.src = slide.image;
     parts.elapsed.textContent = formatElapsed(safeSeconds(slide.initialElapsedSeconds));
     card.setAttribute("aria-label", `RPC preview state ${index + 1} of ${slides.length}: ${slide.state}`);
