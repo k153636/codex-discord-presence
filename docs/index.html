@@ -4,11 +4,11 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Codex Discord Rich Presence for Windows</title>
-  <meta name="description" content="An unofficial Windows tray app that shows Codex CLI and Codex Desktop activity, model, reasoning, MCP server, project, and file status in Discord Rich Presence.">
+  <meta name="description" content="An unofficial Windows tray app that turns observable Codex activity into one clear Discord Rich Presence.">
   <link rel="canonical" href="https://k153636.github.io/codex-discord-presence/">
   <meta property="og:type" content="website">
   <meta property="og:title" content="Codex Discord Rich Presence for Windows">
-  <meta property="og:description" content="Show observable Codex CLI and Desktop activity in Discord Rich Presence from a local Windows tray app.">
+  <meta property="og:description" content="Turn observable Codex activity into one clear Discord Rich Presence from a local Windows tray app.">
   <meta property="og:url" content="https://k153636.github.io/codex-discord-presence/">
   <meta property="og:image" content="https://raw.githubusercontent.com/k153636/codex-discord-presence/main/Assets/RpcArt/rpc_codex.png">
   <link rel="icon" type="image/png" href="https://raw.githubusercontent.com/k153636/codex-discord-presence/main/Assets/RpcArt/rpc_codex.png">
@@ -35,7 +35,7 @@
 <body>
   <header class="site-header">
     <div class="shell nav-row">
-      <a class="brand" href="./">K's Codex RPC</a>
+      <a class="brand" href="./"><span class="brand-mark" aria-hidden="true"></span><span>K's Codex RPC</span></a>
       <nav aria-label="Primary navigation">
         <a href="faq.html">FAQ</a>
         <a href="compatibility.html">Compatibility</a>
@@ -46,15 +46,15 @@
   </header>
 
   <main>
-    <section class="hero shell">
+    <section class="hero shell" aria-labelledby="hero-title">
       <div class="hero-grid">
         <div class="hero-copy">
-          <p class="eyebrow">A small Windows tray app for Codex</p>
-          <h1>Let Discord show the work.</h1>
-          <p class="lead">Codex Discord Rich Presence turns observable Codex CLI and Codex Desktop activity into one readable status, without a project account or hosted service.</p>
+          <p class="eyebrow">A living presence for Codex work</p>
+          <h1 id="hero-title">Show what you build.</h1>
+          <p class="lead">A refined, simple, living presence for the work behind Codex.</p>
           <div class="actions">
             <a class="button primary" href="https://github.com/k153636/codex-discord-presence/releases/latest">Download the latest release</a>
-            <a class="button secondary" href="https://github.com/k153636/codex-discord-presence">Inspect the source</a>
+            <a class="button secondary" href="https://github.com/k153636/codex-discord-presence">View source</a>
           </div>
           <div class="hero-meta" aria-label="Requirements">
             <span>Windows x64</span>
@@ -62,10 +62,11 @@
             <span>Discord Desktop</span>
           </div>
         </div>
+
         <figure class="presence-figure">
           <div class="figure-topline">
-            <span>Dashboard preview</span>
-            <span>Live browser render</span>
+            <span>Live preview</span>
+            <span>Codex activity → Discord</span>
           </div>
           <div class="rpc-preview-shell" data-rpc-preview>
             <div class="rpc-preview-carousel" role="region" aria-roledescription="carousel" aria-label="RPC preview states">
@@ -107,87 +108,52 @@
                 </svg>
               </button>
             </div>
-            <p class="rpc-preview-runtime-note"><span class="rpc-preview-live-dot" aria-hidden="true"></span><span data-rpc-slide-note>State 1 / 3 · animated GIF · timer starts at 2:00</span></p>
+            <p class="rpc-preview-runtime-note"><span class="rpc-preview-live-dot" aria-hidden="true"></span><span data-rpc-slide-note>State 1 / 3</span></p>
             <p class="rpc-preview-slide-status" data-rpc-slide-status aria-live="polite">RPC preview state 1 of 3: MCP chrome-devtools</p>
           </div>
           <dl class="output-fields">
             <div class="output-field output-field--details"><dt>Details</dt><dd data-rpc-output-details>gpt 5.6 luna max 1.5x • 125M Token</dd></div>
             <div class="output-field output-field--state"><dt>State</dt><dd data-rpc-output-state>MCP chrome-devtools</dd></div>
-            <div class="output-field output-field--party"><dt>Party</dt><dd data-rpc-output-party>5 / 5 from session evidence</dd></div>
-            <div class="output-field output-field--image"><dt>Large image</dt><dd><code data-rpc-output-image>rpc_reading</code></dd></div>
           </dl>
-          <p class="capture-note">The card is rendered in the browser from fixed, sanitized showcase states. The first state uses <code>Presence rendered</code> evidence at <time datetime="2026-09-06T13:10:04.6017402Z">2026-09-06 13:10:04 UTC</time>; the arrows reveal the other display states. Each GIF remains animated, while the timer advances from a fixed showcase start value.</p>
+          <p class="preview-caption">Three observable states. One clear Discord presence.</p>
         </figure>
       </div>
     </section>
 
-    <section class="shell proof-strip" aria-label="Product qualities">
-      <div class="proof-item">
-        <strong>Local-first</strong>
-        <span>Reads session and project evidence on Windows.</span>
-      </div>
-      <div class="proof-item">
-        <strong>One clear line</strong>
-        <span>Shows the current activity without stale labels mixed in.</span>
-      </div>
-      <div class="proof-item">
-        <strong>MCP-aware</strong>
-        <span>Can identify the server behind a current tool operation.</span>
-      </div>
+    <section class="signal-rail shell" aria-label="How it works">
+      <span>Codex session</span>
+      <span>Local evidence</span>
+      <span>Discord presence</span>
     </section>
 
-    <section class="shell section" aria-labelledby="what-it-shows">
-      <div class="section-heading">
-        <p class="eyebrow">Inside the activity line</p>
-        <h2 id="what-it-shows">What it shows</h2>
-      </div>
-      <div class="feature-grid">
-        <article class="feature">
-          <h3>Current work</h3>
-          <p>Thinking, researching, running commands, editing files, creating or deleting files, waiting, and completed work when the local session provides evidence.</p>
-        </article>
-        <article class="feature">
-          <h3>MCP identity</h3>
-          <p>When an MCP operation is current, the activity line can show the active server, such as <code>MCP chrome-devtools</code>, without mixing it with stale file or reasoning text.</p>
-        </article>
-        <article class="feature">
-          <h3>Project context</h3>
-          <p>Model and reasoning effort, project name, Git changed-file count, recent edited file, session duration, and configured Discord buttons.</p>
-        </article>
-      </div>
-    </section>
-
-    <section class="shell section split" aria-labelledby="how-it-works">
+    <section class="shell section origin" aria-labelledby="origin-heading">
       <div>
-        <p class="eyebrow">Built from local evidence</p>
-        <h2 id="how-it-works">Designed around local evidence</h2>
+        <p class="eyebrow">Why I made it</p>
       </div>
-      <div class="prose">
-        <p>The app reads local Codex session JSONL and configuration data, observes the active project and Git context, resolves a current activity state, and sends the rendered Rich Presence to Discord's local RPC client.</p>
-        <p>The project does not offer a cloud backend or require a user account. The configured activity can still expose project names, file labels, or reasoning summaries to Discord, so review your templates before sharing.</p>
-        <p>The app may contact GitHub for release update checks and may use configured external image URLs for Discord assets. See the <a href="privacy.html">data-flow notes</a> for the current boundaries.</p>
+      <div class="origin-copy">
+        <h2 id="origin-heading">Codex work is easy to miss in Discord.</h2>
+        <p>I wanted a Codex RPC that felt refined, simple, and alive—one that showed what was actually happening, not just that I was online. So I built K's Codex RPC to turn observable Codex summaries and activity from the local session into one clear Discord presence that reflects the work more accurately.</p>
       </div>
     </section>
 
-    <section class="shell section callout" aria-labelledby="limitations">
-      <div>
-        <p class="eyebrow">Before you install</p>
-        <h2 id="limitations">Requirements and limits</h2>
+    <section class="shell install-line" aria-labelledby="install-heading">
+      <div class="install-intro">
+        <p class="eyebrow">Ready when you are</p>
+        <h2 id="install-heading">Start with one clear line.</h2>
       </div>
-      <ul>
-        <li>Windows x64 and the .NET 9 Desktop Runtime are required for the current published build.</li>
-        <li>Discord Desktop must be running for local Rich Presence delivery.</li>
-        <li>The app is unofficial and is not endorsed by OpenAI or Discord.</li>
-        <li>If direct Codex evidence is unavailable, the app falls back to the configured recent-file and timestamp evidence.</li>
-      </ul>
-      <p><a href="compatibility.html">Read the compatibility notes →</a></p>
+      <p class="install-requirements"><span>Windows x64</span><span>.NET 9 Desktop Runtime</span><span>Discord Desktop</span></p>
+      <a class="button primary" href="https://github.com/k153636/codex-discord-presence/releases/latest">Download</a>
     </section>
   </main>
 
   <footer class="site-footer">
     <div class="shell footer-row">
       <span>K's Codex RPC · Unofficial community project</span>
-      <a href="https://github.com/k153636/codex-discord-presence/releases/latest">Latest release</a>
+      <nav class="footer-links" aria-label="Footer navigation">
+        <a href="faq.html">FAQ</a>
+        <a href="privacy.html">Data flow</a>
+        <a href="https://github.com/k153636/codex-discord-presence/releases/latest">Latest release</a>
+      </nav>
     </div>
   </footer>
 </body>
