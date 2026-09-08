@@ -206,9 +206,10 @@ public sealed class PresenceRuntime
 
         if (!wasDisabled)
         {
-            rpc.Clear();
             _log.Info("Presence disabled.");
         }
+
+        rpc.Clear();
 
         return false;
     }

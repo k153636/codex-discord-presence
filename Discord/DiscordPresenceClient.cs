@@ -6,8 +6,11 @@ public sealed class DiscordPresenceClient : IDisposable
 {
     private DiscordOptions _options;
     private readonly DiagnosticLog _log;
-    private DiscordRpcClient? _client;
+    private readonly Func<string, IDiscordPresenceTransport> _transportFactory;
+    private readonly Func<DateTime> _utcNow;
+    private IDiscordPresenceTransport? _client;
     private bool _isReady;
+    private bool _clearPending;
     private bool _needsPresenceRefresh = true;
     private readonly DiscordPresenceUpdateThrottle _updateThrottle = new();
     private DateTime? _lastRateLimitLogUtc;
@@ -16,9 +19,20 @@ public sealed class DiscordPresenceClient : IDisposable
     private readonly string _partyId = $"codex-party-{Guid.NewGuid():N}";
 
     public DiscordPresenceClient(DiscordOptions options, DiagnosticLog log)
+        : this(options, log, clientId => new DiscordPresenceTransport(clientId), () => DateTime.UtcNow)
+    {
+    }
+
+    internal DiscordPresenceClient(
+        DiscordOptions options,
+        DiagnosticLog log,
+        Func<string, IDiscordPresenceTransport> transportFactory,
+        Func<DateTime> utcNow)
     {
         _options = options;
         _log = log;
+        _transportFactory = transportFactory ?? throw new ArgumentNullException(nameof(transportFactory));
+        _utcNow = utcNow ?? throw new ArgumentNullException(nameof(utcNow));
     }
 
     public Task StartAsync(CancellationToken cancellationToken)
@@ -57,6 +71,7 @@ public sealed class DiscordPresenceClient : IDisposable
             _isReady = false;
             ResetClient();
             LastPublishedPresence = null;
+            _clearPending = false;
             _failedInitializeAttempts = 0;
             _nextInitializeAttemptUtc = DateTime.MinValue;
             _updateThrottle.Reset();
@@ -81,8 +96,24 @@ public sealed class DiscordPresenceClient : IDisposable
 
         try
         {
+            if (_clearPending)
+            {
+                Clear();
+                if (_clearPending)
+                {
+                    return false;
+                }
+
+                if (!_isReady || _client is null)
+                {
+                    return false;
+                }
+
+                client = _client;
+            }
+
             var publishedPresence = DiscordRichPresenceBuilder.Create(_options, presence, _partyId);
-            var nowUtc = DateTime.UtcNow;
+            var nowUtc = _utcNow();
             if (!_updateThrottle.TryReserve(nowUtc, out var retryAtUtc))
             {
                 LogRateLimitDeferral(nowUtc, retryAtUtc);
@@ -104,25 +135,55 @@ public sealed class DiscordPresenceClient : IDisposable
             _failedInitializeAttempts = Math.Min(_failedInitializeAttempts + 1, int.MaxValue);
             var delay = DiscordReconnectBackoff.GetDelay(_failedInitializeAttempts);
             _log.Error($"Discord RPC update failed. Reconnecting in {delay.TotalSeconds:0}s.", ex);
-            _nextInitializeAttemptUtc = DateTime.UtcNow.Add(delay);
+            _nextInitializeAttemptUtc = _utcNow().Add(delay);
             return false;
         }
     }
 
     public void Clear()
     {
+        if (_client is null)
+        {
+            _clearPending = false;
+            LastPublishedPresence = null;
+            _needsPresenceRefresh = true;
+            return;
+        }
+
+        if (LastPublishedPresence is null && !_clearPending)
+        {
+            _needsPresenceRefresh = true;
+            return;
+        }
+
+        var nowUtc = _utcNow();
+        if (!_updateThrottle.TryReserve(nowUtc, out var retryAtUtc))
+        {
+            _clearPending = true;
+            _needsPresenceRefresh = true;
+            LogRateLimitDeferral(nowUtc, retryAtUtc);
+            return;
+        }
+
         try
         {
-            _client?.ClearPresence();
+            _client.ClearPresence();
+            _clearPending = false;
+            LastPublishedPresence = null;
+            _needsPresenceRefresh = true;
+            _lastRateLimitLogUtc = null;
         }
         catch (Exception ex)
         {
-            _log.Error("Discord RPC clear failed", ex);
-        }
-        finally
-        {
+            _isReady = false;
+            ResetClient();
+            _clearPending = false;
             LastPublishedPresence = null;
             _needsPresenceRefresh = true;
+            _failedInitializeAttempts = Math.Min(_failedInitializeAttempts + 1, int.MaxValue);
+            var delay = DiscordReconnectBackoff.GetDelay(_failedInitializeAttempts);
+            _nextInitializeAttemptUtc = _utcNow().Add(delay);
+            _log.Error($"Discord RPC clear failed. Reconnecting in {delay.TotalSeconds:0}s.", ex);
         }
     }
 
@@ -137,13 +198,14 @@ public sealed class DiscordPresenceClient : IDisposable
             _client = null;
             _isReady = false;
             LastPublishedPresence = null;
+            _clearPending = false;
             _needsPresenceRefresh = true;
         }
     }
 
     private bool EnsureReady()
     {
-        if (!_isReady && DateTime.UtcNow < _nextInitializeAttemptUtc)
+        if (!_isReady && _utcNow() < _nextInitializeAttemptUtc)
         {
             return false;
         }
@@ -163,18 +225,19 @@ public sealed class DiscordPresenceClient : IDisposable
                 _failedInitializeAttempts = Math.Min(_failedInitializeAttempts + 1, int.MaxValue);
                 var delay = DiscordReconnectBackoff.GetDelay(_failedInitializeAttempts);
                 _log.Warn($"Discord RPC client id is not configured for the current profile. Reconnecting in {delay.TotalSeconds:0}s.");
-                _nextInitializeAttemptUtc = DateTime.UtcNow.Add(delay);
+                _nextInitializeAttemptUtc = _utcNow().Add(delay);
                 return false;
             }
 
             ResetClient();
-            _client = new DiscordRpcClient(_options.ClientId);
+            _client = _transportFactory(_options.ClientId);
             _isReady = _client.Initialize();
 
             if (_isReady)
             {
                 _failedInitializeAttempts = 0;
                 LastPublishedPresence = null;
+                _clearPending = false;
                 _needsPresenceRefresh = true;
                 if (logSuccess)
                 {
@@ -185,6 +248,7 @@ public sealed class DiscordPresenceClient : IDisposable
             {
                 ResetClient();
                 LastPublishedPresence = null;
+                _clearPending = false;
                 _failedInitializeAttempts = Math.Min(_failedInitializeAttempts + 1, int.MaxValue);
                 var delay = DiscordReconnectBackoff.GetDelay(_failedInitializeAttempts);
                 _log.Warn($"Discord RPC is not ready. Reconnecting in {delay.TotalSeconds:0}s.");
@@ -196,6 +260,7 @@ public sealed class DiscordPresenceClient : IDisposable
             _isReady = false;
             ResetClient();
             LastPublishedPresence = null;
+            _clearPending = false;
             _needsPresenceRefresh = true;
             _failedInitializeAttempts = Math.Min(_failedInitializeAttempts + 1, int.MaxValue);
             var delay = DiscordReconnectBackoff.GetDelay(_failedInitializeAttempts);
@@ -204,7 +269,7 @@ public sealed class DiscordPresenceClient : IDisposable
 
         _nextInitializeAttemptUtc = _isReady
             ? DateTime.MinValue
-            : DateTime.UtcNow.Add(DiscordReconnectBackoff.GetDelay(_failedInitializeAttempts));
+            : _utcNow().Add(DiscordReconnectBackoff.GetDelay(_failedInitializeAttempts));
         return _isReady;
     }
 
