@@ -138,18 +138,6 @@
     inactiveParts = previousActiveParts;
   };
 
-  const activateWithoutMotion = (incomingCard, incomingParts, outgoingCard, slide, index) => {
-    renderCard(incomingCard, incomingParts, slide, index);
-    renderOutputs(slide, index);
-    resetTrack(incomingCard, outgoingCard);
-    outgoingCard.setAttribute("aria-hidden", "true");
-    incomingCard.setAttribute("aria-hidden", "false");
-    swapCardReferences();
-    activeIndex = index;
-    startedAt = performance.now();
-    updateElapsed();
-  };
-
   const animateTrack = (outgoingCard, incomingCard, onFinish) => {
     track.classList.remove(...trackMotionClasses);
     track.insertBefore(outgoingCard, incomingCard);
@@ -204,11 +192,6 @@
     const incomingCard = inactiveCard;
     const incomingParts = inactiveParts;
     const nextSlide = slides[nextIndex];
-
-    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
-      activateWithoutMotion(incomingCard, incomingParts, outgoingCard, nextSlide, nextIndex);
-      return;
-    }
 
     isTransitioning = true;
     updateButtons();
