@@ -29,9 +29,23 @@ It runs in the background with a system tray icon, where you can toggle `Enable`
 The tray `Enable` state is saved under `%LOCALAPPDATA%\CodexDiscordPresence\presence-state.json`.
 The app can also check GitHub Releases once at startup and only logs when a newer release exists.
 
+## Current preview
+
+This is a render from the same `DashboardPreviewSurface` used by the tray app. It is not an external RPC mockup. The showcase values come from a real party session in the local log:
+
+`2026-09-06T13:10:04.6017402Z [INFO] Presence rendered: Details=gpt 5.6 luna max 1.5x • 125M Token; State=MCP chrome-devtools Reading; LargeImage=rpc_reading`
+
+The corresponding activity-detection record reports `partySize=5`. The preview was rendered from a published-presence snapshot carrying that real `5 / 5` party value, while the visible state follows the current MCP display policy (`MCP chrome-devtools`, without the internal `Reading` suffix).
+
+<div align="center">
+  <img src="Preview/rpc-preview-current.png" width="360" alt="Codex Discord Rich Presence dashboard preview showing MCP chrome-devtools">
+</div>
+
+The preview uses Discord's current typography hierarchy: `gg sans` when it is installed, otherwise the available `Segoe UI Variable Text` family with a named Semibold face for headings. Discord states that `gg sans` is proprietary and not currently open source, so it is not bundled with this project.
+
 ## Archived preview images
 
-The images in `Preview/` are historical examples from an earlier build and may not match the current release output. They are retained as development references, not as current product screenshots.
+The remaining `Preview/rpc-preview-1.png` through `Preview/rpc-preview-5.png` files are historical examples from an earlier build and may not match the current release output. They are retained as development references, not as current product screenshots.
 
 <div align="center" style="margin-bottom: 0;">
 <table style="margin: 0 auto;">
