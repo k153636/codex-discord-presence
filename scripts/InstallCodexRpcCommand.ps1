@@ -11,9 +11,19 @@ try {
     $root = [System.IO.Path]::GetFullPath($RootDir).TrimEnd(
         [System.IO.Path]::DirectorySeparatorChar,
         [System.IO.Path]::AltDirectorySeparatorChar)
-    $startScript = Join-Path $root 'start.cmd'
-    if (-not (Test-Path -LiteralPath $startScript)) {
-        throw "Start script not found: $startScript"
+    $buildScript = Join-Path $root 'build.cmd'
+    if (-not (Test-Path -LiteralPath $buildScript)) {
+        throw "Build script not found: $buildScript"
+    }
+
+    $launchScript = Join-Path $root 'scripts\LaunchPublishedBuild.ps1'
+    if (-not (Test-Path -LiteralPath $launchScript)) {
+        throw "Published-build launcher not found: $launchScript"
+    }
+
+    $publishExe = Join-Path (Join-Path $root 'publish') 'discord-presence-for-codex.exe'
+    if (-not (Test-Path -LiteralPath $publishExe -PathType Leaf)) {
+        throw "Published build not found: $publishExe. Run build.cmd first."
     }
 
     Assert-CodexRpcManagedFile -Path $paths.CommandPath -Marker $paths.Marker
@@ -34,19 +44,28 @@ try {
 # CodexDiscordPresenceLauncher
 param(
     [Parameter(ValueFromRemainingArguments = $true)]
-    [string[]]$Arguments
+    [string[]]$Arguments = @()
 )
 
 $ErrorActionPreference = 'Stop'
 $root = '__CODEX_RPC_ROOT__'
-$startScript = Join-Path $root 'start.cmd'
+$launchScript = Join-Path $root 'scripts\LaunchPublishedBuild.ps1'
 
-if (-not (Test-Path -LiteralPath $startScript)) {
-    Write-Error "Codex Discord RPC checkout is unavailable: $startScript"
+if (-not (Test-Path -LiteralPath $launchScript)) {
+    Write-Error "Codex Discord RPC checkout is unavailable: $launchScript"
     exit 1
 }
 
-& $startScript @Arguments
+$forwardedArguments = @()
+if ($null -ne $Arguments) {
+    $forwardedArguments = @($Arguments)
+}
+
+$launchParameters = @{
+    RootDir = $root
+    Arguments = $forwardedArguments
+}
+& $launchScript @launchParameters
 $exitCode = $LASTEXITCODE
 if ($null -eq $exitCode) {
     $exitCode = 0

@@ -27,7 +27,7 @@ For the user-facing documentation, see the [Codex Discord Rich Presence site](ht
 The app is configured as a `win-x64` single-file publish that requires the .NET 9 Desktop Runtime on the target machine.
 It runs in the background with a system tray icon, where you can toggle `Enable`, open `appsettings.json`, or `Quit`.
 `start.cmd` stops the previous process, waits for it to exit, rebuilds, and launches the latest published build so the tray app stays in sync with the current source.
-The installed `codex-rpc` command delegates to that same `start.cmd` flow. Each invocation removes the disposable `publish` and `publish-next` output before publishing, while retaining the reusable `bin` and `obj` compiler caches. After installation or removal, an already-open PowerShell session must be reopened to observe the PATH change.
+The installed `codex-rpc` command opens the existing `publish\discord-presence-for-codex.exe` without rebuilding. Run `build.cmd` explicitly when source changes should be included; if no published build exists, `codex-rpc` exits with that instruction instead of invoking the SDK. After installation or removal, an already-open PowerShell session must be reopened to observe the PATH change.
 The tray `Enable` state is saved under `%LOCALAPPDATA%\CodexDiscordPresence\presence-state.json`.
 The app can also check GitHub Releases once at startup and only logs when a newer release exists.
 
@@ -310,6 +310,7 @@ The default small image key is:
 ## Notes
 
 - `start.cmd` stops the previous process, rebuilds, and launches the latest published exe in the background
+- `codex-rpc` stops the previous process and launches the latest existing published exe without rebuilding
 - `stop.cmd` stops the running instance
 - Install the .NET 9 Desktop Runtime if the app says the runtime is missing
 - `git diff`, recent file writes, and session logs are used together to infer active work
