@@ -29,7 +29,9 @@ It runs in the background with a system tray icon, where you can toggle `Enable`
 The tray `Enable` state is saved under `%LOCALAPPDATA%\CodexDiscordPresence\presence-state.json`.
 The app can also check GitHub Releases once at startup and only logs when a newer release exists.
 
-## Preview
+## Archived preview images
+
+The images in `Preview/` are historical examples from an earlier build and may not match the current release output. They are retained as development references, not as current product screenshots.
 
 <div align="center" style="margin-bottom: 0;">
 <table style="margin: 0 auto;">

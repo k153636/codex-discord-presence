@@ -21,9 +21,9 @@ html {
 
 body {
   margin: 0;
-  background: radial-gradient(circle at 15% 0%, #1e2930 0, var(--background) 38rem), var(--background);
+  background: var(--background);
   color: var(--text);
-  font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-family: "Segoe UI", ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
   line-height: 1.65;
 }
 
@@ -74,15 +74,26 @@ nav {
 }
 
 .hero {
-  padding: 7rem 0 5rem;
+  padding: 6.5rem 0 4.5rem;
+}
+
+.hero-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 0.9fr) minmax(360px, 1.1fr);
+  align-items: center;
+  gap: clamp(3rem, 8vw, 7rem);
+}
+
+.hero-copy {
+  max-width: 600px;
 }
 
 .eyebrow {
   margin: 0 0 0.8rem;
   color: var(--accent);
-  font-size: 0.76rem;
-  font-weight: 800;
-  letter-spacing: 0.16em;
+  font-size: 0.88rem;
+  font-weight: 700;
+  letter-spacing: 0.03em;
 }
 
 h1,
@@ -94,8 +105,9 @@ h3 {
 }
 
 h1 {
-  max-width: 780px;
-  font-size: clamp(2.7rem, 8vw, 5.8rem);
+  max-width: 600px;
+  font-size: clamp(3.3rem, 7vw, 6.2rem);
+  line-height: 0.98;
 }
 
 h2 {
@@ -107,7 +119,7 @@ h3 {
 }
 
 .lead {
-  max-width: 720px;
+  max-width: 620px;
   margin: 1.6rem 0 0;
   color: var(--muted);
   font-size: clamp(1.08rem, 2vw, 1.35rem);
@@ -141,6 +153,152 @@ h3 {
 .button.secondary {
   background: var(--surface);
   color: var(--text);
+}
+
+.button:focus-visible,
+a:focus-visible {
+  outline: 3px solid var(--accent);
+  outline-offset: 3px;
+}
+
+.button.primary:hover {
+  background: #b2f5c1;
+}
+
+.button.secondary:hover {
+  border-color: var(--text);
+}
+
+.hero-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0;
+  margin-top: 2.3rem;
+  border-top: 1px solid var(--border);
+  color: var(--muted);
+  font-size: 0.86rem;
+}
+
+.hero-meta span {
+  padding: 0.8rem 1rem 0 0;
+}
+
+.hero-meta span + span {
+  padding-left: 1rem;
+  border-left: 1px solid var(--border);
+}
+
+.presence-figure {
+  margin: 0;
+  padding: 1rem;
+  border: 1px solid var(--border);
+  border-radius: 1rem;
+  background: var(--surface);
+  box-shadow: 0 1.5rem 4rem rgba(0, 0, 0, 0.22);
+}
+
+.figure-topline {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 0.85rem;
+  color: var(--muted);
+  font-size: 0.78rem;
+}
+
+.output-icon {
+  display: block;
+  width: 64px;
+  height: 64px;
+  border-radius: 14px;
+}
+
+.output-brand {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 0.5rem 0 1.4rem;
+}
+
+.output-brand strong,
+.output-brand span {
+  display: block;
+}
+
+.output-brand strong {
+  font-size: 1.2rem;
+}
+
+.output-brand span,
+.output-fields dd,
+.presence-figure figcaption {
+  color: var(--muted);
+}
+
+.output-brand span {
+  margin-top: 0.2rem;
+  font-size: 0.88rem;
+}
+
+.output-fields {
+  margin: 0;
+  border-top: 1px solid var(--border);
+}
+
+.output-fields > div {
+  display: grid;
+  grid-template-columns: 5rem 1fr;
+  gap: 1rem;
+  padding: 0.8rem 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.output-fields dt,
+.output-fields dd {
+  margin: 0;
+  font-size: 0.88rem;
+}
+
+.output-fields dt {
+  color: var(--text);
+  font-weight: 700;
+}
+
+.presence-figure figcaption {
+  display: block;
+  margin-top: 1rem;
+  font-size: 0.84rem;
+}
+
+.proof-strip {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  border-top: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+}
+
+.proof-item {
+  padding: 1.2rem 1.5rem 1.35rem 0;
+}
+
+.proof-item + .proof-item {
+  padding-left: 1.5rem;
+  border-left: 1px solid var(--border);
+}
+
+.proof-item strong,
+.proof-item span {
+  display: block;
+}
+
+.proof-item strong {
+  color: var(--text);
+}
+
+.proof-item span {
+  margin-top: 0.2rem;
+  color: var(--muted);
+  font-size: 0.88rem;
 }
 
 .note,
@@ -177,25 +335,24 @@ th {
   margin-bottom: 2rem;
 }
 
-.card-grid {
+.feature-grid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 1rem;
+  gap: 2rem;
 }
 
-.card,
 .callout {
   border: 1px solid var(--border);
   border-radius: 0.8rem;
-  background: linear-gradient(145deg, rgba(32, 35, 42, 0.94), rgba(24, 26, 31, 0.94));
+  background: var(--surface);
 }
 
-.card {
-  min-height: 12rem;
-  padding: 1.35rem;
+.feature {
+  padding-top: 1.2rem;
+  border-top: 2px solid var(--accent);
 }
 
-.card p,
+.feature p,
 .prose p {
   color: var(--muted);
 }
@@ -238,13 +395,37 @@ th {
 
 @media (max-width: 760px) {
   .hero {
-    padding: 5rem 0 3rem;
+    padding: 4.5rem 0 3.5rem;
   }
 
-  .card-grid,
+  .hero-grid,
+  .feature-grid,
+  .proof-strip,
   .split,
   .callout {
     grid-template-columns: 1fr;
+  }
+
+  .presence-figure {
+    margin-top: 1rem;
+  }
+
+  .proof-item,
+  .proof-item + .proof-item {
+    padding: 1rem 0;
+    border-left: 0;
+  }
+
+  .proof-item + .proof-item {
+    border-top: 1px solid var(--border);
+  }
+
+  .hero-meta span {
+    padding-top: 0.65rem;
+  }
+
+  .hero-meta span + span {
+    padding-left: 0.75rem;
   }
 
   .callout > p {
@@ -256,5 +437,11 @@ th {
     align-items: flex-start;
     flex-direction: column;
     padding: 1rem 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
   }
 }
