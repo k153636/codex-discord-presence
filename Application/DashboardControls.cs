@@ -280,6 +280,7 @@ internal sealed class DashboardPreviewSurface : Control
     private readonly Image _fallbackImage;
     private readonly Image _gameIcon;
     private readonly FontFamily _discordFontFamily;
+    private readonly FontFamily _discordSemiboldFontFamily;
     private readonly DashboardPresenceImageSlot _largeImage;
     private readonly DashboardPresenceImageSlot _smallImage;
 
@@ -295,6 +296,7 @@ internal sealed class DashboardPreviewSurface : Control
         _fallbackImage = LoadCodexImage();
         _gameIcon = DashboardDiscordActivityIcon.Load();
         _discordFontFamily = DashboardTypography.CreateDiscordFontFamily();
+        _discordSemiboldFontFamily = DashboardTypography.CreateDiscordFontFamily(semibold: true);
         _largeImage = new DashboardPresenceImageSlot(_fallbackImage, InvalidateIfAlive);
         _smallImage = new DashboardPresenceImageSlot(_fallbackImage, InvalidateIfAlive);
     }
@@ -316,6 +318,7 @@ internal sealed class DashboardPreviewSurface : Control
         {
             _largeImage.Dispose();
             _smallImage.Dispose();
+            _discordSemiboldFontFamily.Dispose();
             _discordFontFamily.Dispose();
             _gameIcon.Dispose();
             _fallbackImage.Dispose();
@@ -378,19 +381,19 @@ internal sealed class DashboardPreviewSurface : Control
 
         DashboardDrawing.DrawText(
             graphics,
-            _discordFontFamily,
+            _discordSemiboldFontFamily,
             DashboardTextFormatter.FormatActivityType(publishedPresence),
             new Rectangle(cardRect.Left + 12, cardRect.Top + 9, 160, ActivityTypeTextHeight),
-            10f,
-            FontStyle.Bold,
+            12f,
+            DashboardTypography.DiscordSemiboldFontStyle,
             DashboardPalette.DiscordText);
         DashboardDrawing.DrawText(
             graphics,
-            _discordFontFamily,
+            _discordSemiboldFontFamily,
             "...",
             new Rectangle(cardRect.Right - 38, cardRect.Top + 5, 30, MenuTextHeight),
-            10f,
-            FontStyle.Bold,
+            12f,
+            DashboardTypography.DiscordSemiboldFontStyle,
             DashboardPalette.DiscordText,
             TextFormatFlags.NoPadding |
             TextFormatFlags.HorizontalCenter |
@@ -414,18 +417,18 @@ internal sealed class DashboardPreviewSurface : Control
         var contentWidth = cardRect.Width - 135;
         DashboardDrawing.DrawText(
             graphics,
-            _discordFontFamily,
+            _discordSemiboldFontFamily,
             "Codex",
             new Rectangle(contentLeft, cardRect.Top + 48, contentWidth, ApplicationTextHeight),
-            11f,
-            FontStyle.Bold,
+            14f,
+            DashboardTypography.DiscordSemiboldFontStyle,
             DashboardPalette.DiscordText);
         DashboardDrawing.DrawText(
             graphics,
             _discordFontFamily,
             details,
             new Rectangle(contentLeft, cardRect.Top + 69, contentWidth, DetailTextHeight),
-            9f,
+            12f,
             FontStyle.Regular,
             DashboardPalette.DiscordText,
             TextFormatFlags.NoPadding |
@@ -436,7 +439,7 @@ internal sealed class DashboardPreviewSurface : Control
             _discordFontFamily,
             state,
             new Rectangle(contentLeft, cardRect.Top + 87, contentWidth, StateTextHeight),
-            9f,
+            12f,
             FontStyle.Regular,
             _enabled ? DashboardPalette.DiscordText : DashboardPalette.Disabled,
             TextFormatFlags.NoPadding |
@@ -455,7 +458,7 @@ internal sealed class DashboardPreviewSurface : Control
             _discordFontFamily,
             elapsed,
             new Rectangle(contentLeft + 17, cardRect.Top + 105, contentWidth - 17, ElapsedTextHeight),
-            9f,
+            12f,
             FontStyle.Regular,
             DashboardPalette.DiscordGreen);
     }

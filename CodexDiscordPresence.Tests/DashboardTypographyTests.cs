@@ -11,4 +11,12 @@ public sealed class DashboardTypographyTests
 
         Assert.Contains(DashboardTypography.DiscordFontFamilyName, supportedFamilies);
     }
+
+    [Fact]
+    public void DiscordSemiboldFont_ResolvesAnAvailableSemiboldStyle()
+    {
+        using var fontFamily = DashboardTypography.CreateDiscordFontFamily(semibold: true);
+
+        Assert.True(fontFamily.IsStyleAvailable(DashboardTypography.DiscordSemiboldFontStyle));
+    }
 }
