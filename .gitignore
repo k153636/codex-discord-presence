@@ -5,3 +5,36 @@ publish-next/
 *.user
 *.suo
 .vs/
+
+# Private agent instructions and local workspace metadata
+AGENTS.md
+**/AGENTS.md
+.agents/
+.playwright-mcp/
+skills-lock.json
+
+# Local evidence, session traces, and sensitive configuration
+*.log
+*.trace
+*.har
+*.session
+*.jsonl
+*.local
+*.private
+*.secret
+*.secrets
+.env
+.env.*
+!.env.example
+**/logs/
+*.pfx
+*.pem
+*.key
+*.db
+*.sqlite
+*.sqlite3
+
+# Root-level visual validation captures
+/*.png
+/*.jpg
+/*.jpeg
