@@ -81,7 +81,10 @@
 
   const themeStateIndexes = selectInitialStateIndexes();
   const themeEfforts = rpcThemes.map(() => "xhigh");
-  const themeStartedAt = rpcThemes.map(() => performance.now());
+  const initialTimestamp = performance.now();
+  const themeStartedAt = rpcThemes.map(() => initialTimestamp);
+  const themeTokenCounts = rpcThemes.map(() => baseTokenCount);
+  const themeTokenUpdatedAt = rpcThemes.map(() => initialTimestamp);
 
   const normalizeThemeIndex = (index) => (index + rpcThemes.length) % rpcThemes.length;
 
@@ -93,8 +96,13 @@
 
   const getTokenCount = (themeIndex, now) => {
     const state = getThemeState(themeIndex);
-    const elapsedSeconds = Math.max(0, Math.floor((now - themeStartedAt[themeIndex]) / 1000));
-    return baseTokenCount + elapsedSeconds * state.tokenRatePerSecond;
+    const elapsedSeconds = Math.max(0, Math.floor((now - themeTokenUpdatedAt[themeIndex]) / 1000));
+    if (elapsedSeconds > 0) {
+      themeTokenCounts[themeIndex] += elapsedSeconds * state.tokenRatePerSecond;
+      themeTokenUpdatedAt[themeIndex] += elapsedSeconds * 1000;
+    }
+
+    return themeTokenCounts[themeIndex];
   };
 
   const formatDetails = (themeIndex, now) => `${modelLabel} ${themeEfforts[themeIndex]} 1.5x • ${formatTokenCount(getTokenCount(themeIndex, now))}`;
@@ -256,9 +264,12 @@
   };
 
   const advanceThemeState = (themeIndex) => {
+    const now = performance.now();
+    getTokenCount(themeIndex, now);
     themeStateIndexes[themeIndex] = getNextStateIndex(themeIndex);
     themeEfforts[themeIndex] = getThemeState(themeIndex).effort;
-    themeStartedAt[themeIndex] = performance.now();
+    themeStartedAt[themeIndex] = now;
+    themeTokenUpdatedAt[themeIndex] = now;
     renderThemeCards(themeIndex);
     if (themeIndex === activeThemeIndex) {
       renderStatus(themeIndex);
