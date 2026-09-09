@@ -132,7 +132,7 @@
   let isTransitioning = false;
   let autoAdvanceTimer = 0;
   let autoAdvancePaused = preview.matches(":hover");
-  const autoAdvanceDelay = 4200;
+  const autoAdvanceDelay = 6200;
   const prefersReducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
 
   const clearAutoAdvance = () => {
