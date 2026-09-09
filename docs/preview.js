@@ -17,11 +17,21 @@
   const baseTokenCount = 35_600_000;
   const rpcThemes = [
     {
+      palette: {
+        primary: "41 151 255",
+        secondary: "37 99 235",
+        shadow: "64 168 255"
+      },
       states: [
         { activity: "MCP chrome-devtools", image: "assets/rpc_reading.gif", initialElapsedSeconds: 120, tokenGrowthMinPerSecond: 180_000, tokenGrowthMaxPerSecond: 480_000, tokenBurstMin: 160_000, tokenBurstMax: 360_000, effort: "xhigh" }
       ]
     },
     {
+      palette: {
+        primary: "167 139 250",
+        secondary: "124 58 237",
+        shadow: "139 92 246"
+      },
       states: [
         { activity: "Keeping the signal concise", image: "assets/rpc_thinking.gif", initialElapsedSeconds: 154, tokenGrowthMinPerSecond: 160_000, tokenGrowthMaxPerSecond: 420_000, tokenBurstMin: 120_000, tokenBurstMax: 360_000, effort: "max" },
         { activity: "Summarizing the active work", image: "assets/rpc_thinking.gif", initialElapsedSeconds: 146, tokenGrowthMinPerSecond: 120_000, tokenGrowthMaxPerSecond: 320_000, tokenBurstMin: 80_000, tokenBurstMax: 240_000, effort: "high" },
@@ -29,6 +39,11 @@
       ]
     },
     {
+      palette: {
+        primary: "245 158 11",
+        secondary: "234 88 12",
+        shadow: "249 115 22"
+      },
       states: [
         { activity: "Comparing rendered bounds", image: "assets/rpc_thinking.gif", initialElapsedSeconds: 124, tokenGrowthMinPerSecond: 260_000, tokenGrowthMaxPerSecond: 720_000, tokenBurstMin: 240_000, tokenBurstMax: 600_000, effort: "high" },
         { activity: "Keeping the frame stable", image: "assets/rpc_coding.gif", initialElapsedSeconds: 150, tokenGrowthMinPerSecond: 420_000, tokenGrowthMaxPerSecond: 980_000, tokenBurstMin: 360_000, tokenBurstMax: 820_000, effort: "xhigh" },
@@ -37,6 +52,12 @@
       ]
     }
   ];
+
+  const defaultThemePalette = {
+    primary: "41 151 255",
+    secondary: "37 99 235",
+    shadow: "64 168 255"
+  };
 
   const cardPositionClasses = [
     "rpc-preview-card--far-previous",
@@ -93,6 +114,13 @@
 
   const getThemeState = (themeIndex) => {
     return rpcThemes[themeIndex].states[themeStateIndexes[themeIndex]];
+  };
+
+  const applyThemePalette = (themeIndex) => {
+    const palette = rpcThemes[themeIndex]?.palette ?? defaultThemePalette;
+    preview.style.setProperty("--rpc-glow-primary", palette.primary ?? defaultThemePalette.primary);
+    preview.style.setProperty("--rpc-glow-secondary", palette.secondary ?? defaultThemePalette.secondary);
+    preview.style.setProperty("--rpc-glow-shadow", palette.shadow ?? defaultThemePalette.shadow);
   };
 
   const formatTokenCount = (tokenCount) => `${(tokenCount / 1_000_000).toFixed(1)}M Token`;
@@ -282,6 +310,7 @@
     themeTokenUpdatedAt[themeIndex] = now;
     renderThemeCards(themeIndex);
     if (themeIndex === activeThemeIndex) {
+      applyThemePalette(themeIndex);
       renderStatus(themeIndex);
     }
     updateElapsed();
@@ -299,6 +328,7 @@
     const incomingCard = cardsByOffset.get(incomingOffset);
     const incomingParts = partsByCard.get(incomingCard);
 
+    applyThemePalette(nextThemeIndex);
     isTransitioning = true;
     updateButtons();
     renderCard(incomingCard, incomingParts, nextThemeIndex);
@@ -367,6 +397,7 @@
     }
   });
 
+  applyThemePalette(activeThemeIndex);
   renderInitialCards();
   renderStatus(activeThemeIndex);
   updateElapsed();
