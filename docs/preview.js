@@ -16,38 +16,29 @@
   const rpcThemes = [
     {
       details: "MCP chrome-devtools",
-      image: "assets/rpc_reading.gif",
       states: [
-        { activity: "Reading the live DOM first", initialElapsedSeconds: 120 },
-        { activity: "Comparing rendered bounds", initialElapsedSeconds: 124 },
-        { activity: "Inspecting the active tab", initialElapsedSeconds: 128 }
+        { activity: "Reading the live DOM first", image: "assets/rpc_reading.gif", initialElapsedSeconds: 120 },
+        { activity: "Comparing rendered bounds", image: "assets/rpc_thinking.gif", initialElapsedSeconds: 124 },
+        { activity: "Inspecting the active tab", image: "assets/rpc_coding.gif", initialElapsedSeconds: 128 }
       ]
     },
     {
       details: "Codex thought summary",
-      image: "assets/rpc_thinking.gif",
       states: [
-        { activity: "The frame should stay stable", initialElapsedSeconds: 146 },
-        { activity: "Tracing the parent width", initialElapsedSeconds: 150 },
-        { activity: "Keeping the signal concise", initialElapsedSeconds: 154 }
+        { activity: "The frame should stay stable", image: "assets/rpc_thinking.gif", initialElapsedSeconds: 146 },
+        { activity: "Tracing the parent width", image: "assets/rpc_coding.gif", initialElapsedSeconds: 150 },
+        { activity: "Keeping the signal concise", image: "assets/rpc_reading.gif", initialElapsedSeconds: 154 }
       ]
     },
     {
       details: "Debugging live render",
-      image: "assets/rpc_coding.gif",
       states: [
-        { activity: "Reproducing the timer drift", initialElapsedSeconds: 168 },
-        { activity: "Tracing the icon squeeze", initialElapsedSeconds: 172 },
-        { activity: "Verifying the elapsed state", initialElapsedSeconds: 176 }
+        { activity: "Reproducing the timer drift", image: "assets/rpc_coding.gif", initialElapsedSeconds: 168 },
+        { activity: "Tracing the icon squeeze", image: "assets/rpc_reading.gif", initialElapsedSeconds: 172 },
+        { activity: "Verifying the elapsed state", image: "assets/rpc_thinking.gif", initialElapsedSeconds: 176 }
       ]
     }
   ];
-
-  const slides = rpcThemes.flatMap((theme) => theme.states.map((state) => ({
-    ...state,
-    details: theme.details,
-    image: theme.image
-  })));
 
   const cardPositionClasses = [
     "rpc-preview-card--far-previous",
@@ -87,7 +78,15 @@
     return `${minutes}:${seconds.toString().padStart(2, "0")}`;
   };
 
-  const normalizeIndex = (index) => (index + slides.length) % slides.length;
+  const themeStateIndexes = rpcThemes.map(() => 0);
+  const themeStartedAt = rpcThemes.map(() => performance.now());
+
+  const normalizeThemeIndex = (index) => (index + rpcThemes.length) % rpcThemes.length;
+
+  const getThemeState = (themeIndex) => {
+    const theme = rpcThemes[themeIndex];
+    return theme.states[themeStateIndexes[themeIndex]];
+  };
 
   const getPositionClass = (offset) => {
     if (offset <= -2) {
@@ -111,58 +110,71 @@
     card.setAttribute("aria-hidden", offset === 0 ? "false" : "true");
   };
 
-  const renderCard = (card, parts, slide, index) => {
-    parts.details.textContent = slide.details;
-    parts.state.textContent = slide.activity;
-    parts.state.classList.toggle("rpc-preview-card-state--wrapped", slide.activity.includes("\n"));
-    parts.image.src = slide.image;
-    parts.elapsed.textContent = formatElapsed(safeSeconds(slide.initialElapsedSeconds));
-    card.setAttribute("aria-label", `Discord activity ${index + 1} of ${slides.length}: ${slide.details}: ${slide.activity.replace(/\s+/g, " ").trim()}`);
+  const renderCard = (card, parts, themeIndex) => {
+    const theme = rpcThemes[themeIndex];
+    const state = getThemeState(themeIndex);
+    parts.details.textContent = theme.details;
+    parts.state.textContent = state.activity;
+    parts.state.classList.toggle("rpc-preview-card-state--wrapped", state.activity.includes("\n"));
+    parts.image.src = state.image;
+    parts.elapsed.textContent = formatElapsed(safeSeconds(state.initialElapsedSeconds));
+    card.setAttribute("aria-label", `Discord activity ${themeIndex + 1} of ${rpcThemes.length}: ${theme.details}: ${state.activity.replace(/\s+/g, " ").trim()}`);
   };
 
-  const renderStatus = (slide, index) => {
-    slideStatus.textContent = `${slide.details} · ${slide.activity.replace(/\s+/g, " ").trim()}`;
+  const renderStatus = (themeIndex) => {
+    const theme = rpcThemes[themeIndex];
+    const state = getThemeState(themeIndex);
+    slideStatus.textContent = `${theme.details} · ${state.activity.replace(/\s+/g, " ").trim()}`;
   };
 
-  let activeIndex = 0;
+  let activeThemeIndex = 0;
   let cardsByOffset = new Map(cards.map((card, index) => [index - 2, card]));
-  let activeCard = cardsByOffset.get(0);
-  let activeParts = partsByCard.get(activeCard);
-  let startedAt = performance.now();
   let isTransitioning = false;
-  let autoAdvanceTimer = 0;
+  const autoAdvanceTimers = rpcThemes.map(() => 0);
   let autoAdvancePaused = preview.matches(":hover");
   const autoAdvanceDelay = 6200;
+  const autoAdvanceStagger = 1100;
   const prefersReducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
 
-  const clearAutoAdvance = () => {
-    window.clearTimeout(autoAdvanceTimer);
-    autoAdvanceTimer = 0;
+  const clearThemeAutoAdvance = (themeIndex) => {
+    window.clearTimeout(autoAdvanceTimers[themeIndex]);
+    autoAdvanceTimers[themeIndex] = 0;
   };
 
-  const scheduleAutoAdvance = () => {
-    clearAutoAdvance();
+  const clearAllThemeAutoAdvances = () => {
+    rpcThemes.forEach((_, themeIndex) => clearThemeAutoAdvance(themeIndex));
+  };
+
+  const scheduleThemeAutoAdvance = (themeIndex, delay = autoAdvanceDelay) => {
+    clearThemeAutoAdvance(themeIndex);
     if (autoAdvancePaused || prefersReducedMotion.matches || document.hidden) {
       return;
     }
 
-    autoAdvanceTimer = window.setTimeout(() => {
-      autoAdvanceTimer = 0;
-      if (!document.hidden && !isTransitioning) {
-        moveTo(1);
+    autoAdvanceTimers[themeIndex] = window.setTimeout(() => {
+      autoAdvanceTimers[themeIndex] = 0;
+      if (!document.hidden && !autoAdvancePaused && !prefersReducedMotion.matches) {
+        advanceThemeState(themeIndex);
       }
-    }, autoAdvanceDelay);
+    }, delay);
   };
 
-  if (typeof prefersReducedMotion.addEventListener === "function") {
-    prefersReducedMotion.addEventListener("change", scheduleAutoAdvance);
-  }
+  const scheduleAllThemeAutoAdvances = (stagger = false) => {
+    rpcThemes.forEach((_, themeIndex) => {
+      const delay = autoAdvanceDelay + (stagger ? themeIndex * autoAdvanceStagger : 0);
+      scheduleThemeAutoAdvance(themeIndex, delay);
+    });
+  };
 
   const updateElapsed = () => {
-    const activeSlide = slides[activeIndex];
-    const elapsedSeconds = safeSeconds(activeSlide.initialElapsedSeconds)
-      + Math.floor((performance.now() - startedAt) / 1000);
-    activeParts.elapsed.textContent = formatElapsed(elapsedSeconds);
+    const now = performance.now();
+    for (const [offset, card] of cardsByOffset) {
+      const themeIndex = normalizeThemeIndex(activeThemeIndex + offset);
+      const state = getThemeState(themeIndex);
+      const elapsedSeconds = safeSeconds(state.initialElapsedSeconds)
+        + Math.floor((now - themeStartedAt[themeIndex]) / 1000);
+      partsByCard.get(card).elapsed.textContent = formatElapsed(elapsedSeconds);
+    }
   };
 
   const updateButtons = () => {
@@ -199,28 +211,51 @@
   const renderInitialCards = () => {
     for (let offset = -2; offset <= 2; offset += 1) {
       const card = cardsByOffset.get(offset);
-      const index = normalizeIndex(activeIndex + offset);
-      renderCard(card, partsByCard.get(card), slides[index], index);
+      const themeIndex = normalizeThemeIndex(activeThemeIndex + offset);
+      renderCard(card, partsByCard.get(card), themeIndex);
       setCardPosition(card, offset);
     }
   };
+
+  const renderThemeCards = (themeIndex) => {
+    for (const [offset, card] of cardsByOffset) {
+      if (normalizeThemeIndex(activeThemeIndex + offset) === themeIndex) {
+        renderCard(card, partsByCard.get(card), themeIndex);
+      }
+    }
+  };
+
+  const advanceThemeState = (themeIndex) => {
+    const theme = rpcThemes[themeIndex];
+    themeStateIndexes[themeIndex] = (themeStateIndexes[themeIndex] + 1) % theme.states.length;
+    themeStartedAt[themeIndex] = performance.now();
+    renderThemeCards(themeIndex);
+    if (themeIndex === activeThemeIndex) {
+      renderStatus(themeIndex);
+    }
+    updateElapsed();
+    scheduleThemeAutoAdvance(themeIndex);
+  };
+
+  if (typeof prefersReducedMotion.addEventListener === "function") {
+    prefersReducedMotion.addEventListener("change", () => scheduleAllThemeAutoAdvances(true));
+  }
 
   const moveTo = (direction) => {
     if (isTransitioning || direction === 0) {
       return;
     }
 
-    clearAutoAdvance();
     const step = direction > 0 ? 1 : -1;
-    const nextIndex = normalizeIndex(activeIndex + step);
+    const nextThemeIndex = normalizeThemeIndex(activeThemeIndex + step);
     const incomingOffset = step > 0 ? 1 : -1;
     const incomingCard = cardsByOffset.get(incomingOffset);
     const incomingParts = partsByCard.get(incomingCard);
 
     isTransitioning = true;
     updateButtons();
-    renderCard(incomingCard, incomingParts, slides[nextIndex], nextIndex);
-    renderStatus(slides[nextIndex], nextIndex);
+    renderCard(incomingCard, incomingParts, nextThemeIndex);
+    renderStatus(nextThemeIndex);
 
     const nextCardsByOffset = new Map();
     for (const [offset, card] of cardsByOffset) {
@@ -234,10 +269,10 @@
       const resetOffset = step > 0 ? 2 : -2;
       const farCard = nextCardsByOffset.get(transitionFarOffset);
       const farParts = partsByCard.get(farCard);
-      const farIndex = normalizeIndex(nextIndex + resetOffset);
+      const farThemeIndex = normalizeThemeIndex(nextThemeIndex + resetOffset);
 
       farCard.style.transition = "none";
-      renderCard(farCard, farParts, slides[farIndex], farIndex);
+      renderCard(farCard, farParts, farThemeIndex);
       setCardPosition(farCard, resetOffset);
       void farCard.offsetWidth;
       farCard.style.transition = "";
@@ -245,14 +280,10 @@
       nextCardsByOffset.delete(transitionFarOffset);
       nextCardsByOffset.set(resetOffset, farCard);
       cardsByOffset = nextCardsByOffset;
-      activeIndex = nextIndex;
-      activeCard = cardsByOffset.get(0);
-      activeParts = partsByCard.get(activeCard);
-      startedAt = performance.now();
+      activeThemeIndex = nextThemeIndex;
       updateElapsed();
       isTransitioning = false;
       updateButtons();
-      scheduleAutoAdvance();
     });
   };
 
@@ -265,34 +296,34 @@
 
   preview.addEventListener("mouseenter", () => {
     autoAdvancePaused = true;
-    clearAutoAdvance();
+    clearAllThemeAutoAdvances();
   });
   preview.addEventListener("mouseleave", () => {
     autoAdvancePaused = false;
-    scheduleAutoAdvance();
+    scheduleAllThemeAutoAdvances(true);
   });
   preview.addEventListener("focusin", () => {
     autoAdvancePaused = true;
-    clearAutoAdvance();
+    clearAllThemeAutoAdvances();
   });
   preview.addEventListener("focusout", (event) => {
     if (!preview.contains(event.relatedTarget)) {
       autoAdvancePaused = false;
-      scheduleAutoAdvance();
+      scheduleAllThemeAutoAdvances(true);
     }
   });
   document.addEventListener("visibilitychange", () => {
     if (document.hidden) {
-      clearAutoAdvance();
+      clearAllThemeAutoAdvances();
     } else {
-      scheduleAutoAdvance();
+      scheduleAllThemeAutoAdvances(true);
     }
   });
 
   renderInitialCards();
-  renderStatus(slides[activeIndex], activeIndex);
+  renderStatus(activeThemeIndex);
   updateElapsed();
   updateButtons();
-  scheduleAutoAdvance();
+  scheduleAllThemeAutoAdvances(true);
   window.setInterval(updateElapsed, 1000);
 })();
