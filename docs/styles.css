@@ -383,12 +383,12 @@ a:focus-visible {
   min-height: 148px;
   max-height: 148px;
   overflow: hidden;
-  padding: 9px 12px 4px;
+  padding: 10px 10px 3px;
   border: 1px solid rgba(255, 255, 255, 0.09);
-  border-radius: 14px;
-  background: linear-gradient(180deg, rgba(45, 48, 54, 0.96) 0%, rgba(28, 30, 34, 0.98) 100%);
+  border-radius: 11px;
+  background: #18181a;
   box-shadow: 0 16px 36px rgba(0, 0, 0, 0.45);
-  color: #dbdddf;
+  color: #b5bac1;
   font-family: "gg sans", "Segoe UI Variable Text", "Segoe UI", ui-sans-serif, system-ui, sans-serif;
   backface-visibility: hidden;
   pointer-events: none;
@@ -523,24 +523,25 @@ a:focus-visible {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  height: 20px;
-  font-size: 10px;
+  height: 22px;
+  font-size: 16px;
   font-weight: 700;
-  line-height: 1;
+  line-height: 22px;
+  color: #f2f3f5;
 }
 
 .rpc-preview-content {
   display: flex;
   align-items: flex-start;
-  height: 108px;
-  margin-top: 7px;
+  height: 90px;
+  margin-top: 10px;
 }
 
 .rpc-preview-art {
   position: relative;
-  flex: 0 0 100px;
-  width: 100px;
-  height: 100px;
+  flex: 0 0 81px;
+  width: 81px;
+  height: 81px;
   aspect-ratio: 1;
 }
 
@@ -548,33 +549,33 @@ a:focus-visible {
   display: block;
   width: 100%;
   height: 100%;
-  border-radius: 8px;
+  border-radius: 11px;
   object-fit: cover;
 }
 
 .rpc-preview-small {
   position: absolute;
   right: -4px;
-  bottom: 0;
+  bottom: -4px;
   display: block;
   width: 32px;
   height: 32px;
-  border: 2px solid #1e1f22;
+  border: 3px solid #18181a;
   border-radius: 50%;
   object-fit: cover;
 }
 
 .rpc-preview-copy {
   display: grid;
-  grid-template-rows: 21px 18px 26px 18px;
+  grid-template-rows: 24px 21px 21px 21px;
   align-content: start;
   min-width: 0;
-  height: 108px;
-  margin-left: 11px;
-  padding-top: 12px;
+  height: 90px;
+  margin-left: 10px;
+  padding-top: 0;
   overflow: hidden;
-  font-size: 9px;
-  line-height: 18px;
+  font-size: 13px;
+  line-height: 21px;
 }
 
 .rpc-preview-copy strong,
@@ -594,24 +595,25 @@ a:focus-visible {
 }
 
 .rpc-preview-copy strong {
-  font-size: 11px;
+  font-size: 18px;
   font-weight: 700;
-  line-height: 21px;
+  line-height: 24px;
+  color: #f2f3f5;
 }
 
 .rpc-preview-elapsed {
   display: flex !important;
   align-items: center;
-  gap: 0.3rem;
-  color: #4ade80;
-  line-height: 18px;
-  height: 18px;
+  gap: 0.4rem;
+  color: #7ec191;
+  line-height: 21px;
+  height: 21px;
 }
 
 .rpc-preview-elapsed img {
   flex: 0 0 auto;
-  width: 14px;
-  height: 14px;
+  width: 18px;
+  height: 18px;
   display: block;
 }
 
