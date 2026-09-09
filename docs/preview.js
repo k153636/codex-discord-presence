@@ -10,8 +10,8 @@
   const slideStatus = preview.querySelector("[data-rpc-slide-status]");
   const outputDetails = document.querySelector("[data-rpc-output-details]");
   const outputState = document.querySelector("[data-rpc-output-state]");
-  const outputParty = document.querySelector("[data-rpc-output-party]");
-  const outputImage = document.querySelector("[data-rpc-output-image]");
+  const outputVisibility = document.querySelector("[data-rpc-output-visibility]");
+  const outputArtwork = document.querySelector("[data-rpc-output-artwork]");
   const buttons = [...preview.querySelectorAll("[data-rpc-direction]")];
 
   if (!track || !initialCard || !slideNote || !slideStatus || buttons.length === 0) {
@@ -20,27 +20,27 @@
 
   const slides = [
     {
-      details: "gpt 5.6 luna max 1.5x • 125M Token",
-      state: "MCP chrome-devtools",
-      party: "5 / 5 from session evidence",
+      model: "GPT-5.6 Luna · Active session",
+      activity: "Reviewing a connected tool",
+      visibility: "Shown on your Discord profile",
       image: "assets/rpc_reading.gif",
-      imageKey: "rpc_reading",
+      artwork: "Reading",
       initialElapsedSeconds: 120
     },
     {
-      details: "gpt 5.6 luna max 1.5x • 125M Token",
-      state: "I’m thinking about building a\nlocal-first AI coding observability tool\nwith privacy and reliability as key selling points.",
-      party: "5 / 5 from session evidence",
+      model: "GPT-5.6 Luna · Active session",
+      activity: "Thinking through a task\nbefore writing code",
+      visibility: "Shown on your Discord profile",
       image: "assets/rpc_thinking.gif",
-      imageKey: "rpc_thinking",
+      artwork: "Thinking",
       initialElapsedSeconds: 84
     },
     {
-      details: "gpt 5.6 luna max 1.5x • 125M Token",
-      state: "Editing docs/preview.js",
-      party: "5 / 5 from session evidence",
+      model: "GPT-5.6 Luna · Active session",
+      activity: "Editing a project file",
+      visibility: "Shown on your Discord profile",
       image: "assets/rpc_coding.gif",
-      imageKey: "rpc_coding",
+      artwork: "Coding",
       initialElapsedSeconds: 192
     }
   ];
@@ -105,21 +105,21 @@
   };
 
   const renderCard = (card, parts, slide, index) => {
-    parts.details.textContent = slide.details;
-    parts.state.textContent = slide.state;
-    parts.state.classList.toggle("rpc-preview-card-state--wrapped", slide.state.includes("\n"));
+    parts.details.textContent = slide.model;
+    parts.state.textContent = slide.activity;
+    parts.state.classList.toggle("rpc-preview-card-state--wrapped", slide.activity.includes("\n"));
     parts.image.src = slide.image;
     parts.elapsed.textContent = formatElapsed(safeSeconds(slide.initialElapsedSeconds));
-    card.setAttribute("aria-label", `RPC preview state ${index + 1} of ${slides.length}: ${slide.state}`);
+    card.setAttribute("aria-label", `Discord activity example ${index + 1} of ${slides.length}: ${slide.activity.replace(/\s+/g, " ").trim()}`);
   };
 
   const renderOutputs = (slide, index) => {
-    outputDetails?.replaceChildren(document.createTextNode(slide.details));
-    outputState?.replaceChildren(document.createTextNode(slide.state));
-    outputParty?.replaceChildren(document.createTextNode(slide.party));
-    outputImage?.replaceChildren(document.createTextNode(slide.imageKey));
-    slideNote.textContent = `State ${index + 1} / ${slides.length} · animated GIF · timer starts at ${formatElapsed(safeSeconds(slide.initialElapsedSeconds))}`;
-    slideStatus.textContent = `RPC preview state ${index + 1} of ${slides.length}: ${slide.state}`;
+    outputDetails?.replaceChildren(document.createTextNode(slide.model));
+    outputState?.replaceChildren(document.createTextNode(slide.activity));
+    outputVisibility?.replaceChildren(document.createTextNode(slide.visibility));
+    outputArtwork?.replaceChildren(document.createTextNode(slide.artwork));
+    slideNote.textContent = "Live preview · use the arrows to explore.";
+    slideStatus.textContent = `Discord activity example ${index + 1} of ${slides.length}: ${slide.activity.replace(/\s+/g, " ").trim()}`;
   };
 
   const resetTrack = (firstCard, secondCard) => {
