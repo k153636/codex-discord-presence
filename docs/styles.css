@@ -654,6 +654,39 @@ a:focus-visible {
   letter-spacing: 0.02em;
 }
 
+.install-line {
+  display: grid;
+  grid-template-columns: minmax(220px, 0.9fr) minmax(300px, 1.1fr) auto;
+  align-items: end;
+  gap: 2rem;
+  padding: 2.75rem 0;
+}
+
+.install-intro .eyebrow {
+  margin-bottom: 0.65rem;
+}
+
+.install-intro h2 {
+  font-size: clamp(1.6rem, 3vw, 2.4rem);
+  letter-spacing: -0.04em;
+}
+
+.install-requirements {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem 1rem;
+  align-items: center;
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: 0.84rem;
+}
+
+.install-requirements span + span::before {
+  margin-right: 1rem;
+  color: var(--border-subtle);
+  content: "·";
+}
+
 .prose {
   max-width: 780px;
 }
@@ -845,6 +878,15 @@ html.motion-enhanced .prose > *.is-visible {
   h1 {
     font-size: clamp(2.2rem, 6vw, 3.2rem);
   }
+
+  .install-line {
+    grid-template-columns: 1fr auto;
+  }
+
+  .install-requirements {
+    grid-column: 1 / -1;
+    grid-row: 2;
+  }
 }
 
 @media (max-width: 760px) {
@@ -886,6 +928,21 @@ html.motion-enhanced .prose > *.is-visible {
   .origin {
     grid-template-columns: 1fr;
     gap: 1.8rem;
+  }
+
+  .install-line {
+    grid-template-columns: 1fr;
+    align-items: start;
+    gap: 1.4rem;
+  }
+
+  .install-requirements {
+    grid-column: auto;
+    grid-row: auto;
+  }
+
+  .install-line .button {
+    width: max-content;
   }
 
   .hero-grid {
