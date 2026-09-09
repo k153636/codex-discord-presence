@@ -115,6 +115,33 @@
   let activeParts = partsByCard.get(activeCard);
   let startedAt = performance.now();
   let isTransitioning = false;
+  let autoAdvanceTimer = 0;
+  let autoAdvancePaused = preview.matches(":hover");
+  const autoAdvanceDelay = 4200;
+  const prefersReducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
+
+  const clearAutoAdvance = () => {
+    window.clearTimeout(autoAdvanceTimer);
+    autoAdvanceTimer = 0;
+  };
+
+  const scheduleAutoAdvance = () => {
+    clearAutoAdvance();
+    if (autoAdvancePaused || prefersReducedMotion.matches || document.hidden) {
+      return;
+    }
+
+    autoAdvanceTimer = window.setTimeout(() => {
+      autoAdvanceTimer = 0;
+      if (!document.hidden && !isTransitioning) {
+        moveTo(1);
+      }
+    }, autoAdvanceDelay);
+  };
+
+  if (typeof prefersReducedMotion.addEventListener === "function") {
+    prefersReducedMotion.addEventListener("change", scheduleAutoAdvance);
+  }
 
   const updateElapsed = () => {
     const activeSlide = slides[activeIndex];
@@ -168,6 +195,7 @@
       return;
     }
 
+    clearAutoAdvance();
     const step = direction > 0 ? 1 : -1;
     const nextIndex = normalizeIndex(activeIndex + step);
     const incomingOffset = step > 0 ? 1 : -1;
@@ -209,6 +237,7 @@
       updateElapsed();
       isTransitioning = false;
       updateButtons();
+      scheduleAutoAdvance();
     });
   };
 
@@ -219,9 +248,36 @@
     });
   });
 
+  preview.addEventListener("mouseenter", () => {
+    autoAdvancePaused = true;
+    clearAutoAdvance();
+  });
+  preview.addEventListener("mouseleave", () => {
+    autoAdvancePaused = false;
+    scheduleAutoAdvance();
+  });
+  preview.addEventListener("focusin", () => {
+    autoAdvancePaused = true;
+    clearAutoAdvance();
+  });
+  preview.addEventListener("focusout", (event) => {
+    if (!preview.contains(event.relatedTarget)) {
+      autoAdvancePaused = false;
+      scheduleAutoAdvance();
+    }
+  });
+  document.addEventListener("visibilitychange", () => {
+    if (document.hidden) {
+      clearAutoAdvance();
+    } else {
+      scheduleAutoAdvance();
+    }
+  });
+
   renderInitialCards();
   renderStatus(slides[activeIndex], activeIndex);
   updateElapsed();
   updateButtons();
+  scheduleAutoAdvance();
   window.setInterval(updateElapsed, 1000);
 })();
