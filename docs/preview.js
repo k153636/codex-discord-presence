@@ -22,15 +22,15 @@
   ];
 
   const sharedStates = [
-    { activity: "Reading the live DOM first", image: "assets/rpc_reading.gif", initialElapsedSeconds: 120, tokenRatePerSecond: 64_000, effort: "xhigh" },
-    { activity: "Comparing rendered bounds", image: "assets/rpc_thinking.gif", initialElapsedSeconds: 124, tokenRatePerSecond: 72_000, effort: "high" },
-    { activity: "Inspecting the active tab", image: "assets/rpc_coding.gif", initialElapsedSeconds: 128, tokenRatePerSecond: 58_000, effort: "max" },
-    { activity: "The frame should stay stable", image: "assets/rpc_thinking.gif", initialElapsedSeconds: 146, tokenRatePerSecond: 46_000, effort: "high" },
-    { activity: "Tracing the parent width", image: "assets/rpc_coding.gif", initialElapsedSeconds: 150, tokenRatePerSecond: 78_000, effort: "xhigh" },
-    { activity: "Keeping the signal concise", image: "assets/rpc_reading.gif", initialElapsedSeconds: 154, tokenRatePerSecond: 52_000, effort: "max" },
-    { activity: "Reproducing the timer drift", image: "assets/rpc_coding.gif", initialElapsedSeconds: 168, tokenRatePerSecond: 88_000, effort: "max" },
-    { activity: "Tracing the icon squeeze", image: "assets/rpc_reading.gif", initialElapsedSeconds: 172, tokenRatePerSecond: 68_000, effort: "xhigh" },
-    { activity: "Verifying the elapsed state", image: "assets/rpc_thinking.gif", initialElapsedSeconds: 176, tokenRatePerSecond: 42_000, effort: "high" }
+    { activity: "Reading the live DOM first", image: "assets/rpc_reading.gif", initialElapsedSeconds: 120, tokenRatePerSecond: 64_000, tokenBurstOnEnter: 120_000, effort: "xhigh" },
+    { activity: "Comparing rendered bounds", image: "assets/rpc_thinking.gif", initialElapsedSeconds: 124, tokenRatePerSecond: 72_000, tokenBurstOnEnter: 180_000, effort: "high" },
+    { activity: "Inspecting the active tab", image: "assets/rpc_coding.gif", initialElapsedSeconds: 128, tokenRatePerSecond: 58_000, tokenBurstOnEnter: 140_000, effort: "max" },
+    { activity: "The frame should stay stable", image: "assets/rpc_thinking.gif", initialElapsedSeconds: 146, tokenRatePerSecond: 46_000, tokenBurstOnEnter: 90_000, effort: "high" },
+    { activity: "Tracing the parent width", image: "assets/rpc_coding.gif", initialElapsedSeconds: 150, tokenRatePerSecond: 78_000, tokenBurstOnEnter: 240_000, effort: "xhigh" },
+    { activity: "Keeping the signal concise", image: "assets/rpc_reading.gif", initialElapsedSeconds: 154, tokenRatePerSecond: 52_000, tokenBurstOnEnter: 130_000, effort: "max" },
+    { activity: "Reproducing the timer drift", image: "assets/rpc_coding.gif", initialElapsedSeconds: 168, tokenRatePerSecond: 88_000, tokenBurstOnEnter: 320_000, effort: "max" },
+    { activity: "Tracing the icon squeeze", image: "assets/rpc_reading.gif", initialElapsedSeconds: 172, tokenRatePerSecond: 68_000, tokenBurstOnEnter: 220_000, effort: "xhigh" },
+    { activity: "Verifying the elapsed state", image: "assets/rpc_thinking.gif", initialElapsedSeconds: 176, tokenRatePerSecond: 42_000, tokenBurstOnEnter: 110_000, effort: "high" }
   ];
 
   const cardPositionClasses = [
@@ -267,7 +267,9 @@
     const now = performance.now();
     getTokenCount(themeIndex, now);
     themeStateIndexes[themeIndex] = getNextStateIndex(themeIndex);
-    themeEfforts[themeIndex] = getThemeState(themeIndex).effort;
+    const nextState = getThemeState(themeIndex);
+    themeTokenCounts[themeIndex] += nextState.tokenBurstOnEnter;
+    themeEfforts[themeIndex] = nextState.effort;
     themeStartedAt[themeIndex] = now;
     themeTokenUpdatedAt[themeIndex] = now;
     renderThemeCards(themeIndex);
