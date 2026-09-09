@@ -48,7 +48,7 @@
   <main>
     <section class="hero shell" aria-labelledby="hero-title">
       <div class="hero-grid">
-        <div class="hero-copy">
+        <div class="hero-copy" data-motion="hero-copy">
           <p class="eyebrow">A living presence for Codex work</p>
           <h1 id="hero-title">Show what you build.</h1>
           <p class="lead">A refined, simple, living presence for the work behind Codex.</p>
@@ -63,7 +63,7 @@
           </div>
         </div>
 
-        <figure class="presence-figure">
+        <figure class="presence-figure" data-motion="presence-figure">
           <div class="rpc-preview-frame">
             <div class="figure-topline">
               <span>Dashboard preview</span>
@@ -122,23 +122,23 @@
       </div>
     </section>
 
-    <section class="signal-rail shell" aria-label="How it works">
+    <section class="signal-rail shell" data-motion="signal-rail" aria-label="How it works">
       <span>Codex session</span>
       <span>Local evidence</span>
       <span>Discord presence</span>
     </section>
 
     <section class="shell section origin" aria-labelledby="origin-heading">
-      <div>
+      <div data-motion="origin-label">
         <p class="eyebrow">Why I made it</p>
       </div>
-      <div class="origin-copy">
+      <div class="origin-copy" data-motion="origin-copy">
         <h2 id="origin-heading">Codex work is easy to miss in Discord.</h2>
         <p>I wanted a Codex RPC that felt refined, simple, and alive—one that showed what was actually happening, not just that I was online. So I built K's Codex RPC to turn observable Codex summaries and activity from the local session into one clear Discord presence that reflects the work more accurately.</p>
       </div>
     </section>
 
-    <section class="shell install-line" aria-labelledby="install-heading">
+    <section class="shell install-line" data-motion="install-line" aria-labelledby="install-heading">
       <div class="install-intro">
         <p class="eyebrow">Ready when you are</p>
         <h2 id="install-heading">Start with one clear line.</h2>
@@ -148,7 +148,7 @@
     </section>
   </main>
 
-  <footer class="site-footer">
+  <footer class="site-footer" data-motion="site-footer">
     <div class="shell footer-row">
       <span>K's Codex RPC · Unofficial community project</span>
       <nav class="footer-links" aria-label="Footer navigation">
@@ -158,5 +158,6 @@
       </nav>
     </div>
   </footer>
+  <script src="motion.js"></script>
 </body>
 </html>
