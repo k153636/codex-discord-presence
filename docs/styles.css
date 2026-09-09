@@ -297,6 +297,9 @@ a:focus-visible {
 }
 
 .rpc-preview-frame {
+  --rpc-preview-card-width: 360px;
+  --rpc-preview-card-half: 180px;
+  --rpc-preview-side-half: 158.4px;
   width: min(100%, 1160px);
   min-width: 360px;
   margin-inline: auto;
@@ -365,9 +368,8 @@ a:focus-visible {
 .rpc-preview-track {
   --rpc-preview-card-gap: clamp(40px, 4vw, 80px);
   --rpc-preview-side-scale: 0.88;
-  --rpc-preview-side-half: 158.4px;
-  --rpc-preview-side-distance: calc(180px + var(--rpc-preview-card-gap) + var(--rpc-preview-side-half));
-  --rpc-preview-far-distance: calc(var(--rpc-preview-side-distance) + 360px);
+  --rpc-preview-side-distance: calc(var(--rpc-preview-card-half) + var(--rpc-preview-card-gap) + var(--rpc-preview-side-half));
+  --rpc-preview-far-distance: calc(var(--rpc-preview-side-distance) + var(--rpc-preview-card-width));
   --rpc-preview-slide-duration: 520ms;
   --rpc-preview-slide-ease: var(--motion-ease);
   position: relative;
@@ -379,9 +381,9 @@ a:focus-visible {
   position: absolute;
   top: 0;
   left: 50%;
-  width: 360px;
-  min-width: 360px;
-  max-width: 360px;
+  width: var(--rpc-preview-card-width);
+  min-width: var(--rpc-preview-card-width);
+  max-width: var(--rpc-preview-card-width);
   height: 148px;
   min-height: 148px;
   max-height: 148px;
@@ -960,18 +962,27 @@ body::before {
   }
 
   .hero-grid {
-    gap: 2rem;
+    gap: clamp(2.75rem, 8vw, 4rem);
   }
 
   .presence-figure {
-    padding: 0.25rem 0 0.75rem;
+    padding: 0.75rem 0 1.35rem;
     overflow-x: visible;
   }
 
   .rpc-preview-frame {
-    width: 360px;
-    max-width: 100%;
+    --rpc-preview-card-width: clamp(300px, calc(100vw - 4rem), 360px);
+    --rpc-preview-card-half: clamp(150px, calc(50vw - 2rem), 180px);
+    --rpc-preview-side-half: clamp(132px, calc(44vw - 28.16px), 158.4px);
+    width: 100%;
+    min-width: var(--rpc-preview-card-width);
+    max-width: none;
     margin-inline: auto;
+  }
+
+  .rpc-preview-carousel,
+  .rpc-preview-viewport {
+    min-width: 0;
   }
 
   .rpc-preview-nav {
@@ -1000,7 +1011,7 @@ body::before {
   }
 
   .rpc-preview-frame {
-    margin-inline: calc((100% - 360px) / 2);
+    margin-inline: auto;
   }
 
   .presence-figure {
@@ -1013,7 +1024,7 @@ body::before {
 
   .rpc-preview-shell::before {
     width: 100%;
-    max-width: 360px;
+    max-width: var(--rpc-preview-card-width);
   }
 
   .rpc-preview-nav--previous {
@@ -1032,15 +1043,18 @@ body::before {
   }
 
   .presence-figure {
+    width: calc(100% + 2rem);
+    margin-left: -1rem;
+    justify-self: start;
     overflow-x: auto;
     overscroll-behavior-x: contain;
   }
 
   .rpc-preview-frame {
-    margin-inline: 0;
+    margin-inline: auto;
   }
 
   .rpc-preview-nav--next {
-    right: 72px;
+    right: 0.35rem;
   }
 }
