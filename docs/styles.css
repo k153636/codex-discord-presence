@@ -660,8 +660,8 @@ html.motion-enhanced .signal-rail.is-visible::after {
 
 .origin {
   display: grid;
-  grid-template-columns: minmax(180px, 0.4fr) minmax(0, 1fr);
-  gap: clamp(2rem, 6vw, 5.5rem);
+  grid-template-columns: max-content minmax(0, 1fr);
+  gap: clamp(2rem, 4vw, 4rem);
   padding: clamp(4.5rem, 7vw, 7rem) 0;
   border-bottom: 1px solid var(--border);
 }
@@ -680,6 +680,11 @@ html.motion-enhanced .signal-rail.is-visible::after {
   color: var(--muted);
   font-size: clamp(1.05rem, 1.6vw, 1.2rem);
   line-height: 1.7;
+}
+
+.origin .eyebrow,
+.install-intro .eyebrow {
+  font-size: 0.9rem;
 }
 
 .install-line {
