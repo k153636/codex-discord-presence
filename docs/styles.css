@@ -271,10 +271,9 @@ a:focus-visible {
   min-width: 0;
   margin: 0;
   padding: 1rem;
-  border: 1px solid var(--border);
+  border: 1px solid transparent;
   border-radius: 1rem;
-  background: var(--surface);
-  box-shadow: 0 1.5rem 4rem rgba(0, 0, 0, 0.22);
+  background: transparent;
   overflow-x: auto;
 }
 
