@@ -5,11 +5,12 @@
   }
 
   const track = preview.querySelector("[data-rpc-preview-track]");
+  const carousel = preview.querySelector(".rpc-preview-carousel");
   const initialCard = preview.querySelector("[data-rpc-card]");
   const slideStatus = preview.querySelector("[data-rpc-slide-status]");
   const buttons = [...preview.querySelectorAll("[data-rpc-direction]")];
 
-  if (!track || !initialCard || !slideStatus || buttons.length === 0) {
+  if (!track || !carousel || !initialCard || !slideStatus || buttons.length === 0) {
     return;
   }
 
@@ -340,6 +341,55 @@
       moveTo(Number.isFinite(direction) ? direction : 0);
     });
   });
+
+  const swipeThreshold = 42;
+  let swipeStart = null;
+
+  const clearSwipe = () => {
+    swipeStart = null;
+  };
+
+  const capturePointer = (method, pointerId) => {
+    try {
+      carousel[method]?.(pointerId);
+    } catch {
+      // Synthetic pointer events and browsers without capture support can skip this.
+    }
+  };
+
+  carousel.addEventListener("pointerdown", (event) => {
+    const target = event.target instanceof Element ? event.target : null;
+    if (!event.isPrimary || event.pointerType === "mouse" || target?.closest("[data-rpc-direction]")) {
+      return;
+    }
+
+    swipeStart = {
+      pointerId: event.pointerId,
+      x: event.clientX,
+      y: event.clientY
+    };
+    capturePointer("setPointerCapture", event.pointerId);
+  });
+
+  carousel.addEventListener("pointerup", (event) => {
+    if (!swipeStart || event.pointerId !== swipeStart.pointerId) {
+      return;
+    }
+
+    const deltaX = event.clientX - swipeStart.x;
+    const deltaY = event.clientY - swipeStart.y;
+    clearSwipe();
+    capturePointer("releasePointerCapture", event.pointerId);
+
+    if (Math.abs(deltaX) < swipeThreshold || Math.abs(deltaX) <= Math.abs(deltaY) * 1.15) {
+      return;
+    }
+
+    moveTo(deltaX < 0 ? 1 : -1);
+  });
+
+  carousel.addEventListener("pointercancel", clearSwipe);
+  carousel.addEventListener("lostpointercapture", clearSwipe);
 
   preview.addEventListener("mouseenter", () => {
     autoAdvancePaused = true;
