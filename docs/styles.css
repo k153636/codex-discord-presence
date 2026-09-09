@@ -304,11 +304,6 @@ a:focus-visible {
 
 .rpc-preview-shell {
   --rpc-light-proximity: 0;
-  --rpc-glow-primary: 41 151 255;
-  --rpc-glow-secondary: 37 99 235;
-  --rpc-glow-shadow: 64 168 255;
-  --rpc-preview-slide-duration: 520ms;
-  --rpc-preview-slide-ease: var(--motion-ease);
   position: relative;
   display: grid;
   justify-items: center;
@@ -325,10 +320,9 @@ a:focus-visible {
   max-width: 100%;
   height: 320px;
   transform: translate(-50%, -50%);
-  background: radial-gradient(ellipse 65% 58% at 50% 50%, rgb(var(--rpc-glow-primary) / 0.32) 0%, rgb(var(--rpc-glow-secondary) / 0.20) 45%, rgb(var(--rpc-glow-secondary) / 0.08) 70%, transparent 92%);
+  background: radial-gradient(ellipse 65% 58% at 50% 50%, rgba(41, 151, 255, 0.32) 0%, rgba(37, 99, 235, 0.20) 45%, rgba(18, 55, 150, 0.08) 70%, transparent 92%);
   filter: blur(48px);
   opacity: 0.95;
-  transition: background var(--rpc-preview-slide-duration) var(--rpc-preview-slide-ease);
   pointer-events: none;
   z-index: 0;
 }
@@ -341,12 +335,11 @@ a:focus-visible {
   width: min(440px, 90vw);
   height: 190px;
   border-radius: 24px;
-  background: radial-gradient(ellipse at center, rgb(var(--rpc-glow-primary) / 0.42) 0%, rgb(var(--rpc-glow-secondary) / 0.22) 55%, transparent 80%);
+  background: radial-gradient(ellipse at center, rgba(64, 168, 255, 0.42) 0%, rgba(37, 99, 235, 0.22) 55%, transparent 80%);
   filter: blur(calc(26px - (var(--rpc-light-proximity) * 8px)));
   opacity: calc(0.78 + (var(--rpc-light-proximity) * 0.22));
   transform: translate(-50%, -50%) scale(calc(0.98 + (var(--rpc-light-proximity) * 0.06)));
-  box-shadow: 0 0 calc(28px + (var(--rpc-light-proximity) * 52px)) rgb(var(--rpc-glow-shadow) / calc(0.03 + (var(--rpc-light-proximity) * 0.17)));
-  transition: background var(--rpc-preview-slide-duration) var(--rpc-preview-slide-ease), box-shadow var(--rpc-preview-slide-duration) var(--rpc-preview-slide-ease);
+  box-shadow: 0 0 calc(28px + (var(--rpc-light-proximity) * 52px)) rgba(64, 168, 255, calc(0.03 + (var(--rpc-light-proximity) * 0.17)));
   pointer-events: none;
   z-index: 0;
 }
@@ -375,6 +368,8 @@ a:focus-visible {
   --rpc-preview-side-half: 158.4px;
   --rpc-preview-side-distance: calc(180px + var(--rpc-preview-card-gap) + var(--rpc-preview-side-half));
   --rpc-preview-far-distance: calc(var(--rpc-preview-side-distance) + 360px);
+  --rpc-preview-slide-duration: 520ms;
+  --rpc-preview-slide-ease: var(--motion-ease);
   position: relative;
   width: 100%;
   height: 148px;
