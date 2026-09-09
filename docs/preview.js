@@ -16,7 +16,7 @@
   const slides = [
     {
       model: "gpt 5.6 luna max 1.5x • 10.5M Token",
-      activity: "MCP playwright",
+      activity: "MCP chrome-devtools",
       image: "assets/rpc_reading.gif",
       initialElapsedSeconds: 120
     },
