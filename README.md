@@ -2,6 +2,8 @@
 
 An unofficial Windows tray application that shows the current Codex CLI or Codex Desktop activity in Discord Rich Presence. It resolves observable session events, model and reasoning metadata, project/Git context, edited files, and current MCP activity into one readable Discord activity line.
 
+Codex CLI exposes more activity details than Codex Desktop, so it can show a wider range of states in Discord Rich Presence.
+
 This project is not affiliated with or endorsed by OpenAI or Discord. It does not provide a cloud account or hosted backend; it runs locally and publishes the selected activity through Discord's local RPC connection.
 
 ## Download
