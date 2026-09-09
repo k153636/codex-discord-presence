@@ -17,15 +17,11 @@
   const baseTokenCount = 35_600_000;
   const rpcThemes = [
     {
-      label: "MCP",
       states: [
-        { activity: "Reading the live DOM first", image: "assets/rpc_reading.gif", initialElapsedSeconds: 120, tokenGrowthMinPerSecond: 180_000, tokenGrowthMaxPerSecond: 480_000, tokenBurstMin: 160_000, tokenBurstMax: 360_000, effort: "xhigh" },
-        { activity: "Inspecting the active tab", image: "assets/rpc_reading.gif", initialElapsedSeconds: 128, tokenGrowthMinPerSecond: 220_000, tokenGrowthMaxPerSecond: 560_000, tokenBurstMin: 180_000, tokenBurstMax: 460_000, effort: "max" },
-        { activity: "Reading the accessibility tree", image: "assets/rpc_reading.gif", initialElapsedSeconds: 176, tokenGrowthMinPerSecond: 100_000, tokenGrowthMaxPerSecond: 280_000, tokenBurstMin: 80_000, tokenBurstMax: 220_000, effort: "high" }
+        { activity: "MCP chrome-devtools", image: "assets/rpc_reading.gif", initialElapsedSeconds: 120, tokenGrowthMinPerSecond: 180_000, tokenGrowthMaxPerSecond: 480_000, tokenBurstMin: 160_000, tokenBurstMax: 360_000, effort: "xhigh" }
       ]
     },
     {
-      label: "Summary",
       states: [
         { activity: "Keeping the signal concise", image: "assets/rpc_thinking.gif", initialElapsedSeconds: 154, tokenGrowthMinPerSecond: 160_000, tokenGrowthMaxPerSecond: 420_000, tokenBurstMin: 120_000, tokenBurstMax: 360_000, effort: "max" },
         { activity: "Summarizing the active work", image: "assets/rpc_thinking.gif", initialElapsedSeconds: 146, tokenGrowthMinPerSecond: 120_000, tokenGrowthMaxPerSecond: 320_000, tokenBurstMin: 80_000, tokenBurstMax: 240_000, effort: "high" },
@@ -33,10 +29,9 @@
       ]
     },
     {
-      label: "Debugging",
       states: [
         { activity: "Comparing rendered bounds", image: "assets/rpc_thinking.gif", initialElapsedSeconds: 124, tokenGrowthMinPerSecond: 260_000, tokenGrowthMaxPerSecond: 720_000, tokenBurstMin: 240_000, tokenBurstMax: 600_000, effort: "high" },
-        { activity: "The frame should stay stable", image: "assets/rpc_coding.gif", initialElapsedSeconds: 150, tokenGrowthMinPerSecond: 420_000, tokenGrowthMaxPerSecond: 980_000, tokenBurstMin: 360_000, tokenBurstMax: 820_000, effort: "xhigh" },
+        { activity: "Keeping the frame stable", image: "assets/rpc_coding.gif", initialElapsedSeconds: 150, tokenGrowthMinPerSecond: 420_000, tokenGrowthMaxPerSecond: 980_000, tokenBurstMin: 360_000, tokenBurstMax: 820_000, effort: "xhigh" },
         { activity: "Reproducing the timer drift", image: "assets/rpc_coding.gif", initialElapsedSeconds: 168, tokenGrowthMinPerSecond: 650_000, tokenGrowthMaxPerSecond: 1_400_000, tokenBurstMin: 600_000, tokenBurstMax: 1_400_000, effort: "max" },
         { activity: "Tracing the icon squeeze", image: "assets/rpc_coding.gif", initialElapsedSeconds: 172, tokenGrowthMinPerSecond: 380_000, tokenGrowthMaxPerSecond: 900_000, tokenBurstMin: 320_000, tokenBurstMax: 760_000, effort: "xhigh" }
       ]
@@ -157,9 +152,8 @@
   };
 
   const renderCard = (card, parts, themeIndex, now = performance.now()) => {
-    const theme = rpcThemes[themeIndex];
     const state = getThemeState(themeIndex);
-    const activity = `${theme.label} · ${state.activity}`;
+    const activity = state.activity;
     const details = formatDetails(themeIndex, now);
     parts.details.textContent = details;
     parts.state.textContent = activity;
@@ -170,9 +164,8 @@
   };
 
   const renderStatus = (themeIndex) => {
-    const theme = rpcThemes[themeIndex];
     const state = getThemeState(themeIndex);
-    slideStatus.textContent = `${theme.label} · ${state.activity.replace(/\s+/g, " ").trim()}`;
+    slideStatus.textContent = state.activity.replace(/\s+/g, " ").trim();
   };
 
   let activeThemeIndex = 0;
