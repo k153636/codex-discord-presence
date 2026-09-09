@@ -16,21 +16,31 @@
   const modelLabel = "gpt 6 astra";
   const baseTokenCount = 35_600_000;
   const rpcThemes = [
-    { label: "MCP" },
-    { label: "Summary" },
-    { label: "Debugging" }
-  ];
-
-  const sharedStates = [
-    { activity: "Reading the live DOM first", image: "assets/rpc_reading.gif", initialElapsedSeconds: 120, tokenGrowthMinPerSecond: 180_000, tokenGrowthMaxPerSecond: 480_000, tokenBurstMin: 160_000, tokenBurstMax: 360_000, effort: "xhigh" },
-    { activity: "Comparing rendered bounds", image: "assets/rpc_thinking.gif", initialElapsedSeconds: 124, tokenGrowthMinPerSecond: 260_000, tokenGrowthMaxPerSecond: 720_000, tokenBurstMin: 240_000, tokenBurstMax: 600_000, effort: "high" },
-    { activity: "Inspecting the active tab", image: "assets/rpc_coding.gif", initialElapsedSeconds: 128, tokenGrowthMinPerSecond: 220_000, tokenGrowthMaxPerSecond: 560_000, tokenBurstMin: 180_000, tokenBurstMax: 460_000, effort: "max" },
-    { activity: "The frame should stay stable", image: "assets/rpc_thinking.gif", initialElapsedSeconds: 146, tokenGrowthMinPerSecond: 120_000, tokenGrowthMaxPerSecond: 320_000, tokenBurstMin: 80_000, tokenBurstMax: 240_000, effort: "high" },
-    { activity: "Tracing the parent width", image: "assets/rpc_coding.gif", initialElapsedSeconds: 150, tokenGrowthMinPerSecond: 420_000, tokenGrowthMaxPerSecond: 980_000, tokenBurstMin: 360_000, tokenBurstMax: 820_000, effort: "xhigh" },
-    { activity: "Keeping the signal concise", image: "assets/rpc_reading.gif", initialElapsedSeconds: 154, tokenGrowthMinPerSecond: 160_000, tokenGrowthMaxPerSecond: 420_000, tokenBurstMin: 120_000, tokenBurstMax: 360_000, effort: "max" },
-    { activity: "Reproducing the timer drift", image: "assets/rpc_coding.gif", initialElapsedSeconds: 168, tokenGrowthMinPerSecond: 650_000, tokenGrowthMaxPerSecond: 1_400_000, tokenBurstMin: 600_000, tokenBurstMax: 1_400_000, effort: "max" },
-    { activity: "Tracing the icon squeeze", image: "assets/rpc_reading.gif", initialElapsedSeconds: 172, tokenGrowthMinPerSecond: 380_000, tokenGrowthMaxPerSecond: 900_000, tokenBurstMin: 320_000, tokenBurstMax: 760_000, effort: "xhigh" },
-    { activity: "Verifying the elapsed state", image: "assets/rpc_thinking.gif", initialElapsedSeconds: 176, tokenGrowthMinPerSecond: 100_000, tokenGrowthMaxPerSecond: 280_000, tokenBurstMin: 80_000, tokenBurstMax: 220_000, effort: "high" }
+    {
+      label: "MCP",
+      states: [
+        { activity: "Reading the live DOM first", image: "assets/rpc_reading.gif", initialElapsedSeconds: 120, tokenGrowthMinPerSecond: 180_000, tokenGrowthMaxPerSecond: 480_000, tokenBurstMin: 160_000, tokenBurstMax: 360_000, effort: "xhigh" },
+        { activity: "Inspecting the active tab", image: "assets/rpc_reading.gif", initialElapsedSeconds: 128, tokenGrowthMinPerSecond: 220_000, tokenGrowthMaxPerSecond: 560_000, tokenBurstMin: 180_000, tokenBurstMax: 460_000, effort: "max" },
+        { activity: "Reading the accessibility tree", image: "assets/rpc_reading.gif", initialElapsedSeconds: 176, tokenGrowthMinPerSecond: 100_000, tokenGrowthMaxPerSecond: 280_000, tokenBurstMin: 80_000, tokenBurstMax: 220_000, effort: "high" }
+      ]
+    },
+    {
+      label: "Summary",
+      states: [
+        { activity: "Keeping the signal concise", image: "assets/rpc_thinking.gif", initialElapsedSeconds: 154, tokenGrowthMinPerSecond: 160_000, tokenGrowthMaxPerSecond: 420_000, tokenBurstMin: 120_000, tokenBurstMax: 360_000, effort: "max" },
+        { activity: "Summarizing the active work", image: "assets/rpc_thinking.gif", initialElapsedSeconds: 146, tokenGrowthMinPerSecond: 120_000, tokenGrowthMaxPerSecond: 320_000, tokenBurstMin: 80_000, tokenBurstMax: 240_000, effort: "high" },
+        { activity: "Turning context into one clear line", image: "assets/rpc_thinking.gif", initialElapsedSeconds: 172, tokenGrowthMinPerSecond: 380_000, tokenGrowthMaxPerSecond: 900_000, tokenBurstMin: 320_000, tokenBurstMax: 760_000, effort: "xhigh" }
+      ]
+    },
+    {
+      label: "Debugging",
+      states: [
+        { activity: "Comparing rendered bounds", image: "assets/rpc_thinking.gif", initialElapsedSeconds: 124, tokenGrowthMinPerSecond: 260_000, tokenGrowthMaxPerSecond: 720_000, tokenBurstMin: 240_000, tokenBurstMax: 600_000, effort: "high" },
+        { activity: "The frame should stay stable", image: "assets/rpc_coding.gif", initialElapsedSeconds: 150, tokenGrowthMinPerSecond: 420_000, tokenGrowthMaxPerSecond: 980_000, tokenBurstMin: 360_000, tokenBurstMax: 820_000, effort: "xhigh" },
+        { activity: "Reproducing the timer drift", image: "assets/rpc_coding.gif", initialElapsedSeconds: 168, tokenGrowthMinPerSecond: 650_000, tokenGrowthMaxPerSecond: 1_400_000, tokenBurstMin: 600_000, tokenBurstMax: 1_400_000, effort: "max" },
+        { activity: "Tracing the icon squeeze", image: "assets/rpc_coding.gif", initialElapsedSeconds: 172, tokenGrowthMinPerSecond: 380_000, tokenGrowthMaxPerSecond: 900_000, tokenBurstMin: 320_000, tokenBurstMax: 760_000, effort: "xhigh" }
+      ]
+    }
   ];
 
   const cardPositionClasses = [
@@ -72,10 +82,8 @@
   };
 
   const selectInitialStateIndexes = () => {
-    const availableIndexes = sharedStates.map((_, index) => index);
-    return rpcThemes.map(() => {
-      const position = Math.floor(Math.random() * availableIndexes.length);
-      return availableIndexes.splice(position, 1)[0];
+    return rpcThemes.map((theme) => {
+      return Math.floor(Math.random() * theme.states.length);
     });
   };
 
@@ -89,7 +97,7 @@
   const normalizeThemeIndex = (index) => (index + rpcThemes.length) % rpcThemes.length;
 
   const getThemeState = (themeIndex) => {
-    return sharedStates[themeStateIndexes[themeIndex]];
+    return rpcThemes[themeIndex].states[themeStateIndexes[themeIndex]];
   };
 
   const formatTokenCount = (tokenCount) => `${(tokenCount / 1_000_000).toFixed(1)}M Token`;
@@ -118,16 +126,12 @@
 
   const getNextStateIndex = (themeIndex) => {
     const currentStateIndex = themeStateIndexes[themeIndex];
-    const occupiedStateIndexes = new Set(
-      themeStateIndexes.filter((_, index) => index !== themeIndex)
-    );
-    const availableIndexes = sharedStates
+    const availableIndexes = rpcThemes[themeIndex].states
       .map((_, index) => index)
-      .filter((index) => index !== currentStateIndex && !occupiedStateIndexes.has(index));
-    const candidates = availableIndexes.length > 0
-      ? availableIndexes
-      : sharedStates.map((_, index) => index).filter((index) => index !== currentStateIndex);
-    return candidates[Math.floor(Math.random() * candidates.length)];
+      .filter((index) => index !== currentStateIndex);
+    return availableIndexes.length > 0
+      ? availableIndexes[Math.floor(Math.random() * availableIndexes.length)]
+      : currentStateIndex;
   };
 
   const getPositionClass = (offset) => {
