@@ -303,6 +303,7 @@ a:focus-visible {
 }
 
 .rpc-preview-shell {
+  --rpc-light-proximity: 0;
   position: relative;
   display: grid;
   justify-items: center;
@@ -315,12 +316,13 @@ a:focus-visible {
   position: absolute;
   top: 50%;
   left: 50%;
-  width: min(560px, 92vw);
+  width: min(680px, 96vw);
   max-width: 100%;
-  height: 220px;
+  height: 320px;
   transform: translate(-50%, -50%);
-  background: radial-gradient(ellipse at center, rgba(41, 151, 255, 0.18) 0%, rgba(0, 113, 227, 0.065) 45%, rgba(13, 37, 94, 0.01) 70%, transparent 80%);
-  filter: blur(34px);
+  background: radial-gradient(ellipse 65% 58% at 50% 50%, rgba(41, 151, 255, 0.32) 0%, rgba(37, 99, 235, 0.20) 45%, rgba(18, 55, 150, 0.08) 70%, transparent 92%);
+  filter: blur(48px);
+  opacity: 0.95;
   pointer-events: none;
   z-index: 0;
 }
@@ -328,15 +330,16 @@ a:focus-visible {
 .rpc-preview-shell::after {
   content: "";
   position: absolute;
-  top: calc(50% + 76px);
+  top: 50%;
   left: 50%;
-  width: min(270px, 72vw);
-  height: 20px;
-  transform: translate(-50%, -50%) scaleX(0.92);
-  border-radius: 50%;
-  background: radial-gradient(ellipse at center, rgba(100, 181, 246, 0.16) 0%, rgba(41, 151, 255, 0.07) 42%, transparent 76%);
-  filter: blur(11px);
-  opacity: 0.78;
+  width: min(440px, 90vw);
+  height: 190px;
+  border-radius: 24px;
+  background: radial-gradient(ellipse at center, rgba(64, 168, 255, 0.42) 0%, rgba(37, 99, 235, 0.22) 55%, transparent 80%);
+  filter: blur(calc(26px - (var(--rpc-light-proximity) * 8px)));
+  opacity: calc(0.78 + (var(--rpc-light-proximity) * 0.22));
+  transform: translate(-50%, -50%) scale(calc(0.98 + (var(--rpc-light-proximity) * 0.06)));
+  box-shadow: 0 0 calc(28px + (var(--rpc-light-proximity) * 52px)) rgba(64, 168, 255, calc(0.03 + (var(--rpc-light-proximity) * 0.17)));
   pointer-events: none;
   z-index: 0;
 }
@@ -396,8 +399,7 @@ a:focus-visible {
   opacity: 1;
   filter: none;
   transform-origin: center;
-  transform: translateX(-50%) scale(1);
-  transition: transform var(--rpc-preview-slide-duration) var(--rpc-preview-slide-ease), filter var(--rpc-preview-slide-duration) var(--rpc-preview-slide-ease), opacity var(--rpc-preview-slide-duration) var(--rpc-preview-slide-ease);
+  transition: transform var(--rpc-preview-slide-duration) var(--rpc-preview-slide-ease), filter var(--rpc-preview-slide-duration) var(--rpc-preview-slide-ease), opacity var(--rpc-preview-slide-duration) var(--rpc-preview-slide-ease), box-shadow var(--rpc-preview-slide-duration) var(--rpc-preview-slide-ease);
   will-change: transform, filter, opacity;
 }
 
@@ -431,11 +433,12 @@ a:focus-visible {
   z-index: 3;
   opacity: 1;
   filter: none;
-  border-color: rgba(255, 255, 255, 0.12);
+  border-color: rgba(90, 175, 255, 0.28);
   box-shadow:
-    0 28px 56px -12px rgba(0, 0, 0, 0.82),
-    0 8px 24px -4px rgba(0, 0, 0, 0.5),
-    inset 0 1px 0 rgba(255, 255, 255, 0.18);
+    0 24px 48px -12px rgba(0, 0, 0, 0.85),
+    0 8px 20px -4px rgba(0, 0, 0, 0.5),
+    0 0 20px -2px rgba(41, 151, 255, 0.24),
+    inset 0 1px 0 rgba(255, 255, 255, 0.24);
   transform: translateX(-50%) scale(1);
 }
 
@@ -816,6 +819,19 @@ html.motion-enhanced .prose > *.is-visible {
   }
 }
 
+@keyframes stage-glow-reactive {
+  0%,
+  100% {
+    opacity: calc(0.78 + (var(--rpc-light-proximity) * 0.22));
+    transform: translate(-50%, -50%) scale(calc(0.98 + (var(--rpc-light-proximity) * 0.06)));
+  }
+
+  50% {
+    opacity: calc(0.88 + (var(--rpc-light-proximity) * 0.12));
+    transform: translate(-50%, -50%) scale(calc(1 + (var(--rpc-light-proximity) * 0.06)));
+  }
+}
+
 @keyframes signal-pulse {
   0%,
   100% {
@@ -842,35 +858,36 @@ html.motion-enhanced .prose > *.is-visible {
   }
 }
 
-  html:not(.motion-enhanced) .hero-copy {
-    animation: hero-reveal var(--motion-reveal-duration) var(--motion-reveal-ease) both;
-  }
+html:not(.motion-enhanced) .hero-copy {
+  animation: hero-reveal var(--motion-reveal-duration) var(--motion-reveal-ease) both;
+}
 
-  html.motion-enhanced [data-motion="hero-copy"],
-  html.motion-enhanced [data-motion="presence-figure"] {
-    transition-duration: var(--motion-reveal-duration);
-    transition-timing-function: var(--motion-reveal-ease);
-  }
+html.motion-enhanced [data-motion="hero-copy"],
+html.motion-enhanced [data-motion="presence-figure"] {
+  transition-duration: var(--motion-reveal-duration);
+  transition-timing-function: var(--motion-reveal-ease);
+}
 
-  .rpc-preview-shell {
-    animation: presence-float var(--motion-float-duration) var(--motion-ambient-ease) 1.2s infinite;
-    will-change: transform;
-  }
+.rpc-preview-shell {
+  animation: presence-float var(--motion-float-duration) var(--motion-ambient-ease) 1.2s infinite;
+  will-change: transform;
+}
 
-  .rpc-preview-shell::before {
-    animation: stage-glow var(--motion-stage-duration) var(--motion-ambient-ease) 1.2s infinite;
-    will-change: opacity, transform;
-  }
+.rpc-preview-shell::before {
+  animation: stage-glow var(--motion-stage-duration) var(--motion-ambient-ease) 1.2s infinite;
+  will-change: opacity, transform;
+}
 
-  .rpc-preview-shell::after {
-    animation: stage-glow var(--motion-stage-duration) var(--motion-ambient-ease) 1.2s infinite;
-    will-change: opacity, transform;
-  }
+.rpc-preview-shell::after {
+  animation: stage-glow-reactive var(--motion-stage-duration) var(--motion-ambient-ease) 1.2s infinite;
+  will-change: opacity, transform, filter, box-shadow;
+}
 
-  body::before {
-    animation: ambient-drift 28s var(--motion-ambient-ease) infinite;
-    will-change: opacity, transform;
-  }
+body::before {
+  animation: ambient-drift 28s var(--motion-ambient-ease) infinite;
+  will-change: opacity, transform;
+}
+
 @media (max-width: 900px) {
   h1 {
     font-size: clamp(2.2rem, 6vw, 3.2rem);

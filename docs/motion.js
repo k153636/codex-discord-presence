@@ -8,6 +8,117 @@
     ])
   ];
 
+  const setupPreviewCenterLight = () => {
+    const previewShell = document.querySelector("[data-rpc-preview]");
+    if (!previewShell) {
+      return () => {};
+    }
+
+    const activationDistance = 220;
+    const fullBrightnessDistance = 32;
+    const responseExponent = 0.56;
+    const smoothing = 0.16;
+    let animationFrame = 0;
+    let currentProximity = 0;
+    let trackingUntil = 0;
+
+    const clamp = (value, minimum, maximum) => Math.min(Math.max(value, minimum), maximum);
+
+    const getTargetProximity = () => {
+      const shellRect = previewShell.getBoundingClientRect();
+      const activeCard = previewShell.querySelector(".rpc-preview-card--active");
+      if (!activeCard) {
+        return 0;
+      }
+
+      const cardRect = activeCard.getBoundingClientRect();
+      const lightCenterX = shellRect.left + shellRect.width / 2;
+      const lightCenterY = shellRect.top + shellRect.height / 2;
+      const cardCenterX = cardRect.left + cardRect.width / 2;
+      const cardCenterY = cardRect.top + cardRect.height / 2;
+      const distance = Math.hypot(cardCenterX - lightCenterX, cardCenterY - lightCenterY);
+      const normalizedDistance = clamp(
+        (activationDistance - distance) / (activationDistance - fullBrightnessDistance),
+        0,
+        1
+      );
+
+      // A sub-linear curve makes the glow arrive decisively at the stage center.
+      return Math.pow(normalizedDistance, responseExponent);
+    };
+
+    const renderCenterLight = () => {
+      animationFrame = 0;
+      const targetProximity = getTargetProximity();
+      currentProximity += (targetProximity - currentProximity) * smoothing;
+
+      if (Math.abs(targetProximity - currentProximity) < 0.003) {
+        currentProximity = targetProximity;
+      }
+
+      previewShell.style.setProperty("--rpc-light-proximity", currentProximity.toFixed(3));
+      if (performance.now() < trackingUntil || currentProximity !== targetProximity) {
+        animationFrame = window.requestAnimationFrame(renderCenterLight);
+      }
+    };
+
+    const scheduleCenterLight = (trackTransition = false) => {
+      if (trackTransition) {
+        trackingUntil = performance.now() + 720;
+      }
+      if (animationFrame === 0) {
+        animationFrame = window.requestAnimationFrame(renderCenterLight);
+      }
+    };
+
+    const handleTransitionRun = (event) => {
+      if (event.propertyName === "transform") {
+        scheduleCenterLight(true);
+      }
+    };
+
+    const handleTransitionEnd = (event) => {
+      if (event.propertyName === "transform") {
+        trackingUntil = 0;
+        scheduleCenterLight();
+      }
+    };
+
+    const handleLayoutChange = () => {
+      scheduleCenterLight();
+    };
+
+    const cardObserver = typeof MutationObserver === "function"
+      ? new MutationObserver(() => scheduleCenterLight(true))
+      : null;
+    cardObserver?.observe(previewShell, {
+      attributes: true,
+      attributeFilter: ["class"],
+      subtree: true
+    });
+
+    previewShell.addEventListener("transitionrun", handleTransitionRun);
+    previewShell.addEventListener("transitionend", handleTransitionEnd);
+    window.addEventListener("resize", handleLayoutChange, { passive: true });
+    window.addEventListener("scroll", handleLayoutChange, { passive: true });
+    scheduleCenterLight();
+
+    return () => {
+      if (animationFrame !== 0) {
+        window.cancelAnimationFrame(animationFrame);
+      }
+      previewShell.removeEventListener("transitionrun", handleTransitionRun);
+      previewShell.removeEventListener("transitionend", handleTransitionEnd);
+      window.removeEventListener("resize", handleLayoutChange);
+      window.removeEventListener("scroll", handleLayoutChange);
+      cardObserver?.disconnect();
+      previewShell.style.removeProperty("--rpc-light-proximity");
+    };
+  };
+
+  const cleanupPreviewCenterLight = setupPreviewCenterLight();
+  window.addEventListener("pagehide", cleanupPreviewCenterLight, { once: true });
+
   if (targets.length === 0 || !("IntersectionObserver" in window)) {
     return;
   }
