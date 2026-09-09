@@ -45,12 +45,12 @@
     }
   ];
 
-  const trackMotionClasses = [
-    "is-preparing",
-    "is-positioned-left",
-    "is-positioned-right",
-    "is-moving-left",
-    "is-moving-right"
+  const cardPositionClasses = [
+    "rpc-preview-card--far-previous",
+    "rpc-preview-card--previous",
+    "rpc-preview-card--active",
+    "rpc-preview-card--next",
+    "rpc-preview-card--far-next"
   ];
 
   const getCardParts = (card) => ({
@@ -60,20 +60,20 @@
     elapsed: card.querySelector("[data-rpc-elapsed]")
   });
 
-  const initialParts = getCardParts(initialCard);
-  if (Object.values(initialParts).some((part) => !part)) {
-    return;
+  const cards = [initialCard];
+  while (cards.length < 5) {
+    cards.push(initialCard.cloneNode(true));
   }
+  cards.slice(1).forEach((card) => track.append(card));
 
-  const cloneCard = initialCard.cloneNode(true);
-  const cloneParts = getCardParts(cloneCard);
-  if (Object.values(cloneParts).some((part) => !part)) {
-    return;
+  const partsByCard = new Map();
+  for (const card of cards) {
+    const parts = getCardParts(card);
+    if (Object.values(parts).some((part) => !part)) {
+      return;
+    }
+    partsByCard.set(card, parts);
   }
-
-  initialCard.setAttribute("aria-hidden", "false");
-  cloneCard.setAttribute("aria-hidden", "true");
-  track.append(cloneCard);
 
   const safeSeconds = (value) => Number.isFinite(value) && value >= 0 ? value : 0;
 
@@ -83,25 +83,28 @@
     return `${minutes}:${seconds.toString().padStart(2, "0")}`;
   };
 
-  let activeCard = initialCard;
-  let activeParts = initialParts;
-  let inactiveCard = cloneCard;
-  let inactiveParts = cloneParts;
-  let activeIndex = 0;
-  let startedAt = performance.now();
-  let isTransitioning = false;
+  const normalizeIndex = (index) => (index + slides.length) % slides.length;
 
-  const updateElapsed = () => {
-    const activeSlide = slides[activeIndex];
-    const elapsedSeconds = safeSeconds(activeSlide.initialElapsedSeconds)
-      + Math.floor((performance.now() - startedAt) / 1000);
-    activeParts.elapsed.textContent = formatElapsed(elapsedSeconds);
+  const getPositionClass = (offset) => {
+    if (offset <= -2) {
+      return "rpc-preview-card--far-previous";
+    }
+    if (offset === -1) {
+      return "rpc-preview-card--previous";
+    }
+    if (offset === 0) {
+      return "rpc-preview-card--active";
+    }
+    if (offset === 1) {
+      return "rpc-preview-card--next";
+    }
+    return "rpc-preview-card--far-next";
   };
 
-  const updateButtons = () => {
-    buttons.forEach((button) => {
-      button.disabled = isTransitioning;
-    });
+  const setCardPosition = (card, offset) => {
+    card.classList.remove(...cardPositionClasses);
+    card.classList.add(getPositionClass(offset));
+    card.setAttribute("aria-hidden", offset === 0 ? "false" : "true");
   };
 
   const renderCard = (card, parts, slide, index) => {
@@ -122,42 +125,29 @@
     slideStatus.textContent = `Discord activity example ${index + 1} of ${slides.length}: ${slide.activity.replace(/\s+/g, " ").trim()}`;
   };
 
-  const resetTrack = (firstCard, secondCard) => {
-    track.style.transition = "none";
-    track.classList.remove(...trackMotionClasses);
-    track.insertBefore(firstCard, secondCard);
-    track.style.transform = "translate3d(0, 0, 0)";
-    void track.offsetWidth;
-    track.style.transition = "";
-    track.style.transform = "";
+  let activeIndex = 0;
+  let cardsByOffset = new Map(cards.map((card, index) => [index - 2, card]));
+  let activeCard = cardsByOffset.get(0);
+  let activeParts = partsByCard.get(activeCard);
+  let startedAt = performance.now();
+  let isTransitioning = false;
+
+  const updateElapsed = () => {
+    const activeSlide = slides[activeIndex];
+    const elapsedSeconds = safeSeconds(activeSlide.initialElapsedSeconds)
+      + Math.floor((performance.now() - startedAt) / 1000);
+    activeParts.elapsed.textContent = formatElapsed(elapsedSeconds);
   };
 
-  const swapCardReferences = () => {
-    const previousActiveCard = activeCard;
-    const previousActiveParts = activeParts;
-    activeCard = inactiveCard;
-    activeParts = inactiveParts;
-    inactiveCard = previousActiveCard;
-    inactiveParts = previousActiveParts;
+  const updateButtons = () => {
+    buttons.forEach((button) => {
+      button.disabled = isTransitioning;
+    });
   };
 
-  const animateTrack = (outgoingCard, incomingCard, direction, onFinish) => {
-    const isNext = direction > 0;
-    const firstCard = isNext ? outgoingCard : incomingCard;
-    const secondCard = isNext ? incomingCard : outgoingCard;
-    const prepareClass = isNext ? "is-positioned-right" : "is-positioned-left";
-    const moveClass = isNext ? "is-moving-left" : "is-moving-right";
-
-    track.classList.remove(...trackMotionClasses);
-    track.insertBefore(firstCard, secondCard);
-
-    track.classList.add("is-preparing", prepareClass);
-    incomingCard.setAttribute("aria-hidden", "false");
-    outgoingCard.setAttribute("aria-hidden", "true");
-    void track.offsetWidth;
-
-    let fallbackTimer = 0;
+  const animateTo = (incomingCard, onFinish) => {
     let hasFinished = false;
+    let fallbackTimer = 0;
 
     const finishTransition = () => {
       if (hasFinished) {
@@ -165,28 +155,28 @@
       }
 
       hasFinished = true;
-      track.removeEventListener("transitionend", finishOnTransitionEnd);
+      incomingCard.removeEventListener("transitionend", finishOnTransitionEnd);
       window.clearTimeout(fallbackTimer);
       onFinish();
     };
 
     const finishOnTransitionEnd = (event) => {
-      if (event.propertyName === "transform") {
+      if (event.target === incomingCard && event.propertyName === "transform") {
         finishTransition();
       }
     };
 
-    fallbackTimer = window.setTimeout(finishTransition, 600);
+    incomingCard.addEventListener("transitionend", finishOnTransitionEnd);
+    fallbackTimer = window.setTimeout(finishTransition, 650);
+  };
 
-    window.requestAnimationFrame(() => {
-      if (hasFinished) {
-        return;
-      }
-
-      track.classList.remove("is-preparing", prepareClass);
-      track.classList.add(moveClass);
-      track.addEventListener("transitionend", finishOnTransitionEnd);
-    });
+  const renderInitialCards = () => {
+    for (let offset = -2; offset <= 2; offset += 1) {
+      const card = cardsByOffset.get(offset);
+      const index = normalizeIndex(activeIndex + offset);
+      renderCard(card, partsByCard.get(card), slides[index], index);
+      setCardPosition(card, offset);
+    }
   };
 
   const moveTo = (direction) => {
@@ -194,20 +184,43 @@
       return;
     }
 
-    const nextIndex = (activeIndex + direction + slides.length) % slides.length;
-    const outgoingCard = activeCard;
-    const incomingCard = inactiveCard;
-    const incomingParts = inactiveParts;
-    const nextSlide = slides[nextIndex];
+    const step = direction > 0 ? 1 : -1;
+    const nextIndex = normalizeIndex(activeIndex + step);
+    const incomingOffset = step > 0 ? 1 : -1;
+    const incomingCard = cardsByOffset.get(incomingOffset);
+    const incomingParts = partsByCard.get(incomingCard);
 
     isTransitioning = true;
     updateButtons();
-    renderCard(incomingCard, incomingParts, nextSlide, nextIndex);
-    renderOutputs(nextSlide, nextIndex);
-    animateTrack(outgoingCard, incomingCard, direction, () => {
-      resetTrack(incomingCard, outgoingCard);
-      swapCardReferences();
+    renderCard(incomingCard, incomingParts, slides[nextIndex], nextIndex);
+    renderOutputs(slides[nextIndex], nextIndex);
+
+    const nextCardsByOffset = new Map();
+    for (const [offset, card] of cardsByOffset) {
+      const nextOffset = offset - step;
+      setCardPosition(card, nextOffset);
+      nextCardsByOffset.set(nextOffset, card);
+    }
+
+    animateTo(incomingCard, () => {
+      const transitionFarOffset = step > 0 ? -3 : 3;
+      const resetOffset = step > 0 ? 2 : -2;
+      const farCard = nextCardsByOffset.get(transitionFarOffset);
+      const farParts = partsByCard.get(farCard);
+      const farIndex = normalizeIndex(nextIndex + resetOffset);
+
+      farCard.style.transition = "none";
+      renderCard(farCard, farParts, slides[farIndex], farIndex);
+      setCardPosition(farCard, resetOffset);
+      void farCard.offsetWidth;
+      farCard.style.transition = "";
+
+      nextCardsByOffset.delete(transitionFarOffset);
+      nextCardsByOffset.set(resetOffset, farCard);
+      cardsByOffset = nextCardsByOffset;
       activeIndex = nextIndex;
+      activeCard = cardsByOffset.get(0);
+      activeParts = partsByCard.get(activeCard);
       startedAt = performance.now();
       updateElapsed();
       isTransitioning = false;
@@ -222,8 +235,9 @@
     });
   });
 
-  renderCard(activeCard, activeParts, slides[activeIndex], activeIndex);
+  renderInitialCards();
   renderOutputs(slides[activeIndex], activeIndex);
   updateElapsed();
+  updateButtons();
   window.setInterval(updateElapsed, 1000);
 })();
