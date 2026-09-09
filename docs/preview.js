@@ -15,9 +15,9 @@
 
   const modelLabel = "gpt 6 astra 1.5";
   const rpcThemes = [
-    { label: "MCP" },
-    { label: "Summary" },
-    { label: "Debugging" }
+    { details: "MCP chrome-devtools" },
+    { details: "Codex thought summary" },
+    { details: "Debugging live render" }
   ];
 
   const sharedStates = [
@@ -43,6 +43,7 @@
   const getCardParts = (card) => ({
     image: card.querySelector("[data-rpc-card-image]"),
     details: card.querySelector("[data-rpc-card-details]"),
+    rpcDetails: card.querySelector("[data-rpc-card-rpc-details]"),
     state: card.querySelector("[data-rpc-card-state]"),
     elapsed: card.querySelector("[data-rpc-elapsed]")
   });
@@ -126,19 +127,19 @@
   const renderCard = (card, parts, themeIndex) => {
     const theme = rpcThemes[themeIndex];
     const state = getThemeState(themeIndex);
-    const activity = `${theme.label} · ${state.activity}`;
     parts.details.textContent = modelLabel;
-    parts.state.textContent = activity;
-    parts.state.classList.toggle("rpc-preview-card-state--wrapped", activity.includes("\n"));
+    parts.rpcDetails.textContent = theme.details;
+    parts.state.textContent = state.activity;
+    parts.state.classList.toggle("rpc-preview-card-state--wrapped", state.activity.includes("\n"));
     parts.image.src = state.image;
     parts.elapsed.textContent = formatElapsed(safeSeconds(state.initialElapsedSeconds));
-    card.setAttribute("aria-label", `Discord activity ${themeIndex + 1} of ${rpcThemes.length}: ${modelLabel}: ${activity.replace(/\s+/g, " ").trim()}`);
+    card.setAttribute("aria-label", `Discord activity ${themeIndex + 1} of ${rpcThemes.length}: ${modelLabel}: ${theme.details}: ${state.activity.replace(/\s+/g, " ").trim()}`);
   };
 
   const renderStatus = (themeIndex) => {
     const theme = rpcThemes[themeIndex];
     const state = getThemeState(themeIndex);
-    slideStatus.textContent = `${theme.label} · ${state.activity.replace(/\s+/g, " ").trim()}`;
+    slideStatus.textContent = `${theme.details} · ${state.activity.replace(/\s+/g, " ").trim()}`;
   };
 
   let activeThemeIndex = 0;
