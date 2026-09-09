@@ -13,31 +13,23 @@
     return;
   }
 
+  const modelLabel = "gpt 6 astra 1.5";
   const rpcThemes = [
-    {
-      details: "MCP chrome-devtools",
-      states: [
-        { activity: "Reading the live DOM first", image: "assets/rpc_reading.gif", initialElapsedSeconds: 120 },
-        { activity: "Comparing rendered bounds", image: "assets/rpc_thinking.gif", initialElapsedSeconds: 124 },
-        { activity: "Inspecting the active tab", image: "assets/rpc_coding.gif", initialElapsedSeconds: 128 }
-      ]
-    },
-    {
-      details: "Codex thought summary",
-      states: [
-        { activity: "The frame should stay stable", image: "assets/rpc_thinking.gif", initialElapsedSeconds: 146 },
-        { activity: "Tracing the parent width", image: "assets/rpc_coding.gif", initialElapsedSeconds: 150 },
-        { activity: "Keeping the signal concise", image: "assets/rpc_reading.gif", initialElapsedSeconds: 154 }
-      ]
-    },
-    {
-      details: "Debugging live render",
-      states: [
-        { activity: "Reproducing the timer drift", image: "assets/rpc_coding.gif", initialElapsedSeconds: 168 },
-        { activity: "Tracing the icon squeeze", image: "assets/rpc_reading.gif", initialElapsedSeconds: 172 },
-        { activity: "Verifying the elapsed state", image: "assets/rpc_thinking.gif", initialElapsedSeconds: 176 }
-      ]
-    }
+    { label: "MCP" },
+    { label: "Summary" },
+    { label: "Debugging" }
+  ];
+
+  const sharedStates = [
+    { activity: "Reading the live DOM first", image: "assets/rpc_reading.gif", initialElapsedSeconds: 120 },
+    { activity: "Comparing rendered bounds", image: "assets/rpc_thinking.gif", initialElapsedSeconds: 124 },
+    { activity: "Inspecting the active tab", image: "assets/rpc_coding.gif", initialElapsedSeconds: 128 },
+    { activity: "The frame should stay stable", image: "assets/rpc_thinking.gif", initialElapsedSeconds: 146 },
+    { activity: "Tracing the parent width", image: "assets/rpc_coding.gif", initialElapsedSeconds: 150 },
+    { activity: "Keeping the signal concise", image: "assets/rpc_reading.gif", initialElapsedSeconds: 154 },
+    { activity: "Reproducing the timer drift", image: "assets/rpc_coding.gif", initialElapsedSeconds: 168 },
+    { activity: "Tracing the icon squeeze", image: "assets/rpc_reading.gif", initialElapsedSeconds: 172 },
+    { activity: "Verifying the elapsed state", image: "assets/rpc_thinking.gif", initialElapsedSeconds: 176 }
   ];
 
   const cardPositionClasses = [
@@ -78,14 +70,35 @@
     return `${minutes}:${seconds.toString().padStart(2, "0")}`;
   };
 
-  const themeStateIndexes = rpcThemes.map(() => 0);
+  const selectInitialStateIndexes = () => {
+    const availableIndexes = sharedStates.map((_, index) => index);
+    return rpcThemes.map(() => {
+      const position = Math.floor(Math.random() * availableIndexes.length);
+      return availableIndexes.splice(position, 1)[0];
+    });
+  };
+
+  const themeStateIndexes = selectInitialStateIndexes();
   const themeStartedAt = rpcThemes.map(() => performance.now());
 
   const normalizeThemeIndex = (index) => (index + rpcThemes.length) % rpcThemes.length;
 
   const getThemeState = (themeIndex) => {
-    const theme = rpcThemes[themeIndex];
-    return theme.states[themeStateIndexes[themeIndex]];
+    return sharedStates[themeStateIndexes[themeIndex]];
+  };
+
+  const getNextStateIndex = (themeIndex) => {
+    const currentStateIndex = themeStateIndexes[themeIndex];
+    const occupiedStateIndexes = new Set(
+      themeStateIndexes.filter((_, index) => index !== themeIndex)
+    );
+    const availableIndexes = sharedStates
+      .map((_, index) => index)
+      .filter((index) => index !== currentStateIndex && !occupiedStateIndexes.has(index));
+    const candidates = availableIndexes.length > 0
+      ? availableIndexes
+      : sharedStates.map((_, index) => index).filter((index) => index !== currentStateIndex);
+    return candidates[Math.floor(Math.random() * candidates.length)];
   };
 
   const getPositionClass = (offset) => {
@@ -113,18 +126,19 @@
   const renderCard = (card, parts, themeIndex) => {
     const theme = rpcThemes[themeIndex];
     const state = getThemeState(themeIndex);
-    parts.details.textContent = theme.details;
-    parts.state.textContent = state.activity;
-    parts.state.classList.toggle("rpc-preview-card-state--wrapped", state.activity.includes("\n"));
+    const activity = `${theme.label} · ${state.activity}`;
+    parts.details.textContent = modelLabel;
+    parts.state.textContent = activity;
+    parts.state.classList.toggle("rpc-preview-card-state--wrapped", activity.includes("\n"));
     parts.image.src = state.image;
     parts.elapsed.textContent = formatElapsed(safeSeconds(state.initialElapsedSeconds));
-    card.setAttribute("aria-label", `Discord activity ${themeIndex + 1} of ${rpcThemes.length}: ${theme.details}: ${state.activity.replace(/\s+/g, " ").trim()}`);
+    card.setAttribute("aria-label", `Discord activity ${themeIndex + 1} of ${rpcThemes.length}: ${modelLabel}: ${activity.replace(/\s+/g, " ").trim()}`);
   };
 
   const renderStatus = (themeIndex) => {
     const theme = rpcThemes[themeIndex];
     const state = getThemeState(themeIndex);
-    slideStatus.textContent = `${theme.details} · ${state.activity.replace(/\s+/g, " ").trim()}`;
+    slideStatus.textContent = `${theme.label} · ${state.activity.replace(/\s+/g, " ").trim()}`;
   };
 
   let activeThemeIndex = 0;
@@ -227,8 +241,7 @@
   };
 
   const advanceThemeState = (themeIndex) => {
-    const theme = rpcThemes[themeIndex];
-    themeStateIndexes[themeIndex] = (themeStateIndexes[themeIndex] + 1) % theme.states.length;
+    themeStateIndexes[themeIndex] = getNextStateIndex(themeIndex);
     themeStartedAt[themeIndex] = performance.now();
     renderThemeCards(themeIndex);
     if (themeIndex === activeThemeIndex) {
