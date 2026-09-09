@@ -1,326 +1,245 @@
-# Codex Discord Rich Presence for Windows
+# K's Codex RPC
 
-An unofficial Windows tray application that shows the current Codex CLI or Codex Desktop activity in Discord Rich Presence. It resolves observable session events, model and reasoning metadata, project/Git context, edited files, and current MCP activity into one readable Discord activity line.
+An unofficial Windows tray application that turns observable Codex CLI and Codex Desktop activity into one readable Discord Rich Presence line.
 
-Codex CLI exposes more activity details than Codex Desktop, so it can show a wider range of states in Discord Rich Presence.
+The application runs locally. It reads the configured Codex session and project signals, resolves the current activity, and publishes the configured presence through Discord Desktop's local RPC client.
 
-This project is not affiliated with or endorsed by OpenAI or Discord. It does not provide a cloud account or hosted backend; it runs locally and publishes the selected activity through Discord's local RPC connection.
+- Website: https://k153636.github.io/codex-discord-presence/
+- Source: https://github.com/k153636/codex-discord-presence
+- Latest release: https://github.com/k153636/codex-discord-presence/releases/latest
+- FAQ: https://k153636.github.io/codex-discord-presence/faq.html
+- Compatibility: https://k153636.github.io/codex-discord-presence/compatibility.html
+- Data flow: https://k153636.github.io/codex-discord-presence/privacy.html
 
-## Download
+This is a community project. It is not affiliated with or endorsed by OpenAI or Discord.
 
-Download the latest Windows x64 executable from [GitHub Releases](https://github.com/k153636/codex-discord-presence/releases/latest):
+## What it does
 
-`discord-presence-for-codex.exe`
+K's Codex RPC keeps a single semantic activity line in Discord while Codex is working. Depending on the available evidence and your templates, the activity can include:
 
-The current published build requires the .NET 9 Desktop Runtime. Discord Desktop must be running for Rich Presence to be published.
+- A current reasoning summary
+- The active MCP server
+- An edited file or the number of coordinated files
+- A command or research state
+- The current model and reasoning effort
+- Session tokens, estimated cost, project metadata, Git counts, timestamps, and buttons
 
-For the user-facing documentation, see the [Codex Discord Rich Presence site](https://k153636.github.io/codex-discord-presence/), [FAQ](https://k153636.github.io/codex-discord-presence/faq.html), and [compatibility notes](https://k153636.github.io/codex-discord-presence/compatibility.html).
+The published Windows profile detects Codex Desktop. The separate CLI profile detects Codex CLI command-line signatures and uses the same local session and project evidence.
+
+## Requirements
+
+- Windows x64
+- .NET 9 Desktop Runtime
+- Discord Desktop running for local Rich Presence delivery
+- Codex Desktop or Codex CLI, depending on the profile you use
+
+The current release is a framework-dependent single-file executable. Download discord-presence-for-codex.exe from the latest GitHub Release.
+
+## Install and run
+
+1. Install the .NET 9 Desktop Runtime if it is not already installed.
+2. Start Discord Desktop.
+3. Download and run discord-presence-for-codex.exe.
+4. Right-click the tray icon to use Enable, Edit Discord RPC, or Quit.
+
+The application stores its local state and logs under %LOCALAPPDATA%\CodexDiscordPresence.
 
 ## Build from source
 
-1. Run `build.cmd`.
-2. Run `start.cmd`.
-3. Run `stop.cmd` to shut it down.
-4. Run `install.cmd` to create desktop and Start Menu shortcuts and install the PowerShell `codex-rpc` command.
-5. Open a new PowerShell session, then run `codex-rpc` from any directory.
-6. Run `codex-rpc-stop` from any directory to close the running RPC process.
-7. Run `install.cmd --autostart` to also register Windows startup.
-8. Run `uninstall.cmd` to remove the created shortcuts and PowerShell commands.
+Run these commands from the repository root in PowerShell or Command Prompt.
 
-The app is configured as a `win-x64` single-file publish that requires the .NET 9 Desktop Runtime on the target machine.
-It runs in the background with a system tray icon, where you can toggle `Enable`, open `appsettings.json`, or `Quit`.
-`start.cmd` stops the previous process, waits for it to exit, rebuilds, and launches the latest published build so the tray app stays in sync with the current source.
-The installed `codex-rpc` command opens the existing `publish\discord-presence-for-codex.exe` without rebuilding. Run `build.cmd` explicitly when source changes should be included; if no published build exists, `codex-rpc` exits with that instruction instead of invoking the SDK. After installation or removal, an already-open PowerShell session must be reopened to observe the PATH change.
-The installed `codex-rpc-stop` command uses the same graceful `--stop` path as `stop.cmd` and is safe to repeat when no RPC process is running. Re-running the installer migrates the previous managed `codex-rpc-quit` files to the new command name.
-The tray `Enable` state is saved under `%LOCALAPPDATA%\CodexDiscordPresence\presence-state.json`.
-The app can also check GitHub Releases once at startup and only logs when a newer release exists.
+    build.cmd
 
-## Current preview
+This publishes the Release win-x64 build to:
 
-This is a render from the same `DashboardPreviewSurface` used by the tray app. It is not an external RPC mockup. The showcase values come from a real party session in the local log:
+    publish\discord-presence-for-codex.exe
 
-`2026-09-06T13:10:04.6017402Z [INFO] Presence rendered: Details=gpt 5.6 luna max 1.5x • 125M Token; State=MCP chrome-devtools Reading; LargeImage=rpc_reading`
+To publish and start the latest source for the desktop workflow:
 
-The corresponding activity-detection record reports `partySize=5`. The preview was rendered from a published-presence snapshot carrying that real `5 / 5` party value, while the visible state follows the current MCP display policy (`MCP chrome-devtools`, without the internal `Reading` suffix).
+    start.cmd
 
-<div align="center">
-  <img src="Preview/rpc-preview-current.png" width="360" alt="Codex Discord Rich Presence dashboard preview showing MCP chrome-devtools">
-</div>
+The CLI workflow has its own helper and settings profile:
 
-The preview uses Discord's current typography hierarchy: `gg sans` when it is installed, otherwise the available `Segoe UI Variable Text` family with a named Semibold face for headings. Discord states that `gg sans` is proprietary and not currently open source, so it is not bundled with this project.
+    start-cli.cmd
 
-## Archived preview images
+Both start helpers stop a previous published instance, publish the current source, and start the published executable. To stop the running instance:
 
-The remaining `Preview/rpc-preview-1.png` through `Preview/rpc-preview-5.png` files are historical examples from an earlier build and may not match the current release output. They are retained as development references, not as current product screenshots.
+    stop.cmd
+    stop-cli.cmd
 
-<div align="center" style="margin-bottom: 0;">
-<table style="margin: 0 auto;">
-  <tr>
-    <td><img src="Preview/rpc-preview-1.png" width="330" alt="Preview 1"></td>
-    <td><img src="Preview/rpc-preview-2.png" width="330" alt="Preview 2"></td>
-  </tr>
-  <tr>
-    <td><img src="Preview/rpc-preview-3.png" width="330" alt="Preview 3"></td>
-    <td><img src="Preview/rpc-preview-4.png" width="330" alt="Preview 4"></td>
-  </tr>
-</table>
-</div>
+To install Desktop and Start Menu shortcuts:
 
-<div align="center" style="margin-top: -8px;">
-<table style="margin: 0 auto;">
-  <tr>
-    <td><img src="Preview/rpc-preview-5.png" width="330" alt="Preview 5"></td>
-  </tr>
-</table>
-</div>
+    install.cmd
 
-## What It Shows
+Add --autostart to create a Windows Startup shortcut as well:
 
-- Current Codex model, reasoning effort, and effective Fast mode speed when available
-- Project name and project size
-- Recent edited file name
-- Git changed-file count
-- Session elapsed time
-- Session token information when available
-- Discord buttons
+    install.cmd --autostart
 
-## Activity Labels
+Remove those shortcuts with:
 
-The presence engine prefers observable, high-confidence labels first:
+    uninstall.cmd
 
-- `Run Command`
-- `Run Command: git`
-- `Run Command: Get-ChildItem`
-- `Run Command: dotnet`
-- `Run Command: rg`
-- `Researching`
-- `Coordinating {n} files`
-- `Editing FileName.cs`
-- `Creating files`
-- `Deleting files`
-- `Working`
-- `Waiting`
-- `Idling`
+The installer also provides the optional PowerShell commands codex-rpc and codex-rpc-stop. codex-rpc launches the existing published executable without rebuilding; run build.cmd when source changes need to be published. codex-rpc-stop stops the running instance without starting a replacement. Reopen PowerShell after installation or removal so the updated user PATH is loaded.
 
-`Planning` and `Refactoring` are still supported, but they are treated as low-confidence labels and only appear when local evidence is explicit enough.
-When Codex emits a reasoning summary, the latest summary replaces `Working`, for example `Designing mobile-friendly file label format`.
-`Working` remains the fallback when no usable summary is present. A pending web or research MCP tool call renders `Researching`; local shell search still renders as `Run Command: git`, `Run Command: Get-ChildItem`, or `Run Command: rg`.
+## Presence behavior
 
-For quiet idle periods, the app shows `Waiting` for the first 5 minutes, then switches to `Idling`.
+The presence has one display line. The resolver prefers evidence in this order:
 
-## Default Presence
+1. Current structured Codex session events and direct tool targets
+2. A current reasoning summary, shown by itself after normalization
+3. A current MCP operation, shown by itself
+4. Recent edited-file and timestamp evidence when direct Codex evidence is unavailable
 
-- `Details`: `{ModelName} &bull; {Tokens}`
-- `State`: `{ActivityLine}`
-- `LargeImageText`: `{ProjectName}`
-- `SmallImageText`: `{ProjectFileCount} files &bull; session {SessionElapsed}`
-- Button: `K's Codex RPC` → `https://github.com/k153636/codex-discord-presence`
+After an MCP call completes, its identity is kept only for the short grace period in the state machine. The next effective Codex event replaces it. The fallback path does not claim that the app observed a current tool action, and full local paths are not exposed in the activity line.
 
-When no usable reasoning summary is available, repeated generic analysis states can still render with an `x2`, `x3`, and so on repeat suffix.
-Use `{ActivityLabel}` if you want the file name omitted for a cleaner one-line status.
-Use `{ThinkingSummary}` to place the latest normalized reasoning summary directly in a custom template.
-Use `{GoalModePrefix}` if you want `Plan mode:` to appear without changing the main state line.
-`goalmode` is normalized to `plan`, so both values render the same plan label.
-During active implementation work, it can switch to `Code mode:` so planning and coding are visually distinct.
-It stays blank for normal operation and for any other collaboration mode values.
+### MCP
 
-## Model Detection
+A single active server is shown like:
 
-When `Presence.AutoDetectModelName` is enabled, the app resolves `{ModelName}` from:
+    MCP chrome-devtools
 
-- `CODEX_MODEL`, `OPENAI_MODEL`, or `MODEL_NAME`
-- Recent Codex session JSONL files under `CODEX_HOME` or `%USERPROFILE%\.codex`
-- `%USERPROFILE%\.codex\config.toml`
-- `Presence.ModelName` as the fallback
+Multiple distinct active servers are shown like:
 
-The displayed `{ModelName}` keeps the raw model available for token-cost lookup, while formatting GPT model slugs with spaces for Discord. For example, `gpt-5.6-luna` becomes `gpt 5.6 luna`, and a detected reasoning effort is appended as `gpt 5.6 luna max`.
+    MCP chrome-devtools＆+3
 
-For GPT-5.6, GPT-5.5, and GPT-5.4, the display appends `1.5x` only when the latest project-matching session reports an effective `service_tier` of `priority` or `fast`. `default`, a missing session value, and config-only Fast mode settings omit the speed suffix; the literal word `fast` is never displayed.
+The fullwidth ampersand ＆ is intentional. The +N count includes only other active distinct servers, not historical calls. MCP lines do not append a tool name, Editing, Reading, or a thinking summary.
 
-Examples:
+### Files and other states
 
-- `gpt 5.6 luna max &bull; 12.4K Token`
-- `gpt 5.6 luna max 1.5x &bull; 12.4K Token`
+File activity uses a natural label such as:
 
-Token usage is only read from sessions whose `cwd` exactly matches the active project path. If no exact match exists, token usage stays empty instead of borrowing another project's totals.
+    Editing README.md
+    Editing src/PresenceRuntime.cs
 
-The app logs these values for debugging:
+When four or more files are active, the line shows one file followed by the remaining count, for example Editing README.md + 3 files. Coordination reports a file count without inventing an active filename.
 
-- Selected UI model
-- Last used session model
-- Selected reasoning effort
-- Effective service tier
-- Final displayed model
+Other configured states include Planning, Thinking, Working, Researching, Run Command, Creating files, Deleting files, Refactoring, Waiting, Idling, Ready, Stalled, and Error. Researching is kept distinct from generic working. A current MCP operation takes precedence over normal reasoning, file, and command labels.
 
-## Logging
+### Models, tokens, and party metadata
 
-The activity logger includes:
+Model slugs are formatted for Discord as readable words. For example, gpt-5.6-luna becomes gpt 5.6 luna, followed by the detected reasoning effort when available.
 
-- the chosen activity label
-- `confidence=high` or `confidence=low`
-- the reason the label was selected
-- recent edited file labels are kept until the project changes so the state line does not flicker between empty and populated
+The 1.5x suffix appears only for supported GPT model families when the latest session matching the active project reports an effective priority or fast service tier. The literal word fast is not displayed, and a config-only value does not prove the effective tier.
 
-That makes it easier to verify why Discord is showing a specific state.
+Party metadata is omitted for a solo session. When active subagents exist, the session-derived party size is used for both Party.Size and Party.Max; the activity line still represents the main agent.
 
-## Release distribution
+Token usage is read from a session whose cwd exactly matches the active project path. The application does not borrow another project's total when there is no exact match.
 
-The GitHub Release contains only `discord-presence-for-codex.exe` for the normal desktop launch flow.
-`appsettings.json` is an optional executable-directory override, and `appsettings.cli.json` is an optional separate CLI-profile override; both remain available in the repository for users who need to customize or run the CLI profile.
-When they are absent, the executable uses the compiled defaults, including the `K's Codex RPC` repository button.
-The published executable is framework-dependent, so the .NET 9 Desktop Runtime is still required on the target PC.
+## Images and assets
+
+The source RPC art lives in Assets/RpcArt/.
+
+- rpc_codex is the small image.
+- rpc_thinking represents reasoning and planning.
+- rpc_coding covers edits, file creation/deletion, refactoring, and general build or command work.
+- rpc_reading covers Git commands.
+- rpc_searching covers search commands and research.
+- rpc_debugging covers test commands.
+- rpc_sleeping covers offline, waiting, ready, and idle states.
+- rpc_success is used for a short hold after a successful Codex turn.
+- rpc_error is reserved for an explicitly failed terminal event.
+- rpc_deploying is reserved for future event-specific states.
+
+The source GIFs remain animated GIFs. Discord asset uploads have format restrictions, so configured external image URLs provide animated fallbacks while stable internal asset keys remain the fallback path. The public site uses the same named art files under docs/assets.
 
 ## Configuration
 
-Common settings live in `appsettings.json`:
+The executable reads configuration in this order:
 
-- `Discord.ClientId`
-- `Discord.LargeImageKey`
-- `Discord.SmallImageKey`
-- `Discord.ActivityImageKeys`
-- `Discord.RunningCommandImageKeys`
-- `Discord.ExternalImageUrls`
-- `Project.Path`
-- `Project.DisplayName`
-- `Project.PreferGitRootForProjectPath`
-- `Project.RecentFileSearchDepth`
-- `Project.MaxRecentEditedFilesToTrack`
-- `Project.MaxProjectFilesToScan`
-- `Project.MaxLineCountFileBytes`
-- `Project.IgnoredFilePatterns`
-- `Project.IgnoredDirectories`
-- `Presence.ModelName`
-- `Presence.AutoDetectModelName`
-- `Presence.Details`
-- `Presence.State`
-- `Presence.EnableLargeImageText`
-- `Presence.LargeImageText`
-- `Presence.SmallImageText`
-- `Presence.Buttons`
-- `Presence.AnalyzingProjectText`
-- `Presence.CoordinatingChangesText`
-- `Presence.CreatingFilesText`
-- `Presence.DeletingFilesText`
-- `Presence.RunningCommandText`
-- `Presence.PlanningText`
-- `Presence.ApplyingEditsText`
-- `Presence.RefactoringText`
-- `Presence.ThinkingText`
-- `Presence.WorkingText`
-- `Presence.ResearchingText`
-- `Presence.WaitingText`
-- `Presence.IdlingText`
-- `Presence.ReadyText`
-- `Presence.WaitingActivityText`
-- `Presence.ThinkingStaleTimeoutMinutes`
-- `Presence.ReadyIdleGraceMinutes`
-- `Presence.EditingFreshnessSeconds`
-- `Presence.ActiveUpdateIntervalSeconds`
-- `Presence.RunningCommandUpdateIntervalSeconds`
-- `Presence.RunningCommandHoldSeconds`
-- `Presence.IdleUpdateIntervalSeconds`
-- `EnableUpdateCheck`
-- `UpdateIntervalSeconds`
+1. appsettings.json for the Desktop profile
+2. appsettings.cli.json for the CLI profile
+3. %LOCALAPPDATA%\CodexDiscordPresence\user-settings.json for user overrides
 
-## Template Values
+The two repository settings files contain the shared Discord asset mappings and the profile-specific Codex detection rules. User overrides, tokens, session data, logs, and the saved tray state stay outside the repository.
 
-These placeholders can be used in `Presence.Details`, `Presence.State`, `Presence.LargeImageText`, `Presence.SmallImageText`, and button labels/URLs:
+Common settings include:
 
-`{ModelName}` resolves to the formatted Discord label described in [Model Detection](#model-detection).
+- Discord: client id, image keys, external image URLs, completed/error image behavior
+- Codex and CodexCli: Codex home, process or command-line detection, and session scan limits
+- Project: project path, Git-root preference, file scan limits, recent-file tracking, and ignored patterns
+- Presence: model detection, details/state templates, activity labels, buttons, and timing thresholds
+- TokenUsage: optional token and cost values
+- UpdateIntervalSeconds and EnableUpdateCheck
 
-- `{ModelName}`
-- `{CodexStatus}`
-- `{CodexProcessName}`
-- `{ProjectName}`
-- `{ProjectPath}`
-- `{ProjectFileCount}`
-- `{ProjectLineCount}`
-- `{ProjectSizeText}`
-- `{GoalModePrefix}`
-- `{EditingFileName}`
-- `{EditingFileLabel}`
-- `{EditingFilePath}`
-- `{ActiveEditedFileCount}`
-- `{ActiveEditedFilesText}`
-- `{ChangedFileCount}`
-- `{ChangedFilesText}`
-- `{ActivityLabel}`
-- `{ActivityKind}`
-- `{ActivityConfidence}`
-- `{ActivityProvenance}`
-- `{ActivityReason}`
-- `{ActivityLine}`
-- `{ThinkingSummary}`
-- `{RunningCommandName}`
-- `{RunningCommandKind}`
-- `{SessionElapsed}`
-- `{SessionStartedAt}`
-- `{Tokens}`
-- `{Cost}`
+The executable also accepts these command-line overrides:
 
-Set `Presence.EnableLargeImageText` to `false` if you want Discord to show only the large image without the hover text under it.
+    --client-id <id>
+    --project <path>
+    --interval <seconds>
+    --model <name>
 
-## Discord Art Assets
+Useful template values include:
 
-The RPC art pack is stored in `Assets/RpcArt`. The remaining source GIFs stay
-as GIFs. The retired building asset is no longer part of the pack. The Discord
-application's Rich Presence art assets retain static fallbacks under the same
-internal keys, while `Discord.ExternalImageUrls` points the runtime presence
-at the original public images.
+- {ModelName}, {CodexStatus}, {CodexProcessName}, and {GoalModePrefix}
+- {ProjectName}, {ProjectPath}, {ProjectFileCount}, {ProjectLineCount}, and {ProjectSizeText}
+- {EditingFileName}, {EditingFileLabel}, {EditingFilePath}, {ActiveEditedFileCount}, and {ActiveEditedFilesText}
+- {ChangedFileCount} and {ChangedFilesText}
+- {ActivityLabel}, {ActivityKind}, {ActivityConfidence}, {ActivityProvenance}, {ActivityReason}, and {ActivityLine}
+- {ThinkingSummary}, {RunningCommandName}, and {RunningCommandKind}
+- {SessionElapsed}, {SessionStartedAt}, {Tokens}, {Cost}, {BillingType}, and {RateLimitDetails}
 
-The application uses these internal keys:
+The default button label is K's Codex RPC.
 
-- `rpc_codex`: fixed small image
-- `rpc_thinking`: evidence-backed reasoning and planning only; concrete commands, MCP calls, edits, research, and unresolved operations use their own or the waiting mapping
-- `rpc_coding`: edits, file creation/deletion, refactoring, and unclassified build/command activity
-- `rpc_sleeping`: offline, waiting after the completion hold, and ready/idle states
-- `rpc_reading`: Git commands
-- `rpc_searching`: search commands
-- `rpc_debugging`: test commands
-- `rpc_success`: a freshly successful Codex turn (configured by `Discord.CompletedImageKey`)
-- `rpc_error`: an explicitly failed Codex turn only (configured by `Discord.ErrorImageKey`)
-- `rpc_deploying`: reserved for future event-specific states
+## Local data flow
 
-`Stalled` means that observable activity stopped before a terminal result was
-received; it is not treated as an error and therefore uses the neutral waiting
-asset. `rpc_error` is selected only when the session contains a failed terminal
-event such as `turn_failed`, `task_failed`, or a failed terminal status.
+The application reads local:
 
-When Codex enters the semantic `Waiting` state after a successful turn, the
-runtime uses `Discord.CompletedImageKey` for the first
-`Discord.CompletedImageHoldSeconds` seconds (60 by default), then switches to
-`rpc_sleeping`. The resolved image key is part of the dispatch signature, so
-the one-minute transition is sent to Discord even when the text state is
-unchanged. If a current active event cannot prove Thinking, the text state is
-`Waiting` and the waiting asset mapping is used; the runtime no longer uses a
-generic build-style fallback.
+- Codex session JSONL under the configured Codex home
+- Codex configuration and model environment variables
+- Process, window, and CLI command-line signals
+- Project and Git metadata
+- Local settings and the saved tray enable state
 
-Discord's Developer Portal currently accepts PNG, JPEG, and WebP for uploaded Rich Presence assets, and uploaded animations are not supported. For GIF-backed keys, the runtime therefore sends the configured external GIF URL; if a URL is missing or invalid, it falls back to the internal portal key.
+It publishes the configured details, state, images, timestamps, party metadata when applicable, and buttons to Discord Desktop through its local RPC client. Depending on your templates and current evidence, the payload can include a project name, file label, model, reasoning effort, activity summary, MCP server name, command kind, token text, or Git count.
 
-## Discord App
+The release checker can call the public GitHub Releases API to look for a newer release. Configured external image URLs may be requested by the site preview or referenced by the Discord presence payload. This project does not operate a hosted account, session database, team dashboard, or analytics backend.
 
-The default Discord application id is:
+Review your Discord settings and custom templates before sharing sensitive project names, file labels, or reasoning summaries.
 
-`1516846793873424474`
+## Project layout
 
-The default large image key is:
+- Application/: WinForms entrypoint, tray lifetime, and dashboard controls
+- Infrastructure/: runtime loop, profile selection, settings reload, persistence, diagnostics, and single-instance coordination
+- Activity/: Codex process detection, JSONL parsing, activity state, operation resolution, agent tracking, and edited-file tracking
+- Presence/: activity-line composition, templates, status labels, file selection, MCP formatting, and main-agent role text
+- Discord/: Discord RPC client, asset-key resolution, and party metadata
+- Configuration/: options, profile selection, paths, and timing settings
+- Model/, TokenUsage/, Project/, and Git/: model, token, project, and repository providers
+- Updates/ and Utilities/: release checks, formatting, refresh policies, and shared helpers
+- Assets/RpcArt/: source RPC art
+- docs/: the public static site
+- CodexDiscordPresence.Tests/: xUnit coverage for parsing, state, rendering, configuration, Discord metadata, and filesystem behavior
 
-`rpc_thinking`
+Generated publish output (publish/, publish-next/) and build output (bin/, obj/) are local staging artifacts and should not be committed.
 
-The default small image key is:
+## Validation
 
-`rpc_codex`
+Run the full test suite from the repository root:
 
-## Notes
+    dotnet test CodexDiscordPresence.Tests\CodexDiscordPresence.Tests.csproj
 
-- `start.cmd` stops the previous process, rebuilds, and launches the latest published exe in the background
-- `codex-rpc` stops the previous process and launches the latest existing published exe without rebuilding
-- `codex-rpc-stop` stops the running instance without rebuilding or starting a replacement
-- `stop.cmd` stops the running instance
-- Install the .NET 9 Desktop Runtime if the app says the runtime is missing
-- `git diff`, recent file writes, and session logs are used together to infer active work
-- Project scanning ignores common build, cache, and binary folders
-- Activity and evidence helpers live under `Modules/` to keep the main entrypoints smaller
-- The app re-checks the active project at most every 3 seconds so project switches surface quickly
-- The default refresh cadence is shortened so activity changes surface faster in Discord
+For a release-style executable check:
+
+    build.cmd
+
+The published executable should be:
+
+    publish\discord-presence-for-codex.exe
+
+Runtime diagnostics are written under:
+
+    %LOCALAPPDATA%\CodexDiscordPresence\logs
+
+When validating Discord delivery, look for Discord RPC initialized and the expected Presence rendered record, and confirm that no Discord RPC initialization or update failure was logged.
+
+## Limits
+
+The current release does not promise:
+
+- macOS or Linux binaries
+- A hosted dashboard, team account, or session service
+- Guaranteed live quota values for every Codex plan
+- Official OpenAI or Discord affiliation
+
+For the current compatibility boundary, see the website compatibility notes: https://k153636.github.io/codex-discord-presence/compatibility.html
 
