@@ -10,6 +10,7 @@
   --accent: #9be7b0;
   --accent-strong: #b2f5c1;
   --accent-ink: #102318;
+  --eyebrow-accent: #8ab4f8;
   --button-primary: #2563eb;
   --button-primary-hover: #1d4ed8;
   --button-primary-ink: #ffffff;
@@ -146,7 +147,7 @@ nav a:hover {
 
 .eyebrow {
   margin: 0 0 0.85rem;
-  color: var(--accent);
+  color: var(--eyebrow-accent);
   font-size: 0.78rem;
   font-weight: 650;
   letter-spacing: 0.06em;
