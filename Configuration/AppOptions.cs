@@ -278,6 +278,7 @@ public sealed class PresenceTemplateOptions
     public bool AutoDetectModelName { get; set; } = true;
     public string ModelName { get; set; } = "Codex";
     public string Details { get; set; } = "{GoalModePrefix} {ModelName} \u2022 {Tokens}";
+    public string WaitingDetails { get; set; } = "{Cost} {BillingType}{RateLimitDetails}";
     public string State { get; set; } = "{ActivityLine}";
     public bool EnableLargeImageText { get; set; } = true;
     public string LargeImageText { get; set; } = "{ProjectName}";
@@ -332,6 +333,7 @@ public sealed class TokenUsageOptions
     public bool Enabled { get; set; } = true;
     public long? TotalTokens { get; set; }
     public decimal? EstimatedCostUsd { get; set; }
+    public string? BillingType { get; set; }
 }
 
 

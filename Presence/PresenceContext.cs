@@ -134,6 +134,10 @@ public sealed record GitSnapshot(
 
 public sealed record SessionSnapshot(DateTime StartedAt, TimeSpan Elapsed);
 
-public sealed record TokenUsageSnapshot(long? TotalTokens, decimal? EstimatedCostUsd);
+public sealed record TokenUsageSnapshot(
+    long? TotalTokens,
+    decimal? EstimatedCostUsd,
+    string? BillingType = null,
+    RateLimitSnapshot? RateLimit = null);
 
 public sealed record RecentProjectFileSnapshot(string Name, string Path, DateTime LastWriteTimeUtc);

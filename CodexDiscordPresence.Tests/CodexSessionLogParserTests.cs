@@ -898,6 +898,53 @@ public sealed class CodexSessionLogParserTests
         }
     }
 
+    [Fact]
+    public void InspectRecentSessions_LargeHistoryKeepsTaskBoundaryOutsideTail()
+    {
+        var homePath = CreateTempCodexHome();
+        var projectPath = Path.Combine(Path.GetTempPath(), "CodexLargeCompletedSessionProject_" + Guid.NewGuid());
+        Directory.CreateDirectory(projectPath);
+
+        try
+        {
+            var now = DateTime.UtcNow;
+            var filler = CreateSessionLine(now, new { type = "token_count" }, "event_msg");
+            var lines = new List<string>
+            {
+                CreateSessionLine(now.AddMinutes(-2), new
+                {
+                    type = "task_started",
+                    turn_id = "turn-completed",
+                    cwd = projectPath
+                }, "event_msg")
+            };
+            lines.AddRange(Enumerable.Repeat(filler, 30000));
+            lines.Add(CreateSessionLine(now.AddMinutes(-1), new
+            {
+                type = "task_complete",
+                turn_id = "turn-completed"
+            }, "event_msg"));
+            lines.AddRange(Enumerable.Repeat(filler, 30000));
+            WriteSession(homePath, "large-completed-session.jsonl", lines);
+
+            var parser = new CodexSessionLogParser(
+                new CodexDetectionOptions { HomePath = homePath },
+                new PresenceTemplateOptions());
+
+            var inspection = parser.InspectRecentSessions(projectPath);
+
+            Assert.NotNull(inspection);
+            Assert.True(inspection!.HasTaskCompletedSinceStart);
+            Assert.Equal("turn-completed", inspection.GetActivityStateAt(DateTime.UtcNow)?.TurnId);
+            Assert.Equal(CodexTurnLifecycle.Completed, inspection.GetActivityStateAt(DateTime.UtcNow)?.Lifecycle);
+        }
+        finally
+        {
+            Directory.Delete(homePath, true);
+            Directory.Delete(projectPath, true);
+        }
+    }
+
     private static string CreateTempCodexHome()
     {
         var path = Path.Combine(Path.GetTempPath(), "CodexSessionParserTests_" + Guid.NewGuid());

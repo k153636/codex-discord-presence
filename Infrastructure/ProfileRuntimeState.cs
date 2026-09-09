@@ -14,7 +14,12 @@ public sealed class ProfileRuntimeState
         DiscordOptions = discordOptions;
         Detector = new CodexProcessDetector(codexOptions, presenceOptions);
         ModelNameProvider = new CodexModelNameProvider(codexOptions, presenceOptions);
-        TokenUsageProvider = new TokenUsageProvider(codexOptions, tokenUsageOptions);
+        var accountProvider = new CodexAccountBillingTypeProvider(codexOptions.GetResolvedHomePath());
+        TokenUsageProvider = new TokenUsageProvider(
+            codexOptions,
+            tokenUsageOptions,
+            accountProvider,
+            accountProvider);
     }
 
     public AppProfileKind Profile { get; }

@@ -108,6 +108,188 @@ public sealed class PresenceTemplateRendererTests
     }
 
     [Fact]
+    public void Render_ReadyDetails_RotatesToCostAndBillingEveryFiveSeconds()
+    {
+        var waitingStartedAt = DateTime.UtcNow.AddMinutes(-1);
+        var current = waitingStartedAt.AddSeconds(4);
+        var renderer = new PresenceTemplateRenderer(() => current);
+        var template = new PresenceTemplateOptions
+        {
+            Details = "{ModelName} • {Tokens}",
+            WaitingDetails = "{Cost} {BillingType}"
+        };
+        var context = CreateContext(
+            new CodexProcessSnapshot(true, "codex", false)
+            {
+                DetectedActivityKind = CodexActivityKind.Ready,
+                ActivityStartedAt = waitingStartedAt
+            },
+            new ProjectSnapshot("Nexstrap", @"E:\tool\Nexstrap", null, null, 128, 128, 42000, []),
+            new GitSnapshot(true, 0, null),
+            sessionAge: TimeSpan.FromMinutes(1),
+            lastObservedAt: waitingStartedAt) with
+        {
+            TokenUsage = new TokenUsageSnapshot(12_400, 0.18m, "API")
+        };
+
+        Assert.Equal("gpt-5-codex • 12.4K Token", renderer.Render(template, context).Details);
+
+        current = waitingStartedAt.AddSeconds(5);
+        var rotated = renderer.Render(template, context);
+        Assert.Equal("$0.1800 API", rotated.Details);
+        Assert.DoesNotContain("est.", rotated.Details);
+
+        current = waitingStartedAt.AddSeconds(10);
+        Assert.Equal("gpt-5-codex • 12.4K Token", renderer.Render(template, context).Details);
+    }
+
+    [Fact]
+    public void Render_NonReadyDetails_DoesNotRotate()
+    {
+        var now = DateTime.UtcNow;
+        var renderer = new PresenceTemplateRenderer(() => now.AddSeconds(10));
+        var template = new PresenceTemplateOptions
+        {
+            Details = "{ModelName} • {Tokens}",
+            WaitingDetails = "{Cost} {BillingType}"
+        };
+        var context = CreateContext(
+            new CodexProcessSnapshot(true, "codex", true)
+            {
+                DetectedActivityKind = CodexActivityKind.AnalyzingProject,
+                ActivityStartedAt = now.AddSeconds(-10)
+            },
+            new ProjectSnapshot("Nexstrap", @"E:\tool\Nexstrap", null, null, 128, 128, 42000, []),
+            new GitSnapshot(true, 0, null),
+            lastObservedAt: now.AddSeconds(-10)) with
+        {
+            TokenUsage = new TokenUsageSnapshot(12_400, 0.18m, "API")
+        };
+
+        Assert.Equal("gpt-5-codex • 12.4K Token", renderer.Render(template, context).Details);
+    }
+
+    [Fact]
+    public void Render_IdlingReadyDetails_ContinuesToRotate()
+    {
+        var waitingStartedAt = DateTime.UtcNow.AddMinutes(-6);
+        var renderer = new PresenceTemplateRenderer(() => waitingStartedAt.AddSeconds(365));
+        var template = new PresenceTemplateOptions
+        {
+            Details = "{ModelName} • {Tokens}",
+            WaitingDetails = "{Cost} {BillingType}"
+        };
+        var context = CreateContext(
+            new CodexProcessSnapshot(true, "codex", false)
+            {
+                DetectedActivityKind = CodexActivityKind.Ready,
+                ActivityStartedAt = waitingStartedAt
+            },
+            new ProjectSnapshot("Nexstrap", @"E:\tool\Nexstrap", null, null, 128, 128, 42000, []),
+            new GitSnapshot(true, 0, null),
+            sessionAge: TimeSpan.FromMinutes(6),
+            lastObservedAt: waitingStartedAt) with
+        {
+            TokenUsage = new TokenUsageSnapshot(12_400, 0.18m, "API")
+        };
+
+        Assert.Equal("$0.1800 API", renderer.Render(template, context).Details);
+    }
+
+    [Fact]
+    public void Render_SubscriptionBillingType_UsesSubsc()
+    {
+        var waitingStartedAt = DateTime.UtcNow.AddMinutes(-6);
+        var renderer = new PresenceTemplateRenderer(() => waitingStartedAt.AddSeconds(365));
+        var template = new PresenceTemplateOptions
+        {
+            Details = "{ModelName} • {Tokens}",
+            WaitingDetails = "{Cost} {BillingType}"
+        };
+        var context = CreateContext(
+            new CodexProcessSnapshot(true, "codex", false)
+            {
+                DetectedActivityKind = CodexActivityKind.Ready,
+                ActivityStartedAt = waitingStartedAt
+            },
+            new ProjectSnapshot("Nexstrap", @"E:\tool\Nexstrap", null, null, 128, 128, 42000, []),
+            new GitSnapshot(true, 0, null),
+            sessionAge: TimeSpan.FromMinutes(6),
+            lastObservedAt: waitingStartedAt) with
+        {
+            TokenUsage = new TokenUsageSnapshot(12_400, 0.18m, "Subscription")
+        };
+
+        Assert.Equal("subsc", renderer.Render(template, context).Details);
+    }
+
+    [Fact]
+    public void Render_SubscriptionBillingType_FormatsFiveHourRateLimitAndResetDuration()
+    {
+        var current = DateTime.UtcNow;
+        var renderer = new PresenceTemplateRenderer(() => current);
+        var template = new PresenceTemplateOptions
+        {
+            Details = "{ModelName} • {Tokens}",
+            WaitingDetails = "{Cost} {BillingType}{RateLimitDetails}"
+        };
+        var context = CreateContext(
+            new CodexProcessSnapshot(true, "codex", false)
+            {
+                DetectedActivityKind = CodexActivityKind.Ready,
+                ActivityStartedAt = current.AddSeconds(-5)
+            },
+            new ProjectSnapshot("Nexstrap", @"E:\tool\Nexstrap", null, null, 128, 128, 42000, []),
+            new GitSnapshot(true, 0, null),
+            sessionAge: TimeSpan.FromMinutes(6),
+            lastObservedAt: current.AddSeconds(-5)) with
+        {
+            TokenUsage = new TokenUsageSnapshot(
+                12_400,
+                0.18m,
+                "subsc",
+                new RateLimitSnapshot(25, 300, current.AddHours(3).AddMinutes(2)))
+        };
+
+        Assert.Equal(
+            "subsc • 5h 25% used • reset 3h 2m",
+            renderer.Render(template, context).Details);
+    }
+
+    [Fact]
+    public void Render_SubscriptionBillingType_FormatsResetUnderOneHourWithZeroHours()
+    {
+        var current = DateTime.UtcNow;
+        var renderer = new PresenceTemplateRenderer(() => current);
+        var template = new PresenceTemplateOptions
+        {
+            Details = "{ModelName} • {Tokens}",
+            WaitingDetails = "{Cost} {BillingType}{RateLimitDetails}"
+        };
+        var context = CreateContext(
+            new CodexProcessSnapshot(true, "codex", false)
+            {
+                DetectedActivityKind = CodexActivityKind.Ready,
+                ActivityStartedAt = current.AddSeconds(-5)
+            },
+            new ProjectSnapshot("Nexstrap", @"E:\tool\Nexstrap", null, null, 128, 128, 42000, []),
+            new GitSnapshot(true, 0, null),
+            sessionAge: TimeSpan.FromMinutes(6),
+            lastObservedAt: current.AddSeconds(-5)) with
+        {
+            TokenUsage = new TokenUsageSnapshot(
+                12_400,
+                0.18m,
+                "subsc",
+                new RateLimitSnapshot(25, 300, current.AddMinutes(42)))
+        };
+
+        Assert.Equal(
+            "subsc • 5h 25% used • reset 0h 42m",
+            renderer.Render(template, context).Details);
+    }
+
+    [Fact]
     public void Render_AnalyzingProjectWithTaskStart_UsesWorkingLabel()
     {
         var renderer = new PresenceTemplateRenderer();
@@ -143,6 +325,26 @@ public sealed class PresenceTemplateRendererTests
         var presence = renderer.Render(template, context);
 
         Assert.Equal("Designing mobile-friendly file label format", presence.State);
+    }
+
+    [Fact]
+    public void Render_CompletedOperationUsesCurrentThinkingSummaryInActivityLine()
+    {
+        var renderer = new PresenceTemplateRenderer();
+        var template = new PresenceTemplateOptions { State = "{ActivityLine}" };
+        var context = CreateContext(
+            new CodexProcessSnapshot(true, "codex", true)
+            {
+                DetectedActivityKind = CodexActivityKind.AnalyzingProject,
+                LatestActivityEventKind = CodexActivityEventKind.OperationCompleted,
+                LatestThinkingSummary = "Previous reasoning summary"
+            },
+            new ProjectSnapshot("Nexstrap", @"E:\tool\Nexstrap", null, null, 128, 128, 42000, []),
+            new GitSnapshot(true, 1, null));
+
+        var presence = renderer.Render(template, context);
+
+        Assert.Equal("Previous reasoning summary", presence.State);
     }
 
     [Fact]
@@ -340,7 +542,7 @@ public sealed class PresenceTemplateRendererTests
 
         var presence = renderer.Render(template, context);
 
-        Assert.Equal("Plan mode: gpt-5-codex • Tokens pending", presence.Details);
+        Assert.Equal("Plan mode: gpt-5-codex", presence.Details);
         Assert.Equal("Working", presence.State);
         Assert.Equal("working on Nexstrap", presence.LargeImageText);
         Assert.Equal("128 files • session 5m", presence.SmallImageText);
@@ -364,7 +566,7 @@ public sealed class PresenceTemplateRendererTests
 
         var presence = renderer.Render(template, context);
 
-        Assert.Equal("Plan mode: gpt-5-codex • Tokens pending", presence.Details);
+        Assert.Equal("Plan mode: gpt-5-codex", presence.Details);
     }
 
     [Fact]
@@ -385,7 +587,7 @@ public sealed class PresenceTemplateRendererTests
 
         var presence = renderer.Render(template, context);
 
-        Assert.Equal("gpt-5-codex • Tokens pending", presence.Details);
+        Assert.Equal("gpt-5-codex", presence.Details);
     }
 
     [Fact]
@@ -407,7 +609,7 @@ public sealed class PresenceTemplateRendererTests
 
         var presence = renderer.Render(template, context);
 
-        Assert.Equal("Code mode: gpt-5-codex • Tokens pending", presence.Details);
+        Assert.Equal("Code mode: gpt-5-codex", presence.Details);
     }
 
     [Fact]

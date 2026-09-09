@@ -1,16 +1,29 @@
 using System.Globalization;
+using DiscordRPC;
 
 namespace CodexDiscordPresence;
 
 internal static class DashboardTextFormatter
 {
+    public static string FormatActivityType(DiscordPresenceSnapshot? presence)
+    {
+        return presence?.ActivityType switch
+        {
+            ActivityType.Playing => "Playing:",
+            ActivityType.Listening => "Listening to:",
+            ActivityType.Watching => "Watching:",
+            ActivityType.Competing => "Competing in:",
+            _ => string.Empty
+        };
+    }
+
     public static string FormatBillingType(string? billingType)
     {
         return billingType?.Trim().ToLowerInvariant() switch
         {
             "api" or "apikey" => "API",
             "subsc" or "subscription" or "chatgpt" or "free" or "go" or "plus" or "pro" or "business" or "enterprise" or "edu" => "subsc",
-            _ => "unavailable"
+            _ => string.Empty
         };
     }
 
@@ -18,14 +31,14 @@ internal static class DashboardTextFormatter
     {
         return rateLimit is { WindowDurationMinutes: 300 }
             ? $"5h {rateLimit.UsedPercent.ToString(CultureInfo.InvariantCulture)}% used"
-            : "5h unavailable";
+            : string.Empty;
     }
 
     public static string FormatRateLimitReset(RateLimitSnapshot? rateLimit, DateTime utcNow)
     {
         if (rateLimit is not { WindowDurationMinutes: 300 })
         {
-            return "reset unavailable";
+            return string.Empty;
         }
 
         var remaining = rateLimit.ResetAtUtc - utcNow;
@@ -74,19 +87,6 @@ internal static class DashboardTextFormatter
             return state;
         }
 
-        return "Waiting";
-    }
-
-    public static string FormatModelProject(PresenceDashboardSnapshot snapshot)
-    {
-        var model = snapshot.ModelName?.Trim() ?? "";
-        var project = snapshot.ProjectName?.Trim() ?? "";
-
-        if (model.Length > 0 && project.Length > 0)
-        {
-            return $"{model} working on {project}";
-        }
-
-        return model.Length > 0 ? model : project;
+        return string.Empty;
     }
 }

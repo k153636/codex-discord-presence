@@ -180,8 +180,9 @@ public sealed class PresenceRuntime
                     deferSessionEnrichment = false;
                 }
 
-                var delay = PresenceRefreshPolicy.GetNextDelay(_options.Presence, profileStates[currentProfile].LastActivityKind, _options.UpdateIntervalSeconds);
-                if (delay > projectSwitchDetectionInterval)
+                var activityKind = profileStates[currentProfile].LastActivityKind;
+                var delay = PresenceRefreshPolicy.GetNextDelay(_options.Presence, activityKind, _options.UpdateIntervalSeconds);
+                if (activityKind != CodexActivityKind.Ready && delay > projectSwitchDetectionInterval)
                 {
                     delay = projectSwitchDetectionInterval;
                 }

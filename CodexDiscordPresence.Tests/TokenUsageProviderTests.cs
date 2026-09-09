@@ -1,3 +1,4 @@
+using System.Text.Json;
 using CodexDiscordPresence;
 using Xunit;
 
@@ -194,6 +195,93 @@ public sealed class TokenUsageProviderTests
         }
     }
 
+    [Fact]
+    public void ResolveBillingType_MapsChatGptAccountToSubscWithoutUsingPlanName()
+    {
+        using var document = JsonDocument.Parse("{\"result\":{\"account\":{\"type\":\"chatgpt\",\"planType\":\"plus\"}}}");
+
+        Assert.Equal("subsc", CodexAccountBillingTypeProvider.ResolveBillingType(document.RootElement));
+    }
+
+    [Fact]
+    public void ResolveBillingType_MapsApiKeyAccountToApi()
+    {
+        using var document = JsonDocument.Parse("{\"result\":{\"account\":{\"type\":\"apiKey\"}}}");
+
+        Assert.Equal("API", CodexAccountBillingTypeProvider.ResolveBillingType(document.RootElement));
+    }
+
+    [Fact]
+    public void ResolveFiveHourRateLimit_ReadsPrimaryUsageAndResetTime()
+    {
+        var resetAt = DateTimeOffset.UtcNow.AddHours(3).AddMinutes(2);
+        using var document = JsonDocument.Parse($"{{\"result\":{{\"rateLimits\":{{\"primary\":{{\"usedPercent\":25,\"windowDurationMins\":300,\"resetsAt\":{resetAt.ToUnixTimeSeconds()}}}}}}}}}");
+
+        var snapshot = CodexAccountBillingTypeProvider.ResolveFiveHourRateLimit(document.RootElement);
+
+        Assert.NotNull(snapshot);
+        Assert.Equal(25, snapshot.UsedPercent);
+        Assert.Equal(300, snapshot.WindowDurationMinutes);
+        Assert.Equal(
+            resetAt.ToUnixTimeSeconds(),
+            new DateTimeOffset(snapshot.ResetAtUtc).ToUnixTimeSeconds());
+    }
+
+    [Fact]
+    public void ResolveFiveHourRateLimit_IgnoresNonFiveHourWindow()
+    {
+        using var document = JsonDocument.Parse("{\"result\":{\"rateLimits\":{\"primary\":{\"usedPercent\":25,\"windowDurationMins\":60,\"resetsAt\":1780000000}}}}");
+
+        Assert.Null(CodexAccountBillingTypeProvider.ResolveFiveHourRateLimit(document.RootElement));
+    }
+
+    [Fact]
+    public void GetSnapshot_UsesDetectedBillingTypeWhenNoOverrideIsConfigured()
+    {
+        var tempHome = CreateTempCodexHome();
+        try
+        {
+            var provider = new TokenUsageProvider(
+                new CodexDetectionOptions { HomePath = tempHome, ModelEnvironmentVariables = [] },
+                new TokenUsageOptions { Enabled = true },
+                new StubBillingTypeProvider("subsc"));
+
+            var snapshot = provider.GetSnapshot(includeSessionScan: false);
+
+            Assert.Equal("subsc", snapshot.BillingType);
+        }
+        finally
+        {
+            Directory.Delete(tempHome, true);
+        }
+    }
+
+    [Fact]
+    public void GetSnapshot_UsesDetectedFiveHourRateLimit()
+    {
+        var tempHome = CreateTempCodexHome();
+        try
+        {
+            var resetAt = DateTime.UtcNow.AddHours(3);
+            var provider = new TokenUsageProvider(
+                new CodexDetectionOptions { HomePath = tempHome, ModelEnvironmentVariables = [] },
+                new TokenUsageOptions { Enabled = true },
+                new StubBillingTypeProvider("subsc"),
+                new StubRateLimitProvider(new RateLimitSnapshot(25, 300, resetAt)));
+
+            var snapshot = provider.GetSnapshot(includeSessionScan: false);
+
+            Assert.Equal("subsc", snapshot.BillingType);
+            Assert.Equal(25, snapshot.RateLimit?.UsedPercent);
+            Assert.Equal(300, snapshot.RateLimit?.WindowDurationMinutes);
+            Assert.Equal(resetAt, snapshot.RateLimit?.ResetAtUtc);
+        }
+        finally
+        {
+            Directory.Delete(tempHome, true);
+        }
+    }
+
     private static string CreateTempCodexHome()
     {
         var tempPath = Path.Combine(Path.GetTempPath(), "CodexTokenTests_" + Guid.NewGuid());
@@ -214,5 +302,15 @@ public sealed class TokenUsageProviderTests
     private static string EscapeJson(string value)
     {
         return value.Replace("\\", "\\\\").Replace("\"", "\\\"");
+    }
+
+    private sealed class StubBillingTypeProvider(string billingType) : IBillingTypeProvider
+    {
+        public string? GetBillingType(CancellationToken cancellationToken = default) => billingType;
+    }
+
+    private sealed class StubRateLimitProvider(RateLimitSnapshot rateLimit) : IRateLimitProvider
+    {
+        public RateLimitSnapshot? GetRateLimit(CancellationToken cancellationToken = default) => rateLimit;
     }
 }

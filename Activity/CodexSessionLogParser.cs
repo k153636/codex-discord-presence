@@ -15,6 +15,7 @@ internal sealed class CodexSessionLogParser
     private readonly CodexDetectionOptions _options;
     private readonly PresenceTemplateOptions _presenceOptions;
     private readonly Dictionary<string, CachedSessionInspection> _sessionCache = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<string, LifecycleBoundaryCache> _lifecycleBoundaryCache = new(StringComparer.OrdinalIgnoreCase);
 
     public CodexSessionLogParser(CodexDetectionOptions options, PresenceTemplateOptions presenceOptions)
     {
@@ -321,7 +322,7 @@ internal sealed class CodexSessionLogParser
         return inspection with { MatchesProject = matchesProject };
     }
 
-    private static IEnumerable<string> ReadSessionLines(
+    private IEnumerable<string> ReadSessionLines(
         string path,
         CancellationToken cancellationToken)
     {
@@ -339,7 +340,7 @@ internal sealed class CodexSessionLogParser
         return ReadLargeSessionLines(path, fileLength, cancellationToken);
     }
 
-    private static IEnumerable<string> ReadLargeSessionLines(
+    private IEnumerable<string> ReadLargeSessionLines(
         string path,
         long fileLength,
         CancellationToken cancellationToken)
@@ -353,13 +354,159 @@ internal sealed class CodexSessionLogParser
             path,
             Math.Max(0, fileLength - MaxTailBytesToScan),
             cancellationToken);
+        var tailLines = ReadLinesFromOffset(
+                path,
+                tailOffset,
+                includePartialFirstLine: true,
+                cancellationToken: cancellationToken)
+            .ToArray();
+        var tailLineSet = tailLines.ToHashSet(StringComparer.Ordinal);
+        var lifecycleBoundaries = GetLifecycleBoundaries(path, fileLength, tailLines, cancellationToken);
+
+        foreach (var boundary in lifecycleBoundaries
+                     .Where(boundary => !boundary.IsCoveredByHeader && !tailLineSet.Contains(boundary.Text))
+                     .OrderBy(boundary => boundary.Order))
+        {
+            yield return boundary.Text;
+        }
+
+        foreach (var line in tailLines)
+        {
+            yield return line;
+        }
+    }
+
+    private IReadOnlyList<LifecycleBoundaryLine> GetLifecycleBoundaries(
+        string path,
+        long fileLength,
+        IReadOnlyList<string> tailLines,
+        CancellationToken cancellationToken)
+    {
+        if (!_lifecycleBoundaryCache.TryGetValue(path, out var cache) || fileLength < cache.FileLength)
+        {
+            cache = new LifecycleBoundaryCache();
+            _lifecycleBoundaryCache[path] = cache;
+        }
+
+        var hasTaskStartedInTail = false;
+        foreach (var line in tailLines)
+        {
+            if (!TryGetLifecycleBoundary(line, out var isTaskStarted, out var isTerminal))
+            {
+                continue;
+            }
+
+            var boundary = new LifecycleBoundaryLine(
+                line,
+                ++cache.NextOrder,
+                IsCoveredByHeader: false);
+            if (isTaskStarted)
+            {
+                hasTaskStartedInTail = true;
+                cache.LatestTaskStarted = boundary;
+            }
+
+            if (isTerminal)
+            {
+                cache.LatestTerminal = boundary;
+            }
+        }
+
+        if (!cache.FullScanCompleted &&
+            cache.LatestTaskStarted is null &&
+            !hasTaskStartedInTail)
+        {
+            ScanLifecycleBoundaries(path, cache, cancellationToken);
+        }
+
+        cache.FileLength = fileLength;
+        return new[] { cache.LatestTaskStarted, cache.LatestTerminal }
+            .Where(boundary => boundary is not null)
+            .Cast<LifecycleBoundaryLine>()
+            .ToArray();
+    }
+
+    private static void ScanLifecycleBoundaries(
+        string path,
+        LifecycleBoundaryCache cache,
+        CancellationToken cancellationToken)
+    {
+        var lineNumber = 0L;
         foreach (var line in ReadLinesFromOffset(
                      path,
-                     tailOffset,
+                     0,
                      includePartialFirstLine: true,
                      cancellationToken: cancellationToken))
         {
-            yield return line;
+            lineNumber++;
+            if (!TryGetLifecycleBoundary(line, out var isTaskStarted, out var isTerminal))
+            {
+                continue;
+            }
+
+            var boundary = new LifecycleBoundaryLine(
+                line,
+                lineNumber,
+                IsCoveredByHeader: lineNumber <= MaxHeaderLinesToScan);
+            if (isTaskStarted)
+            {
+                cache.LatestTaskStarted = boundary;
+            }
+
+            if (isTerminal)
+            {
+                cache.LatestTerminal = boundary;
+            }
+        }
+
+        cache.NextOrder = Math.Max(cache.NextOrder, lineNumber);
+        cache.FullScanCompleted = true;
+    }
+
+    private static bool TryGetLifecycleBoundary(
+        string line,
+        out bool isTaskStarted,
+        out bool isTerminal)
+    {
+        isTaskStarted = false;
+        isTerminal = false;
+        if (!line.Contains("\"payload\"", StringComparison.Ordinal) ||
+            !line.Contains("task_", StringComparison.OrdinalIgnoreCase) &&
+            !line.Contains("turn_", StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
+        try
+        {
+            using var document = JsonDocument.Parse(line);
+            if (!document.RootElement.TryGetProperty("payload", out var payload) ||
+                !TryGetString(payload, "type", out var payloadType))
+            {
+                return false;
+            }
+
+            switch (payloadType.Trim().ToLowerInvariant())
+            {
+                case "task_started":
+                    isTaskStarted = true;
+                    return true;
+                case "task_complete":
+                case "turn_completed":
+                case "turn_aborted":
+                case "task_aborted":
+                case "turn_interrupted":
+                case "turn_failed":
+                case "task_failed":
+                    isTerminal = true;
+                    return true;
+                default:
+                    return false;
+            }
+        }
+        catch (JsonException)
+        {
+            return false;
         }
     }
 
@@ -2510,6 +2657,20 @@ internal sealed class CodexSessionLogParser
         long Length,
         DateTime LastWriteTimeUtc,
         SessionInspection Inspection);
+
+    private sealed class LifecycleBoundaryCache
+    {
+        public long FileLength { get; set; }
+        public long NextOrder { get; set; }
+        public bool FullScanCompleted { get; set; }
+        public LifecycleBoundaryLine? LatestTaskStarted { get; set; }
+        public LifecycleBoundaryLine? LatestTerminal { get; set; }
+    }
+
+    private sealed record LifecycleBoundaryLine(
+        string Text,
+        long Order,
+        bool IsCoveredByHeader);
 
     private sealed record SessionInspectionCandidate(SessionInspection Inspection, DateTime SessionLastWriteTimeUtc);
 }

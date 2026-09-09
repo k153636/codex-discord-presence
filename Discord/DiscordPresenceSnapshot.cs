@@ -14,6 +14,8 @@ public sealed record DiscordPresenceSnapshot(
     int? PartyMax,
     IReadOnlyList<RenderedButton> Buttons)
 {
+    public ActivityType ActivityType { get; init; } = ActivityType.Playing;
+
     public static DiscordPresenceSnapshot From(RichPresence presence)
     {
         ArgumentNullException.ThrowIfNull(presence);
@@ -35,6 +37,9 @@ public sealed record DiscordPresenceSnapshot(
             presence.Timestamps?.Start,
             presence.Party?.Size,
             presence.Party?.Max,
-            buttons);
+            buttons)
+        {
+            ActivityType = presence.Type
+        };
     }
 }

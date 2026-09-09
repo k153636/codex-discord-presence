@@ -37,7 +37,7 @@ public sealed class PresenceRefreshPolicyTests
     }
 
     [Fact]
-    public void GetNextDelay_UsesIdleIntervalForReadyAndOffline()
+    public void GetNextDelay_UsesFiveSecondIntervalForReadyAndIdleIntervalForOffline()
     {
         var options = new PresenceTemplateOptions
         {
@@ -46,7 +46,7 @@ public sealed class PresenceRefreshPolicyTests
             IdleUpdateIntervalSeconds = 8
         };
 
-        Assert.Equal(TimeSpan.FromSeconds(8), PresenceRefreshPolicy.GetNextDelay(options, CodexActivityKind.Ready, 2));
+        Assert.Equal(TimeSpan.FromSeconds(5), PresenceRefreshPolicy.GetNextDelay(options, CodexActivityKind.Ready, 2));
         Assert.Equal(TimeSpan.FromSeconds(8), PresenceRefreshPolicy.GetNextDelay(options, CodexActivityKind.Offline, 2));
     }
 }

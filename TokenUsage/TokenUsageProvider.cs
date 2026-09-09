@@ -8,6 +8,11 @@ public sealed class TokenUsageProvider
     private readonly CodexDetectionOptions _codexOptions;
     private readonly TokenUsageOptions _options;
     private readonly string _codexHomePath;
+    private readonly IBillingTypeProvider? _billingTypeProvider;
+    private readonly IRateLimitProvider? _rateLimitProvider;
+    private readonly object _billingTypeLock = new();
+    private bool _billingTypeResolved;
+    private string? _detectedBillingType;
 
     private static readonly IReadOnlyDictionary<string, ModelPricing> PricingByModel = new Dictionary<string, ModelPricing>(StringComparer.OrdinalIgnoreCase)
     {
@@ -21,10 +26,21 @@ public sealed class TokenUsageProvider
     };
 
     public TokenUsageProvider(CodexDetectionOptions codexOptions, TokenUsageOptions options)
+        : this(codexOptions, options, null)
+    {
+    }
+
+    internal TokenUsageProvider(
+        CodexDetectionOptions codexOptions,
+        TokenUsageOptions options,
+        IBillingTypeProvider? billingTypeProvider,
+        IRateLimitProvider? rateLimitProvider = null)
     {
         _codexOptions = codexOptions;
         _options = options;
         _codexHomePath = codexOptions.GetResolvedHomePath();
+        _billingTypeProvider = billingTypeProvider;
+        _rateLimitProvider = rateLimitProvider;
     }
 
     public TokenUsageSnapshot GetSnapshot(
@@ -33,23 +49,78 @@ public sealed class TokenUsageProvider
         bool includeSessionScan = true,
         CancellationToken cancellationToken = default)
     {
+        var billingType = ResolveBillingType(cancellationToken);
+        var rateLimit = ResolveRateLimit(billingType, cancellationToken);
         if (!_options.Enabled)
         {
-            return new TokenUsageSnapshot(null, null);
+            return new TokenUsageSnapshot(null, null, billingType, rateLimit);
         }
 
         if (!includeSessionScan)
         {
-            return new TokenUsageSnapshot(null, null);
+            return new TokenUsageSnapshot(null, null, billingType, rateLimit);
         }
 
         var inspection = InspectRecentSessions(projectPath, fallbackModelName, cancellationToken);
         if (inspection is null)
         {
-            return new TokenUsageSnapshot(null, null);
+            return new TokenUsageSnapshot(null, null, billingType, rateLimit);
         }
 
-        return new TokenUsageSnapshot(inspection.TotalTokens, inspection.EstimatedCostUsd);
+        return new TokenUsageSnapshot(inspection.TotalTokens, inspection.EstimatedCostUsd, billingType, rateLimit);
+    }
+
+    private RateLimitSnapshot? ResolveRateLimit(
+        string? billingType,
+        CancellationToken cancellationToken)
+    {
+        if (!string.Equals(billingType, "subsc", StringComparison.OrdinalIgnoreCase) ||
+            _rateLimitProvider is null)
+        {
+            return null;
+        }
+
+        try
+        {
+            return _rateLimitProvider.GetRateLimit(cancellationToken);
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    private string? ResolveBillingType(CancellationToken cancellationToken)
+    {
+        if (!string.IsNullOrWhiteSpace(_options.BillingType))
+        {
+            return _options.BillingType;
+        }
+
+        if (_billingTypeProvider is null)
+        {
+            return null;
+        }
+
+        lock (_billingTypeLock)
+        {
+            if (_billingTypeResolved)
+            {
+                return _detectedBillingType;
+            }
+
+            try
+            {
+                _detectedBillingType = _billingTypeProvider.GetBillingType(cancellationToken);
+            }
+            catch
+            {
+                _detectedBillingType = null;
+            }
+
+            _billingTypeResolved = true;
+            return _detectedBillingType;
+        }
     }
 
     private SessionUsageInspection? InspectRecentSessions(

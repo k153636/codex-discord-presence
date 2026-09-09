@@ -44,6 +44,7 @@ public sealed class DiscordRichPresenceBuilderTests
 
         Assert.Equal(rendered.Details, snapshot.Details);
         Assert.Equal(rendered.State, snapshot.State);
+        Assert.Equal(payload.Type, snapshot.ActivityType);
         Assert.Equal(payload.Assets.LargeImageKey, snapshot.LargeImageKey);
         Assert.Equal(payload.Assets.SmallImageKey, snapshot.SmallImageKey);
         Assert.Equal(startedAt, snapshot.StartedAtUtc);
