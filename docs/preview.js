@@ -16,20 +16,20 @@
   const slides = [
     {
       model: "gpt 5.6 luna max 1.5x • 10.5M Token",
-      activity: "MCP chrome-devtools",
+      activity: "Inspecting the live preview",
       image: "assets/rpc_reading.gif",
       initialElapsedSeconds: 120
     },
     {
       model: "gpt 5.6 luna max 1.5x • 10.5M Token",
-      activity: "Analyzing dashboard preview bug",
+      activity: "Reasoning through the layout",
       image: "assets/rpc_thinking.gif",
       initialElapsedSeconds: 146
     },
     {
       model: "gpt 5.6 luna max 1.5x • 10.5M Token",
-      activity: "Editing CSS with patch",
-      image: "assets/rpc_thinking.gif",
+      activity: "Applying the final polish",
+      image: "assets/rpc_coding.gif",
       initialElapsedSeconds: 168
     }
   ];
