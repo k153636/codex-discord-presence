@@ -132,8 +132,8 @@
   let isTransitioning = false;
   const autoAdvanceTimers = rpcThemes.map(() => 0);
   let autoAdvancePaused = preview.matches(":hover");
-  const autoAdvanceDelay = 6200;
-  const autoAdvanceStagger = 1100;
+  const autoAdvanceMinDelay = 5400;
+  const autoAdvanceMaxDelay = 8200;
   const prefersReducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
 
   const clearThemeAutoAdvance = (themeIndex) => {
@@ -145,7 +145,11 @@
     rpcThemes.forEach((_, themeIndex) => clearThemeAutoAdvance(themeIndex));
   };
 
-  const scheduleThemeAutoAdvance = (themeIndex, delay = autoAdvanceDelay) => {
+  const getAutoAdvanceDelay = () => Math.round(
+    autoAdvanceMinDelay + Math.random() * (autoAdvanceMaxDelay - autoAdvanceMinDelay)
+  );
+
+  const scheduleThemeAutoAdvance = (themeIndex, delay = getAutoAdvanceDelay()) => {
     clearThemeAutoAdvance(themeIndex);
     if (autoAdvancePaused || prefersReducedMotion.matches || document.hidden) {
       return;
@@ -159,11 +163,8 @@
     }, delay);
   };
 
-  const scheduleAllThemeAutoAdvances = (stagger = false) => {
-    rpcThemes.forEach((_, themeIndex) => {
-      const delay = autoAdvanceDelay + (stagger ? themeIndex * autoAdvanceStagger : 0);
-      scheduleThemeAutoAdvance(themeIndex, delay);
-    });
+  const scheduleAllThemeAutoAdvances = () => {
+    rpcThemes.forEach((_, themeIndex) => scheduleThemeAutoAdvance(themeIndex));
   };
 
   const updateElapsed = () => {
@@ -238,7 +239,7 @@
   };
 
   if (typeof prefersReducedMotion.addEventListener === "function") {
-    prefersReducedMotion.addEventListener("change", () => scheduleAllThemeAutoAdvances(true));
+    prefersReducedMotion.addEventListener("change", scheduleAllThemeAutoAdvances);
   }
 
   const moveTo = (direction) => {
@@ -300,7 +301,7 @@
   });
   preview.addEventListener("mouseleave", () => {
     autoAdvancePaused = false;
-    scheduleAllThemeAutoAdvances(true);
+    scheduleAllThemeAutoAdvances();
   });
   preview.addEventListener("focusin", () => {
     autoAdvancePaused = true;
@@ -309,14 +310,14 @@
   preview.addEventListener("focusout", (event) => {
     if (!preview.contains(event.relatedTarget)) {
       autoAdvancePaused = false;
-      scheduleAllThemeAutoAdvances(true);
+      scheduleAllThemeAutoAdvances();
     }
   });
   document.addEventListener("visibilitychange", () => {
     if (document.hidden) {
       clearAllThemeAutoAdvances();
     } else {
-      scheduleAllThemeAutoAdvances(true);
+      scheduleAllThemeAutoAdvances();
     }
   });
 
@@ -324,6 +325,6 @@
   renderStatus(activeThemeIndex);
   updateElapsed();
   updateButtons();
-  scheduleAllThemeAutoAdvances(true);
+  scheduleAllThemeAutoAdvances();
   window.setInterval(updateElapsed, 1000);
 })();
