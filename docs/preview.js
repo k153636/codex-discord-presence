@@ -13,26 +13,41 @@
     return;
   }
 
-  const slides = [
+  const rpcThemes = [
     {
-      model: "gpt 5.6 luna max 1.5x • 10.5M Token",
-      activity: "Inspecting the live preview",
+      details: "MCP chrome-devtools",
       image: "assets/rpc_reading.gif",
-      initialElapsedSeconds: 120
+      states: [
+        { activity: "Reading the live DOM first", initialElapsedSeconds: 120 },
+        { activity: "Comparing rendered bounds", initialElapsedSeconds: 124 },
+        { activity: "Inspecting the active tab", initialElapsedSeconds: 128 }
+      ]
     },
     {
-      model: "gpt 5.6 luna max 1.5x • 10.5M Token",
-      activity: "Reasoning through the layout",
+      details: "Codex thought summary",
       image: "assets/rpc_thinking.gif",
-      initialElapsedSeconds: 146
+      states: [
+        { activity: "The frame should stay stable", initialElapsedSeconds: 146 },
+        { activity: "Tracing the parent width", initialElapsedSeconds: 150 },
+        { activity: "Keeping the signal concise", initialElapsedSeconds: 154 }
+      ]
     },
     {
-      model: "gpt 5.6 luna max 1.5x • 10.5M Token",
-      activity: "Applying the final polish",
+      details: "Debugging live render",
       image: "assets/rpc_coding.gif",
-      initialElapsedSeconds: 168
+      states: [
+        { activity: "Reproducing the timer drift", initialElapsedSeconds: 168 },
+        { activity: "Tracing the icon squeeze", initialElapsedSeconds: 172 },
+        { activity: "Verifying the elapsed state", initialElapsedSeconds: 176 }
+      ]
     }
   ];
+
+  const slides = rpcThemes.flatMap((theme) => theme.states.map((state) => ({
+    ...state,
+    details: theme.details,
+    image: theme.image
+  })));
 
   const cardPositionClasses = [
     "rpc-preview-card--far-previous",
@@ -97,16 +112,16 @@
   };
 
   const renderCard = (card, parts, slide, index) => {
-    parts.details.textContent = slide.model;
+    parts.details.textContent = slide.details;
     parts.state.textContent = slide.activity;
     parts.state.classList.toggle("rpc-preview-card-state--wrapped", slide.activity.includes("\n"));
     parts.image.src = slide.image;
     parts.elapsed.textContent = formatElapsed(safeSeconds(slide.initialElapsedSeconds));
-    card.setAttribute("aria-label", `Discord activity example ${index + 1} of ${slides.length}: ${slide.activity.replace(/\s+/g, " ").trim()}`);
+    card.setAttribute("aria-label", `Discord activity ${index + 1} of ${slides.length}: ${slide.details}: ${slide.activity.replace(/\s+/g, " ").trim()}`);
   };
 
   const renderStatus = (slide, index) => {
-    slideStatus.textContent = `Discord activity example ${index + 1} of ${slides.length}: ${slide.activity.replace(/\s+/g, " ").trim()}`;
+    slideStatus.textContent = `${slide.details} · ${slide.activity.replace(/\s+/g, " ").trim()}`;
   };
 
   let activeIndex = 0;
