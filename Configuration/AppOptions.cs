@@ -288,7 +288,7 @@ public sealed class PresenceTemplateOptions
         new()
         {
             Label = "K's Codex RPC",
-            Url = "https://github.com/k153636/codex-discord-presence"
+            Url = "https://k153636.github.io/codex-discord-presence/"
         }
     ];
     public string AnalyzingProjectText { get; set; } = "Thinking";
