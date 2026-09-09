@@ -842,7 +842,6 @@ html.motion-enhanced .prose > *.is-visible {
   }
 }
 
-@media (prefers-reduced-motion: no-preference) {
   html:not(.motion-enhanced) .hero-copy {
     animation: hero-reveal var(--motion-reveal-duration) var(--motion-reveal-ease) both;
   }
@@ -872,8 +871,6 @@ html.motion-enhanced .prose > *.is-visible {
     animation: ambient-drift 28s var(--motion-ambient-ease) infinite;
     will-change: opacity, transform;
   }
-}
-
 @media (max-width: 900px) {
   h1 {
     font-size: clamp(2.2rem, 6vw, 3.2rem);
@@ -1028,46 +1025,5 @@ html.motion-enhanced .prose > *.is-visible {
 
   .rpc-preview-nav--next {
     right: 72px;
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  html {
-    scroll-behavior: auto;
-  }
-
-  .hero-copy {
-    animation: none;
-  }
-
-  html.motion-enhanced [data-motion],
-  html.motion-enhanced .prose > * {
-    opacity: 1;
-    transform: none;
-    transition: none;
-    will-change: auto;
-  }
-
-  .button,
-  .rpc-preview-nav,
-  a,
-  .site-header,
-  .brand-mark {
-    animation: none;
-    transition: none;
-  }
-
-  .rpc-preview-track,
-  .rpc-preview-card,
-  .rpc-preview-shell,
-  .rpc-preview-shell::before,
-  .rpc-preview-shell::after {
-    animation: none;
-    transition: none;
-  }
-
-  body::before {
-    animation: none;
-    will-change: auto;
   }
 }

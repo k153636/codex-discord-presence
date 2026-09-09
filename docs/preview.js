@@ -175,7 +175,6 @@
   let autoAdvancePaused = preview.matches(":hover");
   const autoAdvanceMinDelay = 5400;
   const autoAdvanceMaxDelay = 8200;
-  const prefersReducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
 
   const clearThemeAutoAdvance = (themeIndex) => {
     window.clearTimeout(autoAdvanceTimers[themeIndex]);
@@ -192,13 +191,13 @@
 
   const scheduleThemeAutoAdvance = (themeIndex, delay = getAutoAdvanceDelay()) => {
     clearThemeAutoAdvance(themeIndex);
-    if (autoAdvancePaused || prefersReducedMotion.matches || document.hidden) {
+    if (autoAdvancePaused || document.hidden) {
       return;
     }
 
     autoAdvanceTimers[themeIndex] = window.setTimeout(() => {
       autoAdvanceTimers[themeIndex] = 0;
-      if (!document.hidden && !autoAdvancePaused && !prefersReducedMotion.matches) {
+      if (!document.hidden && !autoAdvancePaused) {
         advanceThemeState(themeIndex);
       }
     }, delay);
@@ -288,10 +287,6 @@
     updateElapsed();
     scheduleThemeAutoAdvance(themeIndex);
   };
-
-  if (typeof prefersReducedMotion.addEventListener === "function") {
-    prefersReducedMotion.addEventListener("change", scheduleAllThemeAutoAdvances);
-  }
 
   const moveTo = (direction) => {
     if (isTransitioning || direction === 0) {

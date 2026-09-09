@@ -1,6 +1,5 @@
 (() => {
   const root = document.documentElement;
-  const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
   const header = document.querySelector(".site-header");
   const targets = [
     ...new Set([
@@ -36,7 +35,7 @@
   };
 
   const startMotion = () => {
-    if (motionStarted || reducedMotion.matches) {
+    if (motionStarted) {
       return;
     }
 
@@ -60,12 +59,6 @@
     motionStarted = true;
   };
 
-  const stopMotion = () => {
-    root.classList.remove("motion-enhanced");
-    targets.forEach((target) => target.classList.add("is-visible"));
-    observer?.disconnect();
-  };
-
   const updateHeader = () => {
     scrollFrame = 0;
     header?.classList.toggle("is-scrolled", window.scrollY > 12);
@@ -77,24 +70,9 @@
     }
   };
 
-  const handleMotionPreferenceChange = () => {
-    if (reducedMotion.matches) {
-      stopMotion();
-      return;
-    }
-
-    startMotion();
-  };
-
   startMotion();
   updateHeader();
   window.addEventListener("scroll", scheduleHeaderUpdate, { passive: true });
-
-  if (typeof reducedMotion.addEventListener === "function") {
-    reducedMotion.addEventListener("change", handleMotionPreferenceChange);
-  } else {
-    reducedMotion.addListener(handleMotionPreferenceChange);
-  }
 
   window.addEventListener("pagehide", () => {
     observer?.disconnect();
