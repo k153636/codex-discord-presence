@@ -517,7 +517,7 @@ a:focus-visible {
 
 .rpc-preview-copy {
   display: grid;
-  grid-template-rows: 21px 18px 18px minmax(0, 1fr) 18px;
+  grid-template-rows: 21px 18px auto 18px;
   align-content: start;
   min-width: 0;
   height: 108px;
