@@ -128,18 +128,20 @@ nav a:hover {
 }
 
 .hero {
-  padding: clamp(6rem, 12vw, 10rem) 0 4.5rem;
+  padding: clamp(4.5rem, 8vw, 7rem) 0 4rem;
 }
 
 .hero-grid {
   display: grid;
-  grid-template-columns: minmax(0, 0.86fr) minmax(420px, 1.14fr);
-  align-items: center;
-  gap: clamp(3rem, 7vw, 7rem);
+  grid-template-columns: minmax(0, 1fr);
+  justify-items: center;
+  gap: clamp(3rem, 5vw, 4.5rem);
 }
 
 .hero-copy {
-  max-width: 560px;
+  width: min(100%, 760px);
+  max-width: none;
+  text-align: center;
 }
 
 .eyebrow {
@@ -161,7 +163,8 @@ h3 {
 
 h1 {
   max-width: 650px;
-  font-size: clamp(4rem, 8.5vw, 7.25rem);
+  margin-inline: auto;
+  font-size: clamp(4rem, 7.5vw, 6.5rem);
   font-weight: 650;
   line-height: 0.91;
 }
@@ -177,7 +180,7 @@ h3 {
 
 .lead {
   max-width: 460px;
-  margin: 1.8rem 0 0;
+  margin: 1.5rem auto 0;
   color: var(--muted);
   font-size: clamp(1.08rem, 1.7vw, 1.3rem);
   line-height: 1.55;
@@ -186,8 +189,9 @@ h3 {
 .actions {
   display: flex;
   flex-wrap: wrap;
+  justify-content: center;
   gap: 0.8rem;
-  margin-top: 2.25rem;
+  margin-top: 2rem;
 }
 
 .button {
@@ -247,8 +251,9 @@ a:focus-visible {
 .hero-meta {
   display: flex;
   flex-wrap: wrap;
+  justify-content: center;
   gap: 0;
-  margin-top: 2.5rem;
+  margin-top: 2rem;
   padding-top: 0.9rem;
   border-top: 1px solid var(--border);
   color: var(--muted);
@@ -268,6 +273,7 @@ a:focus-visible {
 }
 
 .presence-figure {
+  width: 100%;
   min-width: 0;
   margin: 0;
   padding: 1rem;
@@ -278,7 +284,7 @@ a:focus-visible {
 }
 
 .rpc-preview-frame {
-  width: min(100%, 760px);
+  width: min(100%, 1160px);
   min-width: 360px;
   margin-inline: auto;
 }
@@ -296,7 +302,7 @@ a:focus-visible {
   display: grid;
   justify-items: center;
   gap: 0.75rem;
-  margin-bottom: 1.1rem;
+  margin-bottom: 0;
 }
 
 .rpc-preview-carousel {
@@ -556,86 +562,6 @@ a:focus-visible {
   display: block;
 }
 
-.rpc-preview-runtime-note {
-  display: flex;
-  align-items: center;
-  gap: 0.45rem;
-  margin: 0;
-  color: var(--muted);
-  font-size: 0.76rem;
-}
-
-.rpc-preview-live-dot {
-  width: 0.5rem;
-  height: 0.5rem;
-  border-radius: 50%;
-  background: var(--accent);
-  box-shadow: 0 0 0 0.2rem rgba(155, 231, 176, 0.12);
-  animation: signal-pulse 2.4s ease-in-out infinite;
-}
-
-.output-fields {
-  margin: 0;
-  border-top: 1px solid var(--border);
-}
-
-.output-fields > div {
-  display: grid;
-  grid-template-columns: 5.5rem 1fr;
-  gap: 1rem;
-  height: 3.125rem;
-  padding: 0.8rem 0;
-  overflow: hidden;
-  border-bottom: 1px solid var(--border);
-}
-
-.output-fields > .output-field--state {
-  height: 6rem;
-}
-
-.output-fields dt,
-.output-fields dd {
-  min-width: 0;
-  margin: 0;
-  font-size: 0.88rem;
-}
-
-.output-fields dt {
-  overflow: hidden;
-  color: var(--text);
-  font-weight: 700;
-  white-space: nowrap;
-  text-overflow: ellipsis;
-}
-
-.output-fields dd {
-  overflow: hidden;
-  color: var(--muted);
-}
-
-.output-fields > .output-field:not(.output-field--state) dd {
-  white-space: nowrap;
-  text-overflow: ellipsis;
-}
-
-.output-fields > .output-field--state dd {
-  display: -webkit-box;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 3;
-  line-clamp: 3;
-  line-height: 1.45;
-  white-space: normal;
-  overflow-wrap: anywhere;
-}
-
-.capture-note {
-  margin: 1rem 0 0;
-  color: var(--muted);
-  font-size: 0.76rem;
-  line-height: 1.6;
-  overflow-wrap: anywhere;
-}
-
 .signal-rail {
   position: relative;
   overflow: hidden;
@@ -885,11 +811,6 @@ html.motion-enhanced .prose > *.is-visible {
 }
 
 @media (max-width: 900px) {
-  .hero-grid {
-    grid-template-columns: minmax(0, 0.9fr) minmax(360px, 1.1fr);
-    gap: 3rem;
-  }
-
   h1 {
     font-size: clamp(3.6rem, 8vw, 5.5rem);
   }
@@ -928,7 +849,6 @@ html.motion-enhanced .prose > *.is-visible {
     padding: 5rem 0 3.5rem;
   }
 
-  .hero-grid,
   .origin {
     grid-template-columns: 1fr;
   }
@@ -939,6 +859,11 @@ html.motion-enhanced .prose > *.is-visible {
 
   .presence-figure {
     padding: 1rem;
+    overflow-x: visible;
+  }
+
+  .rpc-preview-frame {
+    margin-inline: calc((100% - 360px) / 2);
   }
 
   .signal-rail {
@@ -994,6 +919,16 @@ html.motion-enhanced .prose > *.is-visible {
   }
 }
 
+@media (max-width: 360px) {
+  .presence-figure {
+    overflow-x: auto;
+  }
+
+  .rpc-preview-frame {
+    margin-inline: 0;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   html {
     scroll-behavior: auto;
@@ -1015,8 +950,7 @@ html.motion-enhanced .prose > *.is-visible {
   .rpc-preview-nav,
   a,
   .site-header,
-  .brand-mark,
-  .rpc-preview-live-dot {
+  .brand-mark {
     animation: none;
     transition: none;
   }

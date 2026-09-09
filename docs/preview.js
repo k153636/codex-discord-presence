@@ -6,15 +6,10 @@
 
   const track = preview.querySelector("[data-rpc-preview-track]");
   const initialCard = preview.querySelector("[data-rpc-card]");
-  const slideNote = preview.querySelector("[data-rpc-slide-note]");
   const slideStatus = preview.querySelector("[data-rpc-slide-status]");
-  const outputDetails = document.querySelector("[data-rpc-output-details]");
-  const outputState = document.querySelector("[data-rpc-output-state]");
-  const outputVisibility = document.querySelector("[data-rpc-output-visibility]");
-  const outputArtwork = document.querySelector("[data-rpc-output-artwork]");
   const buttons = [...preview.querySelectorAll("[data-rpc-direction]")];
 
-  if (!track || !initialCard || !slideNote || !slideStatus || buttons.length === 0) {
+  if (!track || !initialCard || !slideStatus || buttons.length === 0) {
     return;
   }
 
@@ -22,25 +17,19 @@
     {
       model: "GPT-5.6 Luna · Active session",
       activity: "Reviewing a connected tool",
-      visibility: "Shown on your Discord profile",
       image: "assets/rpc_reading.gif",
-      artwork: "Reading",
       initialElapsedSeconds: 120
     },
     {
       model: "GPT-5.6 Luna · Active session",
       activity: "Thinking through a task\nbefore writing code",
-      visibility: "Shown on your Discord profile",
       image: "assets/rpc_thinking.gif",
-      artwork: "Thinking",
       initialElapsedSeconds: 84
     },
     {
       model: "GPT-5.6 Luna · Active session",
       activity: "Editing a project file",
-      visibility: "Shown on your Discord profile",
       image: "assets/rpc_coding.gif",
-      artwork: "Coding",
       initialElapsedSeconds: 192
     }
   ];
@@ -116,12 +105,7 @@
     card.setAttribute("aria-label", `Discord activity example ${index + 1} of ${slides.length}: ${slide.activity.replace(/\s+/g, " ").trim()}`);
   };
 
-  const renderOutputs = (slide, index) => {
-    outputDetails?.replaceChildren(document.createTextNode(slide.model));
-    outputState?.replaceChildren(document.createTextNode(slide.activity));
-    outputVisibility?.replaceChildren(document.createTextNode(slide.visibility));
-    outputArtwork?.replaceChildren(document.createTextNode(slide.artwork));
-    slideNote.textContent = "Live preview · use the arrows to explore.";
+  const renderStatus = (slide, index) => {
     slideStatus.textContent = `Discord activity example ${index + 1} of ${slides.length}: ${slide.activity.replace(/\s+/g, " ").trim()}`;
   };
 
@@ -193,7 +177,7 @@
     isTransitioning = true;
     updateButtons();
     renderCard(incomingCard, incomingParts, slides[nextIndex], nextIndex);
-    renderOutputs(slides[nextIndex], nextIndex);
+    renderStatus(slides[nextIndex], nextIndex);
 
     const nextCardsByOffset = new Map();
     for (const [offset, card] of cardsByOffset) {
@@ -236,7 +220,7 @@
   });
 
   renderInitialCards();
-  renderOutputs(slides[activeIndex], activeIndex);
+  renderStatus(slides[activeIndex], activeIndex);
   updateElapsed();
   updateButtons();
   window.setInterval(updateElapsed, 1000);
