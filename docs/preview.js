@@ -15,22 +15,22 @@
 
   const slides = [
     {
-      model: "GPT-5.6 Luna · Active session",
-      activity: "Reviewing a connected tool",
+      model: "gpt 5.6 luna max 1.5x • 10.5M Token",
+      activity: "MCP playwright",
       image: "assets/rpc_reading.gif",
       initialElapsedSeconds: 120
     },
     {
-      model: "GPT-5.6 Luna · Active session",
-      activity: "Thinking through a task\nbefore writing code",
+      model: "gpt 5.6 luna max 1.5x • 10.5M Token",
+      activity: "Analyzing dashboard preview bug",
       image: "assets/rpc_thinking.gif",
-      initialElapsedSeconds: 84
+      initialElapsedSeconds: 146
     },
     {
-      model: "GPT-5.6 Luna · Active session",
-      activity: "Editing a project file",
-      image: "assets/rpc_coding.gif",
-      initialElapsedSeconds: 192
+      model: "gpt 5.6 luna max 1.5x • 10.5M Token",
+      activity: "Editing CSS with patch",
+      image: "assets/rpc_thinking.gif",
+      initialElapsedSeconds: 168
     }
   ];
 
