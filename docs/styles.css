@@ -1193,6 +1193,7 @@ body::before {
     overflow-wrap: anywhere;
     white-space: normal;
     text-overflow: clip;
+    line-height: 19px;
   }
 
   .rpc-preview-copy > span.rpc-preview-card-state--wrapped {
