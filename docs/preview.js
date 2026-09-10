@@ -185,7 +185,8 @@
   let isTransitioning = false;
   const autoAdvanceTimers = rpcThemes.map(() => 0);
   let carouselAutoAdvanceTimer = 0;
-  let autoAdvancePaused = preview.matches(":hover");
+  let themeAutoAdvancePaused = preview.matches(":hover");
+  let carouselAutoAdvancePaused = preview.matches(":focus-within");
   const autoAdvanceMinDelay = 5400;
   const autoAdvanceMaxDelay = 8200;
   const carouselInitialDelay = 1800;
@@ -213,13 +214,13 @@
 
   const scheduleThemeAutoAdvance = (themeIndex, delay = getAutoAdvanceDelay()) => {
     clearThemeAutoAdvance(themeIndex);
-    if (autoAdvancePaused || document.hidden) {
+    if (themeAutoAdvancePaused || document.hidden) {
       return;
     }
 
     autoAdvanceTimers[themeIndex] = window.setTimeout(() => {
       autoAdvanceTimers[themeIndex] = 0;
-      if (!document.hidden && !autoAdvancePaused) {
+      if (!document.hidden && !themeAutoAdvancePaused) {
         advanceThemeState(themeIndex);
       }
     }, delay);
@@ -231,13 +232,13 @@
 
   const scheduleCarouselAutoAdvance = (delay = carouselAutoAdvanceDelay) => {
     clearCarouselAutoAdvance();
-    if (isMotionReduced() || autoAdvancePaused || document.hidden) {
+    if (isMotionReduced() || carouselAutoAdvancePaused || document.hidden) {
       return;
     }
 
     carouselAutoAdvanceTimer = window.setTimeout(() => {
       carouselAutoAdvanceTimer = 0;
-      if (isMotionReduced() || document.hidden || autoAdvancePaused) {
+      if (isMotionReduced() || document.hidden || carouselAutoAdvancePaused) {
         return;
       }
       if (isTransitioning) {
@@ -445,23 +446,24 @@
   carousel.addEventListener("lostpointercapture", clearSwipe);
 
   preview.addEventListener("mouseenter", () => {
-    autoAdvancePaused = true;
+    themeAutoAdvancePaused = true;
     clearAllThemeAutoAdvances();
-    clearCarouselAutoAdvance();
   });
   preview.addEventListener("mouseleave", () => {
-    autoAdvancePaused = false;
+    themeAutoAdvancePaused = false;
     scheduleAllThemeAutoAdvances();
     scheduleCarouselAutoAdvance();
   });
   preview.addEventListener("focusin", () => {
-    autoAdvancePaused = true;
+    themeAutoAdvancePaused = true;
+    carouselAutoAdvancePaused = true;
     clearAllThemeAutoAdvances();
     clearCarouselAutoAdvance();
   });
   preview.addEventListener("focusout", (event) => {
     if (!preview.contains(event.relatedTarget)) {
-      autoAdvancePaused = false;
+      themeAutoAdvancePaused = false;
+      carouselAutoAdvancePaused = false;
       scheduleAllThemeAutoAdvances();
       scheduleCarouselAutoAdvance();
     }
