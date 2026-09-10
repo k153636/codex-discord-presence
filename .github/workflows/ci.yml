@@ -1,0 +1,58 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test-and-publish:
+    name: Test and publish
+    runs-on: windows-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+
+      - name: Set up .NET 9
+        uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: 9.0.x
+
+      - name: Restore test project
+        run: dotnet restore "CodexDiscordPresence.Tests\CodexDiscordPresence.Tests.csproj"
+
+      - name: Run full test suite
+        run: >-
+          dotnet test
+          "CodexDiscordPresence.Tests\CodexDiscordPresence.Tests.csproj"
+          --configuration Release
+          --no-restore
+          --logger "console;verbosity=normal"
+
+      - name: Build Release publish
+        shell: cmd
+        run: .\build.cmd
+
+      - name: Verify published executable
+        shell: pwsh
+        run: |
+          $publishPath = Join-Path $env:GITHUB_WORKSPACE 'publish\discord-presence-for-codex.exe'
+          if (-not (Test-Path -LiteralPath $publishPath -PathType Leaf)) {
+            throw "Expected published executable was not created: $publishPath"
+          }
+
+          $publishedFile = Get-Item -LiteralPath $publishPath
+          if ($publishedFile.Length -le 0) {
+            throw "Published executable is empty: $publishPath"
+          }
+
+          Write-Host "Verified published executable: $publishPath ($($publishedFile.Length) bytes)"
