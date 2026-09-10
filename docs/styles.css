@@ -410,6 +410,10 @@ a:focus-visible {
   will-change: transform, filter, opacity;
 }
 
+.rpc-preview-shell--initializing .rpc-preview-card {
+  transition: none;
+}
+
 .rpc-preview-card--far-previous,
 .rpc-preview-card--far-next {
   z-index: 0;

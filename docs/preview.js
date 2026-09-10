@@ -306,6 +306,18 @@
     }
   };
 
+  const releaseInitialCardState = () => {
+    const release = () => preview.classList.remove("rpc-preview-shell--initializing");
+    if (typeof window.requestAnimationFrame !== "function") {
+      window.setTimeout(release, 0);
+      return;
+    }
+
+    window.requestAnimationFrame(() => {
+      window.requestAnimationFrame(release);
+    });
+  };
+
   const renderThemeCards = (themeIndex) => {
     for (const [offset, card] of cardsByOffset) {
       if (normalizeThemeIndex(activeThemeIndex + offset) === themeIndex) {
@@ -475,6 +487,7 @@
   renderStatus(activeThemeIndex);
   updateElapsed();
   updateButtons();
+  releaseInitialCardState();
   scheduleAllThemeAutoAdvances();
   scheduleCarouselAutoAdvance(carouselInitialDelay);
   window.setInterval(updateElapsed, 1000);
