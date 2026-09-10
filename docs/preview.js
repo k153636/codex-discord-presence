@@ -184,9 +184,14 @@
   let cardsByOffset = new Map(cards.map((card, index) => [index - 2, card]));
   let isTransitioning = false;
   const autoAdvanceTimers = rpcThemes.map(() => 0);
+  let carouselAutoAdvanceTimer = 0;
   let autoAdvancePaused = preview.matches(":hover");
   const autoAdvanceMinDelay = 5400;
   const autoAdvanceMaxDelay = 8200;
+  const carouselInitialDelay = 1800;
+  const carouselAutoAdvanceDelay = 7200;
+
+  const isMotionReduced = () => window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
   const clearThemeAutoAdvance = (themeIndex) => {
     window.clearTimeout(autoAdvanceTimers[themeIndex]);
@@ -195,6 +200,11 @@
 
   const clearAllThemeAutoAdvances = () => {
     rpcThemes.forEach((_, themeIndex) => clearThemeAutoAdvance(themeIndex));
+  };
+
+  const clearCarouselAutoAdvance = () => {
+    window.clearTimeout(carouselAutoAdvanceTimer);
+    carouselAutoAdvanceTimer = 0;
   };
 
   const getAutoAdvanceDelay = () => Math.round(
@@ -217,6 +227,25 @@
 
   const scheduleAllThemeAutoAdvances = () => {
     rpcThemes.forEach((_, themeIndex) => scheduleThemeAutoAdvance(themeIndex));
+  };
+
+  const scheduleCarouselAutoAdvance = (delay = carouselAutoAdvanceDelay) => {
+    clearCarouselAutoAdvance();
+    if (isMotionReduced() || autoAdvancePaused || document.hidden) {
+      return;
+    }
+
+    carouselAutoAdvanceTimer = window.setTimeout(() => {
+      carouselAutoAdvanceTimer = 0;
+      if (isMotionReduced() || document.hidden || autoAdvancePaused) {
+        return;
+      }
+      if (isTransitioning) {
+        scheduleCarouselAutoAdvance(500);
+        return;
+      }
+      moveTo(1);
+    }, delay);
   };
 
   const updateElapsed = () => {
@@ -322,6 +351,7 @@
     const incomingCard = cardsByOffset.get(incomingOffset);
     const incomingParts = partsByCard.get(incomingCard);
 
+    clearCarouselAutoAdvance();
     isTransitioning = true;
     updateButtons();
     renderCard(incomingCard, incomingParts, nextThemeIndex);
@@ -354,6 +384,7 @@
       updateElapsed();
       isTransitioning = false;
       updateButtons();
+      scheduleCarouselAutoAdvance();
     });
   };
 
@@ -416,26 +447,32 @@
   preview.addEventListener("mouseenter", () => {
     autoAdvancePaused = true;
     clearAllThemeAutoAdvances();
+    clearCarouselAutoAdvance();
   });
   preview.addEventListener("mouseleave", () => {
     autoAdvancePaused = false;
     scheduleAllThemeAutoAdvances();
+    scheduleCarouselAutoAdvance();
   });
   preview.addEventListener("focusin", () => {
     autoAdvancePaused = true;
     clearAllThemeAutoAdvances();
+    clearCarouselAutoAdvance();
   });
   preview.addEventListener("focusout", (event) => {
     if (!preview.contains(event.relatedTarget)) {
       autoAdvancePaused = false;
       scheduleAllThemeAutoAdvances();
+      scheduleCarouselAutoAdvance();
     }
   });
   document.addEventListener("visibilitychange", () => {
     if (document.hidden) {
       clearAllThemeAutoAdvances();
+      clearCarouselAutoAdvance();
     } else {
       scheduleAllThemeAutoAdvances();
+      scheduleCarouselAutoAdvance();
     }
   });
 
@@ -444,5 +481,6 @@
   updateElapsed();
   updateButtons();
   scheduleAllThemeAutoAdvances();
+  scheduleCarouselAutoAdvance(carouselInitialDelay);
   window.setInterval(updateElapsed, 1000);
 })();
