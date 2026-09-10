@@ -1181,44 +1181,8 @@ body::before {
     min-width: 0;
   }
 
-  .rpc-preview-card,
-  .rpc-preview-track,
-  .rpc-preview-viewport {
-    height: 168px;
-  }
-
-  .rpc-preview-card {
-    min-height: 168px;
-    max-height: 168px;
-  }
-
-  .rpc-preview-content {
-    height: 121px;
-    margin-top: 8px;
-  }
-
-  .rpc-preview-copy {
-    grid-template-rows: 24px 38px 38px 21px;
-    height: 121px;
-  }
-
-  .rpc-preview-copy > span:not(.rpc-preview-elapsed) {
-    overflow-wrap: anywhere;
-    white-space: normal;
-    text-overflow: clip;
-    line-height: 19px;
-  }
-
-  .rpc-preview-copy > span.rpc-preview-card-state--wrapped {
-    height: 38px;
-    max-height: 38px;
-    line-height: 19px;
-    white-space: pre-line;
-    text-overflow: clip;
-  }
-
   .rpc-preview-carousel {
-    --rpc-preview-nav-center-shift: 25.2px;
+    --rpc-preview-nav-center-shift: 22.2px;
     display: block;
   }
 
