@@ -25,6 +25,7 @@
   --motion-ambient-ease: cubic-bezier(0.37, 0, 0.63, 1);
   --motion-reveal-duration: 1120ms;
   --motion-reveal-ease: cubic-bezier(0.2, 0.8, 0.2, 1);
+  --motion-preview-entry-duration: 1800ms;
   --motion-float-duration: 15s;
   --motion-stage-duration: 17s;
   --motion-pulse-duration: 7.2s;
@@ -884,6 +885,10 @@ html.motion-enhanced [data-motion="hero-copy"],
 html.motion-enhanced [data-motion="presence-figure"] {
   transition-duration: var(--motion-reveal-duration);
   transition-timing-function: var(--motion-reveal-ease);
+}
+
+html.motion-enhanced [data-motion="presence-figure"] {
+  transition-duration: var(--motion-preview-entry-duration);
 }
 
 .rpc-preview-shell {
