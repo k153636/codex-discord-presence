@@ -369,6 +369,8 @@ a:focus-visible {
 .rpc-preview-track {
   --rpc-preview-card-gap: clamp(40px, 4vw, 80px);
   --rpc-preview-side-scale: 0.88;
+  --rpc-preview-active-scale: 1;
+  --rpc-preview-far-scale: 0.78;
   --rpc-preview-side-distance: calc(var(--rpc-preview-card-half) + var(--rpc-preview-card-gap) + var(--rpc-preview-side-half));
   --rpc-preview-far-distance: calc(var(--rpc-preview-side-distance) + var(--rpc-preview-card-width));
   --rpc-preview-slide-duration: 520ms;
@@ -414,7 +416,7 @@ a:focus-visible {
 }
 
 .rpc-preview-card--far-previous {
-  transform: translateX(calc(-50% - var(--rpc-preview-far-distance))) scale(0.78);
+  transform: translateX(calc(-50% - var(--rpc-preview-far-distance))) scale(var(--rpc-preview-far-scale));
 }
 
 .rpc-preview-card--previous,
@@ -442,11 +444,11 @@ a:focus-visible {
     0 8px 20px -4px rgba(0, 0, 0, 0.5),
     0 0 20px -2px rgba(41, 151, 255, 0.24),
     inset 0 1px 0 rgba(255, 255, 255, 0.24);
-  transform: translateX(-50%) scale(1);
+  transform: translateX(-50%) scale(var(--rpc-preview-active-scale));
 }
 
 .rpc-preview-card--far-next {
-  transform: translateX(calc(-50% + var(--rpc-preview-far-distance))) scale(0.78);
+  transform: translateX(calc(-50% + var(--rpc-preview-far-distance))) scale(var(--rpc-preview-far-scale));
 }
 
 .rpc-preview-nav {
@@ -992,8 +994,8 @@ body::before {
 
   .rpc-preview-frame {
     --rpc-preview-card-width: clamp(300px, calc(100vw - 4rem), 360px);
-    --rpc-preview-card-half: clamp(150px, calc(50vw - 2rem), 180px);
-    --rpc-preview-side-half: clamp(132px, calc(44vw - 28.16px), 158.4px);
+    --rpc-preview-card-half: clamp(105px, calc(35vw - 22.4px), 126px);
+    --rpc-preview-side-half: clamp(92.4px, calc(30.8vw - 19.712px), 110.88px);
     width: 100%;
     min-width: var(--rpc-preview-card-width);
     max-width: none;
@@ -1003,6 +1005,13 @@ body::before {
   .rpc-preview-carousel,
   .rpc-preview-viewport {
     min-width: 0;
+  }
+
+  .rpc-preview-track {
+    --rpc-preview-card-gap: clamp(12px, 4vw, 16px);
+    --rpc-preview-side-scale: 0.616;
+    --rpc-preview-active-scale: 0.7;
+    --rpc-preview-far-scale: 0.546;
   }
 
   .rpc-preview-nav {
