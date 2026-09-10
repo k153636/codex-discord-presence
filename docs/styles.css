@@ -1146,6 +1146,56 @@ body::before {
     flex-direction: column;
   }
 
+  .rpc-preview-frame {
+    --rpc-preview-card-width: min(360px, calc(100vw - 2rem));
+    --rpc-preview-card-half: calc(var(--rpc-preview-card-width) / 2);
+    --rpc-preview-side-half: calc(var(--rpc-preview-card-width) * 0.44);
+    width: min(100%, var(--rpc-preview-card-width));
+    min-width: 0;
+    max-width: 100%;
+  }
+
+  .rpc-preview-carousel,
+  .rpc-preview-viewport {
+    width: 100%;
+    min-width: 0;
+  }
+
+  .rpc-preview-card,
+  .rpc-preview-track,
+  .rpc-preview-viewport {
+    height: 168px;
+  }
+
+  .rpc-preview-card {
+    min-height: 168px;
+    max-height: 168px;
+  }
+
+  .rpc-preview-content {
+    height: 121px;
+    margin-top: 8px;
+  }
+
+  .rpc-preview-copy {
+    grid-template-rows: 24px 38px 38px 21px;
+    height: 121px;
+  }
+
+  .rpc-preview-copy > span:not(.rpc-preview-elapsed) {
+    overflow-wrap: anywhere;
+    white-space: normal;
+    text-overflow: clip;
+  }
+
+  .rpc-preview-copy > span.rpc-preview-card-state--wrapped {
+    height: 38px;
+    max-height: 38px;
+    line-height: 19px;
+    white-space: pre-line;
+    text-overflow: clip;
+  }
+
   .rpc-preview-carousel {
     display: block;
   }
@@ -1207,11 +1257,10 @@ body::before {
   }
 
   .presence-figure {
-    width: calc(100% + 2rem);
-    margin-left: -1rem;
+    width: 100%;
+    margin-left: 0;
     justify-self: start;
-    overflow-x: auto;
-    overscroll-behavior-x: contain;
+    overflow-x: visible;
   }
 
   .rpc-preview-frame {
