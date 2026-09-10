@@ -227,6 +227,17 @@
     });
   };
 
+  const getTransitionFallbackDelay = (element) => {
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+      return 0;
+    }
+
+    const durationSeconds = Number.parseFloat(getComputedStyle(element).transitionDuration);
+    return Number.isFinite(durationSeconds)
+      ? Math.max(durationSeconds * 1000 + 180, 500)
+      : 900;
+  };
+
   const animateTo = (incomingCard, onFinish) => {
     let hasFinished = false;
     let fallbackTimer = 0;
@@ -249,7 +260,7 @@
     };
 
     incomingCard.addEventListener("transitionend", finishOnTransitionEnd);
-    fallbackTimer = window.setTimeout(finishTransition, 650);
+    fallbackTimer = window.setTimeout(finishTransition, getTransitionFallbackDelay(incomingCard));
   };
 
   const renderInitialCards = () => {
