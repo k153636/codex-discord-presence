@@ -1009,8 +1009,6 @@ body::before {
     min-width: var(--rpc-preview-card-width);
     max-width: none;
     margin-inline: auto;
-    position: relative;
-    left: var(--rpc-preview-scrollbar-shift, 0px);
   }
 
   .rpc-preview-carousel,

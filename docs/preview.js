@@ -16,10 +16,9 @@
   }
 
   const updatePreviewCenter = () => {
-    // Keep the preview centered in the visual viewport when a mobile browser reserves a scrollbar.
-    const scrollbarWidth = Math.max(0, window.innerWidth - document.documentElement.clientWidth);
+    // Keep the card scale tied to the viewport while layout centering remains owned by
+    // the scrollbar-free content box.
     frame.style.setProperty("--rpc-preview-viewport-width", `${window.innerWidth}px`);
-    frame.style.setProperty("--rpc-preview-scrollbar-shift", `${scrollbarWidth / 2}px`);
   };
 
   updatePreviewCenter();
