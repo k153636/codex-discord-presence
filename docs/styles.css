@@ -1259,38 +1259,3 @@ body::before {
   }
 
 }
-
-@media (prefers-reduced-motion: reduce) {
-  html {
-    scroll-behavior: auto;
-  }
-
-  *,
-  *::before,
-  *::after {
-    animation-duration: 0.001ms !important;
-    animation-iteration-count: 1 !important;
-    scroll-behavior: auto !important;
-    transition-duration: 0.001ms !important;
-  }
-
-  html.motion-enhanced [data-motion],
-  html.motion-enhanced .prose > * {
-    opacity: 1;
-    transform: none;
-    transition: none;
-    will-change: auto;
-  }
-
-  body::before,
-  .brand-mark,
-  .rpc-preview-shell,
-  .rpc-preview-shell::before,
-  .rpc-preview-shell::after {
-    animation: none !important;
-  }
-
-  .rpc-preview-card {
-    transition: none !important;
-  }
-}

@@ -191,8 +191,6 @@
   const carouselInitialDelay = 1800;
   const carouselAutoAdvanceDelay = 7200;
 
-  const isMotionReduced = () => window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-
   const clearThemeAutoAdvance = (themeIndex) => {
     window.clearTimeout(autoAdvanceTimers[themeIndex]);
     autoAdvanceTimers[themeIndex] = 0;
@@ -231,13 +229,13 @@
 
   const scheduleCarouselAutoAdvance = (delay = carouselAutoAdvanceDelay) => {
     clearCarouselAutoAdvance();
-    if (isMotionReduced() || carouselAutoAdvancePaused || document.hidden) {
+    if (carouselAutoAdvancePaused || document.hidden) {
       return;
     }
 
     carouselAutoAdvanceTimer = window.setTimeout(() => {
       carouselAutoAdvanceTimer = 0;
-      if (isMotionReduced() || document.hidden || carouselAutoAdvancePaused) {
+      if (document.hidden || carouselAutoAdvancePaused) {
         return;
       }
       if (isTransitioning) {
@@ -268,10 +266,6 @@
   };
 
   const getTransitionFallbackDelay = (element) => {
-    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
-      return 0;
-    }
-
     const durationSeconds = Number.parseFloat(getComputedStyle(element).transitionDuration);
     return Number.isFinite(durationSeconds)
       ? Math.max(durationSeconds * 1000 + 180, 500)

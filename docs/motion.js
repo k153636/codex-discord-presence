@@ -1,7 +1,6 @@
 (() => {
   const root = document.documentElement;
   const header = document.querySelector(".site-header");
-  const prefersReducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
   const targets = [
     ...new Set([
       ...document.querySelectorAll("[data-motion]"),
@@ -11,7 +10,7 @@
 
   const setupPreviewCenterLight = () => {
     const previewShell = document.querySelector("[data-rpc-preview]");
-    if (!previewShell || prefersReducedMotion) {
+    if (!previewShell) {
       return () => {};
     }
 
@@ -147,7 +146,7 @@
   };
 
   const startMotion = () => {
-    if (motionStarted || prefersReducedMotion) {
+    if (motionStarted) {
       return;
     }
 
