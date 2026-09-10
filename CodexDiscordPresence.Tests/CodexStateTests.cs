@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Diagnostics;
 using System.IO;
 using CodexDiscordPresence;
 using Xunit;
@@ -66,7 +67,7 @@ public class CodexStateTests
                 "{\"timestamp\":\"2026-06-17T13:00:00.000Z\",\"type\":\"event_msg\",\"payload\":{\"type\":\"token_count\"}}"
             });
 
-            var detector = new CodexProcessDetector(new CodexDetectionOptions { HomePath = tempPath }, new PresenceTemplateOptions());
+            var detector = new CodexProcessDetector(CreateRunningProcessDetectionOptions(tempPath), new PresenceTemplateOptions());
 
             var isThinking = detector.DetermineIfThinking();
             var snapshot = detector.GetSnapshot();
@@ -357,7 +358,9 @@ public class CodexStateTests
                 $"{{\"timestamp\":\"{staleTimeStr}\",\"type\":\"event_msg\",\"payload\":{{\"type\":\"task_started\",\"turn_id\":\"123\"}}}}"
             });
 
-            var detector = new CodexProcessDetector(new CodexDetectionOptions { HomePath = tempPath }, new PresenceTemplateOptions { ThinkingStaleTimeoutMinutes = 10 });
+            var detector = new CodexProcessDetector(
+                CreateRunningProcessDetectionOptions(tempPath),
+                new PresenceTemplateOptions { ThinkingStaleTimeoutMinutes = 10 });
 
             var snapshot = detector.GetSnapshot();
 
@@ -1155,6 +1158,16 @@ public class CodexStateTests
     private static string EscapeJson(string value)
     {
         return value.Replace("\\", "\\\\").Replace("\"", "\\\"");
+    }
+
+    private static CodexDetectionOptions CreateRunningProcessDetectionOptions(string homePath)
+    {
+        return new CodexDetectionOptions
+        {
+            HomePath = homePath,
+            ProcessNameContains = [Process.GetCurrentProcess().ProcessName],
+            WindowTitleContains = []
+        };
     }
 }
 

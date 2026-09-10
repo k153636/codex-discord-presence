@@ -8,12 +8,13 @@ public sealed class ActiveProjectPathSelectionPolicyTests
     [Fact]
     public void Select_PrefersFocusedProjectPath()
     {
-        var current = @"E:\tool\discord-presence-for-codex";
-        var focused = @"E:\tool\OtherProject";
+        var testRoot = Path.Combine(Path.GetTempPath(), "CodexActiveProjectSelectionTests_" + Guid.NewGuid());
+        var current = Path.Combine(testRoot, "CurrentProject");
+        var focused = Path.Combine(testRoot, "FocusedProject");
         Directory.CreateDirectory(focused);
         var codex = new CodexProcessSnapshot(true, "codex", true)
         {
-            ObservedProjectPath = @"E:\tool\ThirdProject",
+            ObservedProjectPath = Path.Combine(testRoot, "ObservedProject"),
             LastObservedAt = DateTime.UtcNow
         };
         var cli = new CodexProcessSnapshot(false, null, false);
@@ -26,7 +27,7 @@ public sealed class ActiveProjectPathSelectionPolicyTests
         }
         finally
         {
-            Directory.Delete(focused);
+            Directory.Delete(testRoot, true);
         }
     }
 
