@@ -1,9 +1,9 @@
 # K's Codex RPC
 
-Codex CLI / Codex Desktopの作業状況を、WindowsのDiscord RPCに表示するローカル常駐アプリです。
+Show Codex CLI / Codex Desktop activity in Discord RPC from a local Windows tray app.
 
-Codexの現在の作業内容をDiscord Rich Presenceに表示します。
-「Thinking」や「Editing」だけではなく、Codexセッションから取得できる推論サマリー、使用中のMCPサーバー、編集中のファイル、コマンド実行、調査状態などを確認できます。
+The app displays Codex's current work in Discord Rich Presence.
+Beyond generic “Thinking” or “Editing” labels, it can show reasoning summaries available from Codex sessions, active MCP servers, edited files, command execution, and research activity.
 
 <p>
   <a href="https://github.com/k153636/codex-discord-presence/releases/latest"><img src="https://img.shields.io/github/v/release/k153636/codex-discord-presence?display_name=tag&style=for-the-badge&label=Download" alt="Latest release"></a>
@@ -12,67 +12,67 @@ Codexの現在の作業内容をDiscord Rich Presenceに表示します。
   <a href="https://github.com/k153636/codex-discord-presence/blob/main/LICENSE"><img src="https://img.shields.io/github/license/k153636/codex-discord-presence?style=for-the-badge&label=License" alt="MIT License"></a>
 </p>
 
-## Discordに表示できるもの
+## What it can show in Discord
 
-- Codexセッションから取得できる推論サマリー
-- 使用中のMCPサーバー
-- 編集中のファイルやファイル数
-- 読み取り、編集、計画、調査、コマンド実行などの状態
-- 使用モデルと推論レベル
-- 取得可能な場合のセッション時間、トークン数、推定コスト
-- プロジェクト情報とGitの変更数
-- サブエージェントのParty情報
-- Discord RPC内のWebサイトなどのボタン
+- Reasoning summaries available from Codex sessions
+- The active MCP server
+- Edited files and file counts
+- Reading, editing, planning, research, and command activity
+- The active model and reasoning effort
+- Session duration, token usage, and estimated cost when available
+- Project information and Git change counts
+- Party information for active subagents
+- Buttons such as a link to the project website
 
-Codexのセッションイベントやプロセス情報など、取得できる活動情報をもとにDiscord RPCを更新します。
+The app updates Discord RPC using available Codex session events and process signals.
 
-## Codexの解析と状態判定はローカルで行われます
+## Codex analysis and state detection happen locally
 
-Codexのセッション情報、プロジェクト情報、Git情報などの解析と状態判定は、Windows上でローカルに行われます。
+Codex session data, project information, and Git data are analyzed locally on Windows.
 
-ただし、アプリは完全オフラインではありません。
-Discord DesktopへのRPC接続や、設定が有効な場合のGitHub Release更新確認など、必要に応じてネット通信を行います。
+However, the app is not completely offline.
+It communicates with Discord Desktop for RPC and may check GitHub Releases for updates when update checks are enabled.
 
-プロジェクトが運営するアカウント、セッション用サーバー、クラウド上のチームダッシュボードはありません。
+This project does not operate an account system, session server, or cloud-based team dashboard.
 
-Discordに表示される内容には、プロジェクト名、ファイル名、推論サマリーなどが含まれる場合があります。詳しくは[データの流れとプライバシー](https://k153636.github.io/codex-discord-presence/privacy.html)を確認してください。
+The content shown in Discord may include project names, file names, and reasoning summaries. See the [data flow and privacy notes](https://k153636.github.io/codex-discord-presence/privacy.html) before using the app.
 
-## 必要なもの
+## Requirements
 
 - Windows x64
 - .NET 9 Desktop Runtime
 - Discord Desktop
-- Codex CLIまたはCodex Desktop
+- Codex CLI or Codex Desktop
 
-## インストール
+## Installation
 
-1. [.NET 9 Desktop Runtime](https://dotnet.microsoft.com/download/dotnet/9.0)をインストールします。
-2. Discord Desktopを起動します。
-3. [最新のGitHub Release](https://github.com/k153636/codex-discord-presence/releases/latest)から`discord-presence-for-codex.exe`をダウンロードします。
-4. 実行ファイルを起動します。
+1. Install the [.NET 9 Desktop Runtime](https://dotnet.microsoft.com/download/dotnet/9.0).
+2. Start Discord Desktop.
+3. Download `discord-presence-for-codex.exe` from the [latest GitHub Release](https://github.com/k153636/codex-discord-presence/releases/latest).
+4. Run the executable.
 
-アプリはWindowsのタスクトレイに常駐します。
-トレイメニューから、Discord RPCの有効化、Dashboardの表示、設定編集、終了を行えます。
+The app stays in the Windows system tray.
+Use the tray menu to enable or disable Discord RPC, open the Dashboard, edit settings, or quit the app.
 
-## Codex CLIとCodex Desktop
+## Codex CLI and Codex Desktop
 
-Desktop用とCLI用の検出設定に対応しています。
+The app supports separate detection settings for Desktop and CLI.
 
-実行中のCodex、セッションログ、CLIのコマンドラインなどを確認し、使用中の環境に合わせて表示を更新します。
+It checks the running Codex process, session logs, and CLI command-line information to update the presence for the environment currently in use.
 
-## 詳細
+## More information
 
-- [Webサイト](https://k153636.github.io/codex-discord-presence/)
+- [Website](https://k153636.github.io/codex-discord-presence/)
 - [FAQ](https://k153636.github.io/codex-discord-presence/faq.html)
-- [互換性](https://k153636.github.io/codex-discord-presence/compatibility.html)
-- [データの流れ](https://k153636.github.io/codex-discord-presence/privacy.html)
-- [最新のGitHub Release](https://github.com/k153636/codex-discord-presence/releases/latest)
+- [Compatibility](https://k153636.github.io/codex-discord-presence/compatibility.html)
+- [Data flow](https://k153636.github.io/codex-discord-presence/privacy.html)
+- [Latest GitHub Release](https://github.com/k153636/codex-discord-presence/releases/latest)
 
-## 注意事項
+## Notes
 
-このプロジェクトはOpenAIまたはDiscordの公式製品ではありません。
+This project is not an official OpenAI or Discord product.
 
-現在の公開版はWindows x64向けです。
-トークン数、コスト、レート制限情報などは取得できない場合があります。
+The current release targets Windows x64.
+Token usage, cost, and rate-limit information may not be available in every environment.
 
 MIT License
