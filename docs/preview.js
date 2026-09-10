@@ -4,15 +4,26 @@
     return;
   }
 
+  const frame = preview.closest(".rpc-preview-frame");
   const track = preview.querySelector("[data-rpc-preview-track]");
   const carousel = preview.querySelector(".rpc-preview-carousel");
   const initialCard = preview.querySelector("[data-rpc-card]");
   const slideStatus = preview.querySelector("[data-rpc-slide-status]");
   const buttons = [...preview.querySelectorAll("[data-rpc-direction]")];
 
-  if (!track || !carousel || !initialCard || !slideStatus || buttons.length === 0) {
+  if (!frame || !track || !carousel || !initialCard || !slideStatus || buttons.length === 0) {
     return;
   }
+
+  const updatePreviewCenter = () => {
+    // Keep the preview centered in the visual viewport when a mobile browser reserves a scrollbar.
+    const scrollbarWidth = Math.max(0, window.innerWidth - document.documentElement.clientWidth);
+    frame.style.setProperty("--rpc-preview-viewport-width", `${window.innerWidth}px`);
+    frame.style.setProperty("--rpc-preview-scrollbar-shift", `${scrollbarWidth / 2}px`);
+  };
+
+  updatePreviewCenter();
+  window.addEventListener("resize", updatePreviewCenter, { passive: true });
 
   const modelLabel = "gpt 6 astra";
   const baseTokenCount = 35_600_000;

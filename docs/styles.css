@@ -1002,13 +1002,15 @@ body::before {
   }
 
   .rpc-preview-frame {
-    --rpc-preview-card-width: clamp(300px, calc(100vw - 4rem), 360px);
+    --rpc-preview-card-width: clamp(300px, calc(var(--rpc-preview-viewport-width, 100vw) - 4rem), 360px);
     --rpc-preview-card-half: clamp(105px, calc(35vw - 22.4px), 126px);
     --rpc-preview-side-half: clamp(92.4px, calc(30.8vw - 19.712px), 110.88px);
     width: 100%;
     min-width: var(--rpc-preview-card-width);
     max-width: none;
     margin-inline: auto;
+    position: relative;
+    left: var(--rpc-preview-scrollbar-shift, 0px);
   }
 
   .rpc-preview-carousel,
@@ -1159,7 +1161,7 @@ body::before {
   }
 
   .rpc-preview-frame {
-    --rpc-preview-card-width: min(360px, calc(100vw - 2rem));
+    --rpc-preview-card-width: min(360px, calc(var(--rpc-preview-viewport-width, 100vw) - 2rem));
     --rpc-preview-card-half: calc(var(--rpc-preview-card-width) * 0.35);
     --rpc-preview-side-half: calc(var(--rpc-preview-card-width) * 0.308);
     width: min(100%, var(--rpc-preview-card-width));
