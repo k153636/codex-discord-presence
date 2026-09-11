@@ -14,6 +14,9 @@ internal sealed record SessionInspection(
     string? RefactorEvidenceReason)
 {
     public string? ProjectPath { get; init; }
+    public string? ThreadId { get; init; }
+    public string? ThreadSource { get; init; }
+    public string? ParentThreadId { get; init; }
     public DateTime? LastShellCommandAt { get; init; }
     public RunningCommandKind LastRunningCommandKind { get; init; } = RunningCommandKind.Unknown;
     public string? LastRunningCommandName { get; init; }
@@ -22,6 +25,9 @@ internal sealed record SessionInspection(
     public IReadOnlyList<CodexActivityEvent> ActivityEvents { get; init; } = Array.Empty<CodexActivityEvent>();
     public IReadOnlyList<string> ActiveAgentThreadIds => CodexAgentActivityTracker.GetActiveAgentThreadIds(ActivityEvents);
     public int PartySize => 1 + ActiveAgentThreadIds.Count;
+    public bool IsPrimaryThread =>
+        !string.Equals(ThreadSource, "subagent", StringComparison.OrdinalIgnoreCase) &&
+        string.IsNullOrWhiteSpace(ParentThreadId);
     public string? LatestThinkingSummary => ActivityEvents
         .OrderByDescending(activityEvent => activityEvent.Sequence)
         .Select(activityEvent => activityEvent.ThinkingSummary)

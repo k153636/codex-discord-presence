@@ -140,6 +140,9 @@ internal sealed class CodexSessionLogParser
         var activityEvents = new List<CodexActivityEvent>();
         var sequence = 0L;
         string? runningCommandReason = null;
+        string? threadId = null;
+        string? threadSource = null;
+        string? parentThreadId = null;
 
         try
         {
@@ -155,6 +158,14 @@ internal sealed class CodexSessionLogParser
                 if (!document.RootElement.TryGetProperty("payload", out var payload))
                 {
                     continue;
+                }
+
+                var recordType = TryGetString(document.RootElement, "type");
+                if (string.Equals(recordType, "session_meta", StringComparison.OrdinalIgnoreCase))
+                {
+                    threadId ??= TryGetFirstString(payload, "id", "thread_id", "threadId", "session_id");
+                    threadSource ??= TryGetFirstString(payload, "thread_source", "threadSource");
+                    parentThreadId ??= TryGetFirstString(payload, "parent_thread_id", "parentThreadId");
                 }
 
                 var timestamp = TryGetTimestamp(document.RootElement);
@@ -303,6 +314,9 @@ internal sealed class CodexSessionLogParser
             null)
         {
             ProjectPath = latestProjectPath,
+            ThreadId = threadId,
+            ThreadSource = threadSource,
+            ParentThreadId = parentThreadId,
             LastShellCommandAt = lastShellCommandAt,
             LastRunningCommandKind = lastRunningCommandKind,
             LastRunningCommandName = lastRunningCommandName,
@@ -2589,36 +2603,47 @@ internal sealed class CodexSessionLogParser
             return null;
         }
 
+        var primaryCandidates = candidates
+            .Where(candidate => candidate.Inspection.IsPrimaryThread)
+            .ToArray();
+        if (primaryCandidates.Length == 0)
+        {
+            return null;
+        }
+
         SessionInspectionCandidate? best = null;
 
         if (!string.IsNullOrWhiteSpace(normalizedProjectPath))
         {
-            best = PickBest(candidates.Where(candidate => candidate.Inspection.MatchesProject && candidate.Inspection.HasRecentActivity(_presenceOptions.ThinkingStaleTimeoutMinutes)));
+            best = PickBest(primaryCandidates.Where(candidate => candidate.Inspection.MatchesProject && candidate.Inspection.HasRecentActivity(_presenceOptions.ThinkingStaleTimeoutMinutes)));
             if (best is not null)
             {
                 return best.Inspection;
             }
 
-            best = PickBest(candidates.Where(candidate => candidate.Inspection.MatchesProject));
+            best = PickBest(primaryCandidates.Where(candidate => candidate.Inspection.MatchesProject));
             if (best is not null)
             {
                 return best.Inspection;
             }
         }
 
-        best = PickBest(candidates.Where(candidate => candidate.Inspection.HasRecentActivity(_presenceOptions.ThinkingStaleTimeoutMinutes)));
+        best = PickBest(primaryCandidates.Where(candidate => candidate.Inspection.HasRecentActivity(_presenceOptions.ThinkingStaleTimeoutMinutes)));
         if (best is not null)
         {
             return best.Inspection;
         }
 
-        return PickBest(candidates)?.Inspection;
+        return PickBest(primaryCandidates)?.Inspection;
     }
 
     private string? SelectLatestObservedProjectPath(IReadOnlyList<SessionInspectionCandidate> candidates)
     {
-        var best = PickBest(candidates.Where(candidate => candidate.Inspection.HasRecentActivity(_presenceOptions.ThinkingStaleTimeoutMinutes) && !string.IsNullOrWhiteSpace(candidate.Inspection.ProjectPath)))
-            ?? PickBest(candidates.Where(candidate => !string.IsNullOrWhiteSpace(candidate.Inspection.ProjectPath)));
+        var primaryCandidates = candidates
+            .Where(candidate => candidate.Inspection.IsPrimaryThread)
+            .ToArray();
+        var best = PickBest(primaryCandidates.Where(candidate => candidate.Inspection.HasRecentActivity(_presenceOptions.ThinkingStaleTimeoutMinutes) && !string.IsNullOrWhiteSpace(candidate.Inspection.ProjectPath)))
+            ?? PickBest(primaryCandidates.Where(candidate => !string.IsNullOrWhiteSpace(candidate.Inspection.ProjectPath)));
 
         return best?.Inspection.ProjectPath;
     }
