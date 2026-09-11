@@ -290,6 +290,24 @@ public sealed class AntigravityStatusLineInfrastructureTests
     }
 
     [Fact]
+    public void Installer_ZeroByteSettings_InitializesSettingsAndInstallsIntegration()
+    {
+        using var fixture = new TemporaryFixture();
+        File.WriteAllText(fixture.SettingsPath, "");
+        var installer = fixture.CreateInstaller();
+
+        var result = installer.Install();
+
+        Assert.Equal(AntigravityStatusLineOperationStatus.Installed, result.Status);
+        using var settings = JsonDocument.Parse(File.ReadAllText(fixture.SettingsPath));
+        Assert.Equal(
+            "command",
+            settings.RootElement.GetProperty("statusLine").GetProperty("type").GetString());
+        Assert.True(File.Exists(fixture.Paths.BackupPath));
+        Assert.True(File.Exists(fixture.Paths.ScriptPath));
+    }
+
+    [Fact]
     public void Installer_MalformedBackup_DoesNotChangeManagedSettings()
     {
         using var fixture = new TemporaryFixture();

@@ -312,6 +312,11 @@ public sealed class AntigravityStatusLineInstaller
         {
             var contents = File.ReadAllText(_paths.SettingsPath);
             snapshot = new SettingsFileSnapshot(true, contents);
+            if (string.IsNullOrWhiteSpace(contents))
+            {
+                return true;
+            }
+
             var parsed = JsonNode.Parse(
                 contents,
                 documentOptions: new JsonDocumentOptions
