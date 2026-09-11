@@ -18,27 +18,27 @@ internal static class PresenceActivityComposer
             context.Codex.LatestActivityEventKind);
         if (ShouldDisplayThinkingSummary(context, thinkingSummary))
         {
-            return MainAgentActivityComposer.AddRole(context, thinkingSummary!);
+            return PartyActivityComposer.AddPartyPrefix(context, thinkingSummary!);
         }
 
         if (ShouldDisplayMcpIdentity(context, thinkingSummary))
         {
-            return BuildMcpActivityLine(context);
+            return PartyActivityComposer.AddPartyPrefix(context, BuildMcpActivityLine(context));
         }
 
         if (context.Codex.ActivityKind == CodexActivityKind.AnalyzingProject)
         {
-            return WithMainAgentRole(context, BuildIdleActivityLine(context, stateLabel));
+            return WithPartyPrefix(context, BuildIdleActivityLine(context, stateLabel));
         }
 
         if (context.Codex.ActivityKind == CodexActivityKind.CoordinatingChanges)
         {
-            return WithMainAgentRole(context, stateLabel);
+            return WithPartyPrefix(context, stateLabel);
         }
 
         if (context.Codex.ActivityKind == CodexActivityKind.ApplyingEdits)
         {
-            return WithMainAgentRole(
+            return WithPartyPrefix(
                 context,
                 BuildEditingActivityLine(context.Codex.ActivityKind, stateLabel, activeFileLabel, editedFileCount));
         }
@@ -46,17 +46,17 @@ internal static class PresenceActivityComposer
         if (context.Codex.ActivityKind is (CodexActivityKind.CreatingFiles or CodexActivityKind.DeletingFiles) &&
             editedFileCount > 0)
         {
-            return WithMainAgentRole(
+            return WithPartyPrefix(
                 context,
                 BuildEditingActivityLine(context.Codex.ActivityKind, stateLabel, activeFileLabel, editedFileCount));
         }
 
-        return WithMainAgentRole(context, BuildIdleActivityLine(context, stateLabel));
+        return WithPartyPrefix(context, BuildIdleActivityLine(context, stateLabel));
     }
 
-    private static string WithMainAgentRole(PresenceContext context, string activityLine)
+    private static string WithPartyPrefix(PresenceContext context, string activityLine)
     {
-        return MainAgentActivityComposer.AddRole(context, activityLine);
+        return PartyActivityComposer.AddPartyPrefix(context, activityLine);
     }
 
     private static bool ShouldDisplayThinkingSummary(

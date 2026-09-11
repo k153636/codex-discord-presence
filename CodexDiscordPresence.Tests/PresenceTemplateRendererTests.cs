@@ -373,7 +373,7 @@ public sealed class PresenceTemplateRendererTests
     }
 
     [Fact]
-    public void Render_WithActiveSubagentsPrefixesMainAgentAndCarriesPartySize()
+    public void Render_WithActiveSubagentsPrefixesPartyCountAndCarriesPartySize()
     {
         var renderer = new PresenceTemplateRenderer();
         var template = new PresenceTemplateOptions { State = "{ActivityLine}" };
@@ -389,12 +389,12 @@ public sealed class PresenceTemplateRendererTests
 
         var presence = renderer.Render(template, context);
 
-        Assert.Equal("Main agent Reviewing active agents", presence.State);
+        Assert.Equal("5/5 Reviewing active agents", presence.State);
         Assert.Equal(5, presence.PartySize);
     }
 
     [Fact]
-    public void Render_WithSoloPartySizeDoesNotAddMainAgentRole()
+    public void Render_WithSoloPartySizeDoesNotAddPartyPrefix()
     {
         var renderer = new PresenceTemplateRenderer();
         var template = new PresenceTemplateOptions { State = "{ActivityLine}" };
@@ -451,7 +451,7 @@ public sealed class PresenceTemplateRendererTests
 
         var presence = renderer.Render(template, context);
 
-        Assert.Equal("MCP chrome-devtools", presence.State);
+        Assert.Equal("2/2 MCP chrome-devtools", presence.State);
     }
 
     [Fact]
