@@ -409,6 +409,34 @@ public sealed class AntigravityStatusLineInfrastructureTests
     }
 
     [Fact]
+    public void CommandBuilder_WindowsScript_UpdatesExistingEventFile()
+    {
+        if (!OperatingSystem.IsWindows())
+        {
+            return;
+        }
+
+        using var fixture = new TemporaryFixture();
+        var result = new AntigravityStatusLineCommandBuilder(AntigravityStatusLinePlatform.Windows)
+            .Build(fixture.Paths);
+        File.WriteAllText(fixture.Paths.ScriptPath, result.ScriptContent);
+
+        var firstExecution = ExecutePowerShellScript(fixture.Paths.ScriptPath, WindowsSubdirectoryPayload);
+        Assert.Equal(0, firstExecution.ExitCode);
+        Assert.Equal("Working", firstExecution.Output);
+
+        var secondExecution = ExecutePowerShellScript(
+            fixture.Paths.ScriptPath,
+            WindowsSubdirectoryPayload.Replace("working", "thinking", StringComparison.Ordinal));
+        Assert.Equal(0, secondExecution.ExitCode);
+        Assert.Equal("Thinking", secondExecution.Output);
+
+        var store = new AntigravityStatusLineEventStore(fixture.EventFilePath);
+        Assert.True(store.TryReadLatest(@"C:\repo", out var observation));
+        Assert.Equal(ProviderAgentState.Thinking, observation?.AgentState);
+    }
+
+    [Fact]
     public void CommandBuilder_WindowsEncodedCommand_ExecutesScriptWithSpaces()
     {
         if (!OperatingSystem.IsWindows())

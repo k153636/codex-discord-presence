@@ -221,11 +221,7 @@ internal static class AntigravityStatusLinePowerShellScript
                     if ($directory) { [IO.Directory]::CreateDirectory($directory) | Out-Null }
                     $temporaryPath = "$EventFilePath.$PID.tmp"
                     [IO.File]::WriteAllText($temporaryPath, (($lines -join "`n") + "`n"), [Text.UTF8Encoding]::new($false))
-                    if ([IO.File]::Exists($EventFilePath)) {
-                        [IO.File]::Replace($temporaryPath, $EventFilePath, $null)
-                    } else {
-                        [IO.File]::Move($temporaryPath, $EventFilePath)
-                    }
+                    Move-Item -LiteralPath $temporaryPath -Destination $EventFilePath -Force
                 } finally {
                     if ($acquired) { $mutex.ReleaseMutex() }
                     $mutex.Dispose()
