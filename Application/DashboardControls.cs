@@ -58,6 +58,124 @@ internal static class DashboardLayoutMetrics
     }
 }
 
+internal sealed class ProviderEnabledChangedEventArgs : EventArgs
+{
+    public ProviderEnabledChangedEventArgs(string providerId, bool enabled)
+    {
+        ProviderId = providerId;
+        Enabled = enabled;
+    }
+
+    public string ProviderId { get; }
+
+    public bool Enabled { get; }
+}
+
+internal sealed class ProviderIntegrationPanel : Panel
+{
+    public const int PreferredHeight = 72;
+
+    private readonly CheckBox _codexCheckBox;
+    private readonly CheckBox _antigravityCheckBox;
+
+    public ProviderIntegrationPanel()
+    {
+        AccessibleName = "Provider integration settings";
+        AccessibleDescription = "Enable or disable the coding clients shown in Discord Rich Presence.";
+        BackColor = DashboardPalette.SurfaceInset;
+        Padding = new Padding(16, 8, 16, 8);
+
+        var title = new Label
+        {
+            AutoSize = true,
+            Text = "Provider integrations",
+            ForeColor = DashboardPalette.MutedText,
+            Font = new Font("Segoe UI", 9f, FontStyle.Bold),
+            Margin = new Padding(0, 0, 16, 0)
+        };
+
+        _codexCheckBox = CreateCheckBox(
+            "Codex",
+            "Codex integration",
+            "Enable Codex activity detection and Discord Rich Presence.",
+            ProviderIds.Codex);
+        _antigravityCheckBox = CreateCheckBox(
+            "Antigravity",
+            "Antigravity integration",
+            "Enable Antigravity CLI activity detection and Discord Rich Presence.",
+            ProviderIds.Antigravity);
+
+        var flow = new FlowLayoutPanel
+        {
+            Dock = DockStyle.Fill,
+            AutoSize = false,
+            WrapContents = false,
+            FlowDirection = FlowDirection.LeftToRight,
+            BackColor = DashboardPalette.SurfaceInset,
+            Margin = Padding.Empty,
+            Padding = Padding.Empty
+        };
+        flow.Controls.Add(_codexCheckBox);
+        flow.Controls.Add(_antigravityCheckBox);
+
+        var layout = new TableLayoutPanel
+        {
+            Dock = DockStyle.Fill,
+            BackColor = DashboardPalette.SurfaceInset,
+            ColumnCount = 1,
+            RowCount = 2,
+            Margin = Padding.Empty,
+            Padding = Padding.Empty
+        };
+        layout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100f));
+        layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 20f));
+        layout.RowStyles.Add(new RowStyle(SizeType.Percent, 100f));
+        layout.Controls.Add(title, 0, 0);
+        layout.Controls.Add(flow, 0, 1);
+        Controls.Add(layout);
+
+        _codexCheckBox.CheckedChanged += (_, _) => RaiseProviderChanged(ProviderIds.Codex, _codexCheckBox.Checked);
+        _antigravityCheckBox.CheckedChanged += (_, _) => RaiseProviderChanged(ProviderIds.Antigravity, _antigravityCheckBox.Checked);
+    }
+
+    public event EventHandler<ProviderEnabledChangedEventArgs>? ProviderEnabledChanged;
+
+    public CheckBox CodexCheckBox => _codexCheckBox;
+
+    public CheckBox AntigravityCheckBox => _antigravityCheckBox;
+
+    public void ApplyProviderState(bool codexEnabled, bool antigravityEnabled)
+    {
+        _codexCheckBox.Checked = codexEnabled;
+        _antigravityCheckBox.Checked = antigravityEnabled;
+    }
+
+    private static CheckBox CreateCheckBox(
+        string text,
+        string accessibleName,
+        string accessibleDescription,
+        string providerId)
+    {
+        return new CheckBox
+        {
+            AutoSize = true,
+            Text = text,
+            Tag = providerId,
+            ForeColor = DashboardPalette.Text,
+            BackColor = DashboardPalette.SurfaceInset,
+            AccessibleName = accessibleName,
+            AccessibleDescription = accessibleDescription,
+            Margin = new Padding(0, 0, 20, 0),
+            UseVisualStyleBackColor = false
+        };
+    }
+
+    private void RaiseProviderChanged(string providerId, bool enabled)
+    {
+        ProviderEnabledChanged?.Invoke(this, new ProviderEnabledChangedEventArgs(providerId, enabled));
+    }
+}
+
 internal static class DashboardDrawing
 {
     private const int StatusIndicatorRingPadding = 4;

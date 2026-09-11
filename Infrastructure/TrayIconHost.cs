@@ -81,7 +81,7 @@ public sealed class TrayIconHost : ApplicationContext
     {
         if (_dashboardForm is null || _dashboardForm.IsDisposed)
         {
-            var dashboard = new CodexDashboardForm(_state);
+            var dashboard = new CodexDashboardForm(_state, _stateStore, _statePath);
             dashboard.FormClosed += (_, _) =>
             {
                 if (ReferenceEquals(_dashboardForm, dashboard))
