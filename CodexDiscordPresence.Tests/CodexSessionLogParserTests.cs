@@ -1072,6 +1072,66 @@ public sealed class CodexSessionLogParserTests
         }
     }
 
+    [Fact]
+    public void InspectRecentSessions_LargeHistoryReadsLatestSessionSettingsOutsideTail()
+    {
+        var homePath = CreateTempCodexHome();
+        var projectPath = Path.Combine(Path.GetTempPath(), "CodexLargeSessionSettingsProject_" + Guid.NewGuid());
+        Directory.CreateDirectory(projectPath);
+
+        try
+        {
+            var now = DateTime.UtcNow;
+            var lines = new List<string>
+            {
+                CreateSessionLine(now.AddMinutes(-2), new
+                {
+                    session_id = "settings-session",
+                    id = "settings-session",
+                    thread_source = "user",
+                    cwd = projectPath,
+                    model = "gpt-5.6-luna",
+                    reasoning_effort = "xhigh",
+                    service_tier = "priority"
+                }, "session_meta")
+            };
+            var filler = CreateSessionLine(now.AddMinutes(-1), new { type = "token_count" }, "event_msg");
+            lines.AddRange(Enumerable.Repeat(filler, 300));
+            lines.Add(CreateSessionLine(now, new
+            {
+                type = "thread_settings_applied",
+                thread_settings = new
+                {
+                    model = "gpt-5.6-luna",
+                    reasoning_effort = "max",
+                    service_tier = "default"
+                }
+            }, "event_msg"));
+            lines.Add(CreateSessionLine(now.AddSeconds(1), new
+            {
+                type = "token_count",
+                padding = new string('x', 2_100_000)
+            }, "event_msg"));
+            WriteSession(homePath, "large-settings-session.jsonl", lines);
+
+            var parser = new CodexSessionLogParser(
+                new CodexDetectionOptions { HomePath = homePath },
+                new PresenceTemplateOptions());
+
+            var inspection = parser.InspectRecentSessions(projectPath);
+
+            Assert.NotNull(inspection);
+            Assert.Equal("gpt-5.6-luna", inspection!.ModelName);
+            Assert.Equal("max", inspection.ReasoningEffort);
+            Assert.Equal("default", inspection.ServiceTier);
+        }
+        finally
+        {
+            Directory.Delete(homePath, true);
+            Directory.Delete(projectPath, true);
+        }
+    }
+
     private static string CreateTempCodexHome()
     {
         var path = Path.Combine(Path.GetTempPath(), "CodexSessionParserTests_" + Guid.NewGuid());

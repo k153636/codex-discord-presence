@@ -15,6 +15,7 @@ internal sealed class CodexSessionLogParser
     private readonly CodexDetectionOptions _options;
     private readonly PresenceTemplateOptions _presenceOptions;
     private readonly Dictionary<string, CachedSessionInspection> _sessionCache = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<string, CachedSessionSettings> _sessionSettingsCache = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, LifecycleBoundaryCache> _lifecycleBoundaryCache = new(StringComparer.OrdinalIgnoreCase);
     private string? _selectedPrimaryThreadId;
 
@@ -307,6 +308,14 @@ internal sealed class CodexSessionLogParser
                     runningCommandReason = "pending shell_command function call in session log";
                 }
             }
+
+            if (new FileInfo(path).Length > MaxTailBytesToScan &&
+                TryGetCachedSessionSettings(path, cancellationToken, out var completeSessionSettings))
+            {
+                modelName = completeSessionSettings.ModelName ?? modelName;
+                reasoningEffort = completeSessionSettings.ReasoningEffort ?? reasoningEffort;
+                serviceTier = completeSessionSettings.ServiceTier ?? serviceTier;
+            }
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
@@ -352,6 +361,106 @@ internal sealed class CodexSessionLogParser
             LastDirectToolFileAt = lastDirectToolFileAt,
             ActivityEvents = activityEvents
         };
+    }
+
+    private bool TryGetCachedSessionSettings(
+        string path,
+        CancellationToken cancellationToken,
+        out SessionSettings settings)
+    {
+        settings = new SessionSettings(null, null, null);
+        try
+        {
+            var file = new FileInfo(path);
+            var cacheKey = file.FullName;
+            if (!_sessionSettingsCache.TryGetValue(cacheKey, out var cached) ||
+                cached.LastWriteTimeUtc != file.LastWriteTimeUtc ||
+                file.Length < cached.ScannedLength)
+            {
+                cached = new CachedSessionSettings(
+                    0,
+                    file.LastWriteTimeUtc,
+                    new SessionSettings(null, null, null));
+            }
+
+            if (file.Length != cached.ScannedLength)
+            {
+                var scanOffset = cached.ScannedLength == 0
+                    ? 0
+                    : FindLineStart(path, cached.ScannedLength, cancellationToken);
+                var currentSettings = cached.Settings;
+                foreach (var line in ReadLinesFromOffset(
+                             path,
+                             scanOffset,
+                             includePartialFirstLine: true,
+                             cancellationToken))
+                {
+                    cancellationToken.ThrowIfCancellationRequested();
+                    if (!LooksLikeSessionSettingsLine(line))
+                    {
+                        continue;
+                    }
+
+                    try
+                    {
+                        using var document = JsonDocument.Parse(line);
+                        if (!document.RootElement.TryGetProperty("payload", out var payload))
+                        {
+                            continue;
+                        }
+
+                        var recordType = TryGetString(document.RootElement, "type");
+                        var payloadType = TryGetString(payload, "type", out var type) ? type : null;
+                        if (IsSessionSettingsRecord(recordType, payloadType))
+                        {
+                            currentSettings = MergeSessionSettings(
+                                currentSettings,
+                                ExtractSessionSettings(payload));
+                        }
+                    }
+                    catch (JsonException)
+                    {
+                        // The active writer can leave an incomplete final line; retry it next time.
+                    }
+                }
+
+                _sessionSettingsCache[cacheKey] = new CachedSessionSettings(
+                    file.Length,
+                    file.LastWriteTimeUtc,
+                    currentSettings);
+                settings = currentSettings;
+                return true;
+            }
+
+            settings = cached.Settings;
+            return true;
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    private static bool LooksLikeSessionSettingsLine(string line)
+    {
+        return line.Contains("\"payload\"", StringComparison.Ordinal) &&
+            (line.Contains("\"session_meta\"", StringComparison.OrdinalIgnoreCase) ||
+             line.Contains("\"turn_context\"", StringComparison.OrdinalIgnoreCase) ||
+             line.Contains("\"thread_settings_applied\"", StringComparison.OrdinalIgnoreCase));
+    }
+
+    private static SessionSettings MergeSessionSettings(
+        SessionSettings current,
+        SessionSettings next)
+    {
+        return new SessionSettings(
+            next.ModelName ?? current.ModelName,
+            next.ReasoningEffort ?? current.ReasoningEffort,
+            next.ServiceTier ?? current.ServiceTier);
     }
 
     private static SessionInspection ApplyProjectMatch(
@@ -2946,6 +3055,11 @@ internal sealed class CodexSessionLogParser
         long Length,
         DateTime LastWriteTimeUtc,
         SessionInspection Inspection);
+
+    private sealed record CachedSessionSettings(
+        long ScannedLength,
+        DateTime LastWriteTimeUtc,
+        SessionSettings Settings);
 
     private sealed class LifecycleBoundaryCache
     {
