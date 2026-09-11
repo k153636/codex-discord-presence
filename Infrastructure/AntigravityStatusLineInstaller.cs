@@ -90,28 +90,65 @@ public sealed class AntigravityStatusLineInstaller
         var existingValue = propertyName is null ? null : root[propertyName];
         var alreadyManaged = propertyName is not null && IsManagedStatusLine(existingValue);
 
+        if (alreadyManaged)
+        {
+            if (!File.Exists(_paths.BackupPath))
+            {
+                return Result(
+                    AntigravityStatusLineOperationStatus.Conflict,
+                    "The application-managed statusLine has no backup to restore.");
+            }
+
+            if (!TryReadBackup(out _, out var backupError))
+            {
+                return Result(AntigravityStatusLineOperationStatus.Failed, backupError);
+            }
+
+            try
+            {
+                if (!File.Exists(_paths.ScriptPath))
+                {
+                    WriteAtomically(_paths.ScriptPath, _command.ScriptContent!);
+                }
+
+                return Result(AntigravityStatusLineOperationStatus.AlreadyInstalled);
+            }
+            catch (IOException ex)
+            {
+                return Result(AntigravityStatusLineOperationStatus.Failed, ex.Message);
+            }
+            catch (UnauthorizedAccessException ex)
+            {
+                return Result(AntigravityStatusLineOperationStatus.Failed, ex.Message);
+            }
+        }
+
+        if (propertyName is not null && !IsDisabledStatusLine(existingValue))
+        {
+            return Result(
+                AntigravityStatusLineOperationStatus.Conflict,
+                "An active user-owned statusLine already exists.");
+        }
+
+        if (File.Exists(_paths.BackupPath) || HasOwnedArtifactsWithoutBackup())
+        {
+            return Result(
+                AntigravityStatusLineOperationStatus.Conflict,
+                "Previous integration files exist but the current statusLine is not application-managed.");
+        }
+
         try
         {
-            if (File.Exists(_paths.BackupPath))
+            var backup = new JsonObject
             {
-                if (!TryReadBackup(out _, out var backupError))
-                {
-                    return Result(AntigravityStatusLineOperationStatus.Failed, backupError);
-                }
-            }
-            else
-            {
-                var backup = new JsonObject
-                {
-                    ["schema_version"] = 1,
-                    ["property_present"] = propertyName is not null,
-                    ["property_name"] = propertyName ?? "statusLine",
-                    ["value"] = existingValue?.DeepClone()
-                };
-                WriteAtomically(
-                    _paths.BackupPath,
-                    backup.ToJsonString(JsonOptions));
-            }
+                ["schema_version"] = 1,
+                ["property_present"] = propertyName is not null,
+                ["property_name"] = propertyName ?? "statusLine",
+                ["value"] = existingValue?.DeepClone()
+            };
+            WriteAtomically(
+                _paths.BackupPath,
+                backup.ToJsonString(JsonOptions));
 
             WriteAtomically(_paths.ScriptPath, _command.ScriptContent!);
             root[propertyName ?? "statusLine"] = new JsonObject
@@ -121,10 +158,7 @@ public sealed class AntigravityStatusLineInstaller
             };
             WriteAtomically(_paths.SettingsPath, root.ToJsonString(JsonOptions));
 
-            return Result(
-                alreadyManaged
-                    ? AntigravityStatusLineOperationStatus.AlreadyInstalled
-                    : AntigravityStatusLineOperationStatus.Installed);
+            return Result(AntigravityStatusLineOperationStatus.Installed);
         }
         catch (IOException ex)
         {
@@ -145,8 +179,14 @@ public sealed class AntigravityStatusLineInstaller
 
         if (!File.Exists(_paths.SettingsPath))
         {
-            DeleteOwnedFiles();
-            return Result(AntigravityStatusLineOperationStatus.NotInstalled);
+            var hasOwnedArtifacts = HasOwnedArtifacts();
+            return Result(
+                hasOwnedArtifacts
+                    ? AntigravityStatusLineOperationStatus.Conflict
+                    : AntigravityStatusLineOperationStatus.NotInstalled,
+                hasOwnedArtifacts
+                    ? "The Antigravity settings file is missing; owned integration files were left unchanged."
+                    : null);
         }
 
         if (!TryLoadSettings(out var root, out var settingsError))
@@ -157,9 +197,19 @@ public sealed class AntigravityStatusLineInstaller
         var propertyName = FindPropertyName(root, "statusLine");
         if (propertyName is null || !IsManagedStatusLine(root[propertyName]))
         {
+            var status = HasOwnedArtifacts()
+                ? AntigravityStatusLineOperationStatus.Conflict
+                : AntigravityStatusLineOperationStatus.NotInstalled;
             return Result(
-                AntigravityStatusLineOperationStatus.NotInstalled,
-                "The current statusLine is not managed by this application.");
+                status,
+                "The current statusLine is not managed by this application and was left unchanged.");
+        }
+
+        if (!File.Exists(_paths.BackupPath))
+        {
+            return Result(
+                AntigravityStatusLineOperationStatus.Conflict,
+                "The application-managed statusLine has no backup to restore.");
         }
 
         try
@@ -176,11 +226,13 @@ public sealed class AntigravityStatusLineInstaller
                     root.Remove(propertyName);
                 }
             }
-            else if (File.Exists(_paths.BackupPath))
+            else
             {
                 return Result(AntigravityStatusLineOperationStatus.Failed, backupError);
             }
-            else
+
+            if (backup.PropertyPresent &&
+                !string.Equals(backup.PropertyName, propertyName, StringComparison.Ordinal))
             {
                 root.Remove(propertyName);
             }
@@ -202,6 +254,7 @@ public sealed class AntigravityStatusLineInstaller
     private bool IsManagedStatusLine(JsonNode? value)
     {
         if (value is not JsonObject statusLine ||
+            statusLine.Count != 2 ||
             !TryGetString(statusLine, "type", out var type) ||
             !string.Equals(type, "command", StringComparison.OrdinalIgnoreCase) ||
             !TryGetString(statusLine, "command", out var command))
@@ -209,8 +262,35 @@ public sealed class AntigravityStatusLineInstaller
             return false;
         }
 
-        return command.Contains(_paths.ScriptPath, StringComparison.OrdinalIgnoreCase);
+        return string.Equals(command, _command.Command, StringComparison.OrdinalIgnoreCase);
     }
+
+    private static bool IsDisabledStatusLine(JsonNode? value)
+    {
+        if (value is null)
+        {
+            return true;
+        }
+
+        if (value is not JsonObject statusLine)
+        {
+            return false;
+        }
+
+        var enabled = FindProperty(statusLine, "enabled");
+        return enabled is JsonValue jsonValue &&
+            jsonValue.TryGetValue<bool>(out var isEnabled) &&
+            !isEnabled;
+    }
+
+    private bool HasOwnedArtifacts() =>
+        File.Exists(_paths.BackupPath) ||
+        File.Exists(_paths.ScriptPath) ||
+        File.Exists(_paths.EventFilePath);
+
+    private bool HasOwnedArtifactsWithoutBackup() =>
+        File.Exists(_paths.ScriptPath) ||
+        File.Exists(_paths.EventFilePath);
 
     private bool TryLoadSettings(out JsonObject root, out string error)
     {
@@ -263,9 +343,25 @@ public sealed class AntigravityStatusLineInstaller
         try
         {
             var root = JsonNode.Parse(File.ReadAllText(_paths.BackupPath)) as JsonObject;
-            if (root is null ||
-                FindProperty(root, "schema_version")?.GetValue<int>() != 1 ||
-                FindProperty(root, "property_present")?.GetValue<bool>() is not { } propertyPresent)
+            if (root is null)
+            {
+                error = "The saved Antigravity statusLine backup is invalid.";
+                return false;
+            }
+
+            var valuePropertyName = FindPropertyName(root, "value");
+            var propertyName = FindPropertyName(root, "property_name");
+            var schemaVersion = FindProperty(root, "schema_version");
+            var propertyPresentValue = FindProperty(root, "property_present");
+            if (schemaVersion is not JsonValue schemaVersionValue ||
+                !schemaVersionValue.TryGetValue<int>(out var schemaVersionNumber) ||
+                schemaVersionNumber != 1 ||
+                propertyPresentValue is not JsonValue propertyPresentJson ||
+                !propertyPresentJson.TryGetValue<bool>(out var propertyPresent) ||
+                propertyName is null ||
+                !TryGetString(root, "property_name", out var originalPropertyName) ||
+                string.IsNullOrWhiteSpace(originalPropertyName) ||
+                valuePropertyName is null)
             {
                 error = "The saved Antigravity statusLine backup is invalid.";
                 return false;
@@ -273,7 +369,7 @@ public sealed class AntigravityStatusLineInstaller
 
             backup = new BackupDocument(
                 propertyPresent,
-                FindProperty(root, "property_name")?.GetValue<string>(),
+                originalPropertyName,
                 FindProperty(root, "value")?.DeepClone());
             return true;
         }

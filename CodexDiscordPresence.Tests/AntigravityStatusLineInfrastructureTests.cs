@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using System.Text;
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using CodexDiscordPresence;
 using Xunit;
 
@@ -115,7 +116,7 @@ public sealed class AntigravityStatusLineInfrastructureTests
         using var fixture = new TemporaryFixture();
         File.WriteAllText(
             fixture.SettingsPath,
-            "{\"futureProperty\":{\"keep\":true},\"statusLine\":{\"type\":\"command\",\"command\":\"other-tool --status\"}}");
+            "{\"futureProperty\":{\"keep\":true},\"StatusLine\":{\"type\":\"command\",\"command\":\"other-tool --status\",\"enabled\":false}}");
         var installer = fixture.CreateInstaller();
 
         var install = installer.Install();
@@ -126,7 +127,7 @@ public sealed class AntigravityStatusLineInfrastructureTests
             Assert.True(settings.RootElement.GetProperty("futureProperty").GetProperty("keep").GetBoolean());
             Assert.Contains(
                 fixture.Paths.ScriptPath,
-                settings.RootElement.GetProperty("statusLine").GetProperty("command").GetString(),
+                settings.RootElement.GetProperty("StatusLine").GetProperty("command").GetString(),
                 StringComparison.Ordinal);
         }
 
@@ -136,7 +137,7 @@ public sealed class AntigravityStatusLineInfrastructureTests
         using var restored = JsonDocument.Parse(File.ReadAllText(fixture.SettingsPath));
         Assert.Equal(
             "other-tool --status",
-            restored.RootElement.GetProperty("statusLine").GetProperty("command").GetString());
+            restored.RootElement.GetProperty("StatusLine").GetProperty("command").GetString());
         Assert.False(File.Exists(fixture.Paths.ScriptPath));
         Assert.False(File.Exists(fixture.Paths.EventFilePath));
         Assert.False(File.Exists(fixture.Paths.BackupPath));
@@ -146,13 +147,83 @@ public sealed class AntigravityStatusLineInfrastructureTests
     public void Installer_SecondInstall_IsIdempotentAndKeepsOriginalBackup()
     {
         using var fixture = new TemporaryFixture();
-        File.WriteAllText(fixture.SettingsPath, "{\"statusLine\":\"user-owned\"}");
         var installer = fixture.CreateInstaller();
 
         Assert.Equal(AntigravityStatusLineOperationStatus.Installed, installer.Install().Status);
         var backupBefore = File.ReadAllText(fixture.Paths.BackupPath);
+        var settingsBefore = File.ReadAllText(fixture.SettingsPath);
         Assert.Equal(AntigravityStatusLineOperationStatus.AlreadyInstalled, installer.Install().Status);
         Assert.Equal(backupBefore, File.ReadAllText(fixture.Paths.BackupPath));
+        Assert.Equal(settingsBefore, File.ReadAllText(fixture.SettingsPath));
+    }
+
+    [Fact]
+    public void Installer_ActiveUserStatusLine_ReturnsConflictWithoutWritingFiles()
+    {
+        using var fixture = new TemporaryFixture();
+        const string settings = "{\"futureProperty\":{\"keep\":true},\"statusLine\":{\"type\":\"command\",\"command\":\"other-tool --status\"}}";
+        File.WriteAllText(fixture.SettingsPath, settings);
+        var installer = fixture.CreateInstaller();
+
+        var result = installer.Install();
+
+        Assert.Equal(AntigravityStatusLineOperationStatus.Conflict, result.Status);
+        Assert.Equal(settings, File.ReadAllText(fixture.SettingsPath));
+        Assert.False(File.Exists(fixture.Paths.BackupPath));
+        Assert.False(File.Exists(fixture.Paths.ScriptPath));
+        Assert.False(File.Exists(fixture.Paths.EventFilePath));
+    }
+
+    [Fact]
+    public void Installer_UserChangesManagedStatusLine_UninstallReturnsConflictWithoutChangingIt()
+    {
+        using var fixture = new TemporaryFixture();
+        var installer = fixture.CreateInstaller();
+        Assert.Equal(AntigravityStatusLineOperationStatus.Installed, installer.Install().Status);
+
+        const string changedSettings = "{\"statusLine\":{\"type\":\"command\",\"command\":\"user-command\"}}";
+        File.WriteAllText(fixture.SettingsPath, changedSettings);
+
+        var result = installer.Uninstall();
+
+        Assert.Equal(AntigravityStatusLineOperationStatus.Conflict, result.Status);
+        Assert.Equal(changedSettings, File.ReadAllText(fixture.SettingsPath));
+        Assert.True(File.Exists(fixture.Paths.BackupPath));
+        Assert.True(File.Exists(fixture.Paths.ScriptPath));
+    }
+
+    [Fact]
+    public void Installer_UserAddsManagedStatusLineProperty_UninstallReturnsConflictWithoutChangingIt()
+    {
+        using var fixture = new TemporaryFixture();
+        var installer = fixture.CreateInstaller();
+        Assert.Equal(AntigravityStatusLineOperationStatus.Installed, installer.Install().Status);
+
+        var settings = JsonNode.Parse(File.ReadAllText(fixture.SettingsPath))!.AsObject();
+        settings["statusLine"]!.AsObject()["enabled"] = false;
+        var changedSettings = settings.ToJsonString();
+        File.WriteAllText(fixture.SettingsPath, changedSettings);
+
+        var result = installer.Uninstall();
+
+        Assert.Equal(AntigravityStatusLineOperationStatus.Conflict, result.Status);
+        Assert.Equal(changedSettings, File.ReadAllText(fixture.SettingsPath));
+        Assert.True(File.Exists(fixture.Paths.BackupPath));
+    }
+
+    [Fact]
+    public void Installer_MissingSettingsWithOwnedFiles_ReturnsConflictWithoutDeletingFiles()
+    {
+        using var fixture = new TemporaryFixture();
+        var installer = fixture.CreateInstaller();
+        Assert.Equal(AntigravityStatusLineOperationStatus.Installed, installer.Install().Status);
+        File.Delete(fixture.SettingsPath);
+
+        var result = installer.Uninstall();
+
+        Assert.Equal(AntigravityStatusLineOperationStatus.Conflict, result.Status);
+        Assert.True(File.Exists(fixture.Paths.BackupPath));
+        Assert.True(File.Exists(fixture.Paths.ScriptPath));
     }
 
     [Fact]
@@ -181,6 +252,50 @@ public sealed class AntigravityStatusLineInfrastructureTests
         Assert.Equal(AntigravityStatusLineOperationStatus.Restored, installer.Uninstall().Status);
         using var settings = JsonDocument.Parse(File.ReadAllText(fixture.SettingsPath));
         Assert.False(settings.RootElement.TryGetProperty("statusLine", out _));
+    }
+
+    [Fact]
+    public void Installer_EmptySettings_PreservesEmptyRootAfterUninstall()
+    {
+        using var fixture = new TemporaryFixture();
+        File.WriteAllText(fixture.SettingsPath, "{}");
+        var installer = fixture.CreateInstaller();
+
+        Assert.Equal(AntigravityStatusLineOperationStatus.Installed, installer.Install().Status);
+        Assert.Equal(AntigravityStatusLineOperationStatus.Restored, installer.Uninstall().Status);
+
+        using var settings = JsonDocument.Parse(File.ReadAllText(fixture.SettingsPath));
+        Assert.Empty(settings.RootElement.EnumerateObject());
+    }
+
+    [Fact]
+    public void Installer_MalformedBackup_DoesNotChangeManagedSettings()
+    {
+        using var fixture = new TemporaryFixture();
+        var installer = fixture.CreateInstaller();
+        Assert.Equal(AntigravityStatusLineOperationStatus.Installed, installer.Install().Status);
+        var managedSettings = File.ReadAllText(fixture.SettingsPath);
+        File.WriteAllText(fixture.Paths.BackupPath, "{\"schema_version\":1}");
+
+        var result = installer.Uninstall();
+
+        Assert.Equal(AntigravityStatusLineOperationStatus.Failed, result.Status);
+        Assert.Equal(managedSettings, File.ReadAllText(fixture.SettingsPath));
+        Assert.True(File.Exists(fixture.Paths.BackupPath));
+    }
+
+    [Fact]
+    public void Installer_ReadOnlyScriptTarget_ReturnsFailedWithoutThrowing()
+    {
+        using var fixture = new TemporaryFixture();
+        Directory.CreateDirectory(fixture.Paths.ScriptPath);
+        var installer = fixture.CreateInstaller();
+
+        var result = installer.Install();
+
+        Assert.Equal(AntigravityStatusLineOperationStatus.Failed, result.Status);
+        Assert.False(File.Exists(fixture.SettingsPath));
+        Assert.True(File.Exists(fixture.Paths.BackupPath));
     }
 
     [Fact]
