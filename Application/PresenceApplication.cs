@@ -22,7 +22,7 @@ public static class PresenceApplication
 
         if (instance is null)
         {
-            diagnosticLog.Error("Codex Discord RPC is already running. Use --stop to end the current instance.");
+            diagnosticLog.Error($"{ProductBrand.Name} is already running. Use --stop to end the current instance.");
             return 1;
         }
 
@@ -65,8 +65,8 @@ public static class PresenceApplication
             _ => activeUiSynchronizationContext.Post(context => trayHost?.RequestExit(), null),
             TaskScheduler.Default);
 
-        diagnosticLog.Info("Codex Discord RPC is running in the background.");
-        diagnosticLog.Info("Right-click the tray icon for Enable, Edit Discord RPC, and Quit.");
+        diagnosticLog.Info($"{ProductBrand.Name} is running in the background.");
+        diagnosticLog.Info($"Right-click the tray icon for Enable, Edit {ProductBrand.Name} settings, and Quit.");
 
         Application.Run(trayHost);
 

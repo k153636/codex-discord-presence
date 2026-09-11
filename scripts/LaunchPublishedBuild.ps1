@@ -26,7 +26,7 @@ function Wait-ForPresenceToStop {
     } while ([DateTime]::UtcNow -lt $deadline)
 
     $pids = (Get-RunningPresenceProcesses | Select-Object -ExpandProperty Id) -join ', '
-    throw "The previous Codex Discord RPC process did not exit within $TimeoutSeconds seconds. PID(s): $pids"
+    throw "The previous CodePresence process did not exit within $TimeoutSeconds seconds. PID(s): $pids"
 }
 
 try {
@@ -40,7 +40,7 @@ try {
     }
 
     if (Get-RunningPresenceProcesses | Where-Object { -not $_.HasExited }) {
-        Write-Host 'Stopping the previous Codex Discord RPC process...'
+        Write-Host 'Stopping the previous CodePresence process...'
         $stopProcess = Start-Process `
             -FilePath $publishExe `
             -ArgumentList @('--stop') `
@@ -50,7 +50,7 @@ try {
             -PassThru `
             -ErrorAction Stop
         if ($stopProcess.ExitCode -ne 0) {
-            throw "The previous Codex Discord RPC process could not be stopped. Exit code: $($stopProcess.ExitCode)"
+            throw "The previous CodePresence process could not be stopped. Exit code: $($stopProcess.ExitCode)"
         }
 
         Wait-ForPresenceToStop
@@ -75,7 +75,7 @@ try {
         throw "The published build exited immediately. Exit code: $($startedProcess.ExitCode)"
     }
 
-    Write-Host "Started Codex Discord RPC (PID $($startedProcess.Id))."
+    Write-Host "Started CodePresence (PID $($startedProcess.Id))."
 }
 catch {
     Write-Error $_.Exception.Message

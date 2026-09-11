@@ -33,14 +33,14 @@ public sealed class CodexDashboardForm : Form
             ? throw new ArgumentException("A state path is required.", nameof(statePath))
             : statePath;
 
-        Text = "Codex Discord RPC";
+        Text = ProductBrand.Name;
         StartPosition = FormStartPosition.CenterScreen;
         MinimumSize = new Size(400, 660);
         Size = MinimumSize;
         BackColor = DashboardPalette.Window;
         ForeColor = DashboardPalette.Text;
         Font = new Font("Segoe UI", 9f);
-        AccessibleName = "Codex Discord RPC dashboard";
+        AccessibleName = $"{ProductBrand.Name} dashboard";
         AutoScaleMode = AutoScaleMode.Dpi;
         FormBorderStyle = FormBorderStyle.Sizable;
         MaximizeBox = true;

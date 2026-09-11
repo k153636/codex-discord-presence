@@ -35,7 +35,7 @@ public sealed class TrayIconHost : ApplicationContext
         var openDashboardMenuItem = new ToolStripMenuItem("Open Dashboard");
         openDashboardMenuItem.Click += (_, _) => OpenDashboard();
 
-        var editMenuItem = new ToolStripMenuItem("Edit Discord RPC");
+        var editMenuItem = new ToolStripMenuItem($"Edit {ProductBrand.Name} settings");
         editMenuItem.Click += (_, _) => OpenSettingsJson();
 
         var quitMenuItem = new ToolStripMenuItem("Quit");
@@ -51,7 +51,7 @@ public sealed class TrayIconHost : ApplicationContext
         _notifyIcon = new NotifyIcon
         {
             Icon = SystemIcons.Application,
-            Text = "Codex Discord RPC",
+            Text = ProductBrand.Name,
             Visible = true,
             ContextMenuStrip = menu
         };

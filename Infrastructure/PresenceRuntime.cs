@@ -45,7 +45,7 @@ public sealed class PresenceRuntime
         var projectSnapshotCache = new ProjectSnapshotCache();
         var gitSnapshotCache = new GitSnapshotCache();
 
-        _log.Info("Starting Codex Discord RPC with auto-detection.");
+        _log.Info($"Starting {ProductBrand.Name} with auto-detection.");
         var activeProjectPath = projectInspector.ProjectPath;
         _log.Info($"Project path: {activeProjectPath}");
         _log.Info("Press Ctrl+C or Quit to stop.");
@@ -289,7 +289,7 @@ public sealed class PresenceRuntime
 
             rpc.Clear();
             rpc.Dispose();
-            _log.Info("Stopped Codex Discord RPC.");
+            _log.Info($"Stopped {ProductBrand.Name}.");
         }
     }
 

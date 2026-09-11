@@ -23,6 +23,8 @@ public sealed class CodexDashboardFormTests
             try
             {
                 using var form = new CodexDashboardForm(new PresenceRuntimeState());
+                Assert.Equal(ProductBrand.Name, form.Text);
+                Assert.Equal($"{ProductBrand.Name} dashboard", form.AccessibleName);
                 windowSize = form.Size;
                 minimumSize = form.MinimumSize;
                 rootControlCount = form.Controls.Count;

@@ -325,7 +325,7 @@ public sealed class PresenceTemplateOptions
     [
         new()
         {
-            Label = "K's Codex RPC",
+            Label = ProductBrand.Name,
             Url = "https://k153636.github.io/codex-discord-presence/"
         }
     ];

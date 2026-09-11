@@ -33,7 +33,7 @@ public sealed class InstanceCoordinator : IDisposable
         var pidFilePath = GetPidFilePath(paths);
         if (!File.Exists(pidFilePath))
         {
-            Console.WriteLine("No running Codex Discord RPC instance was found.");
+            Console.WriteLine($"No running {ProductBrand.Name} instance was found.");
             return 0;
         }
 
@@ -50,7 +50,7 @@ public sealed class InstanceCoordinator : IDisposable
             using var process = Process.GetProcessById(pid);
             process.Kill(entireProcessTree: false);
             process.WaitForExit(5000);
-            Console.WriteLine($"Stopped Codex Discord RPC (PID {pid}).");
+            Console.WriteLine($"Stopped {ProductBrand.Name} (PID {pid}).");
         }
         catch (ArgumentException)
         {
