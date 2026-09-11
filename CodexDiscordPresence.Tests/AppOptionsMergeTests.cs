@@ -54,6 +54,8 @@ public sealed class AppOptionsMergeTests
             Assert.Equal(9, options.UpdateIntervalSeconds);
             Assert.Equal(3, options.Presence.ActiveUpdateIntervalSeconds);
             Assert.Equal("FromExe", options.Presence.ModelName);
+            Assert.True(options.Providers[ProviderIds.Codex].Enabled);
+            Assert.False(options.Providers[ProviderIds.Antigravity].Enabled);
             var button = Assert.Single(options.Presence.Buttons);
             Assert.Equal("K's Codex RPC", button.Label);
             Assert.Equal("https://k153636.github.io/codex-discord-presence/", button.Url);
@@ -163,6 +165,66 @@ public sealed class AppOptionsMergeTests
             Assert.Contains("@openai\\codex\\bin\\codex.js", options.CodexCli.CommandLineContains);
             Assert.Same(options.CodexCli, options.GetCodexDetectionOptions(AppProfileKind.CodexCli));
             Assert.Same(options.DiscordCli, options.GetDiscordOptions(AppProfileKind.CodexCli));
+        }
+        finally
+        {
+            Directory.Delete(root, true);
+        }
+    }
+
+    [Fact]
+    public void Load_UserProviderSettingsOverrideExecutableAndCliDefaults()
+    {
+        var root = Path.Combine(Path.GetTempPath(), "CodexProviderOptionsTests_" + Guid.NewGuid());
+        var exeDir = Path.Combine(root, "exe");
+        var appDataDir = Path.Combine(root, "appdata");
+        Directory.CreateDirectory(exeDir);
+        Directory.CreateDirectory(appDataDir);
+
+        try
+        {
+            File.WriteAllText(Path.Combine(exeDir, "appsettings.json"),
+                "{\"Providers\":{\"codex\":{\"Enabled\":true},\"antigravity\":{\"Enabled\":false}}}");
+            File.WriteAllText(Path.Combine(exeDir, "appsettings.cli.json"),
+                "{\"Providers\":{\"codex\":{\"Enabled\":false}}}");
+            File.WriteAllText(Path.Combine(appDataDir, "user-settings.json"),
+                "{\"Providers\":{\"codex\":{\"Enabled\":true}}}");
+
+            var paths = new AppPaths(
+                exeDir,
+                Path.Combine(exeDir, "appsettings.json"),
+                appDataDir,
+                Path.Combine(appDataDir, "logs"),
+                Path.Combine(appDataDir, "user-settings.json"),
+                Path.Combine(appDataDir, "presence-state.json"),
+                AppProfileKind.Codex);
+
+            var options = AppOptions.Load(Array.Empty<string>(), paths);
+
+            Assert.True(options.Providers[ProviderIds.Codex].Enabled);
+            Assert.False(options.Providers[ProviderIds.Antigravity].Enabled);
+        }
+        finally
+        {
+            Directory.Delete(root, true);
+        }
+    }
+
+    [Fact]
+    public void Load_PartialProviderConfiguration_RetainsKnownDefaults()
+    {
+        var root = Path.Combine(Path.GetTempPath(), "CodexProviderPartialTests_" + Guid.NewGuid());
+        Directory.CreateDirectory(root);
+
+        try
+        {
+            var settingsPath = Path.Combine(root, "appsettings.json");
+            File.WriteAllText(settingsPath, "{\"Providers\":{\"codex\":{\"Enabled\":false}}}");
+
+            var options = AppOptions.LoadMerged(settingsPath);
+
+            Assert.False(options.Providers[ProviderIds.Codex].Enabled);
+            Assert.False(options.Providers[ProviderIds.Antigravity].Enabled);
         }
         finally
         {

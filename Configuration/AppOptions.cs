@@ -9,6 +9,12 @@ public sealed class AppOptions
     public DiscordOptions? DiscordCli { get; set; }
     public CodexDetectionOptions Codex { get; set; } = new();
     public CodexDetectionOptions? CodexCli { get; set; }
+    public Dictionary<string, ProviderOptions> Providers { get; set; } =
+        new(StringComparer.OrdinalIgnoreCase)
+        {
+            [ProviderIds.Codex] = new() { Enabled = true },
+            [ProviderIds.Antigravity] = new() { Enabled = false }
+        };
     public ProjectOptions Project { get; set; } = new();
     public PresenceTemplateOptions Presence { get; set; } = new();
     public TokenUsageOptions TokenUsage { get; set; } = new();
@@ -49,9 +55,11 @@ public sealed class AppOptions
 
     public static AppOptions LoadFromFile(string path)
     {
-        return File.Exists(path)
+        var options = File.Exists(path)
             ? JsonSerializer.Deserialize<AppOptions>(File.ReadAllText(path), JsonOptions()) ?? new AppOptions()
             : new AppOptions();
+        options.EnsureProviderDefaults();
+        return options;
     }
 
     public static AppOptions LoadMerged(params string[] paths)
@@ -68,7 +76,9 @@ public sealed class AppOptions
             MergeJsonObject(merged, node);
         }
 
-        return merged.Deserialize<AppOptions>(JsonOptions()) ?? new AppOptions();
+        var options = merged.Deserialize<AppOptions>(JsonOptions()) ?? new AppOptions();
+        options.EnsureProviderDefaults();
+        return options;
     }
 
     public CodexDetectionOptions GetCodexDetectionOptions(AppProfileKind profile)
@@ -83,6 +93,13 @@ public sealed class AppOptions
         return profile == AppProfileKind.CodexCli && DiscordCli is not null
             ? DiscordCli
             : Discord;
+    }
+
+    private void EnsureProviderDefaults()
+    {
+        Providers ??= new Dictionary<string, ProviderOptions>(StringComparer.OrdinalIgnoreCase);
+        Providers.TryAdd(ProviderIds.Codex, new ProviderOptions { Enabled = true });
+        Providers.TryAdd(ProviderIds.Antigravity, new ProviderOptions { Enabled = false });
     }
 
     private static bool TryLoadJsonObject(string path, out JsonObject node)
