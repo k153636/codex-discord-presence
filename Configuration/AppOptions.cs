@@ -221,6 +221,7 @@ public sealed class DiscordOptions
     };
     public Dictionary<string, string> ExternalImageUrls { get; set; } = new(StringComparer.OrdinalIgnoreCase)
     {
+        ["rpc_antigravity"] = "https://antigravity.google/assets/image/brand/antigravity-icon__full-color.png",
         ["rpc_codex"] = "https://raw.githubusercontent.com/SSHdotCodes/codex-rpc/1a44161a554c4de584c0af7d5eb47c4545983410/assets/codex.png",
         ["rpc_coding"] = "https://raw.githubusercontent.com/SSHdotCodes/codex-rpc/1a44161a554c4de584c0af7d5eb47c4545983410/assets/coding.gif",
         ["rpc_debugging"] = "https://raw.githubusercontent.com/SSHdotCodes/codex-rpc/1a44161a554c4de584c0af7d5eb47c4545983410/assets/debugging.gif",

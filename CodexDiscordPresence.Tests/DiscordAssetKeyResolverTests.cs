@@ -17,6 +17,34 @@ public sealed class DiscordAssetKeyResolverTests
         Assert.Equal("rpc_antigravity", key);
     }
 
+    [Fact]
+    public void ResolveLargeImageReference_UsesConfiguredAntigravityIconFallback()
+    {
+        const string iconUrl = "https://antigravity.google/assets/image/brand/antigravity-icon__full-color.png";
+        var options = new DiscordOptions
+        {
+            ExternalImageUrls = new(StringComparer.OrdinalIgnoreCase)
+            {
+                ["rpc_antigravity"] = iconUrl
+            }
+        };
+        var presence = new RenderedPresence(
+            "details",
+            "state",
+            null,
+            "small",
+            [],
+            null,
+            CodexActivityKind.Ready,
+            RunningCommandKind.Unknown,
+            "")
+        {
+            ProviderId = ProviderIds.Antigravity
+        };
+
+        Assert.Equal(iconUrl, DiscordAssetKeyResolver.ResolveLargeImageReference(options, presence));
+    }
+
     [Theory]
     [InlineData("antigravity")]
     [InlineData("ANTIGRAVITY")]
