@@ -261,4 +261,30 @@ public sealed class AppOptionsMergeTests
             Directory.Delete(root, true);
         }
     }
+
+    [Fact]
+    public void Load_NormalizesProviderIdentifiersCaseInsensitively()
+    {
+        var root = Path.Combine(Path.GetTempPath(), "CodexProviderIdentifierTests_" + Guid.NewGuid());
+        Directory.CreateDirectory(root);
+
+        try
+        {
+            var settingsPath = Path.Combine(root, "appsettings.json");
+            File.WriteAllText(
+                settingsPath,
+                "{\"providers\":{\"ANTIGRAVITY\":{\"enabled\":true}}}");
+
+            var options = AppOptions.LoadMerged(settingsPath);
+
+            Assert.True(options.Providers[ProviderIds.Antigravity].Enabled);
+            Assert.Single(
+                options.Providers.Keys,
+                providerId => string.Equals(providerId, ProviderIds.Antigravity, StringComparison.OrdinalIgnoreCase));
+        }
+        finally
+        {
+            Directory.Delete(root, true);
+        }
+    }
 }

@@ -97,7 +97,19 @@ public sealed class AppOptions
 
     private void EnsureProviderDefaults()
     {
-        Providers ??= new Dictionary<string, ProviderOptions>(StringComparer.OrdinalIgnoreCase);
+        var normalizedProviders = new Dictionary<string, ProviderOptions>(StringComparer.OrdinalIgnoreCase);
+        if (Providers is not null)
+        {
+            foreach (var (providerId, providerOptions) in Providers)
+            {
+                if (!string.IsNullOrWhiteSpace(providerId) && providerOptions is not null)
+                {
+                    normalizedProviders[providerId.Trim()] = providerOptions;
+                }
+            }
+        }
+
+        Providers = normalizedProviders;
         Providers.TryAdd(ProviderIds.Codex, new ProviderOptions { Enabled = true });
         Providers.TryAdd(ProviderIds.Antigravity, new ProviderOptions { Enabled = false });
     }
