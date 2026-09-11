@@ -88,9 +88,11 @@ public sealed class AntigravityStatusLineInstaller
 
         var propertyName = FindPropertyName(root, "statusLine");
         var existingValue = propertyName is null ? null : root[propertyName];
-        var alreadyManaged = propertyName is not null && IsManagedStatusLine(existingValue);
+        var managedStatusLine = propertyName is null
+            ? ManagedStatusLineKind.None
+            : GetManagedStatusLineKind(existingValue);
 
-        if (alreadyManaged)
+        if (managedStatusLine is not ManagedStatusLineKind.None)
         {
             if (!File.Exists(_paths.BackupPath))
             {
@@ -109,6 +111,20 @@ public sealed class AntigravityStatusLineInstaller
                 if (!File.Exists(_paths.ScriptPath))
                 {
                     WriteAtomically(_paths.ScriptPath, _command.ScriptContent!, emitUtf8Bom: true);
+                }
+
+                if (managedStatusLine is ManagedStatusLineKind.LegacyQuotedFile)
+                {
+                    root[propertyName!] = CreateManagedStatusLine();
+                    if (!MatchesSettingsSnapshot(settingsSnapshot))
+                    {
+                        return Result(
+                            AntigravityStatusLineOperationStatus.Conflict,
+                            "The Antigravity settings changed while the integration was being updated.");
+                    }
+
+                    WriteAtomically(_paths.SettingsPath, root.ToJsonString(JsonOptions));
+                    return Result(AntigravityStatusLineOperationStatus.Installed);
                 }
 
                 return Result(AntigravityStatusLineOperationStatus.AlreadyInstalled);
@@ -153,11 +169,7 @@ public sealed class AntigravityStatusLineInstaller
 
             WriteAtomically(_paths.ScriptPath, _command.ScriptContent!, emitUtf8Bom: true);
             var scriptWritten = true;
-            root[propertyName ?? "statusLine"] = new JsonObject
-            {
-                ["type"] = "command",
-                ["command"] = _command.Command
-            };
+            root[propertyName ?? "statusLine"] = CreateManagedStatusLine();
 
             if (!MatchesSettingsSnapshot(settingsSnapshot))
             {
@@ -209,7 +221,7 @@ public sealed class AntigravityStatusLineInstaller
         }
 
         var propertyName = FindPropertyName(root, "statusLine");
-        if (propertyName is null || !IsManagedStatusLine(root[propertyName]))
+        if (propertyName is null || GetManagedStatusLineKind(root[propertyName]) is ManagedStatusLineKind.None)
         {
             var status = HasOwnedArtifacts()
                 ? AntigravityStatusLineOperationStatus.Conflict
@@ -272,7 +284,7 @@ public sealed class AntigravityStatusLineInstaller
         }
     }
 
-    private bool IsManagedStatusLine(JsonNode? value)
+    private ManagedStatusLineKind GetManagedStatusLineKind(JsonNode? value)
     {
         if (value is not JsonObject statusLine ||
             statusLine.Count != 2 ||
@@ -280,11 +292,27 @@ public sealed class AntigravityStatusLineInstaller
             !string.Equals(type, "command", StringComparison.OrdinalIgnoreCase) ||
             !TryGetString(statusLine, "command", out var command))
         {
-            return false;
+            return ManagedStatusLineKind.None;
         }
 
-        return string.Equals(command, _command.Command, StringComparison.OrdinalIgnoreCase);
+        if (string.Equals(command, _command.Command, StringComparison.OrdinalIgnoreCase))
+        {
+            return ManagedStatusLineKind.Current;
+        }
+
+        return string.Equals(
+            command,
+            AntigravityStatusLineCommandBuilder.BuildLegacyQuotedCommand(_paths.ScriptPath),
+            StringComparison.OrdinalIgnoreCase)
+            ? ManagedStatusLineKind.LegacyQuotedFile
+            : ManagedStatusLineKind.None;
     }
+
+    private JsonObject CreateManagedStatusLine() => new()
+    {
+        ["type"] = "command",
+        ["command"] = _command.Command
+    };
 
     private bool HasOwnedArtifacts() =>
         File.Exists(_paths.BackupPath) ||
@@ -515,4 +543,11 @@ public sealed class AntigravityStatusLineInstaller
         JsonNode? Value);
 
     private sealed record SettingsFileSnapshot(bool Exists, string? Contents);
+
+    private enum ManagedStatusLineKind
+    {
+        None,
+        Current,
+        LegacyQuotedFile
+    }
 }

@@ -45,8 +45,7 @@ public sealed class AntigravityStatusLineCommandBuilder : IAntigravityStatusLine
                 Error: "Antigravity statusLine integration is supported on Windows only.");
         }
 
-        var scriptPath = QuoteWindowsCommandArgument(paths.ScriptPath);
-        var command = $"powershell.exe -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File {scriptPath}";
+        var command = BuildEncodedCommand(paths.ScriptPath);
         return new(
             IsSupported: true,
             Command: command,
@@ -54,8 +53,28 @@ public sealed class AntigravityStatusLineCommandBuilder : IAntigravityStatusLine
             Error: null);
     }
 
+    internal static string BuildLegacyQuotedCommand(string scriptPath)
+    {
+        var quotedScriptPath = QuoteWindowsCommandArgument(scriptPath);
+        return BuildFileCommand(quotedScriptPath);
+    }
+
+    private static string BuildEncodedCommand(string scriptPath)
+    {
+        var invocation = $"& {QuotePowerShellString(scriptPath)}";
+        var encodedInvocation = Convert.ToBase64String(
+            System.Text.Encoding.Unicode.GetBytes(invocation));
+        return $"powershell.exe -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -EncodedCommand {encodedInvocation}";
+    }
+
+    private static string BuildFileCommand(string scriptPathArgument) =>
+        $"powershell.exe -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File {scriptPathArgument}";
+
     private static string QuoteWindowsCommandArgument(string path) =>
         '"' + path.Replace("\"", "\\\"", StringComparison.Ordinal) + '"';
+
+    private static string QuotePowerShellString(string value) =>
+        "'" + value.Replace("'", "''", StringComparison.Ordinal) + "'";
 }
 
 internal static class AntigravityStatusLinePowerShellScript
@@ -279,10 +298,11 @@ internal static class AntigravityStatusLinePowerShellScript
             } catch {
                 Exit-WithStatus 'Idling'
             }
-            Exit-WithStatus 'Idling'
+                Exit-WithStatus 'Idling'
             """;
     }
 
     private static string QuotePowerShellString(string value) =>
         "'" + value.Replace("'", "''", StringComparison.Ordinal) + "'";
+
 }

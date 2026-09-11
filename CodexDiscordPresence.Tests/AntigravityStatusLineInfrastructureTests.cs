@@ -290,6 +290,27 @@ public sealed class AntigravityStatusLineInfrastructureTests
     }
 
     [Fact]
+    public void Installer_LegacyQuotedCommand_MigratesToEncodedCommand()
+    {
+        using var fixture = new TemporaryFixture();
+        var installer = fixture.CreateInstaller();
+        Assert.Equal(AntigravityStatusLineOperationStatus.Installed, installer.Install().Status);
+
+        var settings = JsonNode.Parse(File.ReadAllText(fixture.SettingsPath))!.AsObject();
+        settings["statusLine"]!["command"] =
+            AntigravityStatusLineCommandBuilder.BuildLegacyQuotedCommand(fixture.Paths.ScriptPath);
+        File.WriteAllText(fixture.SettingsPath, settings.ToJsonString());
+
+        var result = installer.Install();
+
+        Assert.Equal(AntigravityStatusLineOperationStatus.Installed, result.Status);
+        var migrated = JsonNode.Parse(File.ReadAllText(fixture.SettingsPath))!.AsObject();
+        Assert.Equal(
+            fixture.Paths.ScriptPath,
+            DecodeScriptInvocation(migrated["statusLine"]!["command"]!.GetValue<string>()));
+    }
+
+    [Fact]
     public void Installer_ZeroByteSettings_InitializesSettingsAndInstallsIntegration()
     {
         using var fixture = new TemporaryFixture();
@@ -338,14 +359,16 @@ public sealed class AntigravityStatusLineInfrastructureTests
     }
 
     [Fact]
-    public void CommandBuilder_Windows_QuotesPathsWithSpacesAndScriptKeepsContractSafe()
+    public void CommandBuilder_Windows_UsesEncodedCommandForPathsWithSpaces()
     {
         using var fixture = new TemporaryFixture();
         var result = new AntigravityStatusLineCommandBuilder(AntigravityStatusLinePlatform.Windows)
             .Build(fixture.Paths);
 
         Assert.True(result.IsSupported);
-        Assert.Contains($"-File \"{fixture.Paths.ScriptPath}\"", result.Command, StringComparison.Ordinal);
+        Assert.Contains("-EncodedCommand ", result.Command, StringComparison.Ordinal);
+        Assert.DoesNotContain("-File", result.Command, StringComparison.Ordinal);
+        Assert.Equal(fixture.Paths.ScriptPath, DecodeScriptInvocation(result.Command!));
         Assert.Contains("$MaxPayloadBytes = 262144", result.ScriptContent, StringComparison.Ordinal);
         Assert.Contains("ConvertFrom-Json", result.ScriptContent, StringComparison.Ordinal);
         Assert.Contains("Write-BoundedEvent", result.ScriptContent, StringComparison.Ordinal);
@@ -354,6 +377,13 @@ public sealed class AntigravityStatusLineInfrastructureTests
         Assert.DoesNotContain("task_count", result.ScriptContent, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("session_id", result.ScriptContent, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("Write-Output", result.ScriptContent, StringComparison.Ordinal);
+    }
+
+    private static string DecodeScriptInvocation(string command)
+    {
+        var encodedCommand = command[(command.LastIndexOf(' ') + 1)..];
+        var invocation = Encoding.Unicode.GetString(Convert.FromBase64String(encodedCommand));
+        return invocation[3..^1].Replace("''", "'", StringComparison.Ordinal);
     }
 
     [Fact]
@@ -373,6 +403,30 @@ public sealed class AntigravityStatusLineInfrastructureTests
         Assert.Equal(0, execution.ExitCode);
         Assert.Equal("Working", execution.Output);
 
+        var store = new AntigravityStatusLineEventStore(fixture.EventFilePath);
+        Assert.True(store.TryReadLatest(@"C:\repo", out var observation));
+        Assert.Equal(ProviderAgentState.Working, observation?.AgentState);
+    }
+
+    [Fact]
+    public void CommandBuilder_WindowsEncodedCommand_ExecutesScriptWithSpaces()
+    {
+        if (!OperatingSystem.IsWindows())
+        {
+            return;
+        }
+
+        using var fixture = new TemporaryFixture();
+        var result = new AntigravityStatusLineCommandBuilder(AntigravityStatusLinePlatform.Windows)
+            .Build(fixture.Paths);
+        File.WriteAllText(fixture.Paths.ScriptPath, result.ScriptContent);
+
+        var command = result.Command ?? throw new InvalidOperationException("The Windows command was not created.");
+        var encodedCommand = command[(command.LastIndexOf(' ') + 1)..];
+        var execution = ExecutePowerShellEncodedCommand(encodedCommand, WindowsSubdirectoryPayload);
+
+        Assert.True(execution.ExitCode == 0, execution.Error);
+        Assert.Equal("Working", execution.Output);
         var store = new AntigravityStatusLineEventStore(fixture.EventFilePath);
         Assert.True(store.TryReadLatest(@"C:\repo", out var observation));
         Assert.Equal(ProviderAgentState.Working, observation?.AgentState);
@@ -444,6 +498,39 @@ public sealed class AntigravityStatusLineInfrastructureTests
         process.StartInfo.ArgumentList.Add("Bypass");
         process.StartInfo.ArgumentList.Add("-File");
         process.StartInfo.ArgumentList.Add(scriptPath);
+
+        Assert.True(process.Start());
+        process.StandardInput.Write(payload);
+        process.StandardInput.Close();
+        var output = process.StandardOutput.ReadToEnd();
+        var error = process.StandardError.ReadToEnd();
+        Assert.True(process.WaitForExit(10_000), error);
+        return (process.ExitCode, output, error);
+    }
+
+    private static (int ExitCode, string Output, string Error) ExecutePowerShellEncodedCommand(
+        string encodedCommand,
+        string payload)
+    {
+        using var process = new Process
+        {
+            StartInfo = new ProcessStartInfo
+            {
+                FileName = "powershell.exe",
+                UseShellExecute = false,
+                CreateNoWindow = true,
+                RedirectStandardInput = true,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true
+            }
+        };
+        process.StartInfo.ArgumentList.Add("-NoLogo");
+        process.StartInfo.ArgumentList.Add("-NoProfile");
+        process.StartInfo.ArgumentList.Add("-NonInteractive");
+        process.StartInfo.ArgumentList.Add("-ExecutionPolicy");
+        process.StartInfo.ArgumentList.Add("Bypass");
+        process.StartInfo.ArgumentList.Add("-EncodedCommand");
+        process.StartInfo.ArgumentList.Add(encodedCommand);
 
         Assert.True(process.Start());
         process.StandardInput.Write(payload);
