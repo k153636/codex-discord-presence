@@ -108,7 +108,11 @@ public sealed class AntigravityStatusLineInstaller
 
             try
             {
-                if (!File.Exists(_paths.ScriptPath))
+                if (!File.Exists(_paths.ScriptPath) ||
+                    !string.Equals(
+                        File.ReadAllText(_paths.ScriptPath),
+                        _command.ScriptContent,
+                        StringComparison.Ordinal))
                 {
                     WriteAtomically(_paths.ScriptPath, _command.ScriptContent!, emitUtf8Bom: true);
                 }

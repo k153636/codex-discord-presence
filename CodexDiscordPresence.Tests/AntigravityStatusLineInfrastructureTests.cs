@@ -179,6 +179,21 @@ public sealed class AntigravityStatusLineInfrastructureTests
     }
 
     [Fact]
+    public void Installer_ExistingManagedIntegration_RefreshesManagedScript()
+    {
+        using var fixture = new TemporaryFixture();
+        var installer = fixture.CreateInstaller();
+
+        Assert.Equal(AntigravityStatusLineOperationStatus.Installed, installer.Install().Status);
+        File.WriteAllText(fixture.Paths.ScriptPath, "outdated script");
+
+        var result = installer.Install();
+
+        Assert.Equal(AntigravityStatusLineOperationStatus.AlreadyInstalled, result.Status);
+        Assert.Contains("Move-Item -LiteralPath", File.ReadAllText(fixture.Paths.ScriptPath), StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void Installer_ActiveUserStatusLine_ReturnsConflictWithoutWritingFiles()
     {
         using var fixture = new TemporaryFixture();
