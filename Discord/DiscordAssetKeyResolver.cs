@@ -43,6 +43,11 @@ internal static class DiscordAssetKeyResolver
         ArgumentNullException.ThrowIfNull(options);
         ArgumentNullException.ThrowIfNull(presence);
 
+        if (ResolveProviderLargeImageKey(presence.ProviderId) is { } providerImageKey)
+        {
+            return providerImageKey;
+        }
+
         if (presence.IsError)
         {
             if (TryNormalize(options.ErrorImageKey, out var errorImageKey))

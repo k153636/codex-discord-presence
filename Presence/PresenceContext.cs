@@ -6,7 +6,11 @@ public sealed record PresenceContext(
     ProjectSnapshot Project,
     GitSnapshot Git,
     SessionSnapshot Session,
-    TokenUsageSnapshot TokenUsage);
+    TokenUsageSnapshot TokenUsage)
+{
+    public string? ProviderId { get; init; }
+    public string? ActivityLineOverride { get; init; }
+}
 
 public enum CodexProcessDetectionKind
 {

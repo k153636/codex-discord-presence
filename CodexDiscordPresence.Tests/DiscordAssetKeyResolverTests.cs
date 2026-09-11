@@ -4,6 +4,19 @@ namespace CodexDiscordPresence.Tests;
 
 public sealed class DiscordAssetKeyResolverTests
 {
+    [Fact]
+    public void ResolveLargeImageKey_UsesProviderAssetWithoutChangingCodexStateMapping()
+    {
+        var key = DiscordAssetKeyResolver.ResolveLargeImageKey(
+            new DiscordOptions(),
+            CreatePresence(CodexActivityKind.ApplyingEdits) with
+            {
+                ProviderId = ProviderIds.Antigravity
+            });
+
+        Assert.Equal("rpc_antigravity", key);
+    }
+
     [Theory]
     [InlineData("antigravity")]
     [InlineData("ANTIGRAVITY")]

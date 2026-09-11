@@ -6,6 +6,31 @@ namespace CodexDiscordPresence.Tests;
 public sealed class PresenceTemplateRendererTests
 {
     [Fact]
+    public void Render_ProviderActivityOverride_UsesNeutralStateLineAndCarriesProviderId()
+    {
+        var renderer = new PresenceTemplateRenderer();
+        var template = new PresenceTemplateOptions { State = "{ActivityLine}" };
+        var context = CreateContext(
+            new CodexProcessSnapshot(true, "agy", false)
+            {
+                DetectedActivityKind = CodexActivityKind.ApplyingEdits
+            },
+            new ProjectSnapshot("Nexstrap", @"E:\tool\Nexstrap", null, null, 128, 128, 42000, []),
+            new GitSnapshot(true, 0, null)) with
+        {
+            ProviderId = ProviderIds.Antigravity,
+            ActivityLineOverride = "  Working  "
+        };
+
+        var presence = renderer.Render(template, context);
+
+        Assert.Equal("Working", presence.State);
+        Assert.Equal(ProviderIds.Antigravity, presence.ProviderId);
+        Assert.DoesNotContain("Antigravity", presence.Details, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("Antigravity", presence.State, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
     public void Render_WithoutRecentEditedFile_UsesAnalyzingProjectActivity()
     {
         var renderer = new PresenceTemplateRenderer();

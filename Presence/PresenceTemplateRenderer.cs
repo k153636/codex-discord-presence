@@ -30,6 +30,7 @@ public sealed class PresenceTemplateRenderer
             context.Codex.RunningCommandKind,
             context.Codex.RunningCommandName)
         {
+            ProviderId = context.ProviderId,
             PartySize = context.Codex.PartySize,
             IsSuccessfulCompletion = context.Codex.IsSuccessfulCompletion,
             IsError = context.Codex.IsError,
@@ -75,7 +76,8 @@ public sealed class PresenceTemplateRenderer
         {
             stateLabel = $"{stateLabel} x{context.Codex.ActivityRepeatCount}";
         }
-        var activityLine = PresenceActivityComposer.BuildActivityLine(context, stateLabel, editingFileName, activityFileCount);
+        var activityLine = ResolveActivityLineOverride(context) ??
+            PresenceActivityComposer.BuildActivityLine(context, stateLabel, editingFileName, activityFileCount);
 
         var values = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
         {
@@ -119,6 +121,25 @@ public sealed class PresenceTemplateRenderer
         };
 
         return values;
+    }
+
+    private static string? ResolveActivityLineOverride(PresenceContext context)
+    {
+        if (string.IsNullOrWhiteSpace(context.ActivityLineOverride))
+        {
+            return null;
+        }
+
+        var normalized = string.Join(
+            ' ',
+            context.ActivityLineOverride
+                .Trim()
+                .Where(character => !char.IsControl(character))
+                .ToArray()
+                .AsSpan()
+                .ToString()
+                .Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries));
+        return string.IsNullOrWhiteSpace(normalized) ? null : normalized;
     }
 
     private string ResolveDetails(
@@ -324,6 +345,7 @@ public sealed record RenderedPresence(
     RunningCommandKind RunningCommandKind,
     string RunningCommandName)
 {
+    public string? ProviderId { get; init; }
     public int? PartySize { get; init; }
     public bool IsSuccessfulCompletion { get; init; }
     public bool IsError { get; init; }
