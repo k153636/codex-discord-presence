@@ -41,9 +41,7 @@ internal sealed class ProviderActivationGate
         if (!_hasEvaluated)
         {
             _hasEvaluated = true;
-            var initialCandidate = currentCandidate?.IsActive == true
-                ? currentCandidate
-                : SelectActiveCandidate(eligibleCandidates, currentProviderId: null);
+            var initialCandidate = SelectActiveCandidate(eligibleCandidates, _currentProviderId);
             if (initialCandidate is null)
             {
                 initialCandidate = currentCandidate ??
@@ -83,6 +81,19 @@ internal sealed class ProviderActivationGate
         {
             _currentWasActive = true;
             _inactiveBoundaryUtc = null;
+
+            var newerActiveCandidates = eligibleCandidates
+                .Where(candidate => candidate.IsActive)
+                .Where(candidate => !IsCurrentProvider(candidate))
+                .Where(candidate => IsNewerThanCurrent(candidate, currentCandidate))
+                .ToArray();
+            var replacement = SelectActiveCandidate(newerActiveCandidates, _currentProviderId);
+            if (replacement is not null)
+            {
+                SetCurrent(replacement, nowUtc);
+                return replacement;
+            }
+
             return currentCandidate;
         }
 
@@ -133,6 +144,15 @@ internal sealed class ProviderActivationGate
         return _inactiveBoundaryUtc.HasValue &&
             candidate.LastObservedAtUtc.HasValue &&
             candidate.LastObservedAtUtc.Value > _inactiveBoundaryUtc.Value;
+    }
+
+    private static bool IsNewerThanCurrent(
+        ProviderSelectionCandidate candidate,
+        ProviderSelectionCandidate currentCandidate)
+    {
+        return candidate.LastObservedAtUtc.HasValue &&
+            (!currentCandidate.LastObservedAtUtc.HasValue ||
+             candidate.LastObservedAtUtc.Value > currentCandidate.LastObservedAtUtc.Value);
     }
 
     private bool IsCurrentProvider(ProviderSelectionCandidate candidate)

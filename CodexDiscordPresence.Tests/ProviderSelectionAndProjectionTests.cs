@@ -153,6 +153,48 @@ public sealed class ProviderSelectionAndProjectionTests
     }
 
     [Fact]
+    public void ActivationGate_NewerActiveProviderTakesOverWithoutCurrentProviderBecomingIdle()
+    {
+        var initialTime = DateTimeOffset.Parse("2026-09-12T01:30:00Z");
+        var gate = new ProviderActivationGate(ProviderIds.Codex);
+
+        Assert.Equal(
+            ProviderIds.Codex,
+            gate.Select(
+                [
+                    Candidate(ProviderIds.Codex, observedAt: initialTime, isActive: true),
+                    Candidate(ProviderIds.Antigravity, observedAt: initialTime.AddSeconds(-1), isActive: true)
+                ],
+                initialTime)?.ProviderId);
+
+        var antigravityTime = initialTime.AddMinutes(1);
+        Assert.Equal(
+            ProviderIds.Antigravity,
+            gate.Select(
+                [
+                    Candidate(ProviderIds.Codex, observedAt: initialTime, isActive: true),
+                    Candidate(ProviderIds.Antigravity, observedAt: antigravityTime, isActive: true)
+                ],
+                antigravityTime)?.ProviderId);
+    }
+
+    [Fact]
+    public void ActivationGate_InitialSelectionUsesNewestActiveProvider()
+    {
+        var initialTime = DateTimeOffset.Parse("2026-09-12T01:45:00Z");
+        var gate = new ProviderActivationGate(ProviderIds.Codex);
+
+        var selected = gate.Select(
+            [
+                Candidate(ProviderIds.Codex, observedAt: initialTime, isActive: true),
+                Candidate(ProviderIds.Antigravity, observedAt: initialTime.AddMinutes(1), isActive: true)
+            ],
+            initialTime.AddMinutes(1));
+
+        Assert.Equal(ProviderIds.Antigravity, selected?.ProviderId);
+    }
+
+    [Fact]
     public void ActivationGate_ActiveAntigravityIgnoresCodexIdleChange()
     {
         var initialTime = DateTimeOffset.Parse("2026-09-12T02:00:00Z");
