@@ -46,7 +46,7 @@ public static class PresenceApplication
 
         var stateStore = new PresenceStateStore();
         var statePath = appPaths.StatePath;
-        var runtimeState = stateStore.Load(statePath);
+        var runtimeState = stateStore.Load(statePath, options.Providers);
         var settingsPath = appPaths.ExecutableSettingsPath;
         var runtime = new PresenceRuntime(options, runtimeState, cts.Token, appPaths, diagnosticLog);
 
