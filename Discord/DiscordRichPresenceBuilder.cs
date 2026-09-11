@@ -23,7 +23,11 @@ internal static class DiscordRichPresenceBuilder
         return new RichPresence
         {
             Details = DiscordPresencePayloadPolicy.NormalizeText(presence.Details),
-            State = DiscordPresencePayloadPolicy.NormalizeText(presence.State),
+            State = DiscordPresencePayloadPolicy.NormalizeText(
+                presence.State,
+                presence.PartySize is > 1
+                    ? DiscordPresencePayloadPolicy.MaxPartyStateBytes
+                    : DiscordPresencePayloadPolicy.MaxTextBytes),
             Assets = new Assets
             {
                 LargeImageKey = DiscordAssetKeyResolver.ResolveLargeImageReference(options, presence),

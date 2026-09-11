@@ -5,6 +5,8 @@ namespace CodexDiscordPresence;
 internal static class DiscordPresencePayloadPolicy
 {
     internal const int MaxTextBytes = 128;
+    // Discord appends the party indicator to the state row; keep that row compact enough for it to remain visible.
+    internal const int MaxPartyStateBytes = 48;
     internal const int MaxButtonLabelBytes = 31;
     internal const int MaxButtonUrlLength = 512;
 

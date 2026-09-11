@@ -56,4 +56,46 @@ public sealed class DiscordPresencePayloadPolicyTests
         Assert.True(Encoding.UTF8.GetByteCount(payload.Buttons[0].Label) <= DiscordPresencePayloadPolicy.MaxButtonLabelBytes);
         Assert.EndsWith("…", payload.Buttons[0].Label, StringComparison.Ordinal);
     }
+
+    [Fact]
+    public void Create_PartyStateReservesRoomForDiscordPartyIndicator()
+    {
+        var rendered = new RenderedPresence(
+            "details",
+            "Main agent " + new string('s', 120),
+            null,
+            "small",
+            [],
+            null,
+            CodexActivityKind.AnalyzingProject,
+            RunningCommandKind.Unknown,
+            "")
+        {
+            PartySize = 3
+        };
+
+        var payload = DiscordRichPresenceBuilder.Create(new DiscordOptions(), rendered, "party-id");
+
+        Assert.True(Encoding.UTF8.GetByteCount(payload.State) <= DiscordPresencePayloadPolicy.MaxPartyStateBytes);
+        Assert.EndsWith("…", payload.State, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Create_SoloStateKeepsTheNormalDiscordTextLimit()
+    {
+        var rendered = new RenderedPresence(
+            "details",
+            new string('s', 120),
+            null,
+            "small",
+            [],
+            null,
+            CodexActivityKind.AnalyzingProject,
+            RunningCommandKind.Unknown,
+            "");
+
+        var payload = DiscordRichPresenceBuilder.Create(new DiscordOptions(), rendered, "party-id");
+
+        Assert.Equal(120, payload.State.Length);
+    }
 }
