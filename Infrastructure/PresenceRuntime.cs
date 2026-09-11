@@ -198,9 +198,7 @@ public sealed class PresenceRuntime
                     CodexProcessSnapshot displaySnapshot;
                     if (selectedProvider.ProviderId == ProviderIds.Antigravity && antigravityObservation is not null)
                     {
-                        var projection = AntigravityPresenceProjection.Build(
-                            antigravityObservation,
-                            selectedProjectPath);
+                        var projection = AntigravityPresenceProjection.Build(antigravityObservation);
                         displaySnapshot = projection.Snapshot;
                         context = BuildAntigravityPresenceContext(
                             session,

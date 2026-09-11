@@ -15,15 +15,7 @@ internal static class AntigravityPresenceProjection
 
     public static AntigravityPresenceProjectionResult Build(ProviderObservation observation)
     {
-        return Build(observation, activeProjectPath: null);
-    }
-
-    public static AntigravityPresenceProjectionResult Build(
-        ProviderObservation observation,
-        string? activeProjectPath)
-    {
         ArgumentNullException.ThrowIfNull(observation);
-        _ = activeProjectPath;
 
         var observedAtUtc = ToUtcDateTime(observation.ObservedAtUtc);
         var state = MapState(observation.AgentState);
