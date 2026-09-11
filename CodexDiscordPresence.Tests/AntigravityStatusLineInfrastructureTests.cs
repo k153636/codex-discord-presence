@@ -256,6 +256,8 @@ public sealed class AntigravityStatusLineInfrastructureTests
             EventFilePath = Paths.EventFilePath;
             ValidEventFilePath = Path.Combine(_root, "valid.jsonl");
             SettingsPath = Paths.SettingsPath;
+            Directory.CreateDirectory(Path.GetDirectoryName(Paths.SettingsPath)!);
+            Directory.CreateDirectory(Path.GetDirectoryName(Paths.EventFilePath)!);
         }
 
         public AntigravityStatusLinePaths Paths { get; }
