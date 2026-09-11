@@ -298,11 +298,10 @@ internal static class AntigravityStatusLinePowerShellScript
             } catch {
                 Exit-WithStatus 'Idling'
             }
-                Exit-WithStatus 'Idling'
+            Exit-WithStatus 'Idling'
             """;
     }
 
     private static string QuotePowerShellString(string value) =>
         "'" + value.Replace("'", "''", StringComparison.Ordinal) + "'";
-
 }
