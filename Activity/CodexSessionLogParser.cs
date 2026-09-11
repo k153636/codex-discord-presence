@@ -16,6 +16,7 @@ internal sealed class CodexSessionLogParser
     private readonly PresenceTemplateOptions _presenceOptions;
     private readonly Dictionary<string, CachedSessionInspection> _sessionCache = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, LifecycleBoundaryCache> _lifecycleBoundaryCache = new(StringComparer.OrdinalIgnoreCase);
+    private string? _selectedPrimaryThreadId;
 
     public CodexSessionLogParser(CodexDetectionOptions options, PresenceTemplateOptions presenceOptions)
     {
@@ -2797,30 +2798,41 @@ internal sealed class CodexSessionLogParser
             return null;
         }
 
-        SessionInspectionCandidate? best = null;
+        var scoredCandidates = ScoreCandidates(primaryCandidates);
+        ScoredSessionInspectionCandidate? best = null;
 
         if (!string.IsNullOrWhiteSpace(normalizedProjectPath))
         {
-            best = PickBest(primaryCandidates.Where(candidate => candidate.Inspection.MatchesProject && candidate.Inspection.HasRecentActivity(_presenceOptions.ThinkingStaleTimeoutMinutes)));
+            var projectCandidates = scoredCandidates
+                .Where(candidate => candidate.Source.Inspection.MatchesProject)
+                .ToArray();
+            best = PickBestForDisplay(projectCandidates.Where(candidate =>
+                candidate.HasRecentObservedActivity),
+                projectCandidates);
             if (best is not null)
             {
-                return best.Inspection;
+                return RememberSelected(best).Source.Inspection;
             }
 
-            best = PickBest(primaryCandidates.Where(candidate => candidate.Inspection.MatchesProject));
+            best = PickBestForDisplay(projectCandidates);
             if (best is not null)
             {
-                return best.Inspection;
+                return RememberSelected(best).Source.Inspection;
             }
         }
 
-        best = PickBest(primaryCandidates.Where(candidate => candidate.Inspection.HasRecentActivity(_presenceOptions.ThinkingStaleTimeoutMinutes)));
+        best = PickBestForDisplay(
+            scoredCandidates.Where(candidate => candidate.HasRecentObservedActivity),
+            scoredCandidates);
         if (best is not null)
         {
-            return best.Inspection;
+            return RememberSelected(best).Source.Inspection;
         }
 
-        return PickBest(primaryCandidates)?.Inspection;
+        best = PickBestForDisplay(scoredCandidates);
+        return best is null
+            ? null
+            : RememberSelected(best).Source.Inspection;
     }
 
     private string? SelectLatestObservedProjectPath(IReadOnlyList<SessionInspectionCandidate> candidates)
@@ -2828,34 +2840,95 @@ internal sealed class CodexSessionLogParser
         var primaryCandidates = candidates
             .Where(candidate => candidate.Inspection.IsPrimaryThread)
             .ToArray();
-        var best = PickBest(primaryCandidates.Where(candidate => candidate.Inspection.HasRecentActivity(_presenceOptions.ThinkingStaleTimeoutMinutes) && !string.IsNullOrWhiteSpace(candidate.Inspection.ProjectPath)))
-            ?? PickBest(primaryCandidates.Where(candidate => !string.IsNullOrWhiteSpace(candidate.Inspection.ProjectPath)));
+        var scoredCandidates = ScoreCandidates(primaryCandidates);
+        var best = PickBest(scoredCandidates.Where(candidate =>
+                candidate.HasRecentObservedActivity &&
+                !string.IsNullOrWhiteSpace(candidate.Source.Inspection.ProjectPath)))
+            ?? PickBest(scoredCandidates.Where(candidate => !string.IsNullOrWhiteSpace(candidate.Source.Inspection.ProjectPath)));
 
-        return best?.Inspection.ProjectPath;
+        return best?.Source.Inspection.ProjectPath;
     }
 
-    private SessionInspectionCandidate? PickBest(IEnumerable<SessionInspectionCandidate> candidates)
+    private IReadOnlyList<ScoredSessionInspectionCandidate> ScoreCandidates(
+        IEnumerable<SessionInspectionCandidate> candidates)
     {
         var nowUtc = DateTime.UtcNow;
         return candidates
-            .OrderByDescending(candidate => HasPendingMutation(candidate.Inspection, nowUtc))
-            .ThenByDescending(candidate => HasPendingOperation(candidate.Inspection, nowUtc))
-            .ThenByDescending(candidate => candidate.Inspection.HasRecentActivity(_presenceOptions.ThinkingStaleTimeoutMinutes))
-            .ThenByDescending(candidate => candidate.Inspection.LastObservedAt ?? DateTime.MinValue)
-            .ThenByDescending(candidate => candidate.SessionLastWriteTimeUtc)
+            .Select(candidate =>
+            {
+                var activityState = candidate.Inspection.GetActivityStateAt(nowUtc);
+                return new ScoredSessionInspectionCandidate(
+                    candidate,
+                    activityState,
+                    string.Equals(
+                        candidate.Inspection.ThreadId,
+                        _selectedPrimaryThreadId,
+                        StringComparison.OrdinalIgnoreCase),
+                    candidate.Inspection.HasRecentActivity(_presenceOptions.ThinkingStaleTimeoutMinutes),
+                    HasRecentEffectiveActivity(activityState, nowUtc));
+            })
+            .ToArray();
+    }
+
+    private ScoredSessionInspectionCandidate? PickBestForDisplay(
+        IEnumerable<ScoredSessionInspectionCandidate> candidates,
+        IEnumerable<ScoredSessionInspectionCandidate>? affinityCandidates = null)
+    {
+        var candidateArray = candidates.ToArray();
+        var best = PickBest(candidateArray);
+        if (best is null)
+        {
+            return null;
+        }
+
+        var affinityCandidateArray = affinityCandidates?.ToArray() ?? candidateArray;
+        if (affinityCandidateArray.Any(candidate =>
+                candidate.HasCurrentActivity ||
+                candidate.HasRecentEffectiveActivity))
+        {
+            return PickBest(affinityCandidateArray) ?? best;
+        }
+
+        // session_meta proves that a CLI was opened, not that it produced the
+        // current activity. Keep the last selected primary until another
+        // candidate provides current effective activity.
+        return affinityCandidateArray.FirstOrDefault(candidate => candidate.IsRemembered) ?? best;
+    }
+
+    private ScoredSessionInspectionCandidate? PickBest(
+        IEnumerable<ScoredSessionInspectionCandidate> candidates)
+    {
+        // Opening an additional CLI can refresh session metadata without starting
+        // a turn. Current effective activity must outrank that metadata.
+        return candidates
+            .OrderByDescending(candidate => candidate.HasCurrentActivity)
+            .ThenByDescending(candidate => candidate.HasPendingMutation)
+            .ThenByDescending(candidate => candidate.HasPendingOperation)
+            .ThenByDescending(candidate => candidate.HasRecentEffectiveActivity)
+            .ThenByDescending(candidate => candidate.HasRecentObservedActivity)
+            .ThenByDescending(candidate => candidate.Source.Inspection.LastObservedAt ?? DateTime.MinValue)
+            .ThenByDescending(candidate => candidate.Source.SessionLastWriteTimeUtc)
             .FirstOrDefault();
     }
 
-    private static bool HasPendingMutation(SessionInspection inspection, DateTime nowUtc)
+    private ScoredSessionInspectionCandidate RememberSelected(
+        ScoredSessionInspectionCandidate candidate)
     {
-        var state = inspection.GetActivityStateAt(nowUtc);
-        return state?.Lifecycle == CodexTurnLifecycle.Open && state.PendingMutationCount > 0;
+        if (!string.IsNullOrWhiteSpace(candidate.Source.Inspection.ThreadId))
+        {
+            _selectedPrimaryThreadId = candidate.Source.Inspection.ThreadId;
+        }
+
+        return candidate;
     }
 
-    private static bool HasPendingOperation(SessionInspection inspection, DateTime nowUtc)
+    private bool HasRecentEffectiveActivity(
+        CodexActivityState? activityState,
+        DateTime nowUtc)
     {
-        var state = inspection.GetActivityStateAt(nowUtc);
-        return state?.Lifecycle == CodexTurnLifecycle.Open && state.PendingOperationCount > 0;
+        var lastEffectiveSignalAt = activityState?.LastEffectiveSignalAtUtc;
+        return lastEffectiveSignalAt.HasValue &&
+            nowUtc - lastEffectiveSignalAt.Value <= TimeSpan.FromMinutes(_presenceOptions.ThinkingStaleTimeoutMinutes);
     }
 
     private sealed record PatchFile(string Path, CodexOperationKind OperationKind);
@@ -2889,4 +2962,21 @@ internal sealed class CodexSessionLogParser
         bool IsCoveredByHeader);
 
     private sealed record SessionInspectionCandidate(SessionInspection Inspection, DateTime SessionLastWriteTimeUtc);
+
+    private sealed record ScoredSessionInspectionCandidate(
+        SessionInspectionCandidate Source,
+        CodexActivityState? ActivityState,
+        bool IsRemembered,
+        bool HasRecentObservedActivity,
+        bool HasRecentEffectiveActivity)
+    {
+        public bool HasCurrentActivity => ActivityState?.Lifecycle is
+            CodexTurnLifecycle.Open or CodexTurnLifecycle.WaitingForInput;
+
+        public bool HasPendingMutation => ActivityState?.Lifecycle == CodexTurnLifecycle.Open &&
+            ActivityState.PendingMutationCount > 0;
+
+        public bool HasPendingOperation => ActivityState?.Lifecycle == CodexTurnLifecycle.Open &&
+            ActivityState.PendingOperationCount > 0;
+    }
 }

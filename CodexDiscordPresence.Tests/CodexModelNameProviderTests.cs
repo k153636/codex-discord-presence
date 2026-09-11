@@ -185,6 +185,52 @@ public sealed class CodexModelNameProviderTests
     }
 
     [Fact]
+    public void GetSnapshot_UsesActivePrimaryWhenIdleCliSessionIsNewer()
+    {
+        var tempPath = CreateTempCodexHome();
+        try
+        {
+            var projectPath = @"E:\tool\codex-discord-RPC";
+            var now = DateTime.UtcNow;
+            WriteSession(tempPath, "active-primary.jsonl", new[]
+            {
+                CreateSessionMetaLine(now.AddMinutes(-2), "active-primary", "user", null, projectPath, "gpt-active", "xhigh", "default"),
+                CreateSessionLine(now.AddSeconds(-2), new
+                {
+                    type = "task_started",
+                    turn_id = "active-turn",
+                    cwd = projectPath
+                }, "event_msg"),
+                CreateSessionLine(now.AddSeconds(-1), new
+                {
+                    type = "reasoning",
+                    turn_id = "active-turn",
+                    summary = new[] { new { type = "summary_text", text = "**Active primary**" } }
+                }, "response_item")
+            });
+            WriteSession(tempPath, "idle-primary.jsonl", new[]
+            {
+                CreateSessionMetaLine(now, "idle-primary", "user", null, projectPath, "gpt-idle", "max", "priority")
+            });
+
+            var provider = new CodexModelNameProvider(
+                new CodexDetectionOptions { HomePath = tempPath, ModelEnvironmentVariables = [] },
+                new PresenceTemplateOptions { AutoDetectModelName = true, ModelName = "Codex" });
+
+            var snapshot = provider.GetSnapshot(projectPath);
+
+            Assert.Equal("gpt-active", snapshot.FinalDisplayedModel);
+            Assert.Equal("xhigh", snapshot.ReasoningEffort);
+            Assert.Equal("default", snapshot.ServiceTier);
+            Assert.Equal("gpt active xhigh", snapshot.DisplayLabel);
+        }
+        finally
+        {
+            Directory.Delete(tempPath, true);
+        }
+    }
+
+    [Fact]
     public void GetSnapshot_ConfiguredFastModeWithoutEffectiveSessionTier_UsesConfiguredSpeed()
     {
         var tempPath = CreateTempCodexHome();

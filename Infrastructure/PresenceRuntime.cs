@@ -797,6 +797,7 @@ public sealed class PresenceRuntime
                 $"recentEditedFileCount={codexSnapshot.RecentEditedFiles.Count}, " +
                 $"runningCommandKind={codexSnapshot.RunningCommandKind}, " +
                  $"runningCommandName={FormatLogValue(codexSnapshot.RunningCommandName)}, " +
+                 $"sessionThreadId={FormatLogValue(codexSnapshot.SessionInspection?.ThreadId)}, " +
                  $"turnId={FormatLogValue(codexSnapshot.ActiveTurnId)}, " +
                  $"turnLifecycle={codexSnapshot.TurnLifecycle}, " +
                  $"activeToolFile={FormatDisplayFileName(codexSnapshot.ActiveToolFilePath)}, " +
@@ -926,6 +927,10 @@ public sealed class PresenceRuntime
             previousSnapshot.PendingOperationCount != currentSnapshot.PendingOperationCount ||
             previousSnapshot.PendingMutationCount != currentSnapshot.PendingMutationCount ||
             previousSnapshot.TurnLifecycle != currentSnapshot.TurnLifecycle ||
+            !string.Equals(
+                previousSnapshot.SessionInspection?.ThreadId,
+                currentSnapshot.SessionInspection?.ThreadId,
+                StringComparison.OrdinalIgnoreCase) ||
             previousSnapshot.PartySize != currentSnapshot.PartySize ||
             previousSnapshot.IsMcpOperation != currentSnapshot.IsMcpOperation ||
             !string.Equals(previousSnapshot.McpServerName, currentSnapshot.McpServerName, StringComparison.OrdinalIgnoreCase) ||
