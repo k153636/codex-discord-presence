@@ -55,6 +55,15 @@ public sealed class PresenceRuntime
             AppProfileKind.Codex,
             new AppProfileSelectionCandidate(AppProfileKind.Codex, initialProfileSnapshots[AppProfileKind.Codex], profileStates[AppProfileKind.Codex].DiscordOptions),
             new AppProfileSelectionCandidate(AppProfileKind.CodexCli, initialProfileSnapshots[AppProfileKind.CodexCli], profileStates[AppProfileKind.CodexCli].DiscordOptions));
+        var antigravityState = new ProviderRuntimeState(
+            ProviderIds.Antigravity,
+            _options.GetDiscordOptions(AppProfileKind.Codex));
+        var antigravityPaths = AntigravityStatusLinePaths.CreateDefault();
+        var antigravityEventStore = new AntigravityStatusLineEventStore(antigravityPaths.EventFilePath);
+        var antigravityInstaller = new AntigravityStatusLineInstaller();
+        var antigravityInstalled = false;
+        var antigravityConflictLogged = false;
+        var currentProviderId = ProviderIds.Codex;
         var rpc = new DiscordPresenceClient(profileStates[currentProfile].DiscordOptions, _log);
 
         try
@@ -69,9 +78,18 @@ public sealed class PresenceRuntime
 
             while (!_cancellationToken.IsCancellationRequested)
             {
+                var activityKind = profileStates[currentProfile].LastActivityKind;
                 try
                 {
                     RefreshTimingSettingsIfNeeded();
+
+                    var antigravityEnabled = _state.Enabled &&
+                        IsProviderEnabled(ProviderIds.Antigravity, defaultValue: false);
+                    var antigravityAvailable = SyncAntigravityIntegration(
+                        antigravityInstaller,
+                        antigravityEnabled,
+                        ref antigravityInstalled,
+                        ref antigravityConflictLogged);
 
                     if (!HandleDisabledState(rpc, wasDisabled))
                     {
@@ -85,6 +103,7 @@ public sealed class PresenceRuntime
                         _log.Info("Presence enabled.");
                         wasDisabled = false;
                         ResetAllProfilePresenceCaches(profileStates);
+                        antigravityState.ResetPresenceCache();
                     }
 
                     var observedProfileSnapshots = useInitialProfileSnapshots
@@ -107,6 +126,7 @@ public sealed class PresenceRuntime
                     if (projectPathChanged)
                     {
                         ResetAllProfilePresenceCaches(profileStates);
+                        antigravityState.ResetPresenceCache();
                     }
 
                     var selectedProfile = SelectProfile(profileStates, currentProfile, observedProfileSnapshots);
@@ -115,51 +135,119 @@ public sealed class PresenceRuntime
                         observedProfileSnapshots[selectedProfile],
                         activeProjectPath);
 
-                    rpc.UpdateOptions(selectedProfileState.DiscordOptions);
-
                     if (selectedProfile != currentProfile)
                     {
                         _log.Info($"Profile switched: {currentProfile} -> {selectedProfile}");
                         currentProfile = selectedProfile;
                     }
 
-                    var projectSnapshot = projectSnapshotCache.GetSnapshot(projectInspector, selectedProfileProjectPath);
+                    var antigravityObservation = antigravityAvailable
+                        ? ReadFreshAntigravityObservation(antigravityEventStore, activeProjectPath)
+                        : null;
+                    var selectedProvider = SelectActiveProvider(
+                        currentProviderId,
+                        selectedProfile,
+                        selectedProfileState,
+                        observedProfileSnapshots[selectedProfile],
+                        activeProjectPath,
+                        antigravityObservation);
+                    if (selectedProvider is null)
+                    {
+                        rpc.Clear();
+                        _state.PublishDashboardSnapshot(new PresenceDashboardSnapshot(
+                            currentProfile,
+                            null,
+                            null,
+                            null,
+                            null,
+                            rpc.IsConnected,
+                            DateTime.UtcNow)
+                        {
+                            PublishedPresence = rpc.LastPublishedPresence
+                        });
+                        deferSessionEnrichment = false;
+                        await Delay(TimeSpan.FromSeconds(1));
+                        continue;
+                    }
+
+                    PresenceRuntimeCache selectedProviderState = selectedProvider.ProviderId == ProviderIds.Antigravity
+                        ? antigravityState
+                        : selectedProfileState;
+                    if (!string.Equals(currentProviderId, selectedProvider.ProviderId, StringComparison.OrdinalIgnoreCase))
+                    {
+                        _log.Info($"Provider switched: {currentProviderId} -> {selectedProvider.ProviderId}");
+                        ResetAllProfilePresenceCaches(profileStates);
+                        antigravityState.ResetPresenceCache();
+                        currentProviderId = selectedProvider.ProviderId;
+                    }
+
+                    var selectedDiscordOptions = selectedProvider.ProviderId == ProviderIds.Antigravity
+                        ? _options.GetDiscordOptions(selectedProfile)
+                        : selectedProfileState.DiscordOptions;
+                    rpc.UpdateOptions(selectedDiscordOptions);
+
+                    var selectedProjectPath = selectedProvider.ProviderId == ProviderIds.Antigravity
+                        ? activeProjectPath
+                        : selectedProfileProjectPath;
+                    var projectSnapshot = projectSnapshotCache.GetSnapshot(projectInspector, selectedProjectPath);
                     var gitSnapshot = gitSnapshotCache.GetSnapshot(
                         gitInspector,
-                        selectedProfileProjectPath,
+                        selectedProjectPath,
                         _cancellationToken);
-                    var codexSnapshot = BuildCodexSnapshot(
-                        selectedProfileProjectPath,
-                        projectSnapshot,
-                        gitSnapshot,
-                        selectedProfileState,
-                        _cancellationToken);
-                    var modelSnapshot = UpdateModelSnapshot(
-                        selectedProfileProjectPath,
-                        selectedProfileState,
-                        includeSessionScan: !deferSessionEnrichment);
-                    var context = BuildPresenceContext(
-                        session,
-                        selectedProfileProjectPath,
-                        selectedProfileState,
-                        modelSnapshot,
-                        projectSnapshot,
-                        gitSnapshot,
-                        codexSnapshot,
-                        includeSessionUsage: !deferSessionEnrichment);
+                    PresenceContext context;
+                    CodexProcessSnapshot displaySnapshot;
+                    if (selectedProvider.ProviderId == ProviderIds.Antigravity && antigravityObservation is not null)
+                    {
+                        var projection = AntigravityPresenceProjection.Build(
+                            antigravityObservation,
+                            selectedProjectPath);
+                        displaySnapshot = projection.Snapshot;
+                        context = BuildAntigravityPresenceContext(
+                            session,
+                            projection,
+                            projectSnapshot,
+                            gitSnapshot);
+                    }
+                    else
+                    {
+                        displaySnapshot = BuildCodexSnapshot(
+                            selectedProjectPath,
+                            projectSnapshot,
+                            gitSnapshot,
+                            selectedProfileState,
+                            _cancellationToken);
+                        var modelSnapshot = UpdateModelSnapshot(
+                            selectedProjectPath,
+                            selectedProfileState,
+                            includeSessionScan: !deferSessionEnrichment);
+                        context = BuildPresenceContext(
+                            session,
+                            selectedProjectPath,
+                            selectedProfileState,
+                            modelSnapshot,
+                            projectSnapshot,
+                            gitSnapshot,
+                            displaySnapshot,
+                            includeSessionUsage: !deferSessionEnrichment) with
+                        {
+                            ProviderId = ProviderIds.Codex
+                        };
+                    }
 
                     var presence = renderer.Render(_options.Presence, context);
                     UpdateDiscordPresence(
                         rpc,
                         keepAliveInterval,
-                        selectedProfileState,
+                        selectedProviderState,
+                        selectedDiscordOptions,
                         presence);
 
-                    UpdateProfileActivityState(selectedProfileState, codexSnapshot);
+                    UpdateProfileActivityState(selectedProviderState, displaySnapshot);
+                    activityKind = selectedProviderState.LastActivityKind;
                     var dashboardSnapshot = new PresenceDashboardSnapshot(
                         currentProfile,
                         context.ModelName,
-                        context.Project.Name,
+                        projectSnapshot.Name,
                         presence,
                         context.TokenUsage,
                         rpc.IsConnected,
@@ -180,7 +268,6 @@ public sealed class PresenceRuntime
                     deferSessionEnrichment = false;
                 }
 
-                var activityKind = profileStates[currentProfile].LastActivityKind;
                 var delay = PresenceRefreshPolicy.GetNextDelay(_options.Presence, activityKind, _options.UpdateIntervalSeconds);
                 if (activityKind != CodexActivityKind.Ready && delay > projectSwitchDetectionInterval)
                 {
@@ -192,6 +279,15 @@ public sealed class PresenceRuntime
         }
         finally
         {
+            if (antigravityInstalled)
+            {
+                var uninstallResult = antigravityInstaller.Uninstall();
+                if (!uninstallResult.Succeeded)
+                {
+                    _log.Warn($"Antigravity statusLine cleanup did not complete: {uninstallResult.Message ?? uninstallResult.Status.ToString()}.");
+                }
+            }
+
             rpc.Clear();
             rpc.Dispose();
             _log.Info("Stopped Codex Discord RPC.");
@@ -213,6 +309,184 @@ public sealed class PresenceRuntime
         rpc.Clear();
 
         return false;
+    }
+
+    private bool SyncAntigravityIntegration(
+        AntigravityStatusLineInstaller installer,
+        bool enabled,
+        ref bool installed,
+        ref bool conflictLogged)
+    {
+        if (!enabled)
+        {
+            if (installed)
+            {
+                var uninstallResult = installer.Uninstall();
+                if (!uninstallResult.Succeeded)
+                {
+                    _log.Warn(
+                        $"Antigravity statusLine cleanup did not complete: " +
+                        $"{uninstallResult.Message ?? uninstallResult.Status.ToString()}.");
+                }
+
+                installed = false;
+            }
+
+            conflictLogged = false;
+            return false;
+        }
+
+        if (installed)
+        {
+            return true;
+        }
+
+        var installResult = installer.Install();
+        if (installResult.Status is
+            AntigravityStatusLineOperationStatus.Installed or
+            AntigravityStatusLineOperationStatus.AlreadyInstalled)
+        {
+            installed = true;
+            conflictLogged = false;
+            _log.Info($"Antigravity statusLine integration: {installResult.Status}.");
+            return true;
+        }
+
+        if (!conflictLogged)
+        {
+            _log.Warn(
+                $"Antigravity provider is enabled but statusLine integration is unavailable: " +
+                $"{installResult.Message ?? installResult.Status.ToString()}.");
+            conflictLogged = true;
+        }
+
+        return false;
+    }
+
+    private ProviderObservation? ReadFreshAntigravityObservation(
+        AntigravityStatusLineEventStore eventStore,
+        string activeProjectPath)
+    {
+        var hasObservation = !string.IsNullOrWhiteSpace(activeProjectPath)
+            ? eventStore.TryReadLatest(activeProjectPath, out var observation)
+            : eventStore.TryReadLatest(out observation);
+        if (!hasObservation || observation is null || observation.ObservedAtUtc == default)
+        {
+            return null;
+        }
+
+        var age = DateTimeOffset.UtcNow - observation.ObservedAtUtc;
+        var freshnessWindow = TimeSpan.FromMinutes(
+            Math.Max(1, _options.Presence.ThinkingStaleTimeoutMinutes));
+        return age >= TimeSpan.Zero && age <= freshnessWindow
+            ? observation
+            : null;
+    }
+
+    private ProviderSelectionCandidate? SelectActiveProvider(
+        string currentProviderId,
+        AppProfileKind selectedProfile,
+        ProfileRuntimeState selectedProfileState,
+        CodexProcessSnapshot codexSnapshot,
+        string activeProjectPath,
+        ProviderObservation? antigravityObservation)
+    {
+        var codexOptions = selectedProfileState.DiscordOptions;
+        var codexHasValidClientId = !string.IsNullOrWhiteSpace(codexOptions.ClientId) &&
+            !codexOptions.ClientId.StartsWith("YOUR_", StringComparison.OrdinalIgnoreCase);
+        var codexHasProjectPath = !string.IsNullOrWhiteSpace(codexSnapshot.ObservedProjectPath);
+        var codexProjectMatches = !codexHasProjectPath ||
+            PathsEqual(codexSnapshot.ObservedProjectPath, activeProjectPath);
+        var codexCandidate = new ProviderSelectionCandidate(
+            ProviderIds.Codex,
+            IsProviderEnabled(ProviderIds.Codex, defaultValue: true),
+            codexHasValidClientId,
+            ToUtcOffset(codexSnapshot.LastEffectiveSignalAt ?? codexSnapshot.LastObservedAt),
+            codexHasProjectPath,
+            codexProjectMatches,
+            new AppProfileSelectionCandidate(
+                selectedProfile,
+                codexSnapshot,
+                codexOptions).DetectionStrength);
+
+        var candidates = new List<ProviderSelectionCandidate> { codexCandidate };
+        if (antigravityObservation is not null)
+        {
+            candidates.Add(new ProviderSelectionCandidate(
+                ProviderIds.Antigravity,
+                IsProviderEnabled(ProviderIds.Antigravity, defaultValue: false),
+                IsProviderConfiguredForRuntime(_options.GetDiscordOptions(selectedProfile)),
+                antigravityObservation.ObservedAtUtc,
+                HasAntigravityProjectEvidence(antigravityObservation) ||
+                !string.IsNullOrWhiteSpace(activeProjectPath),
+                !string.IsNullOrWhiteSpace(activeProjectPath),
+                DetectionStrength: 500));
+        }
+
+        return ProviderSelectionPolicy.Select(currentProviderId, candidates);
+    }
+
+    private static bool IsProviderConfiguredForRuntime(DiscordOptions options)
+    {
+        return !string.IsNullOrWhiteSpace(options.ClientId) &&
+            !options.ClientId.StartsWith("YOUR_", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static bool HasAntigravityProjectEvidence(ProviderObservation observation)
+    {
+        return observation.Workspace?.ProjectName is not null ||
+            observation.Workspace?.WorkspaceName is not null;
+    }
+
+    private bool IsProviderEnabled(string providerId, bool defaultValue)
+    {
+        if (_state.ProviderEnabled.TryGetValue(providerId, out var enabled))
+        {
+            return enabled;
+        }
+
+        return _options.Providers is not null &&
+            _options.Providers.TryGetValue(providerId, out var providerOptions)
+            ? providerOptions.Enabled
+            : defaultValue;
+    }
+
+    private static bool PathsEqual(string? left, string? right)
+    {
+        if (string.IsNullOrWhiteSpace(left) || string.IsNullOrWhiteSpace(right))
+        {
+            return false;
+        }
+
+        try
+        {
+            var normalizedLeft = Path.TrimEndingDirectorySeparator(Path.GetFullPath(left));
+            var normalizedRight = Path.TrimEndingDirectorySeparator(Path.GetFullPath(right));
+            return string.Equals(
+                normalizedLeft,
+                normalizedRight,
+                OperatingSystem.IsWindows()
+                    ? StringComparison.OrdinalIgnoreCase
+                    : StringComparison.Ordinal);
+        }
+        catch (ArgumentException)
+        {
+            return false;
+        }
+        catch (NotSupportedException)
+        {
+            return false;
+        }
+    }
+
+    private static DateTimeOffset? ToUtcOffset(DateTime? value)
+    {
+        if (!value.HasValue)
+        {
+            return null;
+        }
+
+        return new DateTimeOffset(DateTime.SpecifyKind(value.Value, DateTimeKind.Utc));
     }
 
     private static void ResetAllProfilePresenceCaches(Dictionary<AppProfileKind, ProfileRuntimeState> profileStates)
@@ -241,13 +515,35 @@ public sealed class PresenceRuntime
         return observedSnapshot.ObservedProjectPath ?? activeProjectPath;
     }
 
-    private static ProfileDetectionSnapshots CaptureProfileSnapshots(
+    private ProfileDetectionSnapshots CaptureProfileSnapshots(
         Dictionary<AppProfileKind, ProfileRuntimeState> profileStates,
         CancellationToken cancellationToken)
     {
         return new ProfileDetectionSnapshots(
-            profileStates[AppProfileKind.Codex].Detector.GetSnapshot(cancellationToken: cancellationToken),
-            profileStates[AppProfileKind.CodexCli].Detector.GetSnapshot(cancellationToken: cancellationToken));
+            CaptureProfileSnapshot(
+                profileStates[AppProfileKind.Codex],
+                IsProviderEnabled(ProviderIds.Codex, defaultValue: true),
+                cancellationToken),
+            CaptureProfileSnapshot(
+                profileStates[AppProfileKind.CodexCli],
+                IsProviderEnabled(ProviderIds.Codex, defaultValue: true),
+                cancellationToken));
+    }
+
+    private static CodexProcessSnapshot CaptureProfileSnapshot(
+        ProfileRuntimeState profileState,
+        bool enabled,
+        CancellationToken cancellationToken)
+    {
+        return enabled
+            ? profileState.Detector.GetSnapshot(cancellationToken: cancellationToken)
+            : new CodexProcessSnapshot(false, null, false)
+            {
+                DetectedActivityKind = CodexActivityKind.Offline,
+                ActivityProvenance = ActivityProvenance.Observed,
+                Confidence = ActivityConfidence.High,
+                ActivityReason = "Codex provider is disabled."
+            };
     }
 
     private (string ActiveProjectPath, bool Changed) UpdateActiveProjectPath(
@@ -406,46 +702,66 @@ public sealed class PresenceRuntime
                 cancellationToken: _cancellationToken));
     }
 
+    private static PresenceContext BuildAntigravityPresenceContext(
+        SessionClock session,
+        AntigravityPresenceProjectionResult projection,
+        ProjectSnapshot projectSnapshot,
+        GitSnapshot gitSnapshot)
+    {
+        return new PresenceContext(
+            projection.ModelName,
+            projection.Snapshot,
+            projectSnapshot,
+            gitSnapshot,
+            session.GetSnapshot(),
+            new TokenUsageSnapshot(null, null))
+        {
+            ProviderId = ProviderIds.Antigravity,
+            ActivityLineOverride = projection.ActivityLine
+        };
+    }
+
     private void UpdateDiscordPresence(
         DiscordPresenceClient rpc,
         TimeSpan keepAliveInterval,
-        ProfileRuntimeState selectedProfileState,
+        PresenceRuntimeCache selectedProviderState,
+        DiscordOptions discordOptions,
         RenderedPresence presence)
     {
         var largeImageKey = DiscordAssetKeyResolver.ResolveLargeImageKey(
-            selectedProfileState.DiscordOptions,
+            discordOptions,
             presence);
         var presenceSignature = BuildPresenceSignature(presence, largeImageKey);
-        var keepAliveDue = PresenceUpdatePolicy.ShouldSendKeepAlive(selectedProfileState.LastSuccessfulUpdateUtc, DateTime.UtcNow, keepAliveInterval);
+        var keepAliveDue = PresenceUpdatePolicy.ShouldSendKeepAlive(selectedProviderState.LastSuccessfulUpdateUtc, DateTime.UtcNow, keepAliveInterval);
         var shouldSendPresence = PresenceDispatchPolicy.ShouldSendPresence(
             presenceSignature,
-            selectedProfileState.LastPresenceSignature,
+            selectedProviderState.LastPresenceSignature,
             keepAliveDue,
             rpc.NeedsPresenceRefresh);
 
-        if (!string.Equals(presence.Details, selectedProfileState.LastPresenceDetails, StringComparison.Ordinal) ||
-            !string.Equals(presence.State, selectedProfileState.LastPresenceState, StringComparison.Ordinal) ||
-            !string.Equals(largeImageKey, selectedProfileState.LastPresenceLargeImageKey, StringComparison.Ordinal))
+        if (!string.Equals(presence.Details, selectedProviderState.LastPresenceDetails, StringComparison.Ordinal) ||
+            !string.Equals(presence.State, selectedProviderState.LastPresenceState, StringComparison.Ordinal) ||
+            !string.Equals(largeImageKey, selectedProviderState.LastPresenceLargeImageKey, StringComparison.Ordinal))
         {
             _log.Info(
                 $"Presence rendered: Details={FormatLogValueForMultiline(presence.Details)}; " +
                 $"State={FormatLogValueForMultiline(presence.State)}; " +
                 $"LargeImage={FormatLogValue(largeImageKey)}");
-            selectedProfileState.LastPresenceDetails = presence.Details;
-            selectedProfileState.LastPresenceState = presence.State;
-            selectedProfileState.LastPresenceLargeImageKey = largeImageKey;
+            selectedProviderState.LastPresenceDetails = presence.Details;
+            selectedProviderState.LastPresenceState = presence.State;
+            selectedProviderState.LastPresenceLargeImageKey = largeImageKey;
         }
 
         if (shouldSendPresence && rpc.Update(presence))
         {
-            selectedProfileState.LastPresenceSignature = presenceSignature;
-            selectedProfileState.LastSuccessfulUpdateUtc = DateTime.UtcNow;
+            selectedProviderState.LastPresenceSignature = presenceSignature;
+            selectedProviderState.LastSuccessfulUpdateUtc = DateTime.UtcNow;
         }
     }
 
-    private void UpdateProfileActivityState(ProfileRuntimeState selectedProfileState, CodexProcessSnapshot codexSnapshot)
+    private void UpdateProfileActivityState(PresenceRuntimeCache selectedProviderState, CodexProcessSnapshot codexSnapshot)
     {
-        var previousSnapshot = selectedProfileState.LastActivitySnapshot;
+        var previousSnapshot = selectedProviderState.LastActivitySnapshot;
 
         if (previousSnapshot is null || HasActivitySnapshotChanged(previousSnapshot, codexSnapshot))
         {
@@ -486,7 +802,7 @@ public sealed class PresenceRuntime
                  $"lastShellCommandAt={FormatTimestamp(codexSnapshot.LastShellCommandAt)}, " +
                  $"lastObservedAt={FormatTimestamp(codexSnapshot.LastObservedAt)}, " +
                  $"lastEffectiveSignalAt={FormatTimestamp(codexSnapshot.LastEffectiveSignalAt)}");
-            selectedProfileState.LastActivitySnapshot = codexSnapshot;
+            selectedProviderState.LastActivitySnapshot = codexSnapshot;
         }
 
         if (previousSnapshot is not null &&
@@ -495,16 +811,16 @@ public sealed class PresenceRuntime
             _log.Info(BuildActivityTransitionLog(previousSnapshot, codexSnapshot));
         }
 
-        selectedProfileState.LastAnalyzingRepeatCount = codexSnapshot.ActivityRepeatCount;
-        selectedProfileState.LastAnalyzingTaskStartedAt = codexSnapshot.ActivityKind == CodexActivityKind.AnalyzingProject
+        selectedProviderState.LastAnalyzingRepeatCount = codexSnapshot.ActivityRepeatCount;
+        selectedProviderState.LastAnalyzingTaskStartedAt = codexSnapshot.ActivityKind == CodexActivityKind.AnalyzingProject
             ? codexSnapshot.LastTaskStartedAt
             : null;
         if (codexSnapshot.ActivityKind == CodexActivityKind.AnalyzingProject)
         {
-            selectedProfileState.LastAnalyzingStartedAt = codexSnapshot.ActivityStartedAt;
+            selectedProviderState.LastAnalyzingStartedAt = codexSnapshot.ActivityStartedAt;
         }
-        selectedProfileState.LastActivityStartedAt = codexSnapshot.ActivityStartedAt;
-        selectedProfileState.LastActivityKind = codexSnapshot.ActivityKind;
+        selectedProviderState.LastActivityStartedAt = codexSnapshot.ActivityStartedAt;
+        selectedProviderState.LastActivityKind = codexSnapshot.ActivityKind;
     }
 
     private Dictionary<AppProfileKind, ProfileRuntimeState> BuildProfileStates()
