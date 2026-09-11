@@ -87,4 +87,39 @@ public sealed class DiscordRichPresenceBuilderTests
         Assert.Equal("rpc_antigravity", payload.Assets!.LargeImageKey);
         Assert.Null(payload.Assets.SmallImageKey);
     }
+
+    [Fact]
+    public void Create_ProviderSwitchKeepsTheSharedRuntimeTimestamp()
+    {
+        var startedAt = new DateTime(2026, 9, 12, 3, 0, 0, DateTimeKind.Utc);
+        var codexPresence = new RenderedPresence(
+            "codex details",
+            "Working",
+            null,
+            "",
+            [],
+            startedAt,
+            CodexActivityKind.AnalyzingProject,
+            RunningCommandKind.Unknown,
+            "")
+        {
+            ProviderId = ProviderIds.Codex
+        };
+        var antigravityPresence = codexPresence with
+        {
+            Details = "antigravity details",
+            ProviderId = ProviderIds.Antigravity
+        };
+
+        var codexPayload = DiscordRichPresenceBuilder.Create(
+            new DiscordOptions(),
+            codexPresence,
+            "codex-party");
+        var antigravityPayload = DiscordRichPresenceBuilder.Create(
+            new DiscordOptions { ClientId = "1548038167041671259" },
+            antigravityPresence,
+            "antigravity-party");
+
+        Assert.Equal(codexPayload.Timestamps!.Start, antigravityPayload.Timestamps!.Start);
+    }
 }

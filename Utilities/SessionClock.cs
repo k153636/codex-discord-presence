@@ -13,6 +13,14 @@ public sealed class SessionClock
 
     public SessionSnapshot GetSnapshot()
     {
-        return new SessionSnapshot(_startedAt, DateTime.UtcNow - _startedAt);
+        return GetSnapshot(DateTime.UtcNow);
+    }
+
+    internal SessionSnapshot GetSnapshot(DateTime nowUtc)
+    {
+        var normalizedNowUtc = nowUtc.Kind == DateTimeKind.Utc
+            ? nowUtc
+            : nowUtc.ToUniversalTime();
+        return new SessionSnapshot(_startedAt, normalizedNowUtc - _startedAt);
     }
 }

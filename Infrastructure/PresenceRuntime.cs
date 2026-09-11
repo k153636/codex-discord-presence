@@ -36,7 +36,6 @@ public sealed class PresenceRuntime
             return;
         }
 
-        var session = new SessionClock(DateTime.UtcNow);
         var profileStates = BuildProfileStates();
         var projectInspector = new ProjectInspector(_options.Project);
         var gitInspector = new GitInspector();
@@ -71,6 +70,7 @@ public sealed class PresenceRuntime
         try
         {
             await rpc.StartAsync(_cancellationToken);
+            var session = new SessionClock(DateTime.UtcNow);
 
             var keepAliveInterval = TimeSpan.FromSeconds(15);
             var lastLoggedProjectPath = activeProjectPath;
@@ -214,6 +214,7 @@ public sealed class PresenceRuntime
                     {
                         selectedProfileState.Detector.PrimeRecentEditedFileBaseline(projectSnapshot);
                     }
+                    var sessionSnapshot = session.GetSnapshot();
                     PresenceContext context;
                     IPresenceActivitySnapshot displayActivity;
                     if (selectedProvider.ProviderId == ProviderIds.Antigravity && antigravityObservation is not null)
@@ -221,7 +222,7 @@ public sealed class PresenceRuntime
                         var projection = AntigravityPresenceProjection.Build(antigravityObservation);
                         displayActivity = projection.Activity;
                         context = BuildAntigravityPresenceContext(
-                            session,
+                            sessionSnapshot,
                             projection,
                             projectSnapshot,
                             gitSnapshot);
@@ -240,7 +241,7 @@ public sealed class PresenceRuntime
                             codexSnapshot.SessionInspection,
                             includeSessionScan: !deferSessionEnrichment);
                         context = BuildPresenceContext(
-                            session,
+                            sessionSnapshot,
                             selectedProjectPath,
                             selectedProfileState,
                             modelSnapshot,
@@ -666,7 +667,7 @@ public sealed class PresenceRuntime
     }
 
     private PresenceContext BuildPresenceContext(
-        SessionClock session,
+        SessionSnapshot sessionSnapshot,
         string activeProjectPath,
         ProfileRuntimeState selectedProfileState,
         ModelNameSnapshot modelSnapshot,
@@ -692,12 +693,12 @@ public sealed class PresenceRuntime
             codexSnapshot,
             projectSnapshot,
             gitSnapshot,
-            session.GetSnapshot(),
+            sessionSnapshot,
             tokenUsage);
     }
 
     private static PresenceContext BuildAntigravityPresenceContext(
-        SessionClock session,
+        SessionSnapshot sessionSnapshot,
         AntigravityPresenceProjectionResult projection,
         ProjectSnapshot projectSnapshot,
         GitSnapshot gitSnapshot)
@@ -707,7 +708,7 @@ public sealed class PresenceRuntime
             projection.Activity,
             projectSnapshot,
             gitSnapshot,
-            session.GetSnapshot(),
+            sessionSnapshot,
             new TokenUsageSnapshot(projection.TotalTokens, null))
         {
             ProviderId = ProviderIds.Antigravity,
