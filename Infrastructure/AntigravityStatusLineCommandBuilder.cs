@@ -1,0 +1,232 @@
+namespace CodexDiscordPresence;
+
+public enum AntigravityStatusLinePlatform
+{
+    Windows = 0,
+    Unsupported = 1
+}
+
+public sealed record AntigravityStatusLineCommandBuildResult(
+    bool IsSupported,
+    string? Command,
+    string? ScriptContent,
+    string? Error);
+
+public interface IAntigravityStatusLineCommandBuilder
+{
+    AntigravityStatusLineCommandBuildResult Build(AntigravityStatusLinePaths paths);
+}
+
+public sealed class AntigravityStatusLineCommandBuilder : IAntigravityStatusLineCommandBuilder
+{
+    private readonly AntigravityStatusLinePlatform _platform;
+
+    public AntigravityStatusLineCommandBuilder()
+        : this(OperatingSystem.IsWindows()
+            ? AntigravityStatusLinePlatform.Windows
+            : AntigravityStatusLinePlatform.Unsupported)
+    {
+    }
+
+    internal AntigravityStatusLineCommandBuilder(AntigravityStatusLinePlatform platform)
+    {
+        _platform = platform;
+    }
+
+    public AntigravityStatusLineCommandBuildResult Build(AntigravityStatusLinePaths paths)
+    {
+        ArgumentNullException.ThrowIfNull(paths);
+        if (_platform != AntigravityStatusLinePlatform.Windows)
+        {
+            return new(
+                IsSupported: false,
+                Command: null,
+                ScriptContent: null,
+                Error: "Antigravity statusLine integration is supported on Windows only.");
+        }
+
+        var scriptPath = QuoteWindowsCommandArgument(paths.ScriptPath);
+        var command = $"powershell.exe -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File {scriptPath}";
+        return new(
+            IsSupported: true,
+            Command: command,
+            ScriptContent: AntigravityStatusLinePowerShellScript.Create(paths.EventFilePath),
+            Error: null);
+    }
+
+    private static string QuoteWindowsCommandArgument(string path) =>
+        '"' + path.Replace("\"", "\\\"", StringComparison.Ordinal) + '"';
+}
+
+internal static class AntigravityStatusLinePowerShellScript
+{
+    internal static string Create(string eventFilePath)
+    {
+        var quotedEventPath = QuotePowerShellString(eventFilePath);
+        return $$"""
+            $ErrorActionPreference = 'Stop'
+            $MaxPayloadBytes = 262144
+            $MaxEventFileBytes = 1048576
+            $MaxEventCount = 64
+            $MaxValueLength = 128
+            $EventFilePath = {{quotedEventPath}}
+
+            function Get-SafeText([object] $Value) {
+                if ($null -eq $Value -or $Value -isnot [string]) { return $null }
+                $clean = -join ($Value.ToCharArray() | Where-Object { -not [char]::IsControl($_) })
+                $clean = (($clean.Trim() -split '\s+') | Where-Object { $_ }) -join ' '
+                if ([string]::IsNullOrWhiteSpace($clean)) { return $null }
+                if ($clean.Length -gt $MaxValueLength) { return $clean.Substring(0, $MaxValueLength) }
+                return $clean
+            }
+
+            function Get-PropertyValue([object] $Object, [string] $Name) {
+                if ($null -eq $Object) { return $null }
+                $property = $Object.PSObject.Properties[$Name]
+                if ($null -eq $property) { return $null }
+                return $property.Value
+            }
+
+            function Get-PathLeaf([object] $Object, [string] $Parent, [string] $Child) {
+                $parentValue = Get-PropertyValue $Object $Parent
+                return Get-PathLeafValue (Get-PropertyValue $parentValue $Child)
+            }
+
+            function Get-PathLeafValue([object] $Value) {
+                if ($null -eq $Value -or $Value -isnot [string]) { return $null }
+                $trimmed = $Value.Trim().TrimEnd('/', '\')
+                if ([string]::IsNullOrWhiteSpace($trimmed)) { return $null }
+                return Get-SafeText ([IO.Path]::GetFileName($trimmed))
+            }
+
+            function Get-ProjectKey([object] $Object) {
+                $rawPath = Get-PropertyValue $Object 'cwd'
+                if ($null -eq $rawPath) {
+                    $workspace = Get-PropertyValue $Object 'workspace'
+                    $rawPath = Get-PropertyValue $workspace 'project_dir'
+                }
+                if ($rawPath -isnot [string] -or [string]::IsNullOrWhiteSpace($rawPath)) { return $null }
+                try {
+                    $normalized = [IO.Path]::GetFullPath($rawPath.Trim())
+                    $root = [IO.Path]::GetPathRoot($normalized)
+                    if ($normalized -ine $root) { $normalized = $normalized.TrimEnd('/', '\') }
+                    $bytes = [Text.Encoding]::UTF8.GetBytes($normalized.ToUpperInvariant())
+                    return [Convert]::ToHexString([Security.Cryptography.SHA256]::HashData($bytes))
+                } catch { return $null }
+            }
+
+            function Read-BoundedText([string] $Path) {
+                if (-not [IO.File]::Exists($Path)) { return '' }
+                $length = ([IO.FileInfo] $Path).Length
+                $count = [int][Math]::Min($length, $MaxEventFileBytes)
+                $bytes = New-Object byte[] $count
+                $stream = [IO.File]::Open($Path, [IO.FileMode]::Open, [IO.FileAccess]::Read, [IO.FileShare]::ReadWrite -bor [IO.FileShare]::Delete)
+                try {
+                    if ($length -gt $count) { $stream.Seek(-$count, [IO.SeekOrigin]::End) | Out-Null }
+                    $read = 0
+                    while ($read -lt $count) {
+                        $current = $stream.Read($bytes, $read, $count - $read)
+                        if ($current -eq 0) { break }
+                        $read += $current
+                    }
+                    if ($read -lt $count) { $bytes = $bytes[0..([Math]::Max(0, $read - 1))] }
+                    $text = [Text.Encoding]::UTF8.GetString($bytes)
+                    if ($length -gt $count) {
+                        $newline = $text.IndexOf("`n")
+                        if ($newline -lt 0) { return '' }
+                        $text = $text.Substring($newline + 1)
+                    }
+                    return $text
+                } finally { $stream.Dispose() }
+            }
+
+            function Test-Event([string] $Line) {
+                try {
+                    $event = $Line | ConvertFrom-Json -ErrorAction Stop
+                    return $null -ne $event -and $event.schema_version -eq 1 -and $event.source -eq 'antigravity'
+                } catch { return $false }
+            }
+
+            function Write-BoundedEvent([string] $Line) {
+                $mutex = [Threading.Mutex]::new($false, 'Global\CodexDiscordPresence.AntigravityStatusLine')
+                $acquired = $false
+                try {
+                    $acquired = $mutex.WaitOne(2000)
+                    if (-not $acquired) { return }
+                    $lines = @()
+                    $existing = Read-BoundedText $EventFilePath
+                    foreach ($candidate in ($existing -split "`n")) {
+                        $candidate = $candidate.TrimEnd("`r")
+                        if ($candidate -and (Test-Event $candidate)) { $lines += $candidate }
+                    }
+                    $lines += $Line
+                    while ($lines.Count -gt $MaxEventCount -or (([Text.Encoding]::UTF8.GetByteCount(($lines -join "`n")) + 1) -gt $MaxEventFileBytes)) {
+                        $lines = @($lines | Select-Object -Skip 1)
+                    }
+                    $directory = [IO.Path]::GetDirectoryName($EventFilePath)
+                    if ($directory) { [IO.Directory]::CreateDirectory($directory) | Out-Null }
+                    $temporaryPath = "$EventFilePath.$PID.tmp"
+                    [IO.File]::WriteAllText($temporaryPath, (($lines -join "`n") + "`n"), [Text.UTF8Encoding]::new($false))
+                    [IO.File]::Move($temporaryPath, $EventFilePath, $true)
+                } finally {
+                    if ($acquired) { $mutex.ReleaseMutex() }
+                    $mutex.Dispose()
+                }
+            }
+
+            try {
+                $inputStream = [Console]::OpenStandardInput()
+                $buffer = New-Object byte[] 65536
+                $inputBytes = [Collections.Generic.List[byte]]::new()
+                while (($read = $inputStream.Read($buffer, 0, $buffer.Length)) -gt 0) {
+                    if ($inputBytes.Count + $read -gt $MaxPayloadBytes) { exit 0 }
+                    for ($index = 0; $index -lt $read; $index++) { $inputBytes.Add($buffer[$index]) }
+                }
+                if ($inputBytes.Count -eq 0) { exit 0 }
+                $payload = ([Text.UTF8Encoding]::new($false, $true)).GetString($inputBytes.ToArray()) | ConvertFrom-Json -ErrorAction Stop
+                if ($payload -is [array] -or $null -eq $payload) { exit 0 }
+                $modelValue = Get-PropertyValue $payload 'model'
+                $workspaceValue = Get-PropertyValue $payload 'workspace'
+                $agentState = Get-SafeText (Get-PropertyValue $payload 'agent_state')
+                if ($null -eq $agentState) { $agentState = 'unknown' }
+                $model = [ordered]@{
+                    id = Get-SafeText (Get-PropertyValue $modelValue 'id')
+                    display_name = Get-SafeText (Get-PropertyValue $modelValue 'display_name')
+                }
+                if ($null -eq $model.id -and $null -eq $model.display_name) { $model = $null }
+                $workspace = [ordered]@{
+                    workspace_name = Get-PathLeaf $payload 'workspace' 'current_dir'
+                    project_name = Get-PathLeaf $payload 'workspace' 'project_dir'
+                }
+                if ($null -eq $workspace.workspace_name) {
+                    $workspace.workspace_name = Get-PathLeafValue (Get-PropertyValue $payload 'cwd')
+                }
+                if ($null -eq $workspace.workspace_name -and $null -eq $workspace.project_name) { $workspace = $null }
+                $conversationId = Get-SafeText (Get-PropertyValue $payload 'conversation_id')
+                if ($null -ne $conversationId -and ($conversationId.Contains('/') -or $conversationId.Contains('\'))) { $conversationId = $null }
+                if ($null -eq $conversationId) {
+                    $conversationId = Get-SafeText (Get-PropertyValue $payload 'session_id')
+                }
+                $event = [ordered]@{
+                    schema_version = 1
+                    source = 'antigravity'
+                    observed_at_utc = [DateTimeOffset]::UtcNow.ToString('O')
+                    agent_state = $agentState.ToLowerInvariant()
+                    model = $model
+                    workspace = $workspace
+                    conversation_id = $conversationId
+                    project_key = Get-ProjectKey $payload
+                }
+                $line = $event | ConvertTo-Json -Depth 8 -Compress
+                if ([Text.Encoding]::UTF8.GetByteCount($line) -gt 262144) { exit 0 }
+                Write-BoundedEvent $line
+            } catch {
+                exit 0
+            }
+            exit 0
+            """;
+    }
+
+    private static string QuotePowerShellString(string value) =>
+        "'" + value.Replace("'", "''", StringComparison.Ordinal) + "'";
+}
