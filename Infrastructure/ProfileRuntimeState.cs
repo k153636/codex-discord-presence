@@ -12,14 +12,16 @@ public sealed class ProfileRuntimeState : PresenceRuntimeCache
         Profile = profile;
         CodexOptions = codexOptions;
         DiscordOptions = discordOptions;
-        Detector = new CodexProcessDetector(codexOptions, presenceOptions);
-        ModelNameProvider = new CodexModelNameProvider(codexOptions, presenceOptions);
+        var sessionLogParser = new CodexSessionLogParser(codexOptions, presenceOptions);
+        Detector = new CodexProcessDetector(codexOptions, presenceOptions, sessionLogParser);
+        ModelNameProvider = new CodexModelNameProvider(codexOptions, presenceOptions, sessionLogParser);
         var accountProvider = new CodexAccountBillingTypeProvider(codexOptions.GetResolvedHomePath());
         TokenUsageProvider = new TokenUsageProvider(
             codexOptions,
             tokenUsageOptions,
             accountProvider,
-            accountProvider);
+            accountProvider,
+            sessionLogParser);
     }
 
     public AppProfileKind Profile { get; }

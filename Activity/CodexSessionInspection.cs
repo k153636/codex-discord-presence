@@ -17,6 +17,12 @@ internal sealed record SessionInspection(
     public string? ThreadId { get; init; }
     public string? ThreadSource { get; init; }
     public string? ParentThreadId { get; init; }
+    public DateTime? SessionLastWriteTimeUtc { get; init; }
+    public string? ModelName { get; init; }
+    public string? InitialModelName { get; init; }
+    public string? ReasoningEffort { get; init; }
+    public string? ServiceTier { get; init; }
+    internal CodexTokenUsageTotals? LatestTokenUsage { get; init; }
     public DateTime? LastShellCommandAt { get; init; }
     public RunningCommandKind LastRunningCommandKind { get; init; } = RunningCommandKind.Unknown;
     public string? LastRunningCommandName { get; init; }
@@ -28,6 +34,23 @@ internal sealed record SessionInspection(
     public bool IsPrimaryThread =>
         !string.Equals(ThreadSource, "subagent", StringComparison.OrdinalIgnoreCase) &&
         string.IsNullOrWhiteSpace(ParentThreadId);
+    public bool HasUsableModelSettings =>
+        IsUsableSessionValue(ModelName) ||
+        IsUsableSessionValue(ReasoningEffort) ||
+        IsUsableSessionValue(ServiceTier);
+    public DateTime LastActivityAt
+    {
+        get
+        {
+            if (SessionLastWriteTimeUtc is { } fileWriteTime &&
+                (LastObservedAt is null || fileWriteTime > LastObservedAt.Value))
+            {
+                return fileWriteTime;
+            }
+
+            return LastObservedAt ?? LastTaskStartedAt ?? LastTaskCompletedAt ?? DateTime.MinValue;
+        }
+    }
     public string? LatestThinkingSummary => ActivityEvents
         .OrderByDescending(activityEvent => activityEvent.Sequence)
         .Select(activityEvent => activityEvent.ThinkingSummary)
@@ -57,4 +80,26 @@ internal sealed record SessionInspection(
         LastTaskStartedAt.HasValue &&
         LastTaskCompletedAt.HasValue &&
         LastTaskCompletedAt >= LastTaskStartedAt;
+
+    private static bool IsUsableSessionValue(string? value)
+    {
+        return !string.IsNullOrWhiteSpace(value) &&
+            !value.Contains('{', StringComparison.Ordinal) &&
+            !value.Contains('}', StringComparison.Ordinal);
+    }
+}
+
+internal readonly record struct CodexTokenUsageTotals(
+    long InputTokens,
+    long CachedInputTokens,
+    long OutputTokens,
+    long ReasoningOutputTokens,
+    long TotalTokens)
+{
+    public bool IsValid =>
+        InputTokens >= 0 &&
+        CachedInputTokens >= 0 &&
+        OutputTokens >= 0 &&
+        ReasoningOutputTokens >= 0 &&
+        TotalTokens >= 0;
 }

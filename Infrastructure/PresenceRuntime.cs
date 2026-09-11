@@ -217,6 +217,7 @@ public sealed class PresenceRuntime
                         var modelSnapshot = UpdateModelSnapshot(
                             selectedProjectPath,
                             selectedProfileState,
+                            displaySnapshot.SessionInspection,
                             includeSessionScan: !deferSessionEnrichment);
                         context = BuildPresenceContext(
                             session,
@@ -646,12 +647,15 @@ public sealed class PresenceRuntime
     private ModelNameSnapshot UpdateModelSnapshot(
         string activeProjectPath,
         ProfileRuntimeState selectedProfileState,
+        SessionInspection? sessionInspection,
         bool includeSessionScan)
     {
-        var modelSnapshot = selectedProfileState.ModelNameProvider.GetSnapshot(
-            activeProjectPath,
-            includeSessionScan,
-            _cancellationToken);
+        var modelSnapshot = includeSessionScan
+            ? selectedProfileState.ModelNameProvider.GetSnapshotForSession(sessionInspection)
+            : selectedProfileState.ModelNameProvider.GetSnapshot(
+                activeProjectPath,
+                includeSessionScan: false,
+                cancellationToken: _cancellationToken);
         if (selectedProfileState.LastModelSnapshot is null ||
             !string.Equals(modelSnapshot.SelectedUiModel, selectedProfileState.LastModelSnapshot.SelectedUiModel, StringComparison.Ordinal) ||
             !string.Equals(modelSnapshot.LastUsedSessionModel, selectedProfileState.LastModelSnapshot.LastUsedSessionModel, StringComparison.Ordinal) ||
@@ -690,17 +694,25 @@ public sealed class PresenceRuntime
         CodexProcessSnapshot codexSnapshot,
         bool includeSessionUsage)
     {
+        var tokenUsage = includeSessionUsage
+            ? selectedProfileState.TokenUsageProvider.GetSnapshotForSession(
+                activeProjectPath,
+                selectedProfileState.StableCostModelName,
+                codexSnapshot.SessionInspection,
+                _cancellationToken)
+            : selectedProfileState.TokenUsageProvider.GetSnapshot(
+                activeProjectPath,
+                selectedProfileState.StableCostModelName,
+                includeSessionScan: false,
+                cancellationToken: _cancellationToken);
+
         return new PresenceContext(
             modelSnapshot.DisplayLabel,
             codexSnapshot,
             projectSnapshot,
             gitSnapshot,
             session.GetSnapshot(),
-            selectedProfileState.TokenUsageProvider.GetSnapshot(
-                activeProjectPath,
-                selectedProfileState.StableCostModelName,
-                includeSessionScan: includeSessionUsage,
-                cancellationToken: _cancellationToken));
+            tokenUsage);
     }
 
     private static PresenceContext BuildAntigravityPresenceContext(

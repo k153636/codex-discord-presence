@@ -112,7 +112,10 @@ internal sealed class CodexSessionLogParser
             return ApplyProjectMatch(cached.Inspection, normalizedProjectPath);
         }
 
-        var inspection = AnalyzeSessionFile(file.FullName, cancellationToken);
+        var inspection = AnalyzeSessionFile(file.FullName, cancellationToken) with
+        {
+            SessionLastWriteTimeUtc = file.LastWriteTimeUtc
+        };
         _sessionCache[cacheKey] = new CachedSessionInspection(
             file.Length,
             file.LastWriteTimeUtc,
@@ -143,6 +146,11 @@ internal sealed class CodexSessionLogParser
         string? threadId = null;
         string? threadSource = null;
         string? parentThreadId = null;
+        string? modelName = null;
+        string? initialModelName = null;
+        string? reasoningEffort = null;
+        string? serviceTier = null;
+        CodexTokenUsageTotals? latestTokenUsage = null;
 
         try
         {
@@ -161,7 +169,9 @@ internal sealed class CodexSessionLogParser
                 }
 
                 var recordType = TryGetString(document.RootElement, "type");
-                if (string.Equals(recordType, "session_meta", StringComparison.OrdinalIgnoreCase))
+                var payloadType = TryGetString(payload, "type", out var type) ? type : null;
+                if (string.Equals(recordType, "session_meta", StringComparison.OrdinalIgnoreCase) ||
+                    string.Equals(payloadType, "session_meta", StringComparison.OrdinalIgnoreCase))
                 {
                     threadId ??= TryGetFirstString(payload, "id", "thread_id", "threadId", "session_id");
                     threadSource ??= TryGetFirstString(payload, "thread_source", "threadSource");
@@ -180,7 +190,19 @@ internal sealed class CodexSessionLogParser
                     latestProjectPath = cwd;
                 }
 
-                var payloadType = TryGetString(payload, "type", out var type) ? type : null;
+                if (IsSessionSettingsRecord(recordType, payloadType))
+                {
+                    var sessionSettings = ExtractSessionSettings(payload);
+                    modelName = sessionSettings.ModelName ?? modelName;
+                    initialModelName ??= sessionSettings.ModelName;
+                    reasoningEffort = sessionSettings.ReasoningEffort ?? reasoningEffort;
+                    serviceTier = sessionSettings.ServiceTier ?? serviceTier;
+                }
+                if (string.Equals(payloadType, "token_count", StringComparison.OrdinalIgnoreCase) &&
+                    TryReadTokenUsage(payload, out var tokenUsage))
+                {
+                    latestTokenUsage = tokenUsage;
+                }
 
                 sequence++;
                 if (TryNormalizeActivityEvent(
@@ -317,6 +339,11 @@ internal sealed class CodexSessionLogParser
             ThreadId = threadId,
             ThreadSource = threadSource,
             ParentThreadId = parentThreadId,
+            ModelName = modelName,
+            InitialModelName = initialModelName,
+            ReasoningEffort = reasoningEffort,
+            ServiceTier = serviceTier,
+            LatestTokenUsage = latestTokenUsage,
             LastShellCommandAt = lastShellCommandAt,
             LastRunningCommandKind = lastRunningCommandKind,
             LastRunningCommandName = lastRunningCommandName,
@@ -1281,6 +1308,164 @@ internal sealed class CodexSessionLogParser
         }
 
         return null;
+    }
+
+    private static SessionSettings ExtractSessionSettings(JsonElement payload)
+    {
+        string? modelName = null;
+        string? reasoningEffort = null;
+        string? serviceTier = null;
+
+        if (TryGetString(payload, "model", out var directModel) && IsUsableSessionValue(directModel))
+        {
+            modelName = directModel;
+        }
+
+        if (TryGetString(payload, "reasoning_effort", out var directReasoningEffort) && IsUsableSessionValue(directReasoningEffort))
+        {
+            reasoningEffort = directReasoningEffort;
+        }
+
+        if (TryGetString(payload, "model_reasoning_effort", out var modelReasoningEffort) && IsUsableSessionValue(modelReasoningEffort))
+        {
+            reasoningEffort = modelReasoningEffort;
+        }
+
+        if (TryGetString(payload, "service_tier", out var directServiceTier) && IsUsableSessionValue(directServiceTier))
+        {
+            serviceTier = directServiceTier;
+        }
+
+        if (TryGetObjectProperty(payload, "thread_settings", out var threadSettings))
+        {
+            if (TryGetString(threadSettings, "model", out var threadModel) && IsUsableSessionValue(threadModel))
+            {
+                modelName = threadModel;
+            }
+
+            if (TryGetString(threadSettings, "reasoning_effort", out var threadReasoningEffort) && IsUsableSessionValue(threadReasoningEffort))
+            {
+                reasoningEffort = threadReasoningEffort;
+            }
+
+            if (TryGetString(threadSettings, "service_tier", out var threadServiceTier) && IsUsableSessionValue(threadServiceTier))
+            {
+                serviceTier = threadServiceTier;
+            }
+        }
+
+        if (TryGetNestedString(payload, "reasoning", "effort", out var reasoningEffortValue) &&
+            IsUsableSessionValue(reasoningEffortValue))
+        {
+            reasoningEffort = reasoningEffortValue;
+        }
+
+        if (TryGetObjectProperty(payload, "collaboration_mode", out var collaborationMode) &&
+            TryGetObjectProperty(collaborationMode, "settings", out var collaborationSettings))
+        {
+            if (TryGetString(collaborationSettings, "model", out var collaborationModel) && IsUsableSessionValue(collaborationModel))
+            {
+                modelName = collaborationModel;
+            }
+
+            if (TryGetString(collaborationSettings, "reasoning_effort", out var collaborationReasoningEffort) && IsUsableSessionValue(collaborationReasoningEffort))
+            {
+                reasoningEffort = collaborationReasoningEffort;
+            }
+
+            if (TryGetString(collaborationSettings, "service_tier", out var collaborationServiceTier) && IsUsableSessionValue(collaborationServiceTier))
+            {
+                serviceTier = collaborationServiceTier;
+            }
+        }
+
+        return new SessionSettings(modelName, reasoningEffort, serviceTier);
+    }
+
+    private static bool TryGetNestedString(
+        JsonElement element,
+        string objectPropertyName,
+        string valuePropertyName,
+        out string value)
+    {
+        value = "";
+        return TryGetObjectProperty(element, objectPropertyName, out var nested) &&
+            TryGetString(nested, valuePropertyName, out value);
+    }
+
+    private static bool TryGetObjectProperty(
+        JsonElement element,
+        string propertyName,
+        out JsonElement value)
+    {
+        value = default;
+        return element.ValueKind == JsonValueKind.Object &&
+            element.TryGetProperty(propertyName, out value) &&
+            value.ValueKind == JsonValueKind.Object;
+    }
+
+    private static bool IsSessionSettingsRecord(string? recordType, string? payloadType)
+    {
+        return IsSessionSettingsType(recordType) || IsSessionSettingsType(payloadType);
+    }
+
+    private static bool IsSessionSettingsType(string? value)
+    {
+        return value is not null &&
+            (string.Equals(value, "session_meta", StringComparison.OrdinalIgnoreCase) ||
+             string.Equals(value, "turn_context", StringComparison.OrdinalIgnoreCase) ||
+             string.Equals(value, "thread_settings_applied", StringComparison.OrdinalIgnoreCase));
+    }
+
+    private static bool TryReadTokenUsage(JsonElement payload, out CodexTokenUsageTotals totals)
+    {
+        totals = default;
+        if (!TryGetObjectProperty(payload, "info", out var info) ||
+            !TryGetObjectProperty(info, "total_token_usage", out var tokenUsage) ||
+            !TryReadLong(tokenUsage, "input_tokens", out var inputTokens) ||
+            !TryReadLong(tokenUsage, "cached_input_tokens", out var cachedInputTokens) ||
+            !TryReadLong(tokenUsage, "output_tokens", out var outputTokens) ||
+            !TryReadLong(tokenUsage, "reasoning_output_tokens", out var reasoningOutputTokens) ||
+            !TryReadLong(tokenUsage, "total_tokens", out var totalTokens))
+        {
+            return false;
+        }
+
+        totals = new CodexTokenUsageTotals(
+            inputTokens,
+            cachedInputTokens,
+            outputTokens,
+            reasoningOutputTokens,
+            totalTokens);
+        return totals.IsValid;
+    }
+
+    private static bool TryReadLong(JsonElement element, string propertyName, out long value)
+    {
+        value = 0;
+        if (!element.TryGetProperty(propertyName, out var property))
+        {
+            return false;
+        }
+
+        if (property.ValueKind == JsonValueKind.Number && property.TryGetInt64(out value))
+        {
+            return true;
+        }
+
+        return property.ValueKind == JsonValueKind.String &&
+            long.TryParse(
+                property.GetString(),
+                System.Globalization.NumberStyles.Integer,
+                System.Globalization.CultureInfo.InvariantCulture,
+                out value);
+    }
+
+    private static bool IsUsableSessionValue(string? value)
+    {
+        return !string.IsNullOrWhiteSpace(value) &&
+            !value.Contains('{', StringComparison.Ordinal) &&
+            !value.Contains('}', StringComparison.Ordinal);
     }
 
     private static string? TryGetDirectToolFilePath(
@@ -2568,7 +2753,8 @@ internal sealed class CodexSessionLogParser
     private static bool TryGetString(JsonElement element, string propertyName, out string value)
     {
         value = "";
-        if (!element.TryGetProperty(propertyName, out var property) ||
+        if (element.ValueKind != JsonValueKind.Object ||
+            !element.TryGetProperty(propertyName, out var property) ||
             property.ValueKind != JsonValueKind.String)
         {
             return false;
@@ -2673,6 +2859,11 @@ internal sealed class CodexSessionLogParser
     }
 
     private sealed record PatchFile(string Path, CodexOperationKind OperationKind);
+
+    private sealed record SessionSettings(
+        string? ModelName,
+        string? ReasoningEffort,
+        string? ServiceTier);
 
     private readonly record struct ShellMutation(
         CodexOperationKind OperationKind,

@@ -2,7 +2,6 @@ namespace CodexDiscordPresence;
 
 public sealed class CodexProcessDetector
 {
-    private readonly CodexDetectionOptions _options;
     private readonly PresenceTemplateOptions _presenceOptions;
     private readonly CodexProcessNameMatcher _processNameMatcher;
     private readonly CodexActivityResolver _activityResolver;
@@ -10,12 +9,19 @@ public sealed class CodexProcessDetector
     private readonly RecentEditedFileTracker _recentEditedFileTracker = new();
 
     public CodexProcessDetector(CodexDetectionOptions options, PresenceTemplateOptions presenceOptions)
+        : this(options, presenceOptions, new CodexSessionLogParser(options, presenceOptions))
     {
-        _options = options;
+    }
+
+    internal CodexProcessDetector(
+        CodexDetectionOptions options,
+        PresenceTemplateOptions presenceOptions,
+        CodexSessionLogParser sessionLogParser)
+    {
         _presenceOptions = presenceOptions;
         _processNameMatcher = new CodexProcessNameMatcher(options);
         _activityResolver = new CodexActivityResolver();
-        _sessionLogParser = new CodexSessionLogParser(options, presenceOptions);
+        _sessionLogParser = sessionLogParser;
     }
 
     public CodexProcessSnapshot GetSnapshot(
@@ -41,6 +47,7 @@ public sealed class CodexProcessDetector
         {
             return new CodexProcessSnapshot(false, null, false)
             {
+                SessionInspection = sessionInspection,
                 DetectedActivityKind = CodexActivityKind.Offline,
                 ActivityProvenance = ActivityProvenance.Observed,
                 Confidence = ActivityConfidence.High,
@@ -53,6 +60,7 @@ public sealed class CodexProcessDetector
         {
             return new CodexProcessSnapshot(true, matchedProcessName, false)
             {
+                SessionInspection = sessionInspection,
                 DetectedActivityKind = CodexActivityKind.Ready,
                 ActivityProvenance = ActivityProvenance.Observed,
                 Confidence = ActivityConfidence.Low,
@@ -101,6 +109,7 @@ public sealed class CodexProcessDetector
             matchedProcessName,
             CodexActivityEvidence.IsThinkingPhase(activity, activityState))
         {
+            SessionInspection = sessionInspection,
             DetectedActivityKind = activity,
             ActivityProvenance = provenance,
             Confidence = confidence,

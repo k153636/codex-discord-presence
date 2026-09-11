@@ -78,6 +78,7 @@ public static class CodexActivityKindExtensions
 
 public sealed partial record CodexProcessSnapshot
 {
+    internal SessionInspection? SessionInspection { get; init; }
     public CodexActivityKind? DetectedActivityKind { get; init; }
     public ActivityConfidence Confidence { get; init; } = ActivityConfidence.High;
     public ActivityProvenance ActivityProvenance { get; init; } = ActivityProvenance.Inferred;

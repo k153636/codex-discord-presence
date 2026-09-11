@@ -166,6 +166,42 @@ public sealed class TokenUsageProviderTests
     }
 
     [Fact]
+    public void GetSnapshot_UsesPrimarySessionTokensAndPricingWhenSubagentIsNewer()
+    {
+        var tempHome = CreateTempCodexHome();
+        try
+        {
+            var projectPath = @"E:\tool\codex-discord-RPC";
+            var now = DateTime.UtcNow;
+            WriteSession(tempHome, "main.jsonl", new[]
+            {
+                CreateSessionMetaLine(now.AddMinutes(-1), "main-thread", "user", null, projectPath, "gpt-5.5"),
+                CreateTokenCountLine(now.AddSeconds(-30), 100)
+            });
+            WriteSession(tempHome, "subagent.jsonl", new[]
+            {
+                CreateSessionMetaLine(now, "subagent-thread", "subagent", "main-thread", projectPath, "gpt-5.4-mini"),
+                CreateTokenCountLine(now.AddSeconds(1), 999)
+            });
+            SetSessionWriteTime(tempHome, "main.jsonl", now.AddSeconds(-10));
+            SetSessionWriteTime(tempHome, "subagent.jsonl", now);
+
+            var provider = new TokenUsageProvider(
+                new CodexDetectionOptions { HomePath = tempHome, ModelEnvironmentVariables = [] },
+                new TokenUsageOptions { Enabled = true });
+
+            var snapshot = provider.GetSnapshot(projectPath);
+
+            Assert.Equal(100L, snapshot.TotalTokens);
+            Assert.Equal(0.0005m, snapshot.EstimatedCostUsd);
+        }
+        finally
+        {
+            Directory.Delete(tempHome, true);
+        }
+    }
+
+    [Fact]
     public void GetSnapshot_WithoutSessionScan_DefersTokenRead()
     {
         var tempHome = CreateTempCodexHome();
@@ -302,6 +338,54 @@ public sealed class TokenUsageProviderTests
     private static string EscapeJson(string value)
     {
         return value.Replace("\\", "\\\\").Replace("\"", "\\\"");
+    }
+
+    private static string CreateSessionLine(DateTime timestamp, object payload, string type)
+    {
+        return JsonSerializer.Serialize(new
+        {
+            timestamp = timestamp.ToString("O"),
+            type,
+            payload
+        });
+    }
+
+    private static string CreateSessionMetaLine(
+        DateTime timestamp,
+        string threadId,
+        string threadSource,
+        string? parentThreadId,
+        string projectPath,
+        string model)
+    {
+        return CreateSessionLine(timestamp, new
+        {
+            session_id = threadId,
+            id = threadId,
+            parent_thread_id = parentThreadId,
+            thread_source = threadSource,
+            cwd = projectPath,
+            model
+        }, "session_meta");
+    }
+
+    private static string CreateTokenCountLine(DateTime timestamp, long totalTokens)
+    {
+        return CreateSessionLine(timestamp, new
+        {
+            type = "token_count",
+            info = new
+            {
+                total_token_usage = new
+                {
+                    input_tokens = totalTokens,
+                    cached_input_tokens = 0,
+                    output_tokens = 0,
+                    reasoning_output_tokens = 0,
+                    total_tokens = totalTokens
+                }
+            }
+        }, "event_msg");
     }
 
     private sealed class StubBillingTypeProvider(string billingType) : IBillingTypeProvider
