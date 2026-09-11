@@ -76,8 +76,11 @@ public sealed class PresenceTemplateRenderer
         {
             stateLabel = $"{stateLabel} x{context.Codex.ActivityRepeatCount}";
         }
-        var activityLine = ResolveActivityLineOverride(context) ??
-            PresenceActivityComposer.BuildActivityLine(context, stateLabel, editingFileName, activityFileCount);
+        var activityLine = PresenceActivityComposer.BuildActivityLine(
+            context,
+            stateLabel,
+            editingFileName,
+            activityFileCount);
 
         var values = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
         {
@@ -121,25 +124,6 @@ public sealed class PresenceTemplateRenderer
         };
 
         return values;
-    }
-
-    private static string? ResolveActivityLineOverride(PresenceContext context)
-    {
-        if (string.IsNullOrWhiteSpace(context.ActivityLineOverride))
-        {
-            return null;
-        }
-
-        var normalized = string.Join(
-            ' ',
-            context.ActivityLineOverride
-                .Trim()
-                .Where(character => !char.IsControl(character))
-                .ToArray()
-                .AsSpan()
-                .ToString()
-                .Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries));
-        return string.IsNullOrWhiteSpace(normalized) ? null : normalized;
     }
 
     private string ResolveDetails(

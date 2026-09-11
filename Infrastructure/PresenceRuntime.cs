@@ -368,7 +368,10 @@ public sealed class PresenceRuntime
         var hasObservation = !string.IsNullOrWhiteSpace(activeProjectPath)
             ? eventStore.TryReadLatest(activeProjectPath, out var observation)
             : eventStore.TryReadLatest(out observation);
-        if (!hasObservation || observation is null || observation.ObservedAtUtc == default)
+        if (!hasObservation ||
+            observation is null ||
+            observation.ObservedAtUtc == default ||
+            observation.AgentState == ProviderAgentState.Unknown)
         {
             return null;
         }
@@ -714,8 +717,7 @@ public sealed class PresenceRuntime
             session.GetSnapshot(),
             new TokenUsageSnapshot(null, null))
         {
-            ProviderId = ProviderIds.Antigravity,
-            ActivityLineOverride = projection.ActivityLine
+            ProviderId = ProviderIds.Antigravity
         };
     }
 

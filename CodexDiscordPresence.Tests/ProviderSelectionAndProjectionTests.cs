@@ -128,17 +128,16 @@ public sealed class ProviderSelectionAndProjectionTests
     }
 
     [Theory]
-    [InlineData((int)ProviderAgentState.Idle, CodexActivityKind.Ready, false, "Idling")]
-    [InlineData((int)ProviderAgentState.Thinking, CodexActivityKind.AnalyzingProject, true, "Thinking")]
-    [InlineData((int)ProviderAgentState.Working, CodexActivityKind.ApplyingEdits, false, "Working")]
-    [InlineData((int)ProviderAgentState.ToolUse, CodexActivityKind.RunningCommand, false, "Using tools")]
-    [InlineData((int)ProviderAgentState.Initializing, CodexActivityKind.AnalyzingProject, true, "Starting")]
-    [InlineData((int)ProviderAgentState.Unknown, CodexActivityKind.Ready, false, "Idling")]
+    [InlineData((int)ProviderAgentState.Idle, CodexActivityKind.Ready, false)]
+    [InlineData((int)ProviderAgentState.Thinking, CodexActivityKind.AnalyzingProject, true)]
+    [InlineData((int)ProviderAgentState.Working, CodexActivityKind.ApplyingEdits, false)]
+    [InlineData((int)ProviderAgentState.ToolUse, CodexActivityKind.RunningCommand, false)]
+    [InlineData((int)ProviderAgentState.Initializing, CodexActivityKind.AnalyzingProject, true)]
+    [InlineData((int)ProviderAgentState.Unknown, CodexActivityKind.Ready, false)]
     public void Build_ProjectsEveryAgentStateToStableCodexMeaning(
         int agentStateValue,
         CodexActivityKind expectedActivityKind,
-        bool expectedThinking,
-        string expectedActivityLine)
+        bool expectedThinking)
     {
         var agentState = (ProviderAgentState)agentStateValue;
         var projection = AntigravityPresenceProjection.Build(
@@ -155,7 +154,6 @@ public sealed class ProviderSelectionAndProjectionTests
 
         Assert.Equal(expectedActivityKind, projection.Snapshot.ActivityKind);
         Assert.Equal(expectedThinking, projection.Snapshot.IsThinking);
-        Assert.Equal(expectedActivityLine, projection.ActivityLine);
         Assert.Equal(CodexProcessDetectionKind.SessionActivity, projection.Snapshot.DetectionKind);
         Assert.Equal(ActivityProvenance.Observed, projection.Snapshot.ActivityProvenance);
     }
@@ -182,9 +180,40 @@ public sealed class ProviderSelectionAndProjectionTests
         Assert.Equal("repo", projection.WorkspaceName);
         Assert.Null(projection.Snapshot.LastObservedAt);
         Assert.Null(projection.Snapshot.ActiveTurnId);
-        Assert.DoesNotContain("Antigravity", projection.ActivityLine, StringComparison.OrdinalIgnoreCase);
-        Assert.DoesNotContain("C:\\Users", projection.ActivityLine, StringComparison.Ordinal);
         Assert.DoesNotContain("secret-token", projection.ModelName, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Render_UsesSharedActivityLabelForAntigravityProjection()
+    {
+        var projection = AntigravityPresenceProjection.Build(
+            new ProviderObservation(
+                ProviderObservationSource.AntigravityCli,
+                DateTimeOffset.UtcNow,
+                ProviderAgentState.ToolUse,
+                new ProviderModelObservation("model-id", "Model display"),
+                null,
+                null));
+        var context = new PresenceContext(
+            projection.ModelName,
+            projection.Snapshot,
+            new ProjectSnapshot("repo", @"C:\repo", null, null, 0, 0, 0, []),
+            new GitSnapshot(false, 0, null),
+            new SessionSnapshot(DateTime.UtcNow, TimeSpan.Zero),
+            new TokenUsageSnapshot(null, null))
+        {
+            ProviderId = ProviderIds.Antigravity
+        };
+
+        var presence = new PresenceTemplateRenderer().Render(
+            new PresenceTemplateOptions
+            {
+                State = "{ActivityLine}",
+                RunningCommandText = "Provider tools"
+            },
+            context);
+
+        Assert.Equal("Provider tools", presence.State);
     }
 
     [Fact]

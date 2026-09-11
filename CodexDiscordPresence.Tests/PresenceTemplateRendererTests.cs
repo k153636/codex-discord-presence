@@ -6,7 +6,7 @@ namespace CodexDiscordPresence.Tests;
 public sealed class PresenceTemplateRendererTests
 {
     [Fact]
-    public void Render_ProviderActivityOverride_UsesNeutralStateLineAndCarriesProviderId()
+    public void Render_ProviderIdentityUsesSharedActivityRendering()
     {
         var renderer = new PresenceTemplateRenderer();
         var template = new PresenceTemplateOptions { State = "{ActivityLine}" };
@@ -18,13 +18,12 @@ public sealed class PresenceTemplateRendererTests
             new ProjectSnapshot("Nexstrap", @"E:\tool\Nexstrap", null, null, 128, 128, 42000, []),
             new GitSnapshot(true, 0, null)) with
         {
-            ProviderId = ProviderIds.Antigravity,
-            ActivityLineOverride = "  Working  "
+            ProviderId = ProviderIds.Antigravity
         };
 
         var presence = renderer.Render(template, context);
 
-        Assert.Equal("Working", presence.State);
+        Assert.Equal("Editing", presence.State);
         Assert.Equal(ProviderIds.Antigravity, presence.ProviderId);
         Assert.DoesNotContain("Antigravity", presence.Details, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("Antigravity", presence.State, StringComparison.OrdinalIgnoreCase);

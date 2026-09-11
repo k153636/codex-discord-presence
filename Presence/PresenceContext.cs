@@ -9,7 +9,6 @@ public sealed record PresenceContext(
     TokenUsageSnapshot TokenUsage)
 {
     public string? ProviderId { get; init; }
-    public string? ActivityLineOverride { get; init; }
 }
 
 public enum CodexProcessDetectionKind

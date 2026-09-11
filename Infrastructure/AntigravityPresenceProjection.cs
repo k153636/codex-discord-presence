@@ -4,13 +4,11 @@ internal sealed record AntigravityPresenceProjectionResult(
     CodexProcessSnapshot Snapshot,
     string ModelName,
     string? WorkspaceName,
-    string? ConversationId,
-    string ActivityLine);
+    string? ConversationId);
 
 internal static class AntigravityPresenceProjection
 {
     private const string FallbackModelName = "Unknown model";
-    private const string FallbackActivityLine = "Idling";
     private const int MaxDisplayValueLength = 128;
 
     public static AntigravityPresenceProjectionResult Build(ProviderObservation observation)
@@ -19,7 +17,6 @@ internal static class AntigravityPresenceProjection
 
         var observedAtUtc = ToUtcDateTime(observation.ObservedAtUtc);
         var state = MapState(observation.AgentState);
-        var activityLine = GetActivityLine(observation.AgentState);
         var conversationId = NormalizeIdentifier(observation.ConversationId);
 
         var snapshot = new CodexProcessSnapshot(
@@ -42,8 +39,7 @@ internal static class AntigravityPresenceProjection
             snapshot,
             ResolveModelName(observation.Model),
             observation.Workspace?.WorkspaceName,
-            conversationId,
-            activityLine);
+            conversationId);
     }
 
     private static (CodexActivityKind ActivityKind, bool IsThinking) MapState(
@@ -57,18 +53,6 @@ internal static class AntigravityPresenceProjection
             ProviderAgentState.Initializing => (CodexActivityKind.AnalyzingProject, true),
             ProviderAgentState.Idle => (CodexActivityKind.Ready, false),
             _ => (CodexActivityKind.Ready, false)
-        };
-    }
-
-    private static string GetActivityLine(ProviderAgentState agentState)
-    {
-        return agentState switch
-        {
-            ProviderAgentState.Thinking => "Thinking",
-            ProviderAgentState.Working => "Working",
-            ProviderAgentState.ToolUse => "Using tools",
-            ProviderAgentState.Initializing => "Starting",
-            _ => FallbackActivityLine
         };
     }
 
