@@ -58,9 +58,12 @@ public sealed class PresenceRuntime
         var antigravityState = new AntigravityRuntimeState();
         var antigravityPaths = AntigravityStatusLinePaths.CreateDefault();
         var antigravityEventStore = new AntigravityStatusLineEventStore(antigravityPaths.EventFilePath);
-        var antigravityInstaller = new AntigravityStatusLineInstaller();
-        var antigravityInstalled = false;
-        var antigravityConflictLogged = false;
+        var antigravityHookPaths = AntigravityHookPaths.CreateDefault();
+        var antigravityHookEventStore = new AntigravityStatusLineEventStore(antigravityHookPaths.EventFilePath);
+        var antigravityIntegration = new AntigravityIntegrationCoordinator(
+            new AntigravityStatusLineInstaller(),
+            new AntigravityHookInstaller(),
+            _log);
         var currentProviderId = ProviderIds.Codex;
         var providerActivationGate = new ProviderActivationGate(currentProviderId);
         var rpc = new DiscordPresenceClient(profileStates[currentProfile].DiscordOptions, _log);
@@ -85,10 +88,8 @@ public sealed class PresenceRuntime
                     var antigravityEnabled = _state.Enabled &&
                         IsProviderEnabled(ProviderIds.Antigravity, defaultValue: false);
                     var antigravityAvailable = SyncAntigravityIntegration(
-                        antigravityInstaller,
-                        antigravityEnabled,
-                        ref antigravityInstalled,
-                        ref antigravityConflictLogged);
+                        antigravityIntegration,
+                        antigravityEnabled);
 
                     if (!HandleDisabledState(rpc, wasDisabled))
                     {
@@ -144,11 +145,15 @@ public sealed class PresenceRuntime
                         currentProfile = selectedProfile;
                     }
 
-                    var antigravityObservations = antigravityAvailable
+                    var antigravityStatusLineObservations = antigravityAvailable
                         ? ReadFreshAntigravityObservations(antigravityEventStore, activeProjectPath)
                         : Array.Empty<ProviderObservation>();
+                    var antigravityHookObservations = antigravityAvailable
+                        ? ReadFreshAntigravityObservations(antigravityHookEventStore, activeProjectPath)
+                        : Array.Empty<ProviderObservation>();
                     var antigravityObservation = AntigravityConversationObservationSelector.Select(
-                        antigravityObservations,
+                        antigravityHookObservations,
+                        antigravityStatusLineObservations,
                         antigravityState.CurrentConversationId);
                     var selectedProvider = SelectActiveProvider(
                         providerActivationGate,
@@ -304,14 +309,7 @@ public sealed class PresenceRuntime
         }
         finally
         {
-            if (antigravityInstalled)
-            {
-                var uninstallResult = antigravityInstaller.Uninstall();
-                if (!uninstallResult.Succeeded)
-                {
-                    _log.Warn($"Antigravity statusLine cleanup did not complete: {uninstallResult.Message ?? uninstallResult.Status.ToString()}.");
-                }
-            }
+            antigravityIntegration.UninstallIfNeeded();
 
             rpc.Clear();
             rpc.Dispose();
@@ -337,56 +335,8 @@ public sealed class PresenceRuntime
     }
 
     private bool SyncAntigravityIntegration(
-        AntigravityStatusLineInstaller installer,
-        bool enabled,
-        ref bool installed,
-        ref bool conflictLogged)
-    {
-        if (!enabled)
-        {
-            if (installed)
-            {
-                var uninstallResult = installer.Uninstall();
-                if (!uninstallResult.Succeeded)
-                {
-                    _log.Warn(
-                        $"Antigravity statusLine cleanup did not complete: " +
-                        $"{uninstallResult.Message ?? uninstallResult.Status.ToString()}.");
-                }
-
-                installed = false;
-            }
-
-            conflictLogged = false;
-            return false;
-        }
-
-        if (installed)
-        {
-            return true;
-        }
-
-        var installResult = installer.Install();
-        if (installResult.Status is
-            AntigravityStatusLineOperationStatus.Installed or
-            AntigravityStatusLineOperationStatus.AlreadyInstalled)
-        {
-            installed = true;
-            conflictLogged = false;
-            _log.Info($"Antigravity statusLine integration: {installResult.Status}.");
-            return true;
-        }
-
-        if (!conflictLogged)
-        {
-            _log.Warn(
-                $"Antigravity provider is enabled but statusLine integration is unavailable: " +
-                $"{installResult.Message ?? installResult.Status.ToString()}.");
-            conflictLogged = true;
-        }
-
-        return false;
-    }
+        AntigravityIntegrationCoordinator integration,
+        bool enabled) => integration.Sync(enabled);
 
     private IReadOnlyList<ProviderObservation> ReadFreshAntigravityObservations(
         AntigravityStatusLineEventStore eventStore,

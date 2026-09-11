@@ -371,6 +371,53 @@ public sealed class ProviderSelectionAndProjectionTests
     }
 
     [Fact]
+    public void ConversationSelector_HookLifecycleWinsOverNewerStatusLineIdle()
+    {
+        var hook = Observation("conversation-a", ProviderAgentState.Thinking, "2026-09-12T08:00:00Z");
+        var statusLine = Observation("conversation-a", ProviderAgentState.Idle, "2026-09-12T08:01:00Z");
+
+        var selected = AntigravityConversationObservationSelector.Select(
+            [hook],
+            [statusLine],
+            currentConversationId: null);
+
+        Assert.Equal(ProviderAgentState.Thinking, selected?.AgentState);
+        Assert.Equal(hook.ObservedAtUtc, selected?.ObservedAtUtc);
+    }
+
+    [Fact]
+    public void ConversationSelector_HookLifecycleUsesStatusLineMetadataAsFallback()
+    {
+        var hook = new ProviderObservation(
+            ProviderObservationSource.AntigravityCli,
+            DateTimeOffset.Parse("2026-09-12T08:00:00Z"),
+            ProviderAgentState.Working,
+            null,
+            null,
+            "conversation-a");
+        var statusLine = new ProviderObservation(
+            ProviderObservationSource.AntigravityCli,
+            DateTimeOffset.Parse("2026-09-12T08:01:00Z"),
+            ProviderAgentState.Idle,
+            new ProviderModelObservation("model-id", "Model display"),
+            new ProviderWorkspaceObservation(@"C:\repo", @"C:\repo", @"C:\repo"),
+            "conversation-a",
+            ProviderExecutionMode.Planning,
+            new ProviderContextWindowObservation(10, 20));
+
+        var selected = AntigravityConversationObservationSelector.Select(
+            [hook],
+            [statusLine],
+            currentConversationId: null);
+
+        Assert.Equal(ProviderAgentState.Working, selected?.AgentState);
+        Assert.Equal("model-id", selected?.Model?.Id);
+        Assert.Equal("repo", selected?.Workspace?.WorkspaceName);
+        Assert.Equal(ProviderExecutionMode.Planning, selected?.ExecutionMode);
+        Assert.Equal(30, selected?.ContextWindow?.TotalTokens);
+    }
+
+    [Fact]
     public void AntigravityRuntimeState_KeepsActivityCachePerConversation()
     {
         var state = new AntigravityRuntimeState();

@@ -41,6 +41,19 @@ internal static class AntigravityConversationObservationSelector
         return Rank(candidates);
     }
 
+    internal static ProviderObservation? Select(
+        IEnumerable<ProviderObservation> hookObservations,
+        IEnumerable<ProviderObservation> statusLineObservations,
+        string? currentConversationId)
+    {
+        ArgumentNullException.ThrowIfNull(hookObservations);
+        ArgumentNullException.ThrowIfNull(statusLineObservations);
+
+        return Select(
+            MergeHookAndStatusLineObservations(hookObservations, statusLineObservations),
+            currentConversationId);
+    }
+
     internal static bool IsActive(ProviderAgentState agentState)
     {
         return agentState is
@@ -56,5 +69,69 @@ internal static class AntigravityConversationObservationSelector
             .OrderByDescending(observation => observation.ObservedAtUtc)
             .ThenBy(observation => observation.ConversationId ?? "", StringComparer.Ordinal)
             .First();
+    }
+
+    private static IReadOnlyList<ProviderObservation> MergeHookAndStatusLineObservations(
+        IEnumerable<ProviderObservation> hookObservations,
+        IEnumerable<ProviderObservation> statusLineObservations)
+    {
+        var hookByConversation = LatestByConversation(hookObservations);
+        var statusLineByConversation = LatestByConversation(statusLineObservations);
+        var conversationKeys = hookByConversation.Keys
+            .Concat(statusLineByConversation.Keys)
+            .Distinct(StringComparer.Ordinal);
+        var merged = new List<ProviderObservation>();
+
+        foreach (var conversationKey in conversationKeys)
+        {
+            hookByConversation.TryGetValue(conversationKey, out var hookObservation);
+            statusLineByConversation.TryGetValue(conversationKey, out var statusLineObservation);
+            merged.Add(Merge(hookObservation, statusLineObservation));
+        }
+
+        return merged;
+    }
+
+    private static Dictionary<string, ProviderObservation> LatestByConversation(
+        IEnumerable<ProviderObservation> observations)
+    {
+        return observations
+            .Where(observation => observation.Source == ProviderObservationSource.AntigravityCli)
+            .Where(observation => observation.AgentState != ProviderAgentState.Unknown)
+            .GroupBy(GetConversationKey, StringComparer.Ordinal)
+            .ToDictionary(
+                group => group.Key,
+                group => group.OrderByDescending(observation => observation.ObservedAtUtc).First(),
+                StringComparer.Ordinal);
+    }
+
+    private static string GetConversationKey(ProviderObservation observation) =>
+        string.IsNullOrWhiteSpace(observation.ConversationId)
+            ? "<unknown>"
+            : observation.ConversationId.Trim();
+
+    private static ProviderObservation Merge(
+        ProviderObservation? hookObservation,
+        ProviderObservation? statusLineObservation)
+    {
+        if (hookObservation is null)
+        {
+            return statusLineObservation!;
+        }
+
+        if (statusLineObservation is null)
+        {
+            return hookObservation;
+        }
+
+        return hookObservation with
+        {
+            Model = hookObservation.Model ?? statusLineObservation.Model,
+            Workspace = hookObservation.Workspace ?? statusLineObservation.Workspace,
+            ExecutionMode = hookObservation.ExecutionMode == ProviderExecutionMode.Unknown
+                ? statusLineObservation.ExecutionMode
+                : hookObservation.ExecutionMode,
+            ContextWindow = hookObservation.ContextWindow ?? statusLineObservation.ContextWindow
+        };
     }
 }

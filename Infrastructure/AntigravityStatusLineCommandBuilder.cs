@@ -49,7 +49,7 @@ public sealed class AntigravityStatusLineCommandBuilder : IAntigravityStatusLine
         return new(
             IsSupported: true,
             Command: command,
-            ScriptContent: AntigravityStatusLinePowerShellScript.Create(paths.EventFilePath),
+            ScriptContent: AntigravityEventPowerShellScript.Create(paths.EventFilePath),
             Error: null);
     }
 
@@ -60,12 +60,7 @@ public sealed class AntigravityStatusLineCommandBuilder : IAntigravityStatusLine
     }
 
     private static string BuildEncodedCommand(string scriptPath)
-    {
-        var invocation = $"& {QuotePowerShellString(scriptPath)}";
-        var encodedInvocation = Convert.ToBase64String(
-            System.Text.Encoding.Unicode.GetBytes(invocation));
-        return $"powershell.exe -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -EncodedCommand {encodedInvocation}";
-    }
+        => AntigravityPowerShellCommand.BuildEncoded(scriptPath);
 
     private static string BuildFileCommand(string scriptPathArgument) =>
         $"powershell.exe -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File {scriptPathArgument}";
@@ -77,12 +72,14 @@ public sealed class AntigravityStatusLineCommandBuilder : IAntigravityStatusLine
         "'" + value.Replace("'", "''", StringComparison.Ordinal) + "'";
 }
 
-internal static class AntigravityStatusLinePowerShellScript
+internal static class AntigravityEventPowerShellScript
 {
     internal static string Create(string eventFilePath)
     {
         var quotedEventPath = QuotePowerShellString(eventFilePath);
         return $$"""
+            param([string] $HookEvent = '')
+
             $ErrorActionPreference = 'Stop'
             $MaxPayloadBytes = 262144
             $MaxEventFileBytes = 1048576
@@ -94,6 +91,22 @@ internal static class AntigravityStatusLinePowerShellScript
                 if ([string]::IsNullOrWhiteSpace($Value)) { $Value = 'Idling' }
                 [Console]::Out.Write($Value)
                 exit 0
+            }
+
+            function Exit-WithHookResponse([string] $Event) {
+                if ($Event -eq 'Stop') {
+                    [Console]::Out.WriteLine('{"decision":"allow"}')
+                } else {
+                    [Console]::Out.WriteLine('{}')
+                }
+                exit 0
+            }
+
+            function Exit-WithSafeResponse([string] $Event) {
+                if (-not [string]::IsNullOrWhiteSpace($Event)) {
+                    Exit-WithHookResponse $Event
+                }
+                Exit-WithStatus 'Idling'
             }
 
             function Get-SafeText([object] $Value) {
@@ -137,6 +150,22 @@ internal static class AntigravityStatusLinePowerShellScript
                 return Get-SafeText ([IO.Path]::GetFileName($trimmed))
             }
 
+            function Get-FirstWorkspacePath([object] $Value) {
+                if ($null -eq $Value) { return $null }
+                if ($Value -is [array]) {
+                    foreach ($candidate in $Value) {
+                        if ($candidate -is [string] -and -not [string]::IsNullOrWhiteSpace($candidate)) {
+                            return $candidate.Trim()
+                        }
+                    }
+                    return $null
+                }
+                if ($Value -is [string] -and -not [string]::IsNullOrWhiteSpace($Value)) {
+                    return $Value.Trim()
+                }
+                return $null
+            }
+
             function Get-ProjectKey([object] $Object) {
                 $workspace = Get-PropertyValue $Object 'workspace'
                 $rawPath = Get-PropertyValue $workspace 'project_dir'
@@ -146,9 +175,13 @@ internal static class AntigravityStatusLinePowerShellScript
                 if ($rawPath -isnot [string] -or [string]::IsNullOrWhiteSpace($rawPath)) {
                     $rawPath = Get-PropertyValue $Object 'cwd'
                 }
-                if ($rawPath -isnot [string] -or [string]::IsNullOrWhiteSpace($rawPath)) { return $null }
+                return Get-ProjectKeyFromPath $rawPath
+            }
+
+            function Get-ProjectKeyFromPath([object] $RawPath) {
+                if ($RawPath -isnot [string] -or [string]::IsNullOrWhiteSpace($RawPath)) { return $null }
                 try {
-                    $candidate = $rawPath.Trim()
+                    $candidate = $RawPath.Trim()
                     $hasDriveRoot = $candidate.Length -ge 3 -and
                         [char]::IsLetter($candidate[0]) -and
                         $candidate[1] -eq ':' -and
@@ -221,7 +254,7 @@ internal static class AntigravityStatusLinePowerShellScript
                     if ($directory) { [IO.Directory]::CreateDirectory($directory) | Out-Null }
                     $temporaryPath = "$EventFilePath.$PID.tmp"
                     [IO.File]::WriteAllText($temporaryPath, (($lines -join "`n") + "`n"), [Text.UTF8Encoding]::new($false))
-                    Move-Item -LiteralPath $temporaryPath -Destination $EventFilePath -Force
+                    Move-Item -LiteralPath $temporaryPath -Destination $EventFilePath -Force | Out-Null
                 } finally {
                     if ($acquired) { $mutex.ReleaseMutex() }
                     $mutex.Dispose()
@@ -233,12 +266,57 @@ internal static class AntigravityStatusLinePowerShellScript
                 $buffer = New-Object byte[] 65536
                 $inputBytes = [Collections.Generic.List[byte]]::new()
                 while (($read = $inputStream.Read($buffer, 0, $buffer.Length)) -gt 0) {
-                    if ($inputBytes.Count + $read -gt $MaxPayloadBytes) { Exit-WithStatus 'Idling' }
+                    if ($inputBytes.Count + $read -gt $MaxPayloadBytes) { Exit-WithSafeResponse $HookEvent }
                     for ($index = 0; $index -lt $read; $index++) { $inputBytes.Add($buffer[$index]) }
                 }
-                if ($inputBytes.Count -eq 0) { Exit-WithStatus 'Idling' }
+                if ($inputBytes.Count -eq 0) { Exit-WithSafeResponse $HookEvent }
                 $payload = ([Text.UTF8Encoding]::new($false, $true)).GetString($inputBytes.ToArray()) | ConvertFrom-Json -ErrorAction Stop
-                if ($payload -is [array] -or $null -eq $payload) { Exit-WithStatus 'Idling' }
+                if ($payload -is [array] -or $null -eq $payload) { Exit-WithSafeResponse $HookEvent }
+                if (-not [string]::IsNullOrWhiteSpace($HookEvent)) {
+                    $hookAgentState = switch ($HookEvent) {
+                        'PreInvocation' { 'thinking'; break }
+                        'PostToolUse' { 'working'; break }
+                        'PostInvocation' { 'idle'; break }
+                        'Stop' { 'idle'; break }
+                        default { $null; break }
+                    }
+                    if ($null -eq $hookAgentState) { Exit-WithHookResponse $HookEvent }
+
+                    $conversationId = Get-SafeText (Get-PropertyValue $payload 'conversationId')
+                    if ($null -eq $conversationId -or
+                        $conversationId.Contains('/') -or
+                        $conversationId.Contains('\')) {
+                        Exit-WithHookResponse $HookEvent
+                    }
+
+                    $workspacePath = Get-FirstWorkspacePath (Get-PropertyValue $payload 'workspacePaths')
+                    $modelName = Get-SafeText (Get-PropertyValue $payload 'modelName')
+                    $model = if ($null -eq $modelName) { $null } else {
+                        [ordered]@{ id = $modelName; display_name = $modelName }
+                    }
+                    $workspace = if ($null -eq $workspacePath) { $null } else {
+                        [ordered]@{
+                            workspace_name = Get-PathLeafValue $workspacePath
+                            project_name = Get-PathLeafValue $workspacePath
+                        }
+                    }
+                    $event = [ordered]@{
+                        schema_version = 1
+                        source = 'antigravity'
+                        observed_at_utc = [DateTimeOffset]::UtcNow.ToString('O')
+                        agent_state = $hookAgentState
+                        model = $model
+                        workspace = $workspace
+                        conversation_id = $conversationId
+                        execution_mode = $null
+                        context_window = $null
+                        project_key = Get-ProjectKeyFromPath $workspacePath
+                    }
+                    $line = $event | ConvertTo-Json -Depth 8 -Compress
+                    if ([Text.Encoding]::UTF8.GetByteCount($line) -gt 262144) { Exit-WithHookResponse $HookEvent }
+                    Write-BoundedEvent $line
+                    Exit-WithHookResponse $HookEvent
+                }
                 $modelValue = Get-PropertyValue $payload 'model'
                 $agentState = Get-SafeText (Get-PropertyValue $payload 'agent_state')
                 if ($null -eq $agentState) { $agentState = 'unknown' }
@@ -292,9 +370,9 @@ internal static class AntigravityStatusLinePowerShellScript
                 }
                 Exit-WithStatus $statusLine
             } catch {
-                Exit-WithStatus 'Idling'
+                Exit-WithSafeResponse $HookEvent
             }
-            Exit-WithStatus 'Idling'
+            Exit-WithSafeResponse $HookEvent
             """;
     }
 
