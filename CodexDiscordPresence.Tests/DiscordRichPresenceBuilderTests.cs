@@ -71,10 +71,20 @@ public sealed class DiscordRichPresenceBuilderTests
             PartySize = 1
         };
 
-        var payload = DiscordRichPresenceBuilder.Create(new DiscordOptions(), rendered, "antigravity-party");
+        var options = new DiscordOptions
+        {
+            ClientId = "1548038167041671259",
+            LargeImageKey = "rpc_antigravity",
+            SmallImageKey = null,
+            ExternalImageUrls = new(StringComparer.OrdinalIgnoreCase)
+        };
+
+        var payload = DiscordRichPresenceBuilder.Create(options, rendered, "antigravity-party");
 
         Assert.NotNull(payload.Party);
         Assert.Equal(1, payload.Party!.Size);
         Assert.Equal(1, payload.Party.Max);
+        Assert.Equal("rpc_antigravity", payload.Assets!.LargeImageKey);
+        Assert.Null(payload.Assets.SmallImageKey);
     }
 }

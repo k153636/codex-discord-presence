@@ -7,6 +7,7 @@ public sealed class AppOptions
 {
     public DiscordOptions Discord { get; set; } = new();
     public DiscordOptions? DiscordCli { get; set; }
+    public DiscordOptions DiscordAntigravity { get; set; } = CreateUnconfiguredProviderDiscordOptions();
     public CodexDetectionOptions Codex { get; set; } = new();
     public CodexDetectionOptions? CodexCli { get; set; }
     public Dictionary<string, ProviderOptions> Providers { get; set; } =
@@ -95,8 +96,12 @@ public sealed class AppOptions
             : Discord;
     }
 
+    public DiscordOptions GetAntigravityDiscordOptions() => DiscordAntigravity;
+
     private void EnsureProviderDefaults()
     {
+        DiscordAntigravity ??= CreateUnconfiguredProviderDiscordOptions();
+
         var normalizedProviders = new Dictionary<string, ProviderOptions>(StringComparer.OrdinalIgnoreCase);
         if (Providers is not null)
         {
@@ -113,6 +118,11 @@ public sealed class AppOptions
         Providers.TryAdd(ProviderIds.Codex, new ProviderOptions { Enabled = true });
         Providers.TryAdd(ProviderIds.Antigravity, new ProviderOptions { Enabled = false });
     }
+
+    private static DiscordOptions CreateUnconfiguredProviderDiscordOptions() => new()
+    {
+        ClientId = ""
+    };
 
     private static bool TryLoadJsonObject(string path, out JsonObject node)
     {

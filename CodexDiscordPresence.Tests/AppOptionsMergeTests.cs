@@ -91,6 +91,7 @@ public sealed class AppOptionsMergeTests
             var button = Assert.Single(options.Presence.Buttons);
             Assert.Equal("K's Code RPC", button.Label);
             Assert.Equal("https://k153636.github.io/codex-discord-presence/", button.Url);
+            Assert.Empty(options.GetAntigravityDiscordOptions().ClientId);
         }
         finally
         {
@@ -123,6 +124,12 @@ public sealed class AppOptionsMergeTests
     "ClientId": "1516846793873424474",
     "LargeImageKey": "codexcli_logo1"
   },
+  "DiscordAntigravity": {
+    "ClientId": "1548038167041671259",
+    "LargeImageKey": "rpc_antigravity",
+    "SmallImageKey": null,
+    "ExternalImageUrls": {}
+  },
   "Presence": {}
 }
 """);
@@ -149,6 +156,9 @@ public sealed class AppOptionsMergeTests
             Assert.Equal("1516846793873424474", options.Discord.ClientId);
             Assert.NotNull(options.DiscordCli);
             Assert.Equal("1516846793873424474", options.DiscordCli!.ClientId);
+            Assert.Equal("1548038167041671259", options.GetAntigravityDiscordOptions().ClientId);
+            Assert.Null(options.GetAntigravityDiscordOptions().SmallImageKey);
+            Assert.Empty(options.GetAntigravityDiscordOptions().ExternalImageUrls);
             Assert.Equal("codexcli_logo1", options.DiscordCli.LargeImageKey);
             Assert.Equal("{GoalModePrefix} {ModelName} \u2022 {ExecutionMode} \u2022 {Tokens}", options.Presence.Details);
             Assert.Equal("Working", options.Presence.WorkingText);

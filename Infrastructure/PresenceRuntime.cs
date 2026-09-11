@@ -193,7 +193,7 @@ public sealed class PresenceRuntime
                     }
 
                     var selectedDiscordOptions = selectedProvider.ProviderId == ProviderIds.Antigravity
-                        ? _options.GetDiscordOptions(selectedProfile)
+                        ? _options.GetAntigravityDiscordOptions()
                         : selectedProfileState.DiscordOptions;
                     rpc.UpdateOptions(selectedDiscordOptions);
 
@@ -447,7 +447,7 @@ public sealed class PresenceRuntime
             candidates.Add(new ProviderSelectionCandidate(
                 ProviderIds.Antigravity,
                 IsProviderEnabled(ProviderIds.Antigravity, defaultValue: false),
-                IsProviderConfiguredForRuntime(_options.GetDiscordOptions(selectedProfile)),
+                IsProviderConfiguredForRuntime(_options.GetAntigravityDiscordOptions()),
                 antigravityObservation.ObservedAtUtc,
                 HasAntigravityProjectEvidence(antigravityObservation) ||
                 !string.IsNullOrWhiteSpace(activeProjectPath),
