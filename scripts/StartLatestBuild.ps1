@@ -25,7 +25,7 @@ function Wait-ForPresenceToStop {
     } while ([DateTime]::UtcNow -lt $deadline)
 
     $pids = (Get-RunningPresenceProcesses | Select-Object -ExpandProperty Id) -join ', '
-    throw "The previous CodePresence process did not exit within $TimeoutSeconds seconds. PID(s): $pids"
+    throw "The previous K's AIcode presence process did not exit within $TimeoutSeconds seconds. PID(s): $pids"
 }
 
 try {
@@ -41,10 +41,10 @@ try {
 
     if (Get-RunningPresenceProcesses | Where-Object { -not $_.HasExited }) {
         if ([string]::IsNullOrWhiteSpace($stopExe)) {
-            throw "A previous CodePresence process is running, but no published executable was found to stop it."
+            throw "A previous K's AIcode presence process is running, but no published executable was found to stop it."
         }
 
-        Write-Host 'Stopping the previous CodePresence process...'
+        Write-Host "Stopping the previous K's AIcode presence process..."
         $stopProcess = Start-Process `
             -FilePath $stopExe `
             -ArgumentList @('--stop') `
@@ -54,7 +54,7 @@ try {
             -PassThru `
             -ErrorAction Stop
         if ($stopProcess.ExitCode -ne 0) {
-            throw "The previous CodePresence process could not be stopped. Exit code: $($stopProcess.ExitCode)"
+            throw "The previous K's AIcode presence process could not be stopped. Exit code: $($stopProcess.ExitCode)"
         }
 
         Wait-ForPresenceToStop
@@ -89,7 +89,7 @@ try {
         throw "The latest published build exited immediately. Exit code: $($startedProcess.ExitCode)"
     }
 
-    Write-Host "Started CodePresence (PID $($startedProcess.Id))."
+    Write-Host "Started K's AIcode presence (PID $($startedProcess.Id))."
 }
 catch {
     Write-Error $_.Exception.Message

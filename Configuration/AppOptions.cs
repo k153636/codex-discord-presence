@@ -325,7 +325,7 @@ public sealed class PresenceTemplateOptions
     [
         new()
         {
-            Label = ProductBrand.Name,
+            Label = ProductBrand.DiscordButtonLabel,
             Url = "https://k153636.github.io/codex-discord-presence/"
         }
     ];

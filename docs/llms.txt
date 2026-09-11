@@ -1,6 +1,6 @@
-# CodePresence
+# K's AIcode presence
 
-> AI coding status for Discord: an unofficial Windows tray application for showing observable Codex CLI and Codex Desktop activity in Discord Rich Presence.
+> AI coding status for Discord: K's AIcode presence is an unofficial Windows tray application for showing observable Codex CLI and Codex Desktop activity in Discord Rich Presence.
 
 ## Canonical links
 
@@ -13,7 +13,7 @@
 
 ## Product facts
 
-- Brand: CodePresence.
+- Brand: K's AIcode presence.
 - Product type: local Windows tray application.
 - Supported published target: Windows x64.
 - Current runtime requirement: .NET 9 Desktop Runtime.

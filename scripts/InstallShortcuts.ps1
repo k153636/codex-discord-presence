@@ -84,8 +84,8 @@ try {
         New-Item -ItemType Directory -Force -Path $startupDir | Out-Null
     }
 
-    $shortcutName = 'CodePresence.lnk'
-    $legacyShortcutName = 'Codex Discord RPC.lnk'
+    $shortcutName = "K's AIcode presence.lnk"
+    $legacyShortcutNames = @('CodePresence.lnk', 'Codex Discord RPC.lnk')
     $arguments = "--project `"$root`""
 
     New-AppShortcut -ShortcutPath (Join-Path $desktopDir $shortcutName) -TargetPath $publishExe -WorkingDirectory (Split-Path $publishExe) -Arguments $arguments
@@ -95,11 +95,13 @@ try {
         New-AppShortcut -ShortcutPath (Join-Path $startupDir $shortcutName) -TargetPath $publishExe -WorkingDirectory (Split-Path $publishExe) -Arguments $arguments
     }
 
-    Migrate-AppShortcut -LegacyShortcutPath (Join-Path $desktopDir $legacyShortcutName) -NewShortcutPath (Join-Path $desktopDir $shortcutName) -ExpectedTargetPath $publishExe
-    Migrate-AppShortcut -LegacyShortcutPath (Join-Path $startMenuProgramsDir $legacyShortcutName) -NewShortcutPath (Join-Path $startMenuProgramsDir $shortcutName) -ExpectedTargetPath $publishExe
-    Migrate-AppShortcut -LegacyShortcutPath (Join-Path $startupDir $legacyShortcutName) -NewShortcutPath (Join-Path $startupDir $shortcutName) -ExpectedTargetPath $publishExe
+    foreach ($legacyShortcutName in $legacyShortcutNames) {
+        Migrate-AppShortcut -LegacyShortcutPath (Join-Path $desktopDir $legacyShortcutName) -NewShortcutPath (Join-Path $desktopDir $shortcutName) -ExpectedTargetPath $publishExe
+        Migrate-AppShortcut -LegacyShortcutPath (Join-Path $startMenuProgramsDir $legacyShortcutName) -NewShortcutPath (Join-Path $startMenuProgramsDir $shortcutName) -ExpectedTargetPath $publishExe
+        Migrate-AppShortcut -LegacyShortcutPath (Join-Path $startupDir $legacyShortcutName) -NewShortcutPath (Join-Path $startupDir $shortcutName) -ExpectedTargetPath $publishExe
+    }
 
-    Write-Host "Installed shortcuts for CodePresence."
+    Write-Host "Installed shortcuts for K's AIcode presence."
     if ($Autostart) {
         Write-Host "Autostart shortcut created in the Windows Startup folder."
     }
