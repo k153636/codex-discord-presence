@@ -5,6 +5,30 @@ namespace CodexDiscordPresence.Tests;
 public sealed class DiscordAssetKeyResolverTests
 {
     [Theory]
+    [InlineData("antigravity")]
+    [InlineData("ANTIGRAVITY")]
+    [InlineData("  Antigravity  ")]
+    public void ResolveProviderLargeImageKey_UsesFixedAntigravityKey(string providerId)
+    {
+        var key = DiscordAssetKeyResolver.ResolveProviderLargeImageKey(providerId);
+
+        Assert.Equal("rpc_antigravity", key);
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData("   ")]
+    [InlineData("google")]
+    [InlineData("antigravity-extra")]
+    public void ResolveProviderLargeImageKey_ReturnsNullForMissingOrUnknownProvider(string? providerId)
+    {
+        var key = DiscordAssetKeyResolver.ResolveProviderLargeImageKey(providerId);
+
+        Assert.Null(key);
+    }
+
+    [Theory]
     [InlineData(CodexActivityKind.Offline, "rpc_sleeping")]
     [InlineData(CodexActivityKind.Ready, "rpc_sleeping")]
     [InlineData(CodexActivityKind.AnalyzingProject, "rpc_thinking")]

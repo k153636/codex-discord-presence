@@ -2,6 +2,17 @@ namespace CodexDiscordPresence;
 
 internal static class DiscordAssetKeyResolver
 {
+    private const string AntigravityProviderId = "antigravity";
+    private const string AntigravityImageKey = "rpc_antigravity";
+
+    public static string? ResolveProviderLargeImageKey(string? providerId)
+    {
+        return TryNormalize(providerId, out var normalizedProviderId) &&
+            string.Equals(normalizedProviderId, AntigravityProviderId, StringComparison.OrdinalIgnoreCase)
+            ? AntigravityImageKey
+            : null;
+    }
+
     public static string? ResolveLargeImageReference(DiscordOptions options, RenderedPresence presence)
     {
         ArgumentNullException.ThrowIfNull(options);
