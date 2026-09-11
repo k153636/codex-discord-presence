@@ -231,4 +231,34 @@ public sealed class AppOptionsMergeTests
             Directory.Delete(root, true);
         }
     }
+
+    [Fact]
+    public void Load_MergesObjectNamesWithoutCaseSensitiveDuplicates()
+    {
+        var root = Path.Combine(Path.GetTempPath(), "CodexProviderCaseTests_" + Guid.NewGuid());
+        Directory.CreateDirectory(root);
+
+        try
+        {
+            var executableSettings = Path.Combine(root, "appsettings.json");
+            var userSettings = Path.Combine(root, "user-settings.json");
+            File.WriteAllText(
+                executableSettings,
+                "{\"Providers\":{\"antigravity\":{\"Enabled\":false}},\"Discord\":{\"ExternalImageUrls\":{\"rpc_antigravity\":\"https://example.invalid/old.png\"}}}");
+            File.WriteAllText(
+                userSettings,
+                "{\"providers\":{\"ANTIGRAVITY\":{\"enabled\":true}},\"discord\":{\"externalimageurls\":{\"RPC_ANTIGRAVITY\":\"https://example.invalid/new.png\"}}}");
+
+            var options = AppOptions.LoadMerged(executableSettings, userSettings);
+
+            Assert.True(options.Providers[ProviderIds.Antigravity].Enabled);
+            Assert.Equal(
+                "https://example.invalid/new.png",
+                options.Discord.ExternalImageUrls["rpc_antigravity"]);
+        }
+        finally
+        {
+            Directory.Delete(root, true);
+        }
+    }
 }

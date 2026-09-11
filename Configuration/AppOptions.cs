@@ -139,22 +139,30 @@ public sealed class AppOptions
     {
         foreach (var (key, value) in source)
         {
+            var targetKey = FindPropertyName(target, key) ?? key;
             if (value is JsonObject sourceObject)
             {
-                if (target[key] is JsonObject targetObject)
+                if (target[targetKey] is JsonObject targetObject)
                 {
                     MergeJsonObject(targetObject, sourceObject);
                 }
                 else
                 {
-                    target[key] = sourceObject.DeepClone();
+                    target[targetKey] = sourceObject.DeepClone();
                 }
 
                 continue;
             }
 
-            target[key] = value?.DeepClone();
+            target[targetKey] = value?.DeepClone();
         }
+    }
+
+    private static string? FindPropertyName(JsonObject node, string propertyName)
+    {
+        return node
+            .Select(pair => pair.Key)
+            .FirstOrDefault(key => string.Equals(key, propertyName, StringComparison.OrdinalIgnoreCase));
     }
 
     private static JsonSerializerOptions JsonOptions() => new()
