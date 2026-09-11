@@ -132,6 +132,11 @@ public sealed class AntigravityStatusLineInfrastructureTests
         }
 
         Assert.True(File.Exists(fixture.Paths.BackupPath));
+        var scriptBytes = File.ReadAllBytes(fixture.Paths.ScriptPath);
+        Assert.True(scriptBytes.Length >= 3);
+        Assert.Equal(0xEF, scriptBytes[0]);
+        Assert.Equal(0xBB, scriptBytes[1]);
+        Assert.Equal(0xBF, scriptBytes[2]);
         var uninstall = installer.Uninstall();
         Assert.Equal(AntigravityStatusLineOperationStatus.Restored, uninstall.Status);
         using var restored = JsonDocument.Parse(File.ReadAllText(fixture.SettingsPath));
@@ -295,7 +300,7 @@ public sealed class AntigravityStatusLineInfrastructureTests
 
         Assert.Equal(AntigravityStatusLineOperationStatus.Failed, result.Status);
         Assert.False(File.Exists(fixture.SettingsPath));
-        Assert.True(File.Exists(fixture.Paths.BackupPath));
+        Assert.False(File.Exists(fixture.Paths.BackupPath));
     }
 
     [Fact]
@@ -310,7 +315,50 @@ public sealed class AntigravityStatusLineInfrastructureTests
         Assert.Contains("$MaxPayloadBytes = 262144", result.ScriptContent, StringComparison.Ordinal);
         Assert.Contains("ConvertFrom-Json", result.ScriptContent, StringComparison.Ordinal);
         Assert.Contains("Write-BoundedEvent", result.ScriptContent, StringComparison.Ordinal);
+        Assert.Contains("Exit-WithStatus $statusLine", result.ScriptContent, StringComparison.Ordinal);
         Assert.DoesNotContain("Write-Output", result.ScriptContent, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void CommandBuilder_WindowsScript_PersistsEventAndReturnsSafeStatusLine()
+    {
+        if (!OperatingSystem.IsWindows())
+        {
+            return;
+        }
+
+        using var fixture = new TemporaryFixture();
+        var result = new AntigravityStatusLineCommandBuilder(AntigravityStatusLinePlatform.Windows)
+            .Build(fixture.Paths);
+        File.WriteAllText(fixture.Paths.ScriptPath, result.ScriptContent);
+
+        var execution = ExecutePowerShellScript(fixture.Paths.ScriptPath, WindowsSubdirectoryPayload);
+        Assert.Equal(0, execution.ExitCode);
+        Assert.Equal("Working", execution.Output);
+
+        var store = new AntigravityStatusLineEventStore(fixture.EventFilePath);
+        Assert.True(store.TryReadLatest(@"C:\repo", out var observation));
+        Assert.Equal(ProviderAgentState.Working, observation?.AgentState);
+    }
+
+    [Fact]
+    public void CommandBuilder_WindowsScript_InvalidPayloadStillReturnsSafeStatusLine()
+    {
+        if (!OperatingSystem.IsWindows())
+        {
+            return;
+        }
+
+        using var fixture = new TemporaryFixture();
+        var result = new AntigravityStatusLineCommandBuilder(AntigravityStatusLinePlatform.Windows)
+            .Build(fixture.Paths);
+        File.WriteAllText(fixture.Paths.ScriptPath, result.ScriptContent);
+
+        var execution = ExecutePowerShellScript(fixture.Paths.ScriptPath, "{not-json");
+
+        Assert.Equal(0, execution.ExitCode);
+        Assert.Equal("Idling", execution.Output);
+        Assert.False(File.Exists(fixture.EventFilePath));
     }
 
     [Fact]
@@ -334,6 +382,39 @@ public sealed class AntigravityStatusLineInfrastructureTests
         new ProviderWorkspaceObservation(null, "workspace", "project"),
         "conversation");
 
+    private static (int ExitCode, string Output, string Error) ExecutePowerShellScript(
+        string scriptPath,
+        string payload)
+    {
+        using var process = new Process
+        {
+            StartInfo = new ProcessStartInfo
+            {
+                FileName = "powershell.exe",
+                UseShellExecute = false,
+                CreateNoWindow = true,
+                RedirectStandardInput = true,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true
+            }
+        };
+        process.StartInfo.ArgumentList.Add("-NoLogo");
+        process.StartInfo.ArgumentList.Add("-NoProfile");
+        process.StartInfo.ArgumentList.Add("-NonInteractive");
+        process.StartInfo.ArgumentList.Add("-ExecutionPolicy");
+        process.StartInfo.ArgumentList.Add("Bypass");
+        process.StartInfo.ArgumentList.Add("-File");
+        process.StartInfo.ArgumentList.Add(scriptPath);
+
+        Assert.True(process.Start());
+        process.StandardInput.Write(payload);
+        process.StandardInput.Close();
+        var output = process.StandardOutput.ReadToEnd();
+        var error = process.StandardError.ReadToEnd();
+        Assert.True(process.WaitForExit(10_000), error);
+        return (process.ExitCode, output, error);
+    }
+
     private const string OfficialPayload = """
         {
           "cwd": "/home/redacted/my-project",
@@ -350,6 +431,22 @@ public sealed class AntigravityStatusLineInfrastructureTests
           },
           "agent_state": "working",
           "email": "redacted@example.invalid"
+        }
+        """;
+
+    private const string WindowsSubdirectoryPayload = """
+        {
+          "cwd": "C:\\repo\\src",
+          "conversation_id": "conversation-id",
+          "model": {
+            "id": "gemini-3.5-flash-high",
+            "display_name": "Gemini 3.5 Flash (High)"
+          },
+          "workspace": {
+            "current_dir": "C:\\repo\\src",
+            "project_dir": "C:\\repo"
+          },
+          "agent_state": "working"
         }
         """;
 

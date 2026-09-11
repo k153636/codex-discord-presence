@@ -81,7 +81,7 @@ public sealed class AntigravityStatusLineInstaller
             return Result(AntigravityStatusLineOperationStatus.Unsupported, _command.Error);
         }
 
-        if (!TryLoadSettings(out var root, out var settingsError))
+        if (!TryLoadSettings(out var root, out var settingsError, out var settingsSnapshot))
         {
             return Result(AntigravityStatusLineOperationStatus.InvalidSettings, settingsError);
         }
@@ -108,7 +108,7 @@ public sealed class AntigravityStatusLineInstaller
             {
                 if (!File.Exists(_paths.ScriptPath))
                 {
-                    WriteAtomically(_paths.ScriptPath, _command.ScriptContent!);
+                    WriteAtomically(_paths.ScriptPath, _command.ScriptContent!, emitUtf8Bom: true);
                 }
 
                 return Result(AntigravityStatusLineOperationStatus.AlreadyInstalled);
@@ -149,23 +149,37 @@ public sealed class AntigravityStatusLineInstaller
             WriteAtomically(
                 _paths.BackupPath,
                 backup.ToJsonString(JsonOptions));
+            var backupWritten = true;
 
-            WriteAtomically(_paths.ScriptPath, _command.ScriptContent!);
+            WriteAtomically(_paths.ScriptPath, _command.ScriptContent!, emitUtf8Bom: true);
+            var scriptWritten = true;
             root[propertyName ?? "statusLine"] = new JsonObject
             {
                 ["type"] = "command",
                 ["command"] = _command.Command
             };
+
+            if (!MatchesSettingsSnapshot(settingsSnapshot))
+            {
+                DeleteIfExistsWhenCreated(_paths.ScriptPath, scriptWritten);
+                DeleteIfExistsWhenCreated(_paths.BackupPath, backupWritten);
+                return Result(
+                    AntigravityStatusLineOperationStatus.Conflict,
+                    "The Antigravity settings changed while the integration was being installed.");
+            }
+
             WriteAtomically(_paths.SettingsPath, root.ToJsonString(JsonOptions));
 
             return Result(AntigravityStatusLineOperationStatus.Installed);
         }
         catch (IOException ex)
         {
+            RollbackInstallArtifacts();
             return Result(AntigravityStatusLineOperationStatus.Failed, ex.Message);
         }
         catch (UnauthorizedAccessException ex)
         {
+            RollbackInstallArtifacts();
             return Result(AntigravityStatusLineOperationStatus.Failed, ex.Message);
         }
     }
@@ -189,7 +203,7 @@ public sealed class AntigravityStatusLineInstaller
                     : null);
         }
 
-        if (!TryLoadSettings(out var root, out var settingsError))
+        if (!TryLoadSettings(out var root, out var settingsError, out var settingsSnapshot))
         {
             return Result(AntigravityStatusLineOperationStatus.InvalidSettings, settingsError);
         }
@@ -235,6 +249,13 @@ public sealed class AntigravityStatusLineInstaller
                 !string.Equals(backup.PropertyName, propertyName, StringComparison.Ordinal))
             {
                 root.Remove(propertyName);
+            }
+
+            if (!MatchesSettingsSnapshot(settingsSnapshot))
+            {
+                return Result(
+                    AntigravityStatusLineOperationStatus.Conflict,
+                    "The Antigravity settings changed while the integration was being removed.");
             }
 
             WriteAtomically(_paths.SettingsPath, root.ToJsonString(JsonOptions));
@@ -292,10 +313,14 @@ public sealed class AntigravityStatusLineInstaller
         File.Exists(_paths.ScriptPath) ||
         File.Exists(_paths.EventFilePath);
 
-    private bool TryLoadSettings(out JsonObject root, out string error)
+    private bool TryLoadSettings(
+        out JsonObject root,
+        out string error,
+        out SettingsFileSnapshot snapshot)
     {
         root = new JsonObject();
         error = "";
+        snapshot = new SettingsFileSnapshot(false, null);
         if (!File.Exists(_paths.SettingsPath))
         {
             return true;
@@ -303,8 +328,10 @@ public sealed class AntigravityStatusLineInstaller
 
         try
         {
+            var contents = File.ReadAllText(_paths.SettingsPath);
+            snapshot = new SettingsFileSnapshot(true, contents);
             var parsed = JsonNode.Parse(
-                File.ReadAllText(_paths.SettingsPath),
+                contents,
                 documentOptions: new JsonDocumentOptions
                 {
                     AllowTrailingCommas = true,
@@ -387,6 +414,45 @@ public sealed class AntigravityStatusLineInstaller
         DeleteIfExists(_paths.BackupPath);
     }
 
+    private void RollbackInstallArtifacts()
+    {
+        DeleteIfExists(_paths.ScriptPath);
+        DeleteIfExists(_paths.BackupPath);
+    }
+
+    private static void DeleteIfExistsWhenCreated(string path, bool wasCreated)
+    {
+        if (wasCreated)
+        {
+            DeleteIfExists(path);
+        }
+    }
+
+    private bool MatchesSettingsSnapshot(SettingsFileSnapshot snapshot)
+    {
+        try
+        {
+            if (File.Exists(_paths.SettingsPath) != snapshot.Exists)
+            {
+                return false;
+            }
+
+            return !snapshot.Exists ||
+                string.Equals(
+                    File.ReadAllText(_paths.SettingsPath),
+                    snapshot.Contents,
+                    StringComparison.Ordinal);
+        }
+        catch (IOException)
+        {
+            return false;
+        }
+        catch (UnauthorizedAccessException)
+        {
+            return false;
+        }
+    }
+
     private static void DeleteIfExists(string path)
     {
         try
@@ -404,7 +470,10 @@ public sealed class AntigravityStatusLineInstaller
         }
     }
 
-    private static void WriteAtomically(string path, string contents)
+    private static void WriteAtomically(
+        string path,
+        string contents,
+        bool emitUtf8Bom = false)
     {
         var directory = Path.GetDirectoryName(path);
         if (!string.IsNullOrWhiteSpace(directory))
@@ -415,7 +484,7 @@ public sealed class AntigravityStatusLineInstaller
         var temporaryPath = path + "." + Guid.NewGuid().ToString("N") + ".tmp";
         try
         {
-            File.WriteAllText(temporaryPath, contents, new System.Text.UTF8Encoding(false));
+            File.WriteAllText(temporaryPath, contents, new System.Text.UTF8Encoding(emitUtf8Bom));
             File.Move(temporaryPath, path, overwrite: true);
         }
         finally
@@ -457,4 +526,6 @@ public sealed class AntigravityStatusLineInstaller
         bool PropertyPresent,
         string? PropertyName,
         JsonNode? Value);
+
+    private sealed record SettingsFileSnapshot(bool Exists, string? Contents);
 }

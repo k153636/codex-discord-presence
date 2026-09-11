@@ -71,6 +71,12 @@ internal static class AntigravityStatusLinePowerShellScript
             $MaxValueLength = 128
             $EventFilePath = {{quotedEventPath}}
 
+            function Exit-WithStatus([string] $Value) {
+                if ([string]::IsNullOrWhiteSpace($Value)) { $Value = 'Idling' }
+                [Console]::Out.Write($Value)
+                exit 0
+            }
+
             function Get-SafeText([object] $Value) {
                 if ($null -eq $Value -or $Value -isnot [string]) { return $null }
                 $clean = -join ($Value.ToCharArray() | Where-Object { -not [char]::IsControl($_) })
@@ -100,18 +106,34 @@ internal static class AntigravityStatusLinePowerShellScript
             }
 
             function Get-ProjectKey([object] $Object) {
-                $rawPath = Get-PropertyValue $Object 'cwd'
-                if ($null -eq $rawPath) {
-                    $workspace = Get-PropertyValue $Object 'workspace'
-                    $rawPath = Get-PropertyValue $workspace 'project_dir'
+                $workspace = Get-PropertyValue $Object 'workspace'
+                $rawPath = Get-PropertyValue $workspace 'project_dir'
+                if ($rawPath -isnot [string] -or [string]::IsNullOrWhiteSpace($rawPath)) {
+                    $rawPath = Get-PropertyValue $workspace 'current_dir'
+                }
+                if ($rawPath -isnot [string] -or [string]::IsNullOrWhiteSpace($rawPath)) {
+                    $rawPath = Get-PropertyValue $Object 'cwd'
                 }
                 if ($rawPath -isnot [string] -or [string]::IsNullOrWhiteSpace($rawPath)) { return $null }
                 try {
-                    $normalized = [IO.Path]::GetFullPath($rawPath.Trim())
+                    $candidate = $rawPath.Trim()
+                    $hasDriveRoot = $candidate.Length -ge 3 -and
+                        [char]::IsLetter($candidate[0]) -and
+                        $candidate[1] -eq ':' -and
+                        ($candidate[2] -eq '\' -or $candidate[2] -eq '/')
+                    $hasUncRoot = $candidate.StartsWith('\\', [StringComparison]::Ordinal)
+                    if (-not $hasDriveRoot -and -not $hasUncRoot) { return $null }
+                    $normalized = [IO.Path]::GetFullPath($candidate)
                     $root = [IO.Path]::GetPathRoot($normalized)
                     if ($normalized -ine $root) { $normalized = $normalized.TrimEnd('/', '\') }
                     $bytes = [Text.Encoding]::UTF8.GetBytes($normalized.ToUpperInvariant())
-                    return [Convert]::ToHexString([Security.Cryptography.SHA256]::HashData($bytes))
+                    $sha256 = [Security.Cryptography.SHA256]::Create()
+                    try {
+                        $hash = $sha256.ComputeHash($bytes)
+                        return (-join ($hash | ForEach-Object { $_.ToString('X2') }))
+                    } finally {
+                        $sha256.Dispose()
+                    }
                 } catch { return $null }
             }
 
@@ -167,7 +189,11 @@ internal static class AntigravityStatusLinePowerShellScript
                     if ($directory) { [IO.Directory]::CreateDirectory($directory) | Out-Null }
                     $temporaryPath = "$EventFilePath.$PID.tmp"
                     [IO.File]::WriteAllText($temporaryPath, (($lines -join "`n") + "`n"), [Text.UTF8Encoding]::new($false))
-                    [IO.File]::Move($temporaryPath, $EventFilePath, $true)
+                    if ([IO.File]::Exists($EventFilePath)) {
+                        [IO.File]::Replace($temporaryPath, $EventFilePath, $null)
+                    } else {
+                        [IO.File]::Move($temporaryPath, $EventFilePath)
+                    }
                 } finally {
                     if ($acquired) { $mutex.ReleaseMutex() }
                     $mutex.Dispose()
@@ -179,14 +205,13 @@ internal static class AntigravityStatusLinePowerShellScript
                 $buffer = New-Object byte[] 65536
                 $inputBytes = [Collections.Generic.List[byte]]::new()
                 while (($read = $inputStream.Read($buffer, 0, $buffer.Length)) -gt 0) {
-                    if ($inputBytes.Count + $read -gt $MaxPayloadBytes) { exit 0 }
+                    if ($inputBytes.Count + $read -gt $MaxPayloadBytes) { Exit-WithStatus 'Idling' }
                     for ($index = 0; $index -lt $read; $index++) { $inputBytes.Add($buffer[$index]) }
                 }
-                if ($inputBytes.Count -eq 0) { exit 0 }
+                if ($inputBytes.Count -eq 0) { Exit-WithStatus 'Idling' }
                 $payload = ([Text.UTF8Encoding]::new($false, $true)).GetString($inputBytes.ToArray()) | ConvertFrom-Json -ErrorAction Stop
-                if ($payload -is [array] -or $null -eq $payload) { exit 0 }
+                if ($payload -is [array] -or $null -eq $payload) { Exit-WithStatus 'Idling' }
                 $modelValue = Get-PropertyValue $payload 'model'
-                $workspaceValue = Get-PropertyValue $payload 'workspace'
                 $agentState = Get-SafeText (Get-PropertyValue $payload 'agent_state')
                 if ($null -eq $agentState) { $agentState = 'unknown' }
                 $model = [ordered]@{
@@ -218,12 +243,20 @@ internal static class AntigravityStatusLinePowerShellScript
                     project_key = Get-ProjectKey $payload
                 }
                 $line = $event | ConvertTo-Json -Depth 8 -Compress
-                if ([Text.Encoding]::UTF8.GetByteCount($line) -gt 262144) { exit 0 }
+                if ([Text.Encoding]::UTF8.GetByteCount($line) -gt 262144) { Exit-WithStatus 'Idling' }
                 Write-BoundedEvent $line
+                $statusLine = switch ($agentState.ToLowerInvariant()) {
+                    'thinking' { 'Thinking'; break }
+                    'working' { 'Working'; break }
+                    'tool_use' { 'Using tools'; break }
+                    'initializing' { 'Starting'; break }
+                    default { 'Idling' }
+                }
+                Exit-WithStatus $statusLine
             } catch {
-                exit 0
+                Exit-WithStatus 'Idling'
             }
-            exit 0
+            Exit-WithStatus 'Idling'
             """;
     }
 
