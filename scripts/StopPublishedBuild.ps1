@@ -9,10 +9,10 @@ $ErrorActionPreference = 'Stop'
 try {
     $stopped = Stop-CodexRpcProcess -RootDir $RootDir
     if ($stopped) {
-        Write-Host "Stopped K's AIcode presence."
+        Write-Host "Stopped K's Code Presence."
     }
     else {
-        Write-Host "No running K's AIcode presence instance was found."
+        Write-Host "No running K's Code Presence instance was found."
     }
 }
 catch {

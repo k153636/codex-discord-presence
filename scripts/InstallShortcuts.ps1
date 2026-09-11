@@ -84,8 +84,8 @@ try {
         New-Item -ItemType Directory -Force -Path $startupDir | Out-Null
     }
 
-    $shortcutName = "K's AIcode presence.lnk"
-    $legacyShortcutNames = @('CodePresence.lnk', 'Codex Discord RPC.lnk')
+    $shortcutName = "K's Code Presence.lnk"
+    $legacyShortcutNames = @("K's AIcode presence.lnk", 'CodePresence.lnk', 'Codex Discord RPC.lnk')
     $arguments = "--project `"$root`""
 
     New-AppShortcut -ShortcutPath (Join-Path $desktopDir $shortcutName) -TargetPath $publishExe -WorkingDirectory (Split-Path $publishExe) -Arguments $arguments
@@ -101,7 +101,7 @@ try {
         Migrate-AppShortcut -LegacyShortcutPath (Join-Path $startupDir $legacyShortcutName) -NewShortcutPath (Join-Path $startupDir $shortcutName) -ExpectedTargetPath $publishExe
     }
 
-    Write-Host "Installed shortcuts for K's AIcode presence."
+    Write-Host "Installed shortcuts for K's Code Presence."
     if ($Autostart) {
         Write-Host "Autostart shortcut created in the Windows Startup folder."
     }

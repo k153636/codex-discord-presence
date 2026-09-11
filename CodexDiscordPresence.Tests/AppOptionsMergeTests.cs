@@ -57,7 +57,7 @@ public sealed class AppOptionsMergeTests
             Assert.True(options.Providers[ProviderIds.Codex].Enabled);
             Assert.False(options.Providers[ProviderIds.Antigravity].Enabled);
             var button = Assert.Single(options.Presence.Buttons);
-            Assert.Equal("K's AIcode RPC", button.Label);
+            Assert.Equal("K's Code RPC", button.Label);
             Assert.Equal("https://k153636.github.io/codex-discord-presence/", button.Url);
         }
         finally
@@ -89,7 +89,7 @@ public sealed class AppOptionsMergeTests
             var options = AppOptions.Load(Array.Empty<string>(), paths);
 
             var button = Assert.Single(options.Presence.Buttons);
-            Assert.Equal("K's AIcode RPC", button.Label);
+            Assert.Equal("K's Code RPC", button.Label);
             Assert.Equal("https://k153636.github.io/codex-discord-presence/", button.Url);
         }
         finally

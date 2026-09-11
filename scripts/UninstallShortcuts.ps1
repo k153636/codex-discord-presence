@@ -20,14 +20,14 @@ try {
     $startMenuProgramsDir = Join-Path ([Environment]::GetFolderPath([Environment+SpecialFolder]::StartMenu)) 'Programs'
     $startupDir = [Environment]::GetFolderPath([Environment+SpecialFolder]::Startup)
 
-    $shortcutNames = @("K's AIcode presence.lnk", 'CodePresence.lnk', 'Codex Discord RPC.lnk')
+    $shortcutNames = @("K's Code Presence.lnk", "K's AIcode presence.lnk", 'CodePresence.lnk', 'Codex Discord RPC.lnk')
     foreach ($shortcutName in $shortcutNames) {
         Remove-AppShortcut -ShortcutPath (Join-Path $desktopDir $shortcutName)
         Remove-AppShortcut -ShortcutPath (Join-Path $startMenuProgramsDir $shortcutName)
         Remove-AppShortcut -ShortcutPath (Join-Path $startupDir $shortcutName)
     }
 
-    Write-Host "Removed K's AIcode presence shortcuts."
+    Write-Host "Removed K's Code Presence shortcuts."
 }
 catch {
     Write-Error $_.Exception.Message

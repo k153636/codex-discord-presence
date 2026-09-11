@@ -1,14 +1,14 @@
-# K's AIcode presence
+# K's Code Presence
 
-K's AIcode presence — AI coding status for Discord.
+K's Code Presence — AI coding status for Discord.
 
-K's AIcode presence is an unofficial Windows tray app for showing observable Codex CLI / Codex Desktop activity in Discord Rich Presence.
+K's Code Presence is an unofficial Windows tray app for showing observable Codex CLI / Codex Desktop activity in Discord Rich Presence.
 The app displays Codex's current work in Discord Rich Presence.
 Beyond generic “Thinking” or “Editing” labels, it can show reasoning summaries available from Codex sessions, active MCP servers, edited files, command execution, and research activity.
 
 <p>
   <a href="https://github.com/k153636/codex-discord-presence/releases/latest"><img src="https://img.shields.io/github/v/release/k153636/codex-discord-presence?display_name=tag&style=for-the-badge&label=Download" alt="Latest release"></a>
-  <a href="https://k153636.github.io/codex-discord-presence/"><img src="https://img.shields.io/badge/Website-K%27s%20AIcode%20presence-5865F2?style=for-the-badge&logo=googlechrome&logoColor=white" alt="K's AIcode presence website"></a>
+  <a href="https://k153636.github.io/codex-discord-presence/"><img src="https://img.shields.io/badge/Website-K%27s%20Code%20Presence-5865F2?style=for-the-badge&logo=googlechrome&logoColor=white" alt="K's Code Presence website"></a>
   <a href="https://github.com/k153636/codex-discord-presence"><img src="https://img.shields.io/badge/Source-GitHub-181717?style=for-the-badge&logo=github&logoColor=white" alt="Source repository"></a>
   <a href="https://github.com/k153636/codex-discord-presence/blob/main/LICENSE"><img src="https://img.shields.io/github/license/k153636/codex-discord-presence?style=for-the-badge&label=License" alt="MIT License"></a>
 </p>
@@ -25,7 +25,7 @@ Beyond generic “Thinking” or “Editing” labels, it can show reasoning sum
 - Party information for active subagents
 - Buttons such as a link to the project website
 
-K's AIcode presence updates Discord Rich Presence using available Codex session events and process signals.
+K's Code Presence updates Discord Rich Presence using available Codex session events and process signals.
 
 ## Codex analysis and state detection happen locally
 
@@ -53,7 +53,7 @@ The content shown in Discord may include project names, file names, and reasonin
 4. Run the executable.
 
 The app stays in the Windows system tray.
-Use the tray menu to enable or disable Discord Rich Presence, open the Dashboard, edit K's AIcode presence settings, or quit the app.
+Use the tray menu to enable or disable Discord Rich Presence, open the Dashboard, edit K's Code Presence settings, or quit the app.
 
 ## Codex CLI and Codex Desktop
 
