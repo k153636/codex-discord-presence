@@ -26,17 +26,17 @@ public sealed class PresenceTemplateRenderer
                 Apply(button.Label, values),
                 Apply(button.Url, values))).ToArray(),
             context.Session.StartedAt,
-            context.Codex.ActivityKind,
-            context.Codex.RunningCommandKind,
-            context.Codex.RunningCommandName)
+            context.Activity.ActivityKind,
+            context.Activity.RunningCommandKind,
+            context.Activity.RunningCommandName)
         {
             ProviderId = context.ProviderId,
-            PartySize = context.Codex.PartySize,
-            IsSuccessfulCompletion = context.Codex.IsSuccessfulCompletion,
-            IsError = context.Codex.IsError,
-            IsThinking = context.Codex.IsThinking,
-            WaitingStartedAt = context.Codex.ActivityKind is CodexActivityKind.Ready or CodexActivityKind.WaitingForInput
-                ? context.Codex.ActivityStartedAt ?? context.Codex.LastEffectiveSignalAt ?? context.Codex.LastObservedAt
+            PartySize = context.Activity.PartySize,
+            IsSuccessfulCompletion = context.Activity.IsSuccessfulCompletion,
+            IsError = context.Activity.IsError,
+            IsThinking = context.Activity.IsThinking,
+            WaitingStartedAt = context.Activity.ActivityKind is CodexActivityKind.Ready or CodexActivityKind.WaitingForInput
+                ? context.Activity.ActivityStartedAt ?? context.Activity.LastEffectiveSignalAt ?? context.Activity.LastObservedAt
                 : null
         };
     }
@@ -48,16 +48,16 @@ public sealed class PresenceTemplateRenderer
         var editingFileName = editingFile is null
             ? ""
             : EditedFileSelector.FormatForDisplay(context.Project, editingFile);
-        var isFileMutationActivity = context.Codex.ActivityKind is
+        var isFileMutationActivity = context.Activity.ActivityKind is
             (CodexActivityKind.ApplyingEdits or
              CodexActivityKind.CoordinatingChanges or
              CodexActivityKind.CreatingFiles or
              CodexActivityKind.DeletingFiles);
         var activityFileCount = !isFileMutationActivity
             ? editingFileSelection.TotalFileCount
-            : context.Codex.ActivityKind == CodexActivityKind.CoordinatingChanges && context.Codex.ActivityFilePaths.Count == 0
+            : context.Activity.ActivityKind == CodexActivityKind.CoordinatingChanges && context.Activity.ActivityFilePaths.Count == 0
                 ? Math.Max(editingFileSelection.TotalFileCount, context.Git.ChangedFileCount)
-                : Math.Max(editingFileSelection.TotalFileCount, context.Codex.ActivityFilePaths.Count);
+                : Math.Max(editingFileSelection.TotalFileCount, context.Activity.ActivityFilePaths.Count);
         var editingFileLabel = BuildEditingFileLabel(context, editingFileName, activityFileCount);
         var changedFilesText = FormatChangedFiles(context.Git.ChangedFileCount);
         var projectSizeText = FormatProjectSize(context.Project.TotalFileCount, context.Project.TotalLineCount);
@@ -69,12 +69,12 @@ public sealed class PresenceTemplateRenderer
             ? FormatRateLimitDetails(context.TokenUsage.RateLimit)
             : "";
         var goalModePrefix = FormatGoalModePrefix(context);
-        var stateLabel = _labelResolver.ResolveStateLabel(template, context, context.Codex.ActivityKind, activityFileCount);
-        if (context.Codex.ActivityKind == CodexActivityKind.AnalyzingProject &&
-            context.Codex.ActivityRepeatCount > 1 &&
-            string.IsNullOrWhiteSpace(context.Codex.LatestThinkingSummary))
+        var stateLabel = _labelResolver.ResolveStateLabel(template, context, context.Activity.ActivityKind, activityFileCount);
+        if (context.Activity.ActivityKind == CodexActivityKind.AnalyzingProject &&
+            context.Activity.ActivityRepeatCount > 1 &&
+            string.IsNullOrWhiteSpace(context.Activity.LatestThinkingSummary))
         {
-            stateLabel = $"{stateLabel} x{context.Codex.ActivityRepeatCount}";
+            stateLabel = $"{stateLabel} x{context.Activity.ActivityRepeatCount}";
         }
         var activityLine = PresenceActivityComposer.BuildActivityLine(
             context,
@@ -85,10 +85,15 @@ public sealed class PresenceTemplateRenderer
         var values = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
         {
             ["ModelName"] = context.ModelName,
-            ["CodexStatus"] = context.Codex.IsRunning ? "Codex running" : "Codex not detected",
-            ["CodexProcessName"] = context.Codex.ProcessName ?? "",
+            ["CodexStatus"] = context.ProviderId == ProviderIds.Antigravity
+                ? ""
+                : context.Activity.IsRunning ? "Codex running" : "Codex not detected",
+            ["CodexProcessName"] = context.ProviderId == ProviderIds.Antigravity
+                ? ""
+                : context.Activity.ProcessName ?? "",
             ["ProjectName"] = context.Project.Name,
             ["ProjectPath"] = context.Project.Path,
+            ["ExecutionMode"] = context.ExecutionMode ?? "",
             ["GoalModePrefix"] = goalModePrefix,
             ["EditingFileName"] = editingFileName,
             ["EditingFileLabel"] = editingFileLabel,
@@ -98,16 +103,16 @@ public sealed class PresenceTemplateRenderer
             ["ChangedFileCount"] = context.Git.ChangedFileCount.ToString(CultureInfo.InvariantCulture),
             ["ChangedFilesText"] = changedFilesText,
             ["ActivityLabel"] = stateLabel,
-            ["ActivityKind"] = context.Codex.ActivityKind.ToString(),
-            ["ActivityConfidence"] = context.Codex.Confidence.ToString(),
-            ["ActivityProvenance"] = context.Codex.ActivityProvenance.ToString(),
-            ["ActivityReason"] = context.Codex.ActivityReason,
+            ["ActivityKind"] = context.Activity.ActivityKind.ToString(),
+            ["ActivityConfidence"] = context.Activity.Confidence.ToString(),
+            ["ActivityProvenance"] = context.Activity.ActivityProvenance.ToString(),
+            ["ActivityReason"] = context.Activity.ActivityReason,
             ["ActivityLine"] = activityLine,
             ["ThinkingSummary"] = ThinkingSummaryFormatter.FormatForCurrentReasoning(
-                context.Codex.LatestThinkingSummary,
-                context.Codex.LatestActivityEventKind) ?? "",
-            ["RunningCommandName"] = ResolveRunningCommandName(context.Codex.RunningCommandName, context.Codex.RunningCommandKind),
-            ["RunningCommandKind"] = context.Codex.RunningCommandKind.ToString(),
+                context.Activity.LatestThinkingSummary,
+                context.Activity.LatestActivityEventKind) ?? "",
+            ["RunningCommandName"] = ResolveRunningCommandName(context.Activity.RunningCommandName, context.Activity.RunningCommandKind),
+            ["RunningCommandKind"] = context.Activity.RunningCommandKind.ToString(),
             ["ProjectFileCount"] = context.Project.TotalFileCount.ToString(CultureInfo.InvariantCulture),
             ["ProjectLineCount"] = context.Project.TotalLineCount.ToString(CultureInfo.InvariantCulture),
             ["ProjectSizeText"] = projectSizeText,
@@ -132,15 +137,15 @@ public sealed class PresenceTemplateRenderer
         IReadOnlyDictionary<string, string> values)
     {
         var defaultDetails = Apply(template.Details, values);
-        if (context.Codex.ActivityKind != CodexActivityKind.Ready ||
+        if (context.Activity.ActivityKind != CodexActivityKind.Ready ||
             (string.IsNullOrWhiteSpace(values["Cost"]) && string.IsNullOrWhiteSpace(values["BillingType"])))
         {
             return defaultDetails;
         }
 
-        var waitingStartedAt = context.Codex.ActivityStartedAt ??
-            context.Codex.LastEffectiveSignalAt ??
-            context.Codex.LastObservedAt;
+        var waitingStartedAt = context.Activity.ActivityStartedAt ??
+            context.Activity.LastEffectiveSignalAt ??
+            context.Activity.LastObservedAt;
         if (!waitingStartedAt.HasValue)
         {
             return defaultDetails;
@@ -177,13 +182,13 @@ public sealed class PresenceTemplateRenderer
             return "";
         }
 
-        if (context.Codex.ActivityKind is not (CodexActivityKind.ApplyingEdits or CodexActivityKind.CoordinatingChanges or CodexActivityKind.CreatingFiles or CodexActivityKind.DeletingFiles))
+        if (context.Activity.ActivityKind is not (CodexActivityKind.ApplyingEdits or CodexActivityKind.CoordinatingChanges or CodexActivityKind.CreatingFiles or CodexActivityKind.DeletingFiles))
         {
             return "";
         }
 
         var label = $"Editing {editingFileName}";
-        if (context.Codex.ActivityKind == CodexActivityKind.ApplyingEdits && activityFileCount >= 4)
+        if (context.Activity.ActivityKind == CodexActivityKind.ApplyingEdits && activityFileCount >= 4)
         {
             label += $" + {activityFileCount - 1} files";
         }
@@ -281,7 +286,7 @@ public sealed class PresenceTemplateRenderer
 
     private static string FormatGoalModePrefix(PresenceContext context)
     {
-        var collaborationMode = context.Codex.CollaborationMode;
+        var collaborationMode = context.Activity.CollaborationMode;
         if (string.IsNullOrWhiteSpace(collaborationMode))
         {
             return "";
@@ -289,9 +294,9 @@ public sealed class PresenceTemplateRenderer
 
         return collaborationMode.Trim().ToLowerInvariant() switch
         {
-            "plan" when IsImplementationActivity(context.Codex.ActivityKind) => "Code mode:",
+            "plan" when IsImplementationActivity(context.Activity.ActivityKind) => "Code mode:",
             "plan" => "Plan mode:",
-            "goal" when IsImplementationActivity(context.Codex.ActivityKind) => "Code mode:",
+            "goal" when IsImplementationActivity(context.Activity.ActivityKind) => "Code mode:",
             "goal" => "Plan mode:",
             _ => ""
         };

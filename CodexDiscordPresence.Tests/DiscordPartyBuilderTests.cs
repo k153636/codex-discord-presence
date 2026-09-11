@@ -1,3 +1,4 @@
+using CodexDiscordPresence;
 using DiscordRPC;
 
 namespace CodexDiscordPresence.Tests;
@@ -18,10 +19,26 @@ public sealed class DiscordPartyBuilderTests
     }
 
     [Fact]
+    public void Create_OmitsSoloPartyByDefault()
+    {
+        Assert.Null(DiscordPartyBuilder.Create(1, "party-id"));
+    }
+
+    [Fact]
     public void Create_ReturnsNullWhenPartySizeIsUnavailable()
     {
         Assert.Null(DiscordPartyBuilder.Create(null, "stable-party-id"));
         Assert.Null(DiscordPartyBuilder.Create(0, "stable-party-id"));
         Assert.Null(DiscordPartyBuilder.Create(1, "stable-party-id"));
+    }
+
+    [Fact]
+    public void Create_AllowsAntigravitySoloPartyAsOneOfOne()
+    {
+        var party = DiscordPartyBuilder.Create(1, "party-id", includeSolo: true);
+
+        Assert.NotNull(party);
+        Assert.Equal(1, party!.Size);
+        Assert.Equal(1, party.Max);
     }
 }

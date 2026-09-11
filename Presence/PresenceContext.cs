@@ -1,14 +1,52 @@
 namespace CodexDiscordPresence;
 
+public interface IPresenceActivitySnapshot
+{
+    bool IsRunning { get; }
+    string? ProcessName { get; }
+    bool IsThinking { get; }
+    CodexActivityKind ActivityKind { get; }
+    ActivityConfidence Confidence { get; }
+    ActivityProvenance ActivityProvenance { get; }
+    string ActivityReason { get; }
+    string? CollaborationMode { get; }
+    DateTime? LastTaskStartedAt { get; }
+    DateTime? ActivityStartedAt { get; }
+    DateTime? LastObservedAt { get; }
+    RunningCommandKind RunningCommandKind { get; }
+    string RunningCommandName { get; }
+    string? LastDirectToolFilePath { get; }
+    DateTime? LastDirectToolFileAt { get; }
+    string? ActiveToolFilePath { get; }
+    bool IsMcpOperation { get; }
+    string? McpServerName { get; }
+    IReadOnlyList<string> ActiveMcpServerNames { get; }
+    CodexActivityEventKind? LatestActivityEventKind { get; }
+    IReadOnlyList<string> ActivityFilePaths { get; }
+    int PendingOperationCount { get; }
+    int PendingMutationCount { get; }
+    string? ActiveTurnId { get; }
+    DateTime? LastEffectiveSignalAt { get; }
+    string? LatestThinkingSummary { get; }
+    int? PartySize { get; }
+    bool IsSuccessfulCompletion { get; }
+    bool IsError { get; }
+    bool HasDirectActivityEvidence { get; }
+    IReadOnlyList<RecentProjectFileSnapshot> RecentEditedFiles { get; }
+    int ActivityRepeatCount { get; }
+    string? ProviderState { get; }
+}
+
 public sealed record PresenceContext(
     string ModelName,
-    CodexProcessSnapshot Codex,
+    IPresenceActivitySnapshot Activity,
     ProjectSnapshot Project,
     GitSnapshot Git,
     SessionSnapshot Session,
     TokenUsageSnapshot TokenUsage)
 {
     public string? ProviderId { get; init; }
+    public string? ExecutionMode { get; init; }
 }
 
 public enum CodexProcessDetectionKind
@@ -21,7 +59,7 @@ public enum CodexProcessDetectionKind
     SessionActivity = 5
 }
 
-public sealed partial record CodexProcessSnapshot(bool IsRunning, string? ProcessName, bool IsThinking);
+public sealed partial record CodexProcessSnapshot(bool IsRunning, string? ProcessName, bool IsThinking) : IPresenceActivitySnapshot;
 
 public enum CodexActivityKind
 {
@@ -80,6 +118,7 @@ public sealed partial record CodexProcessSnapshot
 {
     internal SessionInspection? SessionInspection { get; init; }
     public CodexActivityKind? DetectedActivityKind { get; init; }
+    public string? ProviderState => null;
     public ActivityConfidence Confidence { get; init; } = ActivityConfidence.High;
     public ActivityProvenance ActivityProvenance { get; init; } = ActivityProvenance.Inferred;
     public string ActivityReason { get; init; } = "";
@@ -96,8 +135,8 @@ public sealed partial record CodexProcessSnapshot
     public string? ActiveToolFilePath { get; init; }
     public bool IsMcpOperation { get; init; }
     public string? McpServerName { get; init; }
-    internal IReadOnlyList<string> ActiveMcpServerNames { get; init; } = Array.Empty<string>();
-    internal CodexActivityEventKind? LatestActivityEventKind { get; init; }
+    public IReadOnlyList<string> ActiveMcpServerNames { get; init; } = Array.Empty<string>();
+    public CodexActivityEventKind? LatestActivityEventKind { get; init; }
     public IReadOnlyList<string> ActivityFilePaths { get; init; } = Array.Empty<string>();
     public int PendingOperationCount { get; init; }
     public int PendingMutationCount { get; init; }
@@ -107,6 +146,7 @@ public sealed partial record CodexProcessSnapshot
     public int? PartySize { get; init; }
     public bool IsSuccessfulCompletion { get; init; }
     public bool IsError { get; init; }
+    public bool HasDirectActivityEvidence { get; init; }
     internal CodexTurnLifecycle TurnLifecycle { get; init; } = CodexTurnLifecycle.None;
     public IReadOnlyList<RecentProjectFileSnapshot> RecentEditedFiles { get; init; } = Array.Empty<RecentProjectFileSnapshot>();
     public int ActivityRepeatCount { get; init; } = 1;

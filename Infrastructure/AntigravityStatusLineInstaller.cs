@@ -123,11 +123,11 @@ public sealed class AntigravityStatusLineInstaller
             }
         }
 
-        if (propertyName is not null && !IsDisabledStatusLine(existingValue))
+        if (propertyName is not null)
         {
             return Result(
                 AntigravityStatusLineOperationStatus.Conflict,
-                "An active user-owned statusLine already exists.");
+                "A user-owned statusLine already exists and was left unchanged.");
         }
 
         if (File.Exists(_paths.BackupPath) || HasOwnedArtifactsWithoutBackup())
@@ -284,24 +284,6 @@ public sealed class AntigravityStatusLineInstaller
         }
 
         return string.Equals(command, _command.Command, StringComparison.OrdinalIgnoreCase);
-    }
-
-    private static bool IsDisabledStatusLine(JsonNode? value)
-    {
-        if (value is null)
-        {
-            return true;
-        }
-
-        if (value is not JsonObject statusLine)
-        {
-            return false;
-        }
-
-        var enabled = FindProperty(statusLine, "enabled");
-        return enabled is JsonValue jsonValue &&
-            jsonValue.TryGetValue<bool>(out var isEnabled) &&
-            !isEnabled;
     }
 
     private bool HasOwnedArtifacts() =>

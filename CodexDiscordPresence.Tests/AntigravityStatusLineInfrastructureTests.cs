@@ -36,6 +36,8 @@ public sealed class AntigravityStatusLineInfrastructureTests
 
         Assert.Equal("my-project", latest?.Workspace?.WorkspaceName);
         Assert.Equal("gemini-3.5-flash-high", latest?.Model?.Id);
+        Assert.Equal(ProviderExecutionMode.Planning, latest?.ExecutionMode);
+        Assert.Equal(149318, latest?.ContextWindow?.TotalTokens);
         var persisted = File.ReadAllText(fixture.EventFilePath);
         Assert.DoesNotContain("redacted@example.invalid", persisted, StringComparison.Ordinal);
         Assert.DoesNotContain("transcript.jsonl", persisted, StringComparison.Ordinal);
@@ -111,7 +113,36 @@ public sealed class AntigravityStatusLineInfrastructureTests
     }
 
     [Fact]
-    public void Installer_InstallAndUninstall_PreservesUnknownSettingsAndRestoresUserStatusLine()
+    public void EventStore_ReadLatestByConversation_KeepsOnlyNewestObservationPerConversation()
+    {
+        using var fixture = new TemporaryFixture();
+        var store = new AntigravityStatusLineEventStore(fixture.EventFilePath);
+        var firstConversationOld = CreateObservation(
+            "conversation-a",
+            DateTimeOffset.Parse("2026-09-12T01:00:00Z"));
+        var firstConversationNew = CreateObservation(
+            "conversation-a",
+            DateTimeOffset.Parse("2026-09-12T01:01:00Z"));
+        var secondConversation = CreateObservation(
+            "conversation-b",
+            DateTimeOffset.Parse("2026-09-12T01:02:00Z"));
+
+        Assert.True(store.TryAppend(firstConversationOld));
+        Assert.True(store.TryAppend(firstConversationNew));
+        Assert.True(store.TryAppend(secondConversation));
+
+        Assert.True(store.TryReadLatestByConversation(null, out var observations));
+        Assert.Equal(2, observations.Count);
+        Assert.Equal(
+            ["conversation-b", "conversation-a"],
+            observations.Select(observation => observation.ConversationId!).ToArray());
+        Assert.Equal(
+            firstConversationNew.ObservedAtUtc,
+            observations.Single(observation => observation.ConversationId == "conversation-a").ObservedAtUtc);
+    }
+
+    [Fact]
+    public void Installer_ExistingDisabledStatusLine_ReturnsConflictWithoutWritingFiles()
     {
         using var fixture = new TemporaryFixture();
         File.WriteAllText(
@@ -121,31 +152,16 @@ public sealed class AntigravityStatusLineInfrastructureTests
 
         var install = installer.Install();
 
-        Assert.Equal(AntigravityStatusLineOperationStatus.Installed, install.Status);
-        using (var settings = JsonDocument.Parse(File.ReadAllText(fixture.SettingsPath)))
-        {
-            Assert.True(settings.RootElement.GetProperty("futureProperty").GetProperty("keep").GetBoolean());
-            Assert.Contains(
-                fixture.Paths.ScriptPath,
-                settings.RootElement.GetProperty("StatusLine").GetProperty("command").GetString(),
-                StringComparison.Ordinal);
-        }
-
-        Assert.True(File.Exists(fixture.Paths.BackupPath));
-        var scriptBytes = File.ReadAllBytes(fixture.Paths.ScriptPath);
-        Assert.True(scriptBytes.Length >= 3);
-        Assert.Equal(0xEF, scriptBytes[0]);
-        Assert.Equal(0xBB, scriptBytes[1]);
-        Assert.Equal(0xBF, scriptBytes[2]);
-        var uninstall = installer.Uninstall();
-        Assert.Equal(AntigravityStatusLineOperationStatus.Restored, uninstall.Status);
-        using var restored = JsonDocument.Parse(File.ReadAllText(fixture.SettingsPath));
+        Assert.Equal(AntigravityStatusLineOperationStatus.Conflict, install.Status);
+        Assert.Contains("left unchanged", install.Message, StringComparison.OrdinalIgnoreCase);
+        using var settings = JsonDocument.Parse(File.ReadAllText(fixture.SettingsPath));
+        Assert.True(settings.RootElement.GetProperty("futureProperty").GetProperty("keep").GetBoolean());
         Assert.Equal(
             "other-tool --status",
-            restored.RootElement.GetProperty("StatusLine").GetProperty("command").GetString());
+            settings.RootElement.GetProperty("StatusLine").GetProperty("command").GetString());
+        Assert.False(File.Exists(fixture.Paths.BackupPath));
         Assert.False(File.Exists(fixture.Paths.ScriptPath));
         Assert.False(File.Exists(fixture.Paths.EventFilePath));
-        Assert.False(File.Exists(fixture.Paths.BackupPath));
     }
 
     [Fact]
@@ -316,6 +332,9 @@ public sealed class AntigravityStatusLineInfrastructureTests
         Assert.Contains("ConvertFrom-Json", result.ScriptContent, StringComparison.Ordinal);
         Assert.Contains("Write-BoundedEvent", result.ScriptContent, StringComparison.Ordinal);
         Assert.Contains("Exit-WithStatus $statusLine", result.ScriptContent, StringComparison.Ordinal);
+        Assert.DoesNotContain("transcript", result.ScriptContent, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("task_count", result.ScriptContent, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("session_id", result.ScriptContent, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("Write-Output", result.ScriptContent, StringComparison.Ordinal);
     }
 
@@ -374,13 +393,15 @@ public sealed class AntigravityStatusLineInfrastructureTests
         Assert.Contains("Windows only", result.Error, StringComparison.Ordinal);
     }
 
-    private static ProviderObservation CreateObservation(string modelId) => new(
+    private static ProviderObservation CreateObservation(
+        string modelId,
+        DateTimeOffset? observedAt = null) => new(
         ProviderObservationSource.AntigravityCli,
-        DateTimeOffset.UtcNow,
+        observedAt ?? DateTimeOffset.UtcNow,
         ProviderAgentState.Working,
         new ProviderModelObservation(modelId, "Test model"),
         new ProviderWorkspaceObservation(null, "workspace", "project"),
-        "conversation");
+        modelId);
 
     private static (int ExitCode, string Output, string Error) ExecutePowerShellScript(
         string scriptPath,
@@ -430,6 +451,11 @@ public sealed class AntigravityStatusLineInfrastructureTests
             "project_dir": "/home/redacted/my-project"
           },
           "agent_state": "working",
+          "execution_mode": "planning",
+          "context_window": {
+            "total_input_tokens": 88244,
+            "total_output_tokens": 61074
+          },
           "email": "redacted@example.invalid"
         }
         """;

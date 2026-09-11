@@ -45,6 +45,10 @@ public sealed class AntigravityStatusLinePayloadParserTests
         Assert.Equal(observedAt.ToUniversalTime(), result.ObservedAtUtc);
         Assert.Equal(ProviderAgentState.Working, result.AgentState);
         Assert.Equal("conversation-id", result.ConversationId);
+        Assert.Equal(ProviderExecutionMode.Planning, result.ExecutionMode);
+        Assert.Equal(88244, result.ContextWindow?.TotalInputTokens);
+        Assert.Equal(61074, result.ContextWindow?.TotalOutputTokens);
+        Assert.Equal(149318, result.ContextWindow?.TotalTokens);
         Assert.Equal("gemini-3.5-flash-high", result.Model?.Id);
         Assert.Equal("Gemini 3.5 Flash (High)", result.Model?.DisplayName);
         var workspace = Assert.IsType<ProviderWorkspaceObservation>(result.Workspace);
@@ -60,7 +64,7 @@ public sealed class AntigravityStatusLinePayloadParserTests
     }
 
     [Fact]
-    public void TryParse_MissingConversationId_UsesSessionIdAlias()
+    public void TryParse_MissingConversationId_DoesNotUseSessionIdAsConversationId()
     {
         const string payload = """
             {
@@ -76,7 +80,7 @@ public sealed class AntigravityStatusLinePayloadParserTests
             out var observation);
 
         Assert.True(parsed);
-        Assert.Equal("session-alias", observation?.ConversationId);
+        Assert.Null(observation?.ConversationId);
         Assert.Equal(ProviderAgentState.Idle, observation?.AgentState);
     }
 

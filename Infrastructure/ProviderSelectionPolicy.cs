@@ -7,7 +7,8 @@ internal sealed record ProviderSelectionCandidate(
     DateTimeOffset? LastObservedAtUtc,
     bool HasProjectPath,
     bool IsProjectMatch,
-    int DetectionStrength = 0);
+    int DetectionStrength = 0,
+    bool IsActive = false);
 
 internal static class ProviderSelectionPolicy
 {

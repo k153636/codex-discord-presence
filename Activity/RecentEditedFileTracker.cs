@@ -75,6 +75,25 @@ internal sealed class RecentEditedFileTracker
         return _lastStableEditedFiles;
     }
 
+    internal void PrimeBaseline(ProjectSnapshot projectSnapshot)
+    {
+        ArgumentNullException.ThrowIfNull(projectSnapshot);
+
+        var currentProjectPath = NormalizePath(projectSnapshot.Path);
+        if (!string.Equals(currentProjectPath, _lastProjectPath, StringComparison.OrdinalIgnoreCase))
+        {
+            _lastProjectPath = currentProjectPath;
+            _lastObservedEditedFiles.Clear();
+        }
+
+        foreach (var file in projectSnapshot.RecentFiles)
+        {
+            _lastObservedEditedFiles[NormalizePath(file.Path)] = file.LastWriteTimeUtc;
+        }
+
+        _lastStableEditedFiles = Array.Empty<RecentProjectFileSnapshot>();
+    }
+
     private static bool IsFresh(DateTime timestampUtc, DateTime nowUtc, TimeSpan freshnessWindow)
     {
         var elapsed = nowUtc - timestampUtc;

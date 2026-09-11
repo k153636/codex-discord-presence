@@ -150,7 +150,7 @@ public sealed class AppOptionsMergeTests
             Assert.NotNull(options.DiscordCli);
             Assert.Equal("1516846793873424474", options.DiscordCli!.ClientId);
             Assert.Equal("codexcli_logo1", options.DiscordCli.LargeImageKey);
-            Assert.Equal("{GoalModePrefix} {ModelName} \u2022 {Tokens}", options.Presence.Details);
+            Assert.Equal("{GoalModePrefix} {ModelName} \u2022 {ExecutionMode} \u2022 {Tokens}", options.Presence.Details);
             Assert.Equal("Working", options.Presence.WorkingText);
             Assert.Equal("Researching", options.Presence.ResearchingText);
             Assert.Equal("Waiting", options.Presence.WaitingText);

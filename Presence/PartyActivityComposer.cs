@@ -15,12 +15,12 @@ internal static class PartyActivityComposer
             ? activityLine[LegacyMainAgentPrefix.Length..]
             : activityLine;
 
-        if (context.Codex.PartySize is not > 1)
+        if (context.Activity.PartySize is not > 1)
         {
             return normalizedActivityLine;
         }
 
-        var partyLabel = $"{context.Codex.PartySize}/{context.Codex.PartySize} ";
+        var partyLabel = $"{context.Activity.PartySize}/{context.Activity.PartySize} ";
         return normalizedActivityLine.StartsWith(partyLabel, StringComparison.Ordinal)
             ? normalizedActivityLine
             : partyLabel + normalizedActivityLine;

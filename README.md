@@ -2,8 +2,8 @@
 
 K's Code Presence — AI coding status for Discord.
 
-K's Code Presence is an unofficial Windows tray app for showing observable Codex CLI / Codex Desktop activity in Discord Rich Presence.
-The app displays Codex's current work in Discord Rich Presence.
+K's Code Presence is an unofficial Windows tray app for showing observable Codex CLI / Codex Desktop and Antigravity CLI activity in Discord Rich Presence.
+The app displays the currently selected AI coding tool's work in Discord Rich Presence.
 Beyond generic “Thinking” or “Editing” labels, it can show reasoning summaries available from Codex sessions, active MCP servers, edited files, command execution, and research activity.
 
 <p>
@@ -25,7 +25,7 @@ Beyond generic “Thinking” or “Editing” labels, it can show reasoning sum
 - Party information for active subagents
 - Buttons such as a link to the project website
 
-K's Code Presence updates Discord Rich Presence using available Codex session events and process signals.
+K's Code Presence updates Discord Rich Presence using available Codex session events and process signals, plus the Antigravity CLI statusLine payload when that provider is enabled.
 
 ## Codex analysis and state detection happen locally
 
@@ -43,7 +43,7 @@ The content shown in Discord may include project names, file names, and reasonin
 - Windows x64
 - .NET 9 Desktop Runtime
 - Discord Desktop
-- Codex CLI or Codex Desktop
+- Codex CLI, Codex Desktop, or Antigravity CLI
 
 ## Installation
 
@@ -60,6 +60,12 @@ Use the tray menu to enable or disable Discord Rich Presence, open the Dashboard
 The app supports separate detection settings for Desktop and CLI.
 
 It checks the running Codex process, session logs, and CLI command-line information to update the presence for the environment currently in use.
+
+## Antigravity CLI
+
+Antigravity support is opt-in from the Dashboard. The integration reads only the official statusLine JSON payload, groups observations by `conversation_id`, and treats `thinking`, `working`, and `tool_use` as active states. It does not read the Antigravity transcript or use `task_count` as party size; Antigravity presence uses a temporary `1/1` party.
+
+If Antigravity already has a user-owned `statusLine` setting, the application reports a conflict and leaves that setting unchanged.
 
 ## More information
 

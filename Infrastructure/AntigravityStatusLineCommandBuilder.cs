@@ -86,6 +86,19 @@ internal static class AntigravityStatusLinePowerShellScript
                 return $clean
             }
 
+            function Get-SafeNonNegativeInt64([object] $Value) {
+                if ($null -eq $Value) { return $null }
+                try {
+                    $parsed = [long] 0
+                    $style = [Globalization.NumberStyles]::Integer
+                    $culture = [Globalization.CultureInfo]::InvariantCulture
+                    if ([long]::TryParse([string] $Value, $style, $culture, [ref] $parsed) -and $parsed -ge 0) {
+                        return $parsed
+                    }
+                } catch { }
+                return $null
+            }
+
             function Get-PropertyValue([object] $Object, [string] $Name) {
                 if ($null -eq $Object) { return $null }
                 $property = $Object.PSObject.Properties[$Name]
@@ -214,6 +227,17 @@ internal static class AntigravityStatusLinePowerShellScript
                 $modelValue = Get-PropertyValue $payload 'model'
                 $agentState = Get-SafeText (Get-PropertyValue $payload 'agent_state')
                 if ($null -eq $agentState) { $agentState = 'unknown' }
+                $executionMode = Get-SafeText (Get-PropertyValue $payload 'execution_mode')
+                if ($executionMode -notin @('planning', 'fast')) { $executionMode = $null }
+                if ($null -ne $executionMode) { $executionMode = $executionMode.ToLowerInvariant() }
+                $contextWindowValue = Get-PropertyValue $payload 'context_window'
+                $contextWindow = [ordered]@{
+                    total_input_tokens = Get-SafeNonNegativeInt64 (Get-PropertyValue $contextWindowValue 'total_input_tokens')
+                    total_output_tokens = Get-SafeNonNegativeInt64 (Get-PropertyValue $contextWindowValue 'total_output_tokens')
+                }
+                if ($null -eq $contextWindow.total_input_tokens -and $null -eq $contextWindow.total_output_tokens) {
+                    $contextWindow = $null
+                }
                 $model = [ordered]@{
                     id = Get-SafeText (Get-PropertyValue $modelValue 'id')
                     display_name = Get-SafeText (Get-PropertyValue $modelValue 'display_name')
@@ -229,9 +253,6 @@ internal static class AntigravityStatusLinePowerShellScript
                 if ($null -eq $workspace.workspace_name -and $null -eq $workspace.project_name) { $workspace = $null }
                 $conversationId = Get-SafeText (Get-PropertyValue $payload 'conversation_id')
                 if ($null -ne $conversationId -and ($conversationId.Contains('/') -or $conversationId.Contains('\'))) { $conversationId = $null }
-                if ($null -eq $conversationId) {
-                    $conversationId = Get-SafeText (Get-PropertyValue $payload 'session_id')
-                }
                 $event = [ordered]@{
                     schema_version = 1
                     source = 'antigravity'
@@ -240,6 +261,8 @@ internal static class AntigravityStatusLinePowerShellScript
                     model = $model
                     workspace = $workspace
                     conversation_id = $conversationId
+                    execution_mode = $executionMode
+                    context_window = $contextWindow
                     project_key = Get-ProjectKey $payload
                 }
                 $line = $event | ConvertTo-Json -Depth 8 -Compress

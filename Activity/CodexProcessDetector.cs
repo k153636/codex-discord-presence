@@ -137,6 +137,10 @@ public sealed class CodexProcessDetector
             PartySize = sessionInspection?.PartySize ?? 1,
             IsSuccessfulCompletion = isSuccessfulCompletion,
             IsError = activityState?.Lifecycle == CodexTurnLifecycle.Failed,
+            HasDirectActivityEvidence = HasDirectActivityEvidence(
+                activity,
+                activityState,
+                sessionInspection),
             TurnLifecycle = activityState?.Lifecycle ?? CodexTurnLifecycle.None,
             ObservedProjectPath = sessionInspection?.ProjectPath,
             RecentEditedFiles = recentEditedFiles
@@ -189,6 +193,34 @@ public sealed class CodexProcessDetector
     public bool DetermineIfThinking(string? projectPath = null)
     {
         return GetSnapshot(projectPath).IsThinking;
+    }
+
+    internal void PrimeRecentEditedFileBaseline(ProjectSnapshot projectSnapshot)
+    {
+        ArgumentNullException.ThrowIfNull(projectSnapshot);
+        _recentEditedFileTracker.PrimeBaseline(projectSnapshot);
+    }
+
+    private bool HasDirectActivityEvidence(
+        CodexActivityKind activity,
+        CodexActivityState? activityState,
+        SessionInspection? sessionInspection)
+    {
+        if (activityState is not null)
+        {
+            return true;
+        }
+
+        return activity switch
+        {
+            CodexActivityKind.AnalyzingProject or CodexActivityKind.Planning =>
+                sessionInspection?.HasTaskStarted == true &&
+                sessionInspection.LastTaskStartedAt.HasValue &&
+                DateTime.UtcNow - sessionInspection.LastTaskStartedAt.Value <=
+                TimeSpan.FromMinutes(Math.Max(1, _presenceOptions.ThinkingStaleTimeoutMinutes)),
+            CodexActivityKind.RunningCommand => sessionInspection?.HasRunningCommand == true,
+            _ => false
+        };
     }
 
     private SessionInspection? InspectRecentSessions(

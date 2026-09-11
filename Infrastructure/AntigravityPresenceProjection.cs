@@ -1,10 +1,49 @@
 namespace CodexDiscordPresence;
 
 internal sealed record AntigravityPresenceProjectionResult(
-    CodexProcessSnapshot Snapshot,
+    AntigravityActivitySnapshot Activity,
     string ModelName,
     string? WorkspaceName,
-    string? ConversationId);
+    string? ConversationId,
+    string? ExecutionMode,
+    long? TotalTokens);
+
+internal sealed record AntigravityActivitySnapshot(
+    bool IsRunning,
+    bool IsThinking,
+    CodexActivityKind ActivityKind,
+    string ProviderState,
+    DateTime? ActivityStartedAt,
+    DateTime? LastObservedAt,
+    DateTime? LastEffectiveSignalAt,
+    string? ActiveTurnId) : IPresenceActivitySnapshot
+{
+    public string? ProcessName => null;
+    public ActivityConfidence Confidence => ActivityConfidence.High;
+    public ActivityProvenance ActivityProvenance => ActivityProvenance.Observed;
+    public string ActivityReason => "Antigravity CLI status-line agent state";
+    public string? CollaborationMode => null;
+    public DateTime? LastTaskStartedAt => null;
+    public RunningCommandKind RunningCommandKind => RunningCommandKind.Unknown;
+    public string RunningCommandName => "";
+    public string? LastDirectToolFilePath => null;
+    public DateTime? LastDirectToolFileAt => null;
+    public string? ActiveToolFilePath => null;
+    public bool IsMcpOperation => false;
+    public string? McpServerName => null;
+    public IReadOnlyList<string> ActiveMcpServerNames => Array.Empty<string>();
+    public CodexActivityEventKind? LatestActivityEventKind => null;
+    public IReadOnlyList<string> ActivityFilePaths => Array.Empty<string>();
+    public int PendingOperationCount => 0;
+    public int PendingMutationCount => 0;
+    public string? LatestThinkingSummary => null;
+    public int? PartySize => 1;
+    public bool IsSuccessfulCompletion => false;
+    public bool IsError => false;
+    public bool HasDirectActivityEvidence => true;
+    public IReadOnlyList<RecentProjectFileSnapshot> RecentEditedFiles => Array.Empty<RecentProjectFileSnapshot>();
+    public int ActivityRepeatCount => 1;
+}
 
 internal static class AntigravityPresenceProjection
 {
@@ -19,27 +58,36 @@ internal static class AntigravityPresenceProjection
         var state = MapState(observation.AgentState);
         var conversationId = NormalizeIdentifier(observation.ConversationId);
 
-        var snapshot = new CodexProcessSnapshot(
+        var activity = new AntigravityActivitySnapshot(
             IsRunning: true,
-            ProcessName: null,
-            IsThinking: state.IsThinking)
-        {
-            DetectedActivityKind = state.ActivityKind,
-            Confidence = ActivityConfidence.High,
-            ActivityProvenance = ActivityProvenance.Observed,
-            ActivityReason = "Provider status observation",
-            LastObservedAt = observedAtUtc,
-            ActivityStartedAt = observedAtUtc,
-            LastEffectiveSignalAt = observedAtUtc,
-            ActiveTurnId = conversationId,
-            DetectionKind = CodexProcessDetectionKind.SessionActivity
-        };
+            IsThinking: state.IsThinking,
+            ActivityKind: state.ActivityKind,
+            ProviderState: ToProviderState(observation.AgentState),
+            ActivityStartedAt: observedAtUtc,
+            LastObservedAt: observedAtUtc,
+            LastEffectiveSignalAt: observedAtUtc,
+            ActiveTurnId: conversationId);
 
         return new AntigravityPresenceProjectionResult(
-            snapshot,
+            activity,
             ResolveModelName(observation.Model),
             observation.Workspace?.WorkspaceName,
-            conversationId);
+            conversationId,
+            FormatExecutionMode(observation.ExecutionMode),
+            observation.ContextWindow?.TotalTokens);
+    }
+
+    private static string ToProviderState(ProviderAgentState agentState)
+    {
+        return agentState switch
+        {
+            ProviderAgentState.Idle => "idle",
+            ProviderAgentState.Thinking => "thinking",
+            ProviderAgentState.Working => "working",
+            ProviderAgentState.ToolUse => "tool_use",
+            ProviderAgentState.Initializing => "initializing",
+            _ => "unknown"
+        };
     }
 
     private static (CodexActivityKind ActivityKind, bool IsThinking) MapState(
@@ -48,11 +96,21 @@ internal static class AntigravityPresenceProjection
         return agentState switch
         {
             ProviderAgentState.Thinking => (CodexActivityKind.AnalyzingProject, true),
-            ProviderAgentState.Working => (CodexActivityKind.ApplyingEdits, false),
+            ProviderAgentState.Working => (CodexActivityKind.AnalyzingProject, false),
             ProviderAgentState.ToolUse => (CodexActivityKind.RunningCommand, false),
             ProviderAgentState.Initializing => (CodexActivityKind.AnalyzingProject, true),
             ProviderAgentState.Idle => (CodexActivityKind.Ready, false),
             _ => (CodexActivityKind.Ready, false)
+        };
+    }
+
+    private static string? FormatExecutionMode(ProviderExecutionMode executionMode)
+    {
+        return executionMode switch
+        {
+            ProviderExecutionMode.Planning => "Planning",
+            ProviderExecutionMode.Fast => "Fast",
+            _ => null
         };
     }
 

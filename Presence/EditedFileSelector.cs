@@ -10,7 +10,7 @@ internal static class EditedFileSelector
 {
     public static EditedFileSelection Select(PresenceContext context, int freshnessSeconds)
     {
-        var recentFiles = context.Codex.RecentEditedFiles
+        var recentFiles = context.Activity.RecentEditedFiles
             .Where(file => !string.IsNullOrWhiteSpace(file.Path) || !string.IsNullOrWhiteSpace(file.Name))
             .OrderByDescending(file => file.LastWriteTimeUtc)
             .GroupBy(GetFileIdentity, StringComparer.OrdinalIgnoreCase)
@@ -50,7 +50,7 @@ internal static class EditedFileSelector
         var directFile = new RecentProjectFileSnapshot(
             Path.GetFileName(directFilePath),
             directFilePath,
-            context.Codex.LastDirectToolFileAt ?? DateTime.UtcNow);
+            context.Activity.LastDirectToolFileAt ?? DateTime.UtcNow);
         return new EditedFileSelection(
             directFile,
             recentFiles.Length,
@@ -74,40 +74,40 @@ internal static class EditedFileSelector
 
     private static string? SelectFreshDirectToolFilePath(PresenceContext context, int freshnessSeconds)
     {
-        if (context.Codex.ActivityKind is not (CodexActivityKind.ApplyingEdits or CodexActivityKind.CoordinatingChanges or CodexActivityKind.CreatingFiles or CodexActivityKind.DeletingFiles) ||
-            string.IsNullOrWhiteSpace(context.Codex.LastDirectToolFilePath) ||
-            !context.Codex.LastDirectToolFileAt.HasValue)
+        if (context.Activity.ActivityKind is not (CodexActivityKind.ApplyingEdits or CodexActivityKind.CoordinatingChanges or CodexActivityKind.CreatingFiles or CodexActivityKind.DeletingFiles) ||
+            string.IsNullOrWhiteSpace(context.Activity.LastDirectToolFilePath) ||
+            !context.Activity.LastDirectToolFileAt.HasValue)
         {
             return null;
         }
 
-        var elapsed = DateTime.UtcNow - context.Codex.LastDirectToolFileAt.Value;
+        var elapsed = DateTime.UtcNow - context.Activity.LastDirectToolFileAt.Value;
         var freshnessWindow = TimeSpan.FromSeconds(Math.Max(1, freshnessSeconds));
-        var belongsToCurrentTask = context.Codex.LastTaskStartedAt.HasValue &&
-            context.Codex.LastDirectToolFileAt.Value >= context.Codex.LastTaskStartedAt.Value;
+        var belongsToCurrentTask = context.Activity.LastTaskStartedAt.HasValue &&
+            context.Activity.LastDirectToolFileAt.Value >= context.Activity.LastTaskStartedAt.Value;
         if ((elapsed > freshnessWindow && !belongsToCurrentTask) || elapsed < TimeSpan.FromSeconds(-30))
         {
             return null;
         }
 
-        return ResolveFilePath(context.Project.Path, context.Codex.LastDirectToolFilePath);
+        return ResolveFilePath(context.Project.Path, context.Activity.LastDirectToolFilePath);
     }
 
     private static EditedFileSelection? SelectCurrentActivityFiles(PresenceContext context, int freshnessSeconds)
     {
-        if (context.Codex.ActivityKind is not (CodexActivityKind.ApplyingEdits or CodexActivityKind.CoordinatingChanges or CodexActivityKind.CreatingFiles or CodexActivityKind.DeletingFiles) ||
-            string.IsNullOrWhiteSpace(context.Codex.ActiveTurnId))
+        if (context.Activity.ActivityKind is not (CodexActivityKind.ApplyingEdits or CodexActivityKind.CoordinatingChanges or CodexActivityKind.CreatingFiles or CodexActivityKind.DeletingFiles) ||
+            string.IsNullOrWhiteSpace(context.Activity.ActiveTurnId))
         {
             return null;
         }
 
-        var activityPaths = context.Codex.ActivityFilePaths
+        var activityPaths = context.Activity.ActivityFilePaths
             .Select(path => ResolveFilePath(context.Project.Path, path))
             .Where(path => !string.IsNullOrWhiteSpace(path))
             .Cast<string>()
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .ToList();
-        var activePath = ResolveFilePath(context.Project.Path, context.Codex.ActiveToolFilePath);
+        var activePath = ResolveFilePath(context.Project.Path, context.Activity.ActiveToolFilePath);
         if (!string.IsNullOrWhiteSpace(activePath) &&
             !activityPaths.Contains(activePath, StringComparer.OrdinalIgnoreCase))
         {
@@ -139,7 +139,7 @@ internal static class EditedFileSelector
         if (string.IsNullOrWhiteSpace(activePath) && activityPaths.Count > 1)
         {
             var activityPathSet = activityPaths.ToHashSet(StringComparer.OrdinalIgnoreCase);
-            activePath = context.Codex.RecentEditedFiles
+            activePath = context.Activity.RecentEditedFiles
                 .OrderByDescending(file => file.LastWriteTimeUtc)
                 .Select(file => ResolveFilePath(context.Project.Path, file.Path))
                 .FirstOrDefault(path => !string.IsNullOrWhiteSpace(path) && activityPathSet.Contains(path));
@@ -150,13 +150,13 @@ internal static class EditedFileSelector
             : new RecentProjectFileSnapshot(
                 Path.GetFileName(activePath),
                 activePath,
-                context.Codex.LastEffectiveSignalAt ?? DateTime.UtcNow);
+                context.Activity.LastEffectiveSignalAt ?? DateTime.UtcNow);
 
         return new EditedFileSelection(
             activeFile,
             activityPaths.Count,
             activityPaths.Count,
-            !string.IsNullOrWhiteSpace(directPath) || !string.IsNullOrWhiteSpace(context.Codex.ActiveToolFilePath));
+            !string.IsNullOrWhiteSpace(directPath) || !string.IsNullOrWhiteSpace(context.Activity.ActiveToolFilePath));
     }
 
     private static string GetFileIdentity(RecentProjectFileSnapshot file)

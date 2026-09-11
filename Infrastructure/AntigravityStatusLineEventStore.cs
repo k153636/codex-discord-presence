@@ -74,6 +74,55 @@ internal sealed class AntigravityStatusLineEventStore
         return TryReadLatestCore(CreateProjectKey(localProjectPath), out observation);
     }
 
+    internal bool TryReadLatestByConversation(
+        string? localProjectPath,
+        out IReadOnlyList<ProviderObservation> observations)
+    {
+        observations = Array.Empty<ProviderObservation>();
+        var projectKey = CreateProjectKey(localProjectPath);
+
+        List<string> lines;
+        try
+        {
+            lines = ReadValidLines();
+        }
+        catch (IOException)
+        {
+            return false;
+        }
+        catch (UnauthorizedAccessException)
+        {
+            return false;
+        }
+
+        var latestByConversation = new List<ProviderObservation>();
+        var conversationKeys = new HashSet<string>(StringComparer.Ordinal);
+        foreach (var line in lines.AsEnumerable().Reverse())
+        {
+            if (!AntigravityStatusLineEventDocument.TryParse(line, out var document) ||
+                (projectKey is not null && !string.Equals(
+                    projectKey,
+                    document.ProjectKey,
+                    StringComparison.Ordinal)))
+            {
+                continue;
+            }
+
+            var conversationKey = string.IsNullOrWhiteSpace(document.ConversationId)
+                ? "<unknown>"
+                : document.ConversationId.Trim();
+            if (!conversationKeys.Add(conversationKey))
+            {
+                continue;
+            }
+
+            latestByConversation.Add(document.ToObservation());
+        }
+
+        observations = latestByConversation;
+        return latestByConversation.Count > 0;
+    }
+
     private bool TryReadLatestCore(string? projectKey, out ProviderObservation? observation)
     {
         observation = null;
@@ -286,6 +335,12 @@ internal sealed class AntigravityStatusLineEventStore
         [JsonPropertyName("conversation_id")]
         public string? ConversationId { get; init; }
 
+        [JsonPropertyName("execution_mode")]
+        public string? ExecutionMode { get; init; }
+
+        [JsonPropertyName("context_window")]
+        public EventContextWindow? ContextWindow { get; init; }
+
         [JsonPropertyName("project_key")]
         public string? ProjectKey { get; init; }
 
@@ -306,6 +361,12 @@ internal sealed class AntigravityStatusLineEventStore
                         observation.Workspace.WorkspaceName,
                         observation.Workspace.ProjectName),
                 ConversationId = observation.ConversationId,
+                ExecutionMode = ToWireExecutionMode(observation.ExecutionMode),
+                ContextWindow = observation.ContextWindow is null
+                    ? null
+                    : new EventContextWindow(
+                        observation.ContextWindow.TotalInputTokens,
+                        observation.ContextWindow.TotalOutputTokens),
                 ProjectKey = projectKey
             };
 
@@ -354,7 +415,13 @@ internal sealed class AntigravityStatusLineEventStore
                     Workspace.WorkspaceName,
                     Workspace.WorkspaceName,
                     Workspace.ProjectName),
-            ConversationId);
+            ConversationId,
+            ParseExecutionMode(ExecutionMode),
+            ContextWindow is null
+                ? null
+                : new ProviderContextWindowObservation(
+                    ContextWindow.TotalInputTokens,
+                    ContextWindow.TotalOutputTokens));
 
         private static string ToWireAgentState(ProviderAgentState state) => state switch
         {
@@ -364,6 +431,20 @@ internal sealed class AntigravityStatusLineEventStore
             ProviderAgentState.ToolUse => "tool_use",
             ProviderAgentState.Initializing => "initializing",
             _ => "unknown"
+        };
+
+        private static string? ToWireExecutionMode(ProviderExecutionMode mode) => mode switch
+        {
+            ProviderExecutionMode.Planning => "planning",
+            ProviderExecutionMode.Fast => "fast",
+            _ => null
+        };
+
+        private static ProviderExecutionMode ParseExecutionMode(string? mode) => mode?.ToLowerInvariant() switch
+        {
+            "planning" => ProviderExecutionMode.Planning,
+            "fast" => ProviderExecutionMode.Fast,
+            _ => ProviderExecutionMode.Unknown
         };
 
         private static ProviderAgentState ParseAgentState(string? state) => state?.ToLowerInvariant() switch
@@ -388,4 +469,8 @@ internal sealed class AntigravityStatusLineEventStore
     private sealed record EventWorkspace(
         [property: JsonPropertyName("workspace_name")] string? WorkspaceName,
         [property: JsonPropertyName("project_name")] string? ProjectName);
+
+    private sealed record EventContextWindow(
+        [property: JsonPropertyName("total_input_tokens")] long? TotalInputTokens,
+        [property: JsonPropertyName("total_output_tokens")] long? TotalOutputTokens);
 }

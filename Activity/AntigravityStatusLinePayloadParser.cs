@@ -55,6 +55,8 @@ internal sealed class AntigravityStatusLinePayloadParser : IProviderObservationP
         var workspace = CreateWorkspace(root);
         var conversationId = ReadConversationId(root);
         var agentState = ReadAgentState(root);
+        var executionMode = ReadExecutionMode(root);
+        var contextWindow = ReadContextWindow(root);
 
         return new ProviderObservation(
             ProviderObservationSource.AntigravityCli,
@@ -62,7 +64,9 @@ internal sealed class AntigravityStatusLinePayloadParser : IProviderObservationP
             agentState,
             model,
             workspace,
-            conversationId);
+            conversationId,
+            executionMode,
+            contextWindow);
     }
 
     private static ProviderModelObservation? CreateModel(JsonElement root)
@@ -92,8 +96,7 @@ internal sealed class AntigravityStatusLinePayloadParser : IProviderObservationP
 
     private static string? ReadConversationId(JsonElement root)
     {
-        return ReadSafeIdentifier(root, "conversation_id") ??
-            ReadSafeIdentifier(root, "session_id");
+        return ReadSafeIdentifier(root, "conversation_id");
     }
 
     private static ProviderAgentState ReadAgentState(JsonElement root)
@@ -108,6 +111,44 @@ internal sealed class AntigravityStatusLinePayloadParser : IProviderObservationP
             "initializing" => ProviderAgentState.Initializing,
             _ => ProviderAgentState.Unknown
         };
+    }
+
+    private static ProviderExecutionMode ReadExecutionMode(JsonElement root)
+    {
+        var value = ReadSafeText(root, "execution_mode");
+        return value?.ToLowerInvariant() switch
+        {
+            "planning" => ProviderExecutionMode.Planning,
+            "fast" => ProviderExecutionMode.Fast,
+            _ => ProviderExecutionMode.Unknown
+        };
+    }
+
+    private static ProviderContextWindowObservation? ReadContextWindow(JsonElement root)
+    {
+        if (!TryGetObject(root, "context_window", out var contextWindow))
+        {
+            return null;
+        }
+
+        var totalInputTokens = ReadNonNegativeInt64(contextWindow, "total_input_tokens");
+        var totalOutputTokens = ReadNonNegativeInt64(contextWindow, "total_output_tokens");
+        return totalInputTokens is null && totalOutputTokens is null
+            ? null
+            : new ProviderContextWindowObservation(totalInputTokens, totalOutputTokens);
+    }
+
+    private static long? ReadNonNegativeInt64(JsonElement root, string propertyName)
+    {
+        if (!root.TryGetProperty(propertyName, out var value) ||
+            value.ValueKind != JsonValueKind.Number ||
+            !value.TryGetInt64(out var number) ||
+            number < 0)
+        {
+            return null;
+        }
+
+        return number;
     }
 
     private static string? ReadPathValue(

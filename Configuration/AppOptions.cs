@@ -315,7 +315,7 @@ public sealed class PresenceTemplateOptions
 {
     public bool AutoDetectModelName { get; set; } = true;
     public string ModelName { get; set; } = "Codex";
-    public string Details { get; set; } = "{GoalModePrefix} {ModelName} \u2022 {Tokens}";
+    public string Details { get; set; } = "{GoalModePrefix} {ModelName} \u2022 {ExecutionMode} \u2022 {Tokens}";
     public string WaitingDetails { get; set; } = "{Cost} {BillingType}{RateLimitDetails}";
     public string State { get; set; } = "{ActivityLine}";
     public bool EnableLargeImageText { get; set; } = true;
@@ -342,6 +342,8 @@ public sealed class PresenceTemplateOptions
     public string ErrorText { get; set; } = "Error";
     public string ThinkingText { get; set; } = "Thinking";
     public string WorkingText { get; set; } = "Working";
+    public string ToolUseText { get; set; } = "Using tools";
+    public string InitializingText { get; set; } = "Starting";
     public string ResearchingText { get; set; } = "Researching";
     public string IdlingText { get; set; } = "Idling";
     public string ReadyText { get; set; } = "Hold on";

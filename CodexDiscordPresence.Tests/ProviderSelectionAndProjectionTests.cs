@@ -127,14 +127,230 @@ public sealed class ProviderSelectionAndProjectionTests
         Assert.Equal("observed", selected?.ProviderId);
     }
 
+    [Fact]
+    public void ActivationGate_CurrentActiveProviderWinsOverNewerIdleProvider()
+    {
+        var initialTime = DateTimeOffset.Parse("2026-09-12T01:00:00Z");
+        var gate = new ProviderActivationGate(ProviderIds.Codex);
+
+        var selected = gate.Select(
+            [
+                Candidate(ProviderIds.Codex, observedAt: initialTime, isActive: true),
+                Candidate(ProviderIds.Antigravity, observedAt: initialTime.AddMinutes(1), isActive: false)
+            ],
+            initialTime);
+
+        Assert.Equal(ProviderIds.Codex, selected?.ProviderId);
+
+        selected = gate.Select(
+            [
+                Candidate(ProviderIds.Codex, observedAt: initialTime.AddMinutes(2), isActive: true),
+                Candidate(ProviderIds.Antigravity, observedAt: initialTime.AddMinutes(3), isActive: false)
+            ],
+            initialTime.AddMinutes(3));
+
+        Assert.Equal(ProviderIds.Codex, selected?.ProviderId);
+    }
+
+    [Fact]
+    public void ActivationGate_ActiveAntigravityIgnoresCodexIdleChange()
+    {
+        var initialTime = DateTimeOffset.Parse("2026-09-12T02:00:00Z");
+        var gate = new ProviderActivationGate(ProviderIds.Antigravity);
+
+        var selected = gate.Select(
+            [
+                Candidate(ProviderIds.Antigravity, observedAt: initialTime, isActive: true),
+                Candidate(ProviderIds.Codex, observedAt: initialTime.AddMinutes(1), isActive: false)
+            ],
+            initialTime.AddMinutes(1));
+
+        Assert.Equal(ProviderIds.Antigravity, selected?.ProviderId);
+    }
+
+    [Fact]
+    public void ActivationGate_RequiresNewActiveObservationAfterCurrentProviderStops()
+    {
+        var initialTime = DateTimeOffset.Parse("2026-09-12T03:00:00Z");
+        var gate = new ProviderActivationGate(ProviderIds.Codex);
+
+        Assert.Equal(
+            ProviderIds.Codex,
+            gate.Select(
+                [
+                    Candidate(ProviderIds.Codex, observedAt: initialTime, isActive: true),
+                    Candidate(ProviderIds.Antigravity, observedAt: initialTime.AddMinutes(-1), isActive: true)
+                ],
+                initialTime)?.ProviderId);
+
+        var inactiveTime = initialTime.AddMinutes(1);
+        Assert.Equal(
+            ProviderIds.Codex,
+            gate.Select(
+                [
+                    Candidate(ProviderIds.Codex, observedAt: inactiveTime, isActive: false),
+                    Candidate(ProviderIds.Antigravity, observedAt: initialTime.AddMinutes(-1), isActive: true)
+                ],
+                inactiveTime)?.ProviderId);
+
+        Assert.Equal(
+            ProviderIds.Codex,
+            gate.Select(
+                [
+                    Candidate(ProviderIds.Codex, observedAt: inactiveTime.AddMinutes(1), isActive: false),
+                    Candidate(ProviderIds.Antigravity, observedAt: initialTime.AddMinutes(-1), isActive: true)
+                ],
+                inactiveTime.AddMinutes(1))?.ProviderId);
+
+        Assert.Equal(
+            ProviderIds.Antigravity,
+            gate.Select(
+                [
+                    Candidate(ProviderIds.Codex, observedAt: inactiveTime.AddMinutes(2), isActive: false),
+                    Candidate(ProviderIds.Antigravity, observedAt: inactiveTime.AddMinutes(1), isActive: true)
+                ],
+                inactiveTime.AddMinutes(2))?.ProviderId);
+    }
+
+    [Fact]
+    public void ActivationGate_IdleCandidateDoesNotSwitchAfterCurrentProviderStops()
+    {
+        var initialTime = DateTimeOffset.Parse("2026-09-12T04:00:00Z");
+        var gate = new ProviderActivationGate(ProviderIds.Codex);
+
+        gate.Select(
+            [Candidate(ProviderIds.Codex, observedAt: initialTime, isActive: true)],
+            initialTime);
+
+        var selected = gate.Select(
+            [
+                Candidate(ProviderIds.Codex, observedAt: initialTime.AddMinutes(1), isActive: false),
+                Candidate(ProviderIds.Antigravity, observedAt: initialTime.AddMinutes(2), isActive: false)
+            ],
+            initialTime.AddMinutes(2));
+
+        Assert.Equal(ProviderIds.Codex, selected?.ProviderId);
+    }
+
+    [Fact]
+    public void ActivationGate_AllIdleCandidatesKeepThePreviousProvider()
+    {
+        var initialTime = DateTimeOffset.Parse("2026-09-12T05:00:00Z");
+        var gate = new ProviderActivationGate(ProviderIds.Antigravity);
+
+        gate.Select(
+            [Candidate(ProviderIds.Antigravity, observedAt: initialTime, isActive: true)],
+            initialTime);
+
+        var selected = gate.Select(
+            [
+                Candidate(ProviderIds.Antigravity, observedAt: initialTime.AddMinutes(1), isActive: false),
+                Candidate(ProviderIds.Codex, observedAt: initialTime.AddMinutes(2), isActive: false)
+            ],
+            initialTime.AddMinutes(2));
+
+        Assert.Equal(ProviderIds.Antigravity, selected?.ProviderId);
+    }
+
+    [Fact]
+    public void ActivationGate_MissingCurrentProviderWaitsForNewActiveObservation()
+    {
+        var initialTime = DateTimeOffset.Parse("2026-09-12T05:30:00Z");
+        var gate = new ProviderActivationGate(ProviderIds.Antigravity);
+
+        Assert.Equal(
+            ProviderIds.Antigravity,
+            gate.Select(
+                [Candidate(ProviderIds.Antigravity, observedAt: initialTime, isActive: true)],
+                initialTime)?.ProviderId);
+
+        var firstMissingTime = initialTime.AddMinutes(1);
+        Assert.Null(
+            gate.Select(
+                [Candidate(ProviderIds.Codex, observedAt: firstMissingTime, isActive: true)],
+                firstMissingTime));
+
+        Assert.Equal(
+            ProviderIds.Codex,
+            gate.Select(
+                [Candidate(ProviderIds.Codex, observedAt: firstMissingTime.AddMinutes(1), isActive: true)],
+                firstMissingTime.AddMinutes(1))?.ProviderId);
+    }
+
+    [Fact]
+    public void ActivationGate_UsesInactiveObservationTimeAsSwitchBoundary()
+    {
+        var initialTime = DateTimeOffset.Parse("2026-09-12T05:45:00Z");
+        var gate = new ProviderActivationGate(ProviderIds.Codex);
+
+        gate.Select(
+            [Candidate(ProviderIds.Codex, observedAt: initialTime, isActive: true)],
+            initialTime);
+
+        var inactiveObservationTime = initialTime.AddMinutes(1);
+        var selected = gate.Select(
+            [
+                Candidate(ProviderIds.Codex, observedAt: inactiveObservationTime, isActive: false),
+                Candidate(ProviderIds.Antigravity, observedAt: inactiveObservationTime.AddSeconds(1), isActive: true)
+            ],
+            inactiveObservationTime.AddSeconds(5));
+
+        Assert.Equal(ProviderIds.Antigravity, selected?.ProviderId);
+    }
+
+    [Fact]
+    public void ConversationSelector_PrefersActiveConversationOverNewerIdleConversation()
+    {
+        var active = Observation("conversation-a", ProviderAgentState.Working, "2026-09-12T06:00:00Z");
+        var idle = Observation("conversation-b", ProviderAgentState.Idle, "2026-09-12T06:01:00Z");
+
+        var selected = AntigravityConversationObservationSelector.Select([active, idle], "conversation-b");
+
+        Assert.Equal("conversation-a", selected?.ConversationId);
+    }
+
+    [Fact]
+    public void ConversationSelector_AllIdleConversationsKeepCurrentConversation()
+    {
+        var current = Observation("conversation-a", ProviderAgentState.Idle, "2026-09-12T07:00:00Z");
+        var newer = Observation("conversation-b", ProviderAgentState.Idle, "2026-09-12T07:01:00Z");
+
+        var selected = AntigravityConversationObservationSelector.Select([current, newer], "conversation-a");
+
+        Assert.Equal("conversation-a", selected?.ConversationId);
+    }
+
+    [Fact]
+    public void ConversationSelector_InitializingIsNotAnActiveConversation()
+    {
+        var initializing = Observation("conversation-a", ProviderAgentState.Initializing, "2026-09-12T08:00:00Z");
+
+        Assert.False(AntigravityConversationObservationSelector.IsActive(initializing.AgentState));
+    }
+
+    [Fact]
+    public void AntigravityRuntimeState_KeepsActivityCachePerConversation()
+    {
+        var state = new AntigravityRuntimeState();
+        var conversationA = state.GetPresenceCache("conversation-a");
+        conversationA.LastActivity = AntigravityPresenceProjection.Build(
+            Observation("conversation-a", ProviderAgentState.Working, "2026-09-12T09:00:00Z")).Activity;
+
+        var conversationB = state.GetPresenceCache("conversation-b");
+
+        Assert.Null(conversationB.LastActivity);
+        Assert.Same(conversationA, state.GetPresenceCache("conversation-a"));
+        Assert.Equal("conversation-a", state.CurrentConversationId);
+    }
+
     [Theory]
     [InlineData((int)ProviderAgentState.Idle, CodexActivityKind.Ready, false)]
     [InlineData((int)ProviderAgentState.Thinking, CodexActivityKind.AnalyzingProject, true)]
-    [InlineData((int)ProviderAgentState.Working, CodexActivityKind.ApplyingEdits, false)]
+    [InlineData((int)ProviderAgentState.Working, CodexActivityKind.AnalyzingProject, false)]
     [InlineData((int)ProviderAgentState.ToolUse, CodexActivityKind.RunningCommand, false)]
     [InlineData((int)ProviderAgentState.Initializing, CodexActivityKind.AnalyzingProject, true)]
     [InlineData((int)ProviderAgentState.Unknown, CodexActivityKind.Ready, false)]
-    public void Build_ProjectsEveryAgentStateToStableCodexMeaning(
+    public void Build_ProjectsEveryAgentStateToProviderOwnedMeaning(
         int agentStateValue,
         CodexActivityKind expectedActivityKind,
         bool expectedThinking)
@@ -152,10 +368,19 @@ public sealed class ProviderSelectionAndProjectionTests
                     @"C:\Users\private\repo"),
                 "conversation-id"));
 
-        Assert.Equal(expectedActivityKind, projection.Snapshot.ActivityKind);
-        Assert.Equal(expectedThinking, projection.Snapshot.IsThinking);
-        Assert.Equal(CodexProcessDetectionKind.SessionActivity, projection.Snapshot.DetectionKind);
-        Assert.Equal(ActivityProvenance.Observed, projection.Snapshot.ActivityProvenance);
+        Assert.Equal(expectedActivityKind, projection.Activity.ActivityKind);
+        Assert.Equal(expectedThinking, projection.Activity.IsThinking);
+        Assert.Equal(ActivityProvenance.Observed, projection.Activity.ActivityProvenance);
+        var expectedProviderState = agentState switch
+        {
+            ProviderAgentState.Idle => "idle",
+            ProviderAgentState.Thinking => "thinking",
+            ProviderAgentState.Working => "working",
+            ProviderAgentState.ToolUse => "tool_use",
+            ProviderAgentState.Initializing => "initializing",
+            _ => "unknown"
+        };
+        Assert.Equal(expectedProviderState, projection.Activity.ProviderState);
     }
 
     [Fact]
@@ -178,8 +403,8 @@ public sealed class ProviderSelectionAndProjectionTests
         Assert.Equal("Unknown model", projection.ModelName);
         Assert.Null(projection.ConversationId);
         Assert.Equal("repo", projection.WorkspaceName);
-        Assert.Null(projection.Snapshot.LastObservedAt);
-        Assert.Null(projection.Snapshot.ActiveTurnId);
+        Assert.Null(projection.Activity.LastObservedAt);
+        Assert.Null(projection.Activity.ActiveTurnId);
         Assert.DoesNotContain("secret-token", projection.ModelName, StringComparison.Ordinal);
     }
 
@@ -196,7 +421,7 @@ public sealed class ProviderSelectionAndProjectionTests
                 null));
         var context = new PresenceContext(
             projection.ModelName,
-            projection.Snapshot,
+            projection.Activity,
             new ProjectSnapshot("repo", @"C:\repo", null, null, 0, 0, 0, []),
             new GitSnapshot(false, 0, null),
             new SessionSnapshot(DateTime.UtcNow, TimeSpan.Zero),
@@ -209,7 +434,7 @@ public sealed class ProviderSelectionAndProjectionTests
             new PresenceTemplateOptions
             {
                 State = "{ActivityLine}",
-                RunningCommandText = "Provider tools"
+                ToolUseText = "Provider tools"
             },
             context);
 
@@ -240,7 +465,8 @@ public sealed class ProviderSelectionAndProjectionTests
         bool hasProjectPath = false,
         bool isProjectMatch = false,
         DateTimeOffset? observedAt = null,
-        int detectionStrength = 0)
+        int detectionStrength = 0,
+        bool isActive = false)
     {
         return new ProviderSelectionCandidate(
             providerId,
@@ -249,6 +475,21 @@ public sealed class ProviderSelectionAndProjectionTests
             observedAt,
             hasProjectPath,
             isProjectMatch,
-            detectionStrength);
+            detectionStrength,
+            isActive);
+    }
+
+    private static ProviderObservation Observation(
+        string conversationId,
+        ProviderAgentState agentState,
+        string observedAt)
+    {
+        return new ProviderObservation(
+            ProviderObservationSource.AntigravityCli,
+            DateTimeOffset.Parse(observedAt),
+            agentState,
+            null,
+            null,
+            conversationId);
     }
 }

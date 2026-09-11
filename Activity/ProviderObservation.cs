@@ -24,17 +24,52 @@ internal enum ProviderAgentState
     Initializing = 5
 }
 
+internal enum ProviderExecutionMode
+{
+    Unknown = 0,
+    Planning = 1,
+    Fast = 2
+}
+
 internal sealed record ProviderObservation(
     ProviderObservationSource Source,
     DateTimeOffset ObservedAtUtc,
     ProviderAgentState AgentState,
     ProviderModelObservation? Model,
     ProviderWorkspaceObservation? Workspace,
-    string? ConversationId);
+    string? ConversationId,
+    ProviderExecutionMode ExecutionMode = ProviderExecutionMode.Unknown,
+    ProviderContextWindowObservation? ContextWindow = null);
 
 internal sealed record ProviderModelObservation(
     string? Id,
     string? DisplayName);
+
+internal sealed record ProviderContextWindowObservation(
+    long? TotalInputTokens,
+    long? TotalOutputTokens)
+{
+    public long? TotalTokens
+    {
+        get
+        {
+            if (!TotalInputTokens.HasValue || !TotalOutputTokens.HasValue ||
+                TotalInputTokens.Value < 0 || TotalOutputTokens.Value < 0)
+            {
+                return null;
+            }
+
+            try
+            {
+                return checked(TotalInputTokens.Value + TotalOutputTokens.Value);
+            }
+            catch (OverflowException)
+            {
+                return null;
+            }
+        }
+    }
+}
 
 internal sealed class ProviderWorkspaceObservation
 {

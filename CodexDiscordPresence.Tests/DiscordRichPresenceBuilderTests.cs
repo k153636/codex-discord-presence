@@ -52,4 +52,29 @@ public sealed class DiscordRichPresenceBuilderTests
         Assert.Equal(3, snapshot.PartyMax);
         Assert.Equal(["one", "two"], snapshot.Buttons.Select(button => button.Label).ToArray());
     }
+
+    [Fact]
+    public void Create_AntigravityPublishesOneOfOnePartyWithoutUsingTaskCount()
+    {
+        var rendered = new RenderedPresence(
+            "details",
+            "working",
+            null,
+            "small text",
+            [],
+            DateTime.UtcNow,
+            CodexActivityKind.AnalyzingProject,
+            RunningCommandKind.Unknown,
+            "")
+        {
+            ProviderId = ProviderIds.Antigravity,
+            PartySize = 1
+        };
+
+        var payload = DiscordRichPresenceBuilder.Create(new DiscordOptions(), rendered, "antigravity-party");
+
+        Assert.NotNull(payload.Party);
+        Assert.Equal(1, payload.Party!.Size);
+        Assert.Equal(1, payload.Party.Max);
+    }
 }
