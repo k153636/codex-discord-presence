@@ -351,7 +351,7 @@ public sealed class PresenceTemplateRendererTests
         };
 
         Assert.Equal(
-            "Pro • 5h 42% remaining • reset 2h 0m • weekly 88% remaining • reset 6d 5h",
+            "Pro • 5h 58% used • reset 2h 0m",
             renderer.Render(template, context).Details);
         Assert.DoesNotContain("subsc", renderer.Render(template, context).Details, StringComparison.OrdinalIgnoreCase);
     }
@@ -385,11 +385,48 @@ public sealed class PresenceTemplateRendererTests
                 PlanName: "Ultra",
                 UsageQuotas:
                 [
+                    new UsageQuotaSnapshot("3p-5h", 0.75m, null, "5h"),
                     new UsageQuotaSnapshot("3p-weekly", 0.25m, null, "weekly")
                 ])
         };
 
-        Assert.Equal("Ultra • weekly 25% remaining", renderer.Render(template, context).Details);
+        Assert.Equal("Ultra • 5h 25% used", renderer.Render(template, context).Details);
+    }
+
+    [Fact]
+    public void Render_AntigravityWeeklyQuota_IsNotDisplayed()
+    {
+        var waitingStartedAt = DateTime.UtcNow.AddSeconds(-5);
+        var renderer = new PresenceTemplateRenderer(() => waitingStartedAt.AddSeconds(5));
+        var template = new PresenceTemplateOptions
+        {
+            Details = "{ModelName}",
+            WaitingDetails = "{BillingType}{RateLimitDetails}"
+        };
+        var context = CreateContext(
+            new CodexProcessSnapshot(true, "agy", false)
+            {
+                DetectedActivityKind = CodexActivityKind.Ready,
+                ActivityStartedAt = waitingStartedAt,
+                LastObservedAt = waitingStartedAt
+            },
+            new ProjectSnapshot("Nexstrap", @"E:\tool\Nexstrap", null, null, 128, 128, 42000, []),
+            new GitSnapshot(true, 0, null),
+            lastObservedAt: waitingStartedAt) with
+        {
+            ModelName = "gemini 3.8 flash",
+            ProviderId = ProviderIds.Antigravity,
+            TokenUsage = new TokenUsageSnapshot(
+                null,
+                null,
+                PlanName: "Pro",
+                UsageQuotas:
+                [
+                    new UsageQuotaSnapshot("gemini-weekly", 0.25m, null, "weekly")
+                ])
+        };
+
+        Assert.Equal("Pro", renderer.Render(template, context).Details);
     }
 
     [Fact]

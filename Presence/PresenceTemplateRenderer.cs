@@ -292,7 +292,7 @@ public sealed class PresenceTemplateRenderer
         var remainingMinutes = resetMinutes % 60;
         var resetText = $"{resetHours}h {remainingMinutes}m";
 
-        return $" \u2022 5h {rateLimit.UsedPercent.ToString(CultureInfo.InvariantCulture)}% used \u2022 reset {resetText}";
+        return FormatFiveHourUsageDetails(rateLimit.UsedPercent, resetText);
     }
 
     private string FormatUsageQuotaDetails(
@@ -305,34 +305,39 @@ public sealed class PresenceTemplateRenderer
         }
 
         var modelGroup = ResolveQuotaModelGroup(modelName);
-        var selected = quotas
+        var fiveHourQuota = quotas
+            .Where(IsFiveHourQuota)
             .Where(quota => modelGroup is null ||
                 string.Equals(ResolveQuotaModelGroup(quota.Id), modelGroup, StringComparison.Ordinal))
-            .OrderBy(GetQuotaWindowSortOrder)
-            .ThenBy(quota => quota.Id, StringComparer.OrdinalIgnoreCase)
-            .ToArray();
-        if (selected.Length == 0)
+            .OrderBy(quota => quota.Id, StringComparer.OrdinalIgnoreCase)
+            .FirstOrDefault();
+        if (fiveHourQuota is null)
         {
             return "";
         }
 
-        return string.Concat(selected.Select(FormatUsageQuota));
+        return FormatUsageQuota(fiveHourQuota);
     }
 
     private string FormatUsageQuota(UsageQuotaSnapshot quota)
     {
-        var remainingFraction = Math.Clamp(quota.RemainingFraction, 0m, 1m);
-        var remainingPercent = decimal.Round(
-            remainingFraction * 100m,
+        var usedFraction = 1m - Math.Clamp(quota.RemainingFraction, 0m, 1m);
+        var usedPercent = decimal.Round(
+            usedFraction * 100m,
             0,
             MidpointRounding.AwayFromZero);
-        var detail = $" \u2022 {ResolveQuotaWindowLabel(quota)} {remainingPercent.ToString("0", CultureInfo.InvariantCulture)}% remaining";
-        if (quota.ResetAtUtc is null)
-        {
-            return detail;
-        }
+        var resetText = quota.ResetAtUtc is null
+            ? null
+            : FormatUsageQuotaReset(quota.ResetAtUtc.Value);
+        return FormatFiveHourUsageDetails(
+            (int)usedPercent,
+            resetText);
+    }
 
-        return $"{detail} \u2022 reset {FormatUsageQuotaReset(quota.ResetAtUtc.Value)}";
+    private static string FormatFiveHourUsageDetails(int usedPercent, string? resetText)
+    {
+        var resetSuffix = resetText is null ? "" : $" \u2022 reset {resetText}";
+        return $" \u2022 5h {usedPercent.ToString(CultureInfo.InvariantCulture)}% used{resetSuffix}";
     }
 
     private string FormatUsageQuotaReset(DateTimeOffset resetAtUtc)
@@ -341,55 +346,17 @@ public sealed class PresenceTemplateRenderer
         var resetMinutes = remaining <= TimeSpan.Zero
             ? 0L
             : (long)Math.Ceiling(remaining.TotalMinutes);
-        var resetDays = resetMinutes / (24 * 60);
-        if (resetDays > 0)
-        {
-            var resetHours = (resetMinutes % (24 * 60)) / 60;
-            return $"{resetDays}d {resetHours}h";
-        }
-
         var hours = resetMinutes / 60;
         var minutes = resetMinutes % 60;
         return $"{hours}h {minutes}m";
     }
 
-    private static string ResolveQuotaWindowLabel(UsageQuotaSnapshot quota)
+    private static bool IsFiveHourQuota(UsageQuotaSnapshot quota)
     {
-        var raw = string.IsNullOrWhiteSpace(quota.Window) ? quota.Id : quota.Window!;
-        var normalized = raw.Trim().ToLowerInvariant();
-        if (normalized.Contains("5h", StringComparison.Ordinal) ||
-            normalized.Contains("5-hour", StringComparison.Ordinal) ||
-            normalized.Contains("five-hour", StringComparison.Ordinal))
-        {
-            return "5h";
-        }
-
-        if (normalized.Contains("week", StringComparison.Ordinal))
-        {
-            return "weekly";
-        }
-
-        if (normalized.Contains("day", StringComparison.Ordinal))
-        {
-            return "daily";
-        }
-
-        var label = normalized.Replace('_', ' ').Replace('-', ' ');
-        foreach (var prefix in new[] { "gemini ", "3p " })
-        {
-            if (label.StartsWith(prefix, StringComparison.Ordinal))
-            {
-                label = label[prefix.Length..];
-                break;
-            }
-        }
-
-        return string.IsNullOrWhiteSpace(label) ? "quota" : label;
-    }
-
-    private static int GetQuotaWindowSortOrder(UsageQuotaSnapshot quota)
-    {
-        return ResolveQuotaWindowLabel(quota) == "5h" ? 0 : 1;
+        var value = string.Join(' ', quota.Window, quota.Id).ToLowerInvariant();
+        return value.Contains("5h", StringComparison.Ordinal) ||
+            value.Contains("5-hour", StringComparison.Ordinal) ||
+            value.Contains("five-hour", StringComparison.Ordinal);
     }
 
     private static string? ResolveQuotaModelGroup(string value)
