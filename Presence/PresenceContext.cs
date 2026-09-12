@@ -48,6 +48,7 @@ public sealed record PresenceContext(
 {
     public string? ProviderId { get; init; }
     public string? ExecutionMode { get; init; }
+    public string? ModelReasoningLevel { get; init; }
 }
 
 public enum CodexProcessDetectionKind

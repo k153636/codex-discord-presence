@@ -745,7 +745,8 @@ public sealed class PresenceRuntime
             new TokenUsageSnapshot(projection.TotalTokens, null))
         {
             ProviderId = ProviderIds.Antigravity,
-            ExecutionMode = projection.ExecutionMode
+            ExecutionMode = projection.ExecutionMode,
+            ModelReasoningLevel = projection.ModelReasoningLevel
         };
     }
 

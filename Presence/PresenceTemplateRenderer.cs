@@ -43,6 +43,7 @@ public sealed class PresenceTemplateRenderer
 
     private Dictionary<string, string> BuildValues(PresenceTemplateOptions template, PresenceContext context)
     {
+        var modelDisplayLabel = FormatModelDisplayLabel(context);
         var editingFileSelection = EditedFileSelector.Select(context, template.EditingFreshnessSeconds);
         var editingFile = editingFileSelection.ActiveFile;
         var editingFileName = editingFile is null
@@ -84,7 +85,7 @@ public sealed class PresenceTemplateRenderer
 
         var values = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
         {
-            ["ModelName"] = context.ModelName,
+            ["ModelName"] = modelDisplayLabel,
             ["CodexStatus"] = context.ProviderId == ProviderIds.Antigravity
                 ? ""
                 : context.Activity.IsRunning ? "Codex running" : "Codex not detected",
@@ -94,6 +95,7 @@ public sealed class PresenceTemplateRenderer
             ["ProjectName"] = context.Project.Name,
             ["ProjectPath"] = context.Project.Path,
             ["ExecutionMode"] = context.ExecutionMode ?? "",
+            ["ModelReasoningLevel"] = context.ModelReasoningLevel ?? "",
             ["GoalModePrefix"] = goalModePrefix,
             ["EditingFileName"] = editingFileName,
             ["EditingFileLabel"] = editingFileLabel,
@@ -129,6 +131,23 @@ public sealed class PresenceTemplateRenderer
         };
 
         return values;
+    }
+
+    private static string FormatModelDisplayLabel(PresenceContext context)
+    {
+        var modelName = context.ModelName.Trim();
+        var reasoningLevel = context.ModelReasoningLevel?.Trim().ToLowerInvariant();
+        if (string.IsNullOrWhiteSpace(modelName))
+        {
+            return reasoningLevel ?? "";
+        }
+
+        if (string.IsNullOrWhiteSpace(reasoningLevel))
+        {
+            return modelName;
+        }
+
+        return $"{modelName} {reasoningLevel}";
     }
 
     private string ResolveDetails(

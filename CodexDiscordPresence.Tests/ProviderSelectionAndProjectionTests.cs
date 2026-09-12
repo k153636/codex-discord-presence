@@ -761,22 +761,28 @@ public sealed class ProviderSelectionAndProjectionTests
     }
 
     [Fact]
-    public void Build_UsesCompleteGeminiIdentifierWhenDisplayNameOmitsVariant()
+    public void Build_UsesGeminiIdentifierToRecoverSeparateReasoningLevelWhenDisplayNameOmitsIt()
     {
         var projection = AntigravityPresenceProjection.Build(
             new ProviderObservation(
                 ProviderObservationSource.AntigravityCli,
                 DateTimeOffset.UtcNow,
                 ProviderAgentState.Idle,
-                new ProviderModelObservation("gemini-3.8-flash-high", "Gemini 3.8 Flash"),
+                new ProviderModelObservation("gemini-3.8-flash-medium", "Gemini 3.8 Flash"),
                 null,
                 null));
 
-        Assert.Equal("gemini 3.8 flash high", projection.ModelName);
+        Assert.Equal("gemini 3.8 flash", projection.ModelName);
+        Assert.Equal("medium", projection.ModelReasoningLevel);
     }
 
-    [Fact]
-    public void Build_PreservesCompleteGeminiDisplayName()
+    [Theory]
+    [InlineData("low", "low")]
+    [InlineData("medium", "medium")]
+    [InlineData("high", "high")]
+    public void Build_SplitsGeminiModelAndReasoningLevel(
+        string levelId,
+        string expectedLevel)
     {
         var projection = AntigravityPresenceProjection.Build(
             new ProviderObservation(
@@ -784,12 +790,39 @@ public sealed class ProviderSelectionAndProjectionTests
                 DateTimeOffset.UtcNow,
                 ProviderAgentState.Idle,
                 new ProviderModelObservation(
-                    "gemini-3.8-flash-high",
-                    "Gemini 3.8 Flash (High)"),
+                    $"gemini-3.8-flash-{levelId}",
+                    $"Gemini 3.8 Flash ({expectedLevel})"),
                 null,
                 null));
 
-        Assert.Equal("Gemini 3.8 Flash (High)", projection.ModelName);
+        Assert.Equal("gemini 3.8 flash", projection.ModelName);
+        Assert.Equal(expectedLevel, projection.ModelReasoningLevel);
+    }
+
+    [Fact]
+    public void Render_UsesCodexModelFormatForGeminiModelAndReasoningLevel()
+    {
+        var projection = AntigravityPresenceProjection.Build(
+            new ProviderObservation(
+                ProviderObservationSource.AntigravityCli,
+                DateTimeOffset.UtcNow,
+                ProviderAgentState.Idle,
+                new ProviderModelObservation(
+                    "gemini-3.8-flash-medium",
+                    "Gemini 3.8 Flash (Medium)"),
+                null,
+                null));
+        var context = CreatePresenceContext(projection);
+
+        var presence = new PresenceTemplateRenderer().Render(
+            new PresenceTemplateOptions
+            {
+                Details = "{ModelName}",
+                State = "{ActivityLine}"
+            },
+            context);
+
+        Assert.Equal("gemini 3.8 flash medium", presence.Details);
     }
 
     [Fact]
@@ -807,6 +840,7 @@ public sealed class ProviderSelectionAndProjectionTests
                 null));
 
         Assert.Equal("Claude Sonnet 4.6 (Thinking)", projection.ModelName);
+        Assert.Null(projection.ModelReasoningLevel);
     }
 
     private static ProviderSelectionCandidate Candidate(
@@ -859,7 +893,9 @@ public sealed class ProviderSelectionAndProjectionTests
             new SessionSnapshot(DateTime.UtcNow, TimeSpan.Zero),
             new TokenUsageSnapshot(null, null))
         {
-            ProviderId = ProviderIds.Antigravity
+            ProviderId = ProviderIds.Antigravity,
+            ExecutionMode = projection.ExecutionMode,
+            ModelReasoningLevel = projection.ModelReasoningLevel
         };
     }
 }

@@ -3,6 +3,7 @@ namespace CodexDiscordPresence;
 internal sealed record AntigravityPresenceProjectionResult(
     AntigravityActivitySnapshot Activity,
     string ModelName,
+    string? ModelReasoningLevel,
     string? WorkspaceName,
     string? ConversationId,
     string? ExecutionMode,
@@ -71,6 +72,7 @@ internal static class AntigravityPresenceProjection
             ? Array.Empty<string>()
             : new[] { activeFilePath };
         var activityDescription = ResolveActivityDescription(state.ActivityKind, operation, activeFilePath);
+        var modelDisplay = ResolveModelDisplay(observation.Model);
 
         var activity = new AntigravityActivitySnapshot(
             IsRunning: true,
@@ -101,7 +103,8 @@ internal static class AntigravityPresenceProjection
 
         return new AntigravityPresenceProjectionResult(
             activity,
-            ResolveModelName(observation.Model),
+            modelDisplay.ModelName,
+            modelDisplay.ReasoningLevel,
             observation.Workspace?.WorkspaceName,
             conversationId,
             FormatExecutionMode(observation.ExecutionMode),
@@ -312,28 +315,22 @@ internal static class AntigravityPresenceProjection
     private static int? NormalizeActiveSubagentCount(int? count) =>
         count is > 0 and <= ProviderObservation.MaxActiveSubagentCount ? count : null;
 
-    private static string ResolveModelName(ProviderModelObservation? model)
+    private static ModelDisplay ResolveModelDisplay(ProviderModelObservation? model)
     {
         var modelId = NormalizeDisplayValue(model?.Id);
         var displayName = NormalizeDisplayValue(model?.DisplayName);
 
-        // Gemini's suffixes (for example "flash-high") are part of the model
-        // identity, not a provider-independent reasoning-effort field. Use the
-        // identifier when the friendly display name drops any of those tokens.
-        if (IsGeminiModel(modelId))
+        if (IsGeminiModel(modelId) || IsGeminiModel(displayName))
         {
-            return HasCompleteGeminiDisplayName(displayName, modelId!)
-                ? displayName!
-                : FormatGeminiIdentifier(modelId!);
-        }
-
-        if (IsGeminiModel(displayName))
-        {
-            return FormatGeminiDisplayName(displayName!);
+            var reasoningLevel = NormalizeGeminiReasoningLevel(modelId) ??
+                NormalizeGeminiReasoningLevel(displayName);
+            return new(
+                ResolveGeminiModelName(modelId, displayName, reasoningLevel),
+                reasoningLevel);
         }
 
         var modelName = displayName ?? modelId ?? FallbackModelName;
-        return CodexModelDisplayFormatter.Format(modelName, null, null);
+        return new(CodexModelDisplayFormatter.Format(modelName, null, null), null);
     }
 
     private static bool IsGeminiModel(string? value)
@@ -344,27 +341,72 @@ internal static class AntigravityPresenceProjection
              value.StartsWith("gemini ", StringComparison.OrdinalIgnoreCase));
     }
 
-    private static bool HasCompleteGeminiDisplayName(string? displayName, string modelId)
+    private static string ResolveGeminiModelName(
+        string? modelId,
+        string? displayName,
+        string? reasoningLevel)
     {
-        if (!IsGeminiModel(displayName))
+        if (IsGeminiModel(displayName))
         {
-            return false;
+            if (displayName!.StartsWith("gemini-", StringComparison.OrdinalIgnoreCase))
+            {
+                return FormatGeminiIdentifier(displayName, reasoningLevel);
+            }
+
+            return FormatGeminiIdentifier(
+                RemoveTrailingGeminiReasoningLevel(displayName),
+                reasoningLevel: null);
         }
 
-        var displayTokens = TokenizeGeminiModel(displayName!);
-        return TokenizeGeminiModel(modelId).All(displayTokens.Contains);
+        return modelId is not null
+            ? FormatGeminiIdentifier(modelId, reasoningLevel)
+            : displayName ?? FallbackModelName;
     }
 
-    private static string FormatGeminiDisplayName(string displayName)
+    private static string? NormalizeGeminiReasoningLevel(string? value)
     {
-        return displayName.StartsWith("gemini-", StringComparison.OrdinalIgnoreCase)
-            ? FormatGeminiIdentifier(displayName)
-            : displayName;
+        var lastToken = value is null
+            ? null
+            : TokenizeGeminiModel(value).LastOrDefault();
+        return lastToken switch
+        {
+            "low" => "low",
+            "medium" => "medium",
+            "high" => "high",
+            _ => null
+        };
     }
 
-    private static string FormatGeminiIdentifier(string modelId)
+    private static string RemoveTrailingGeminiReasoningLevel(string displayName)
     {
-        return string.Join(' ', TokenizeGeminiModel(modelId));
+        var reasoningLevel = NormalizeGeminiReasoningLevel(displayName);
+        if (reasoningLevel is null)
+        {
+            return displayName;
+        }
+
+        var parenthesizedSuffix = $"({reasoningLevel})";
+        if (displayName.EndsWith(parenthesizedSuffix, StringComparison.OrdinalIgnoreCase))
+        {
+            return displayName[..^parenthesizedSuffix.Length].TrimEnd();
+        }
+
+        return displayName[..^reasoningLevel.Length].TrimEnd().TrimEnd('(').TrimEnd();
+    }
+
+    private static string FormatGeminiIdentifier(
+        string modelName,
+        string? reasoningLevel)
+    {
+        var tokens = TokenizeGeminiModel(modelName).ToArray();
+        if (reasoningLevel is not null &&
+            tokens.Length > 0 &&
+            string.Equals(tokens[^1], reasoningLevel, StringComparison.OrdinalIgnoreCase))
+        {
+            tokens = tokens[..^1];
+        }
+
+        return string.Join(' ', tokens);
     }
 
     private static IEnumerable<string> TokenizeGeminiModel(string value)
@@ -436,4 +478,8 @@ internal static class AntigravityPresenceProjection
         CodexActivityKind ActivityKind,
         bool IsThinking,
         CodexActivityEventKind? LatestActivityEventKind);
+
+    private sealed record ModelDisplay(
+        string ModelName,
+        string? ReasoningLevel);
 }
