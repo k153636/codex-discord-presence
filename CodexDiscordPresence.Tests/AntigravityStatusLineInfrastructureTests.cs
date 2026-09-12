@@ -428,6 +428,32 @@ public sealed class AntigravityStatusLineInfrastructureTests
     }
 
     [Fact]
+    public void CommandBuilder_WindowsScript_PersistsActivityMetadata()
+    {
+        if (!OperatingSystem.IsWindows())
+        {
+            return;
+        }
+
+        using var fixture = new TemporaryFixture();
+        var result = new AntigravityStatusLineCommandBuilder(AntigravityStatusLinePlatform.Windows)
+            .Build(fixture.Paths);
+        File.WriteAllText(fixture.Paths.ScriptPath, result.ScriptContent);
+
+        var execution = ExecutePowerShellScript(fixture.Paths.ScriptPath, WindowsActivityPayload);
+        Assert.Equal(0, execution.ExitCode);
+        Assert.Equal("Using tools", execution.Output);
+
+        var store = new AntigravityStatusLineEventStore(fixture.EventFilePath);
+        Assert.True(store.TryReadLatest(@"C:\repo", out var observation));
+        Assert.Equal(ProviderAgentState.ToolUse, observation?.AgentState);
+        Assert.Equal("read_url_content", observation?.Operation?.ToolName);
+        Assert.Equal("Reading pricing page", observation?.Operation?.Action);
+        Assert.Equal("https://example.invalid/pricing", observation?.Operation?.TargetPath);
+        Assert.True(observation?.IsWaitingForInput);
+    }
+
+    [Fact]
     public void CommandBuilder_WindowsScript_UpdatesExistingEventFile()
     {
         if (!OperatingSystem.IsWindows())
@@ -633,6 +659,29 @@ public sealed class AntigravityStatusLineInfrastructureTests
             { "name": "researcher", "role": "research", "status": "running" },
             { "name": "finished", "role": "build", "status": "completed" }
           ]
+        }
+        """;
+
+    private const string WindowsActivityPayload = """
+        {
+          "cwd": "C:\\repo\\src",
+          "conversation_id": "conversation-id",
+          "model": {
+            "id": "Claude Sonnet 4.6 (Thinking)",
+            "display_name": "Claude Sonnet 4.6 (Thinking)"
+          },
+          "workspace": {
+            "current_dir": "C:\\repo\\src",
+            "project_dir": "C:\\repo"
+          },
+          "agent_state": "tool_use",
+          "activity": {
+            "toolName": "read_url_content",
+            "toolAction": "Reading pricing page",
+            "toolSummary": "Pricing content",
+            "Url": "https://example.invalid/pricing"
+          },
+          "confirmation_pending": true
         }
         """;
 
