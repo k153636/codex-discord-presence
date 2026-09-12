@@ -142,17 +142,23 @@ internal sealed class ProviderActivationGate
     private bool IsAfterInactiveBoundary(ProviderSelectionCandidate candidate)
     {
         return _inactiveBoundaryUtc.HasValue &&
-            candidate.LastObservedAtUtc.HasValue &&
-            candidate.LastObservedAtUtc.Value > _inactiveBoundaryUtc.Value;
+            GetActivityTimestamp(candidate) is { } activityTimestamp &&
+            activityTimestamp > _inactiveBoundaryUtc.Value;
     }
 
     private static bool IsNewerThanCurrent(
         ProviderSelectionCandidate candidate,
         ProviderSelectionCandidate currentCandidate)
     {
-        return candidate.LastObservedAtUtc.HasValue &&
-            (!currentCandidate.LastObservedAtUtc.HasValue ||
-             candidate.LastObservedAtUtc.Value > currentCandidate.LastObservedAtUtc.Value);
+        var candidateTimestamp = GetActivityTimestamp(candidate);
+        var currentTimestamp = GetActivityTimestamp(currentCandidate);
+        return candidateTimestamp.HasValue &&
+            (!currentTimestamp.HasValue || candidateTimestamp.Value > currentTimestamp.Value);
+    }
+
+    private static DateTimeOffset? GetActivityTimestamp(ProviderSelectionCandidate candidate)
+    {
+        return candidate.ActivityStartedAtUtc ?? candidate.LastObservedAtUtc;
     }
 
     private bool IsCurrentProvider(ProviderSelectionCandidate candidate)

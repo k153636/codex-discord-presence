@@ -131,9 +131,7 @@ public sealed class PresenceRuntime
                         providerActivationGate.Reset(currentProviderId);
                     }
 
-                    var selectedProfile = currentProviderId == ProviderIds.Antigravity
-                        ? currentProfile
-                        : SelectProfile(profileStates, currentProfile, observedProfileSnapshots);
+                    var selectedProfile = SelectProfile(profileStates, currentProfile, observedProfileSnapshots);
                     var selectedProfileState = profileStates[selectedProfile];
                     var selectedProfileProjectPath = ResolveProfileProjectPath(
                         observedProfileSnapshots[selectedProfile],
@@ -155,13 +153,22 @@ public sealed class PresenceRuntime
                         antigravityHookObservations,
                         antigravityStatusLineObservations,
                         antigravityState.CurrentConversationId);
+                    var antigravityPreviousActivity = antigravityObservation is null
+                        ? null
+                        : antigravityState.GetLastActivity(antigravityObservation.ConversationId);
+                    var antigravityProjection = antigravityObservation is null
+                        ? null
+                        : AntigravityPresenceProjection.Build(
+                            antigravityObservation,
+                            antigravityPreviousActivity);
                     var selectedProvider = SelectActiveProvider(
                         providerActivationGate,
                         selectedProfile,
                         selectedProfileState,
                         observedProfileSnapshots[selectedProfile],
                         activeProjectPath,
-                        antigravityObservation);
+                        antigravityObservation,
+                        antigravityProjection?.Activity);
                     if (selectedProvider is null)
                     {
                         rpc.Clear();
@@ -195,6 +202,16 @@ public sealed class PresenceRuntime
                     {
                         _log.Info($"Provider switched: {currentProviderId} -> {selectedProvider.ProviderId}");
                         currentProviderId = selectedProvider.ProviderId;
+                        rpc.RequestPresenceRefresh();
+                    }
+
+                    if (selectedProvider.ProviderId != ProviderIds.Antigravity &&
+                        antigravityObservation is not null &&
+                        antigravityProjection is not null)
+                    {
+                        antigravityState.TrackActivity(
+                            antigravityObservation.ConversationId,
+                            antigravityProjection.Activity);
                     }
 
                     var selectedDiscordOptions = selectedProvider.ProviderId == ProviderIds.Antigravity
@@ -219,7 +236,7 @@ public sealed class PresenceRuntime
                     IPresenceActivitySnapshot displayActivity;
                     if (selectedProvider.ProviderId == ProviderIds.Antigravity && antigravityObservation is not null)
                     {
-                        var projection = AntigravityPresenceProjection.Build(
+                        var projection = antigravityProjection ?? AntigravityPresenceProjection.Build(
                             antigravityObservation,
                             antigravityConversationState?.LastActivity);
                         displayActivity = projection.Activity;
@@ -373,7 +390,8 @@ public sealed class PresenceRuntime
         ProfileRuntimeState selectedProfileState,
         CodexProcessSnapshot codexSnapshot,
         string activeProjectPath,
-        ProviderObservation? antigravityObservation)
+        ProviderObservation? antigravityObservation,
+        AntigravityActivitySnapshot? antigravityActivity)
     {
         var codexOptions = selectedProfileState.DiscordOptions;
         var codexHasValidClientId = !string.IsNullOrWhiteSpace(codexOptions.ClientId) &&
@@ -392,7 +410,12 @@ public sealed class PresenceRuntime
                 selectedProfile,
                 codexSnapshot,
                 codexOptions).DetectionStrength,
-            IsActive: codexSnapshot.ActivityKind.IsActive() && codexSnapshot.HasDirectActivityEvidence);
+            IsActive: codexSnapshot.ActivityKind.IsActive() && codexSnapshot.HasDirectActivityEvidence,
+            ActivityStartedAtUtc: ToUtcOffset(
+                codexSnapshot.ActivityStartedAt ??
+                codexSnapshot.LastTaskStartedAt ??
+                codexSnapshot.LastEffectiveSignalAt ??
+                codexSnapshot.LastObservedAt));
 
         var candidates = new List<ProviderSelectionCandidate> { codexCandidate };
         if (antigravityObservation is not null)
@@ -406,7 +429,8 @@ public sealed class PresenceRuntime
                 !string.IsNullOrWhiteSpace(activeProjectPath),
                 !string.IsNullOrWhiteSpace(activeProjectPath),
                 DetectionStrength: 500,
-                IsActive: AntigravityConversationObservationSelector.IsActive(antigravityObservation.AgentState)));
+                IsActive: AntigravityConversationObservationSelector.IsActive(antigravityObservation.AgentState),
+                ActivityStartedAtUtc: ToUtcOffset(antigravityActivity?.ActivityStartedAt)));
         }
 
         return providerActivationGate.Select(candidates, DateTimeOffset.UtcNow);

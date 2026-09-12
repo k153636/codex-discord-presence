@@ -8,7 +8,8 @@ internal sealed record ProviderSelectionCandidate(
     bool HasProjectPath,
     bool IsProjectMatch,
     int DetectionStrength = 0,
-    bool IsActive = false);
+    bool IsActive = false,
+    DateTimeOffset? ActivityStartedAtUtc = null);
 
 internal static class ProviderSelectionPolicy
 {
@@ -36,11 +37,20 @@ internal static class ProviderSelectionPolicy
         var normalizedCurrentProviderId = currentProviderId?.Trim();
 
         return candidatesToRank
-            .OrderByDescending(candidate => candidate.LastObservedAtUtc ?? DateTimeOffset.MinValue)
+            .OrderByDescending(GetSelectionTimestamp)
             .ThenByDescending(candidate => candidate.DetectionStrength)
             .ThenByDescending(candidate => IsCurrentProvider(candidate, normalizedCurrentProviderId))
             .ThenBy(candidate => candidate.ProviderId, StringComparer.Ordinal)
             .First();
+    }
+
+    private static DateTimeOffset GetSelectionTimestamp(ProviderSelectionCandidate candidate)
+    {
+        return (candidate.IsActive
+                ? candidate.ActivityStartedAtUtc
+                : null) ??
+            candidate.LastObservedAtUtc ??
+            DateTimeOffset.MinValue;
     }
 
     private static bool IsEligible(ProviderSelectionCandidate candidate)

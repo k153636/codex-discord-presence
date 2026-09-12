@@ -12,16 +12,33 @@ internal sealed class AntigravityRuntimeState
     internal AntigravityConversationRuntimeState GetPresenceCache(string? conversationId)
     {
         var key = NormalizeConversationKey(conversationId);
-        if (!_conversationStates.TryGetValue(key, out var state))
-        {
-            state = new ConversationPresenceState(new AntigravityConversationRuntimeState());
-            _conversationStates[key] = state;
-        }
+        var state = GetOrCreateState(key);
 
         state.LastUsedUtc = DateTime.UtcNow;
         CurrentConversationId = key == UnknownConversationKey ? null : key;
         TrimConversationStates();
         return state.Cache;
+    }
+
+    internal AntigravityActivitySnapshot? GetLastActivity(string? conversationId)
+    {
+        var key = NormalizeConversationKey(conversationId);
+        return _conversationStates.TryGetValue(key, out var state)
+            ? state.Cache.LastActivity
+            : null;
+    }
+
+    internal void TrackActivity(
+        string? conversationId,
+        AntigravityActivitySnapshot activity)
+    {
+        ArgumentNullException.ThrowIfNull(activity);
+
+        var key = NormalizeConversationKey(conversationId);
+        var state = GetOrCreateState(key);
+        state.LastUsedUtc = DateTime.UtcNow;
+        state.Cache.LastActivity = activity;
+        TrimConversationStates();
     }
 
     internal void ResetPresenceCaches()
@@ -44,6 +61,17 @@ internal sealed class AntigravityRuntimeState
                 .First();
             _conversationStates.Remove(leastRecentlyUsed.Key);
         }
+    }
+
+    private ConversationPresenceState GetOrCreateState(string key)
+    {
+        if (!_conversationStates.TryGetValue(key, out var state))
+        {
+            state = new ConversationPresenceState(new AntigravityConversationRuntimeState());
+            _conversationStates[key] = state;
+        }
+
+        return state;
     }
 
     private static string NormalizeConversationKey(string? conversationId)
