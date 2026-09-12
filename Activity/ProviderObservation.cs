@@ -40,6 +40,12 @@ internal sealed record ProviderOperationObservation(
     bool IsCompleted = false,
     DateTimeOffset? ObservedAtUtc = null);
 
+internal sealed record ProviderQuotaObservation(
+    string Id,
+    decimal RemainingFraction,
+    DateTimeOffset? ResetAtUtc,
+    string? Window = null);
+
 internal sealed record ProviderObservation(
     ProviderObservationSource Source,
     DateTimeOffset ObservedAtUtc,
@@ -49,7 +55,9 @@ internal sealed record ProviderObservation(
     string? ConversationId,
     ProviderExecutionMode ExecutionMode = ProviderExecutionMode.Unknown,
     ProviderContextWindowObservation? ContextWindow = null,
-    int? ActiveSubagentCount = null)
+    int? ActiveSubagentCount = null,
+    IReadOnlyList<ProviderQuotaObservation>? Quotas = null,
+    string? PlanTier = null)
 {
     internal const int MaxActiveSubagentCount = 64;
 

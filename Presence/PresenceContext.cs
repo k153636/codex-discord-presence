@@ -106,6 +106,11 @@ public enum ActivityProvenance
 
 public static class CodexActivityKindExtensions
 {
+    public static bool IsWaiting(this CodexActivityKind kind)
+    {
+        return kind is CodexActivityKind.Ready or CodexActivityKind.WaitingForInput;
+    }
+
     public static bool IsActive(this CodexActivityKind kind)
     {
         return kind is not (CodexActivityKind.Offline or CodexActivityKind.Ready or CodexActivityKind.WaitingForInput or CodexActivityKind.Stalled);
@@ -186,6 +191,14 @@ public sealed record TokenUsageSnapshot(
     long? TotalTokens,
     decimal? EstimatedCostUsd,
     string? BillingType = null,
-    RateLimitSnapshot? RateLimit = null);
+    RateLimitSnapshot? RateLimit = null,
+    string? PlanName = null,
+    IReadOnlyList<UsageQuotaSnapshot>? UsageQuotas = null);
+
+public sealed record UsageQuotaSnapshot(
+    string Id,
+    decimal RemainingFraction,
+    DateTimeOffset? ResetAtUtc,
+    string? Window = null);
 
 public sealed record RecentProjectFileSnapshot(string Name, string Path, DateTime LastWriteTimeUtc);

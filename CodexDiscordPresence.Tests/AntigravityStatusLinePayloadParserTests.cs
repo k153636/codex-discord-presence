@@ -28,6 +28,18 @@ public sealed class AntigravityStatusLinePayloadParserTests
               "product": "antigravity",
               "email": "redacted@example.invalid",
               "execution_mode": "planning",
+              "plan_tier": "Pro",
+              "quota": {
+                "gemini-5h": {
+                  "remaining_fraction": 0.42,
+                  "reset_time": "2026-09-11T08:05:06Z",
+                  "window": "5h"
+                },
+                "gemini-weekly": {
+                  "remaining_fraction": 0.875,
+                  "reset_in_seconds": 3600
+                }
+              },
               "context_window": {
                 "total_input_tokens": 88244,
                 "total_output_tokens": 61074
@@ -51,6 +63,22 @@ public sealed class AntigravityStatusLinePayloadParserTests
         Assert.Equal(ProviderAgentState.Working, result.AgentState);
         Assert.Equal("conversation-id", result.ConversationId);
         Assert.Equal(ProviderExecutionMode.Planning, result.ExecutionMode);
+        Assert.Equal("Pro", result.PlanTier);
+        Assert.Collection(
+            result.Quotas!,
+            quota =>
+            {
+                Assert.Equal("gemini-5h", quota.Id);
+                Assert.Equal(0.42m, quota.RemainingFraction);
+                Assert.Equal("5h", quota.Window);
+                Assert.Equal(DateTimeOffset.Parse("2026-09-11T08:05:06Z"), quota.ResetAtUtc);
+            },
+            quota =>
+            {
+                Assert.Equal("gemini-weekly", quota.Id);
+                Assert.Equal(0.875m, quota.RemainingFraction);
+                Assert.Equal(DateTimeOffset.Parse("2026-09-10T20:05:06Z"), quota.ResetAtUtc);
+            });
         Assert.Equal(88244, result.ContextWindow?.TotalInputTokens);
         Assert.Equal(61074, result.ContextWindow?.TotalOutputTokens);
         Assert.Equal(149318, result.ContextWindow?.TotalTokens);
@@ -152,6 +180,36 @@ public sealed class AntigravityStatusLinePayloadParserTests
         Assert.True(parsed);
         Assert.Equal(ProviderAgentState.Unknown, observation?.AgentState);
         Assert.Equal("m", observation?.Model?.Id);
+    }
+
+    [Fact]
+    public void TryParse_InvalidQuotaFractions_AreIgnoredWithoutGuessing()
+    {
+        const string payload = """
+            {
+              "agent_state": "idle",
+              "plan_tier": "Pro",
+              "quota": {
+                "too-high": { "remaining_fraction": 1.1 },
+                "negative": { "remaining_fraction": -0.1 },
+                "valid": { "remaining_fraction": "0.5", "reset_in_seconds": 60 }
+              }
+            }
+            """;
+        var observedAt = DateTimeOffset.Parse("2026-09-11T04:05:06Z");
+        var parser = new AntigravityStatusLinePayloadParser();
+
+        var parsed = parser.TryParse(
+            Encoding.UTF8.GetBytes(payload),
+            observedAt,
+            out var observation);
+
+        Assert.True(parsed);
+        var result = Assert.IsType<ProviderObservation>(observation);
+        var quota = Assert.Single(result.Quotas!);
+        Assert.Equal("valid", quota.Id);
+        Assert.Equal(0.5m, quota.RemainingFraction);
+        Assert.Equal(observedAt.AddSeconds(60), quota.ResetAtUtc);
     }
 
     [Fact]

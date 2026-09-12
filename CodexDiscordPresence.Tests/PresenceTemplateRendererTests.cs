@@ -314,6 +314,85 @@ public sealed class PresenceTemplateRendererTests
     }
 
     [Fact]
+    public void Render_AntigravityWaitingDetails_UsesPlanAndModelGroupQuotaEveryFiveSeconds()
+    {
+        var waitingStartedAt = DateTime.UtcNow.AddSeconds(-5);
+        var current = waitingStartedAt.AddSeconds(5);
+        var renderer = new PresenceTemplateRenderer(() => current);
+        var template = new PresenceTemplateOptions
+        {
+            Details = "{ModelName} • {Tokens}",
+            WaitingDetails = "{Cost} {BillingType}{RateLimitDetails}"
+        };
+        var context = CreateContext(
+            new CodexProcessSnapshot(true, "agy", false)
+            {
+                DetectedActivityKind = CodexActivityKind.Ready,
+                ActivityStartedAt = waitingStartedAt,
+                LastObservedAt = waitingStartedAt
+            },
+            new ProjectSnapshot("Nexstrap", @"E:\tool\Nexstrap", null, null, 128, 128, 42000, []),
+            new GitSnapshot(true, 0, null),
+            sessionAge: TimeSpan.FromMinutes(6),
+            lastObservedAt: waitingStartedAt) with
+        {
+            ModelName = "gemini 3.8 flash",
+            ProviderId = ProviderIds.Antigravity,
+            TokenUsage = new TokenUsageSnapshot(
+                12_400,
+                null,
+                PlanName: "Pro",
+                UsageQuotas:
+                [
+                    new UsageQuotaSnapshot("gemini-5h", 0.42m, current.AddHours(2), "5h"),
+                    new UsageQuotaSnapshot("gemini-weekly", 0.875m, current.AddDays(6).AddHours(5), "weekly"),
+                    new UsageQuotaSnapshot("3p-weekly", 0.10m, current.AddDays(1), "weekly")
+                ])
+        };
+
+        Assert.Equal(
+            "Pro • 5h 42% remaining • reset 2h 0m • weekly 88% remaining • reset 6d 5h",
+            renderer.Render(template, context).Details);
+        Assert.DoesNotContain("subsc", renderer.Render(template, context).Details, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void Render_AntigravityInputWaitingDetails_RotatesAtFiveSeconds()
+    {
+        var waitingStartedAt = DateTime.UtcNow.AddSeconds(-5);
+        var renderer = new PresenceTemplateRenderer(() => waitingStartedAt.AddSeconds(5));
+        var template = new PresenceTemplateOptions
+        {
+            Details = "{ModelName}",
+            WaitingDetails = "{PlanName}{RateLimitDetails}"
+        };
+        var context = CreateContext(
+            new CodexProcessSnapshot(true, "agy", false)
+            {
+                DetectedActivityKind = CodexActivityKind.WaitingForInput,
+                ActivityStartedAt = waitingStartedAt,
+                LastObservedAt = waitingStartedAt
+            },
+            new ProjectSnapshot("Nexstrap", @"E:\tool\Nexstrap", null, null, 128, 128, 42000, []),
+            new GitSnapshot(true, 0, null),
+            lastObservedAt: waitingStartedAt) with
+        {
+            ModelName = "claude sonnet 4.6",
+            ProviderId = ProviderIds.Antigravity,
+            TokenUsage = new TokenUsageSnapshot(
+                null,
+                null,
+                PlanName: "Ultra",
+                UsageQuotas:
+                [
+                    new UsageQuotaSnapshot("3p-weekly", 0.25m, null, "weekly")
+                ])
+        };
+
+        Assert.Equal("Ultra • weekly 25% remaining", renderer.Render(template, context).Details);
+    }
+
+    [Fact]
     public void Render_AnalyzingProjectWithTaskStart_UsesWorkingLabel()
     {
         var renderer = new PresenceTemplateRenderer();

@@ -344,6 +344,12 @@ internal sealed class AntigravityStatusLineEventStore
         [JsonPropertyName("active_subagent_count")]
         public int? ActiveSubagentCount { get; init; }
 
+        [JsonPropertyName("quota")]
+        public Dictionary<string, EventQuota>? Quota { get; init; }
+
+        [JsonPropertyName("plan_tier")]
+        public string? PlanTier { get; init; }
+
         [JsonPropertyName("transcript_path")]
         public string? TranscriptPath { get; init; }
 
@@ -383,6 +389,8 @@ internal sealed class AntigravityStatusLineEventStore
                         observation.ContextWindow.TotalInputTokens,
                         observation.ContextWindow.TotalOutputTokens),
                 ActiveSubagentCount = NormalizeActiveSubagentCount(observation.ActiveSubagentCount),
+                Quota = NormalizeQuotas(observation.Quotas),
+                PlanTier = NormalizePlanTier(observation.PlanTier),
                 Operation = observation.Operation is null
                     ? null
                     : new EventOperation(
@@ -412,6 +420,8 @@ internal sealed class AntigravityStatusLineEventStore
                     !string.Equals(parsed.Source, "antigravity", StringComparison.Ordinal) ||
                     parsed.ObservedAtUtc == default ||
                     !IsValidActiveSubagentCount(parsed.ActiveSubagentCount) ||
+                    !IsValidPlanTier(parsed.PlanTier) ||
+                    !IsValidQuotas(parsed.Quota) ||
                     !IsSafeProjectKey(parsed.ProjectKey))
                 {
                     return false;
@@ -450,7 +460,13 @@ internal sealed class AntigravityStatusLineEventStore
                 : new ProviderContextWindowObservation(
                     ContextWindow.TotalInputTokens,
                     ContextWindow.TotalOutputTokens),
-            ActiveSubagentCount)
+            ActiveSubagentCount,
+            Quota?.Select(pair => new ProviderQuotaObservation(
+                pair.Key,
+                pair.Value.RemainingFraction,
+                pair.Value.ResetAtUtc?.ToUniversalTime(),
+                pair.Value.Window)).ToArray(),
+            PlanTier)
         {
             TranscriptPath = TranscriptPath,
             ArtifactDirectoryPath = ArtifactDirectoryPath,
@@ -461,8 +477,76 @@ internal sealed class AntigravityStatusLineEventStore
         private static int? NormalizeActiveSubagentCount(int? count) =>
             IsValidActiveSubagentCount(count) ? count : null;
 
+        private static string? NormalizePlanTier(string? planTier) =>
+            IsValidPlanTier(planTier) ? planTier : null;
+
+        private static Dictionary<string, EventQuota>? NormalizeQuotas(
+            IReadOnlyList<ProviderQuotaObservation>? quotas)
+        {
+            if (quotas is null)
+            {
+                return null;
+            }
+
+            var normalized = quotas
+                .Where(quota => IsValidQuota(quota.Id, quota.RemainingFraction, quota.ResetAtUtc, quota.Window))
+                .GroupBy(quota => quota.Id, StringComparer.Ordinal)
+                .Take(32)
+                .ToDictionary(
+                    group => group.Key,
+                    group =>
+                    {
+                        var quota = group.First();
+                        return new EventQuota(
+                            quota.RemainingFraction,
+                            quota.ResetAtUtc?.ToUniversalTime(),
+                            quota.Window);
+                    },
+                    StringComparer.Ordinal);
+
+            return normalized.Count == 0 ? null : normalized;
+        }
+
         private static bool IsValidActiveSubagentCount(int? count) =>
             count is null || count is >= 0 and <= ProviderObservation.MaxActiveSubagentCount;
+
+        private static bool IsValidPlanTier(string? planTier) =>
+            planTier is null || IsSafeText(planTier, 128);
+
+        private static bool IsValidQuotas(Dictionary<string, EventQuota>? quotas)
+        {
+            return quotas is null ||
+                quotas.Count <= 32 &&
+                quotas.All(pair =>
+                    IsSafeQuotaId(pair.Key) &&
+                    IsValidQuota(
+                        pair.Key,
+                        pair.Value.RemainingFraction,
+                        pair.Value.ResetAtUtc,
+                        pair.Value.Window));
+        }
+
+        private static bool IsValidQuota(
+            string id,
+            decimal remainingFraction,
+            DateTimeOffset? resetAtUtc,
+            string? window)
+        {
+            return IsSafeQuotaId(id) &&
+                remainingFraction is >= 0m and <= 1m &&
+                (resetAtUtc is null || resetAtUtc.Value != default) &&
+                (window is null || IsSafeText(window, 64));
+        }
+
+        private static bool IsSafeQuotaId(string value) =>
+            IsSafeText(value, 128) &&
+            !value.Contains('/', StringComparison.Ordinal) &&
+            !value.Contains('\\', StringComparison.Ordinal);
+
+        private static bool IsSafeText(string? value, int maxLength) =>
+            !string.IsNullOrWhiteSpace(value) &&
+            value.Length <= maxLength &&
+            value.All(character => !char.IsControl(character));
 
         private static string ToWireAgentState(ProviderAgentState state) => state switch
         {
@@ -538,6 +622,11 @@ internal sealed class AntigravityStatusLineEventStore
             "initializing" => ProviderAgentState.Initializing,
             _ => ProviderAgentState.Unknown
         };
+
+        public sealed record EventQuota(
+            [property: JsonPropertyName("remaining_fraction")] decimal RemainingFraction,
+            [property: JsonPropertyName("reset_time")] DateTimeOffset? ResetAtUtc,
+            [property: JsonPropertyName("window")] string? Window);
 
         private static bool IsSafeProjectKey(string? projectKey) =>
             projectKey is null ||

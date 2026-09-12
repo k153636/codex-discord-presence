@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Text.Json;
 
 namespace CodexDiscordPresence;
@@ -7,6 +8,7 @@ internal sealed class AntigravityStatusLinePayloadParser : IProviderObservationP
     internal const int MaxPayloadBytes = 256 * 1024;
     private const int MaxValueLength = 128;
     private const int MaxJsonDepth = 16;
+    private const int MaxQuotaCount = 32;
 
     public bool TryParse(
         ReadOnlySpan<byte> utf8Json,
@@ -58,6 +60,11 @@ internal sealed class AntigravityStatusLinePayloadParser : IProviderObservationP
         var executionMode = ReadExecutionMode(root);
         var contextWindow = ReadContextWindow(root);
         var activeSubagentCount = ReadActiveSubagentCount(root);
+        var quotas = ReadQuotas(root, observedAtUtc);
+        var planTier = ReadSafeText(root, "plan_tier") ??
+            ReadSafeText(root, "planTier") ??
+            ReadSafeText(root, "plan_name") ??
+            ReadSafeText(root, "planName");
         var operation = ReadOperation(root);
         if (operation is not null)
         {
@@ -72,7 +79,9 @@ internal sealed class AntigravityStatusLinePayloadParser : IProviderObservationP
             conversationId,
             executionMode,
             contextWindow,
-            activeSubagentCount)
+            activeSubagentCount,
+            quotas,
+            planTier)
         {
             TranscriptPath = ReadPathValueAny(root, "transcript_path", "transcriptPath"),
             ArtifactDirectoryPath = ReadPathValueAny(root, "artifact_directory_path", "artifactDirectoryPath"),
@@ -157,6 +166,107 @@ internal sealed class AntigravityStatusLinePayloadParser : IProviderObservationP
         return totalInputTokens is null && totalOutputTokens is null
             ? null
             : new ProviderContextWindowObservation(totalInputTokens, totalOutputTokens);
+    }
+
+    private static IReadOnlyList<ProviderQuotaObservation>? ReadQuotas(
+        JsonElement root,
+        DateTimeOffset observedAtUtc)
+    {
+        if (!TryGetObject(root, "quota", out var quotaObject))
+        {
+            return null;
+        }
+
+        var quotas = new List<ProviderQuotaObservation>();
+        foreach (var property in quotaObject.EnumerateObject())
+        {
+            if (quotas.Count >= MaxQuotaCount)
+            {
+                break;
+            }
+
+            var id = NormalizeQuotaId(property.Name);
+            if (id is null || property.Value.ValueKind != JsonValueKind.Object)
+            {
+                continue;
+            }
+
+            var remainingFraction = ReadFraction(property.Value, "remaining_fraction", "remainingFraction");
+            if (!remainingFraction.HasValue)
+            {
+                continue;
+            }
+
+            var resetAtUtc = ReadResetAtUtc(property.Value, observedAtUtc);
+            var window = ReadSafeText(property.Value, "window");
+            quotas.Add(new ProviderQuotaObservation(id, remainingFraction.Value, resetAtUtc, window));
+        }
+
+        return quotas.Count == 0 ? null : quotas;
+    }
+
+    private static decimal? ReadFraction(JsonElement root, params string[] propertyNames)
+    {
+        foreach (var propertyName in propertyNames)
+        {
+            if (!root.TryGetProperty(propertyName, out var value))
+            {
+                continue;
+            }
+
+            decimal parsed;
+            if ((value.ValueKind == JsonValueKind.Number && value.TryGetDecimal(out parsed)) ||
+                (value.ValueKind == JsonValueKind.String &&
+                 decimal.TryParse(
+                     value.GetString(),
+                     NumberStyles.Float,
+                     CultureInfo.InvariantCulture,
+                     out parsed)))
+            {
+                return parsed is >= 0m and <= 1m ? parsed : null;
+            }
+        }
+
+        return null;
+    }
+
+    private static DateTimeOffset? ReadResetAtUtc(
+        JsonElement root,
+        DateTimeOffset observedAtUtc)
+    {
+        foreach (var propertyName in new[] { "reset_time", "resetTime" })
+        {
+            var value = ReadSafeText(root, propertyName);
+            if (value is not null &&
+                DateTimeOffset.TryParse(
+                    value,
+                    CultureInfo.InvariantCulture,
+                    DateTimeStyles.AssumeUniversal | DateTimeStyles.AdjustToUniversal,
+                    out var parsed))
+            {
+                return parsed.ToUniversalTime();
+            }
+        }
+
+        foreach (var propertyName in new[] { "reset_in_seconds", "resetInSeconds" })
+        {
+            var seconds = ReadNonNegativeInt64Value(root, propertyName);
+            if (!seconds.HasValue)
+            {
+                continue;
+            }
+
+            try
+            {
+                return observedAtUtc.ToUniversalTime().AddSeconds(seconds.Value);
+            }
+            catch (ArgumentOutOfRangeException)
+            {
+                return null;
+            }
+        }
+
+        return null;
     }
 
     private static int? ReadActiveSubagentCount(JsonElement root)
@@ -351,6 +461,31 @@ internal sealed class AntigravityStatusLinePayloadParser : IProviderObservationP
         return number;
     }
 
+    private static long? ReadNonNegativeInt64Value(JsonElement root, string propertyName)
+    {
+        if (!root.TryGetProperty(propertyName, out var value))
+        {
+            return null;
+        }
+
+        if (value.ValueKind == JsonValueKind.Number && value.TryGetInt64(out var number))
+        {
+            return number >= 0 ? number : null;
+        }
+
+        if (value.ValueKind == JsonValueKind.String &&
+            long.TryParse(
+                value.GetString(),
+                NumberStyles.Integer,
+                CultureInfo.InvariantCulture,
+                out number))
+        {
+            return number >= 0 ? number : null;
+        }
+
+        return null;
+    }
+
     private static string? ReadPathValue(
         JsonElement root,
         string parentPropertyName,
@@ -393,6 +528,17 @@ internal sealed class AntigravityStatusLinePayloadParser : IProviderObservationP
         return TryGetString(root, propertyName, out var value)
             ? NormalizeText(value)
             : null;
+    }
+
+    private static string? NormalizeQuotaId(string value)
+    {
+        if (value.Contains('/', StringComparison.Ordinal) ||
+            value.Contains('\\', StringComparison.Ordinal))
+        {
+            return null;
+        }
+
+        return NormalizeText(value);
     }
 
     private static bool TryGetObject(

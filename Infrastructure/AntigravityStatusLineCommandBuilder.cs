@@ -151,12 +151,54 @@ internal static class AntigravityEventPowerShellScript
                 return $null
             }
 
+            function Get-SafeFraction([object] $Value) {
+                if ($null -eq $Value) { return $null }
+                try {
+                    $parsed = [decimal] 0
+                    $style = [Globalization.NumberStyles]::Float
+                    $culture = [Globalization.CultureInfo]::InvariantCulture
+                    if ([decimal]::TryParse([string] $Value, $style, $culture, [ref] $parsed) -and
+                        $parsed -ge 0 -and $parsed -le 1) {
+                        return $parsed
+                    }
+                } catch { }
+                return $null
+            }
+
             function Get-BooleanValue([object] $Value) {
                 if ($null -eq $Value) { return $null }
                 if ($Value -is [bool]) { return [bool]$Value }
                 $parsed = [bool]$false
                 if ([bool]::TryParse([string]$Value, [ref]$parsed)) { return $parsed }
                 return $null
+            }
+
+            function Get-Quota([object] $Payload) {
+                $value = Get-PropertyValue $Payload 'quota'
+                if ($null -eq $value) { return $null }
+
+                $quota = [ordered]@{}
+                foreach ($property in @($value.PSObject.Properties)) {
+                    if ($quota.Count -ge 32) { break }
+                    $quotaId = Get-SafeText $property.Name
+                    $remainingValue = Get-PropertyValue $property.Value 'remaining_fraction'
+                    if ($null -eq $remainingValue) { $remainingValue = Get-PropertyValue $property.Value 'remainingFraction' }
+                    $remaining = Get-SafeFraction $remainingValue
+                    if ($null -eq $quotaId -or $null -eq $remaining) { continue }
+                    $resetTime = Get-SafeText (Get-PropertyValue $property.Value 'reset_time')
+                    if ($null -eq $resetTime) { $resetTime = Get-SafeText (Get-PropertyValue $property.Value 'resetTime') }
+                    $resetSeconds = Get-SafeNonNegativeInt64 (Get-PropertyValue $property.Value 'reset_in_seconds')
+                    if ($null -eq $resetSeconds) { $resetSeconds = Get-SafeNonNegativeInt64 (Get-PropertyValue $property.Value 'resetInSeconds') }
+                    $quota[$quotaId] = [ordered]@{
+                        remaining_fraction = $remaining
+                        reset_time = $resetTime
+                        reset_in_seconds = $resetSeconds
+                        window = Get-SafeText (Get-PropertyValue $property.Value 'window')
+                    }
+                }
+
+                if ($quota.Count -eq 0) { return $null }
+                return $quota
             }
 
             function Get-SafeActivityPath([object] $Value) {
@@ -405,6 +447,8 @@ internal static class AntigravityEventPowerShellScript
                         execution_mode = $null
                         context_window = $null
                         active_subagent_count = Get-ActiveSubagentCount $payload
+                        quota = $null
+                        plan_tier = $null
                         operation = $activity
                         waiting_for_input = $waitingForInput
                         project_key = Get-ProjectKeyFromPath $workspacePath
@@ -445,6 +489,11 @@ internal static class AntigravityEventPowerShellScript
                 if ($null -ne $conversationId -and ($conversationId.Contains('/') -or $conversationId.Contains('\'))) { $conversationId = $null }
                 $activeSubagentCount = Get-ActiveSubagentCount $payload
                 $activity = Get-Activity $payload $false
+                $planTier = Get-SafeText (Get-PropertyValue $payload 'plan_tier')
+                if ($null -eq $planTier) { $planTier = Get-SafeText (Get-PropertyValue $payload 'planTier') }
+                if ($null -eq $planTier) { $planTier = Get-SafeText (Get-PropertyValue $payload 'plan_name') }
+                if ($null -eq $planTier) { $planTier = Get-SafeText (Get-PropertyValue $payload 'planName') }
+                $quota = Get-Quota $payload
                 $waitingForInput = Get-BooleanValue (Get-FirstPropertyValue @($payload) @(
                     'waiting_for_input', 'waitingForInput', 'awaiting_confirmation', 'awaitingConfirmation',
                     'confirmation_pending', 'confirmationPending'))
@@ -459,6 +508,8 @@ internal static class AntigravityEventPowerShellScript
                     execution_mode = $executionMode
                     context_window = $contextWindow
                     active_subagent_count = $activeSubagentCount
+                    quota = $quota
+                    plan_tier = $planTier
                     operation = $activity
                     waiting_for_input = $waitingForInput
                     project_key = Get-ProjectKey $payload

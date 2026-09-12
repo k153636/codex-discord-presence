@@ -8,7 +8,9 @@ internal sealed record AntigravityPresenceProjectionResult(
     string? WorkspaceName,
     string? ConversationId,
     string? ExecutionMode,
-    long? TotalTokens);
+    long? TotalTokens,
+    string? PlanTier,
+    IReadOnlyList<ProviderQuotaObservation>? Quotas);
 
 internal sealed record AntigravityActivitySnapshot(
     bool IsRunning,
@@ -110,7 +112,9 @@ internal static class AntigravityPresenceProjection
             observation.Workspace?.WorkspaceName,
             conversationId,
             FormatExecutionMode(observation.ExecutionMode),
-            NormalizeTotalTokens(observation.ContextWindow?.TotalTokens));
+            NormalizeTotalTokens(observation.ContextWindow?.TotalTokens),
+            NormalizeDisplayValue(observation.PlanTier),
+            observation.Quotas);
     }
 
     private static string ToProviderState(ProviderAgentState agentState)

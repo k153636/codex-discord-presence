@@ -37,6 +37,8 @@ public sealed class AntigravityStatusLineInfrastructureTests
         Assert.Equal("my-project", latest?.Workspace?.WorkspaceName);
         Assert.Equal("gemini-3.5-flash-high", latest?.Model?.Id);
         Assert.Equal(ProviderExecutionMode.Planning, latest?.ExecutionMode);
+        Assert.Equal("Pro", latest?.PlanTier);
+        Assert.Equal(0.875m, latest?.Quotas?.Single(quota => quota.Id == "gemini-weekly").RemainingFraction);
         Assert.Equal(149318, latest?.ContextWindow?.TotalTokens);
         Assert.Equal(1, latest?.ActiveSubagentCount);
         var persisted = File.ReadAllText(fixture.EventFilePath);
@@ -425,6 +427,8 @@ public sealed class AntigravityStatusLineInfrastructureTests
         Assert.True(store.TryReadLatest(@"C:\repo", out var observation));
         Assert.Equal(ProviderAgentState.Working, observation?.AgentState);
         Assert.Equal(1, observation?.ActiveSubagentCount);
+        Assert.Equal("Pro", observation?.PlanTier);
+        Assert.Equal(0.75m, observation?.Quotas?.Single(quota => quota.Id == "gemini-weekly").RemainingFraction);
     }
 
     [Fact]
@@ -630,6 +634,14 @@ public sealed class AntigravityStatusLineInfrastructureTests
           },
           "agent_state": "working",
           "execution_mode": "planning",
+          "plan_tier": "Pro",
+          "quota": {
+            "gemini-weekly": {
+              "remaining_fraction": 0.875,
+              "reset_time": "2026-09-19T17:10:04Z",
+              "window": "weekly"
+            }
+          },
           "context_window": {
             "total_input_tokens": 88244,
             "total_output_tokens": 61074
@@ -655,6 +667,14 @@ public sealed class AntigravityStatusLineInfrastructureTests
             "project_dir": "C:\\repo"
           },
           "agent_state": "working",
+          "plan_tier": "Pro",
+          "quota": {
+            "gemini-weekly": {
+              "remaining_fraction": 0.75,
+              "reset_time": "2026-09-19T17:10:04Z",
+              "window": "weekly"
+            }
+          },
           "subagents": [
             { "name": "researcher", "role": "research", "status": "running" },
             { "name": "finished", "role": "build", "status": "completed" }

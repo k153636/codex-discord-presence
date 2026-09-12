@@ -326,7 +326,7 @@ public sealed class PresenceRuntime
                 }
 
                 var delay = PresenceRefreshPolicy.GetNextDelay(_options.Presence, activityKind, _options.UpdateIntervalSeconds);
-                if (activityKind != CodexActivityKind.Ready && delay > projectSwitchDetectionInterval)
+                if (!activityKind.IsWaiting() && delay > projectSwitchDetectionInterval)
                 {
                     delay = projectSwitchDetectionInterval;
                 }
@@ -742,7 +742,15 @@ public sealed class PresenceRuntime
             projectSnapshot,
             gitSnapshot,
             sessionSnapshot,
-            new TokenUsageSnapshot(projection.TotalTokens, null))
+            new TokenUsageSnapshot(
+                projection.TotalTokens,
+                null,
+                PlanName: projection.PlanTier,
+                UsageQuotas: projection.Quotas?.Select(quota => new UsageQuotaSnapshot(
+                    quota.Id,
+                    quota.RemainingFraction,
+                    quota.ResetAtUtc,
+                    quota.Window)).ToArray()))
         {
             ProviderId = ProviderIds.Antigravity,
             ExecutionMode = projection.ExecutionMode,

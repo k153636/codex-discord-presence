@@ -135,6 +135,8 @@ internal static class AntigravityConversationObservationSelector
             ContextWindow = hookObservation.ContextWindow ?? statusLineObservation.ContextWindow,
             ActiveSubagentCount = hookObservation.ActiveSubagentCount ??
                 statusLineObservation.ActiveSubagentCount,
+            Quotas = hookObservation.Quotas ?? statusLineObservation.Quotas,
+            PlanTier = hookObservation.PlanTier ?? statusLineObservation.PlanTier,
             TranscriptPath = hookObservation.TranscriptPath ?? statusLineObservation.TranscriptPath,
             ArtifactDirectoryPath = hookObservation.ArtifactDirectoryPath ??
                 statusLineObservation.ArtifactDirectoryPath,

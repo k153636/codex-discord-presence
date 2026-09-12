@@ -35,7 +35,7 @@ public sealed class PresenceTemplateRenderer
             IsSuccessfulCompletion = context.Activity.IsSuccessfulCompletion,
             IsError = context.Activity.IsError,
             IsThinking = context.Activity.IsThinking,
-            WaitingStartedAt = context.Activity.ActivityKind is CodexActivityKind.Ready or CodexActivityKind.WaitingForInput
+            WaitingStartedAt = context.Activity.ActivityKind.IsWaiting()
                 ? context.Activity.ActivityStartedAt ?? context.Activity.LastEffectiveSignalAt ?? context.Activity.LastObservedAt
                 : null
         };
@@ -62,13 +62,18 @@ public sealed class PresenceTemplateRenderer
         var editingFileLabel = BuildEditingFileLabel(context, editingFileName, activityFileCount);
         var changedFilesText = FormatChangedFiles(context.Git.ChangedFileCount);
         var projectSizeText = FormatProjectSize(context.Project.TotalFileCount, context.Project.TotalLineCount);
-        var billingType = FormatBillingType(context.TokenUsage.BillingType);
+        var planName = NormalizePlanName(context.TokenUsage.PlanName) ?? "";
+        var billingType = context.ProviderId == ProviderIds.Antigravity
+            ? planName
+            : FormatBillingType(context.TokenUsage.BillingType);
         var cost = billingType == "API" && context.TokenUsage.EstimatedCostUsd is not null
             ? FormatCost(context.TokenUsage.EstimatedCostUsd.Value)
             : "";
-        var rateLimitDetails = billingType == "subsc"
-            ? FormatRateLimitDetails(context.TokenUsage.RateLimit)
-            : "";
+        var rateLimitDetails = context.ProviderId == ProviderIds.Antigravity
+            ? FormatUsageQuotaDetails(context.TokenUsage.UsageQuotas, context.ModelName)
+            : billingType == "subsc"
+                ? FormatRateLimitDetails(context.TokenUsage.RateLimit)
+                : "";
         var goalModePrefix = FormatGoalModePrefix(context);
         var stateLabel = _labelResolver.ResolveStateLabel(template, context, context.Activity.ActivityKind, activityFileCount);
         if (context.Activity.ActivityKind == CodexActivityKind.AnalyzingProject &&
@@ -126,6 +131,7 @@ public sealed class PresenceTemplateRenderer
                 : $"{CompactNumberFormatter.Format(context.TokenUsage.TotalTokens.Value)} Token",
             ["Cost"] = cost,
             ["BillingType"] = billingType,
+            ["PlanName"] = planName,
             ["RateLimitDetails"] = rateLimitDetails,
             ["EstimatedCost"] = "",
             ["CodexState"] = stateLabel,
@@ -162,8 +168,10 @@ public sealed class PresenceTemplateRenderer
         IReadOnlyDictionary<string, string> values)
     {
         var defaultDetails = Apply(template.Details, values);
-        if (context.Activity.ActivityKind != CodexActivityKind.Ready ||
-            (string.IsNullOrWhiteSpace(values["Cost"]) && string.IsNullOrWhiteSpace(values["BillingType"])))
+        if (!context.Activity.ActivityKind.IsWaiting() ||
+            (string.IsNullOrWhiteSpace(values["Cost"]) &&
+             string.IsNullOrWhiteSpace(values["BillingType"]) &&
+             string.IsNullOrWhiteSpace(values["RateLimitDetails"])))
         {
             return defaultDetails;
         }
@@ -285,6 +293,138 @@ public sealed class PresenceTemplateRenderer
         var resetText = $"{resetHours}h {remainingMinutes}m";
 
         return $" \u2022 5h {rateLimit.UsedPercent.ToString(CultureInfo.InvariantCulture)}% used \u2022 reset {resetText}";
+    }
+
+    private string FormatUsageQuotaDetails(
+        IReadOnlyList<UsageQuotaSnapshot>? quotas,
+        string modelName)
+    {
+        if (quotas is null || quotas.Count == 0)
+        {
+            return "";
+        }
+
+        var modelGroup = ResolveQuotaModelGroup(modelName);
+        var selected = quotas
+            .Where(quota => modelGroup is null ||
+                string.Equals(ResolveQuotaModelGroup(quota.Id), modelGroup, StringComparison.Ordinal))
+            .OrderBy(GetQuotaWindowSortOrder)
+            .ThenBy(quota => quota.Id, StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+        if (selected.Length == 0)
+        {
+            return "";
+        }
+
+        return string.Concat(selected.Select(FormatUsageQuota));
+    }
+
+    private string FormatUsageQuota(UsageQuotaSnapshot quota)
+    {
+        var remainingFraction = Math.Clamp(quota.RemainingFraction, 0m, 1m);
+        var remainingPercent = decimal.Round(
+            remainingFraction * 100m,
+            0,
+            MidpointRounding.AwayFromZero);
+        var detail = $" \u2022 {ResolveQuotaWindowLabel(quota)} {remainingPercent.ToString("0", CultureInfo.InvariantCulture)}% remaining";
+        if (quota.ResetAtUtc is null)
+        {
+            return detail;
+        }
+
+        return $"{detail} \u2022 reset {FormatUsageQuotaReset(quota.ResetAtUtc.Value)}";
+    }
+
+    private string FormatUsageQuotaReset(DateTimeOffset resetAtUtc)
+    {
+        var remaining = resetAtUtc.UtcDateTime - _utcNow();
+        var resetMinutes = remaining <= TimeSpan.Zero
+            ? 0L
+            : (long)Math.Ceiling(remaining.TotalMinutes);
+        var resetDays = resetMinutes / (24 * 60);
+        if (resetDays > 0)
+        {
+            var resetHours = (resetMinutes % (24 * 60)) / 60;
+            return $"{resetDays}d {resetHours}h";
+        }
+
+        var hours = resetMinutes / 60;
+        var minutes = resetMinutes % 60;
+        return $"{hours}h {minutes}m";
+    }
+
+    private static string ResolveQuotaWindowLabel(UsageQuotaSnapshot quota)
+    {
+        var raw = string.IsNullOrWhiteSpace(quota.Window) ? quota.Id : quota.Window!;
+        var normalized = raw.Trim().ToLowerInvariant();
+        if (normalized.Contains("5h", StringComparison.Ordinal) ||
+            normalized.Contains("5-hour", StringComparison.Ordinal) ||
+            normalized.Contains("five-hour", StringComparison.Ordinal))
+        {
+            return "5h";
+        }
+
+        if (normalized.Contains("week", StringComparison.Ordinal))
+        {
+            return "weekly";
+        }
+
+        if (normalized.Contains("day", StringComparison.Ordinal))
+        {
+            return "daily";
+        }
+
+        var label = normalized.Replace('_', ' ').Replace('-', ' ');
+        foreach (var prefix in new[] { "gemini ", "3p " })
+        {
+            if (label.StartsWith(prefix, StringComparison.Ordinal))
+            {
+                label = label[prefix.Length..];
+                break;
+            }
+        }
+
+        return string.IsNullOrWhiteSpace(label) ? "quota" : label;
+    }
+
+    private static int GetQuotaWindowSortOrder(UsageQuotaSnapshot quota)
+    {
+        return ResolveQuotaWindowLabel(quota) == "5h" ? 0 : 1;
+    }
+
+    private static string? ResolveQuotaModelGroup(string value)
+    {
+        var normalized = value.Trim().ToLowerInvariant();
+        if (normalized.Contains("gemini", StringComparison.Ordinal))
+        {
+            return "gemini";
+        }
+
+        if (normalized.StartsWith("3p", StringComparison.Ordinal) ||
+            normalized.Contains("claude", StringComparison.Ordinal) ||
+            normalized.Contains("sonnet", StringComparison.Ordinal) ||
+            normalized.Contains("opus", StringComparison.Ordinal) ||
+            normalized.Contains("gpt", StringComparison.Ordinal) ||
+            normalized.Contains("openai", StringComparison.Ordinal))
+        {
+            return "3p";
+        }
+
+        return null;
+    }
+
+    private static string? NormalizePlanName(string? planName)
+    {
+        if (string.IsNullOrWhiteSpace(planName))
+        {
+            return null;
+        }
+
+        return string.Join(
+            ' ',
+            planName
+                .Trim()
+                .Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries));
     }
 
     private static string FormatBillingType(string? billingType)

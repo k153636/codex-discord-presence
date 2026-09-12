@@ -404,7 +404,13 @@ public sealed class ProviderSelectionAndProjectionTests
             "conversation-a",
             ProviderExecutionMode.Planning,
             new ProviderContextWindowObservation(10, 20),
-            2);
+            2,
+            [new ProviderQuotaObservation(
+                "gemini-weekly",
+                0.75m,
+                DateTimeOffset.Parse("2026-09-19T17:10:04Z"),
+                "weekly")],
+            "Pro");
 
         var selected = AntigravityConversationObservationSelector.Select(
             [hook],
@@ -417,6 +423,8 @@ public sealed class ProviderSelectionAndProjectionTests
         Assert.Equal(ProviderExecutionMode.Planning, selected?.ExecutionMode);
         Assert.Equal(30, selected?.ContextWindow?.TotalTokens);
         Assert.Equal(2, selected?.ActiveSubagentCount);
+        Assert.Equal("Pro", selected?.PlanTier);
+        Assert.Equal(0.75m, selected?.Quotas?.Single().RemainingFraction);
     }
 
     [Fact]
@@ -487,6 +495,30 @@ public sealed class ProviderSelectionAndProjectionTests
 
         Assert.Equal(2, projection.Activity.ActiveSubagentCount);
         Assert.Equal(3, projection.Activity.PartySize);
+    }
+
+    [Fact]
+    public void Build_PreservesPlanTierAndQuotaMetadataForPresence()
+    {
+        var resetAt = DateTimeOffset.Parse("2026-09-19T17:10:04Z");
+        var projection = AntigravityPresenceProjection.Build(
+            Observation(
+                "conversation-a",
+                ProviderAgentState.Idle,
+                "2026-09-12T09:00:00Z") with
+            {
+                PlanTier = "Ultra",
+                Quotas =
+                [
+                    new ProviderQuotaObservation("3p-weekly", 0.62m, resetAt, "weekly")
+                ]
+            });
+
+        Assert.Equal("Ultra", projection.PlanTier);
+        var quota = Assert.Single(projection.Quotas!);
+        Assert.Equal("3p-weekly", quota.Id);
+        Assert.Equal(0.62m, quota.RemainingFraction);
+        Assert.Equal(resetAt, quota.ResetAtUtc);
     }
 
     [Fact]
