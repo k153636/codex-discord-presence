@@ -219,7 +219,9 @@ public sealed class PresenceRuntime
                     IPresenceActivitySnapshot displayActivity;
                     if (selectedProvider.ProviderId == ProviderIds.Antigravity && antigravityObservation is not null)
                     {
-                        var projection = AntigravityPresenceProjection.Build(antigravityObservation);
+                        var projection = AntigravityPresenceProjection.Build(
+                            antigravityObservation,
+                            antigravityConversationState?.LastActivity);
                         displayActivity = projection.Activity;
                         context = BuildAntigravityPresenceContext(
                             sessionSnapshot,

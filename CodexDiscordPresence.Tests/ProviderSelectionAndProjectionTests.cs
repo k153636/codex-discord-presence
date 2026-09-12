@@ -435,7 +435,7 @@ public sealed class ProviderSelectionAndProjectionTests
     [Theory]
     [InlineData((int)ProviderAgentState.Idle, CodexActivityKind.Ready, false)]
     [InlineData((int)ProviderAgentState.Thinking, CodexActivityKind.AnalyzingProject, true)]
-    [InlineData((int)ProviderAgentState.Working, CodexActivityKind.AnalyzingProject, false)]
+    [InlineData((int)ProviderAgentState.Working, CodexActivityKind.AnalyzingProject, true)]
     [InlineData((int)ProviderAgentState.ToolUse, CodexActivityKind.RunningCommand, false)]
     [InlineData((int)ProviderAgentState.Initializing, CodexActivityKind.AnalyzingProject, true)]
     [InlineData((int)ProviderAgentState.Unknown, CodexActivityKind.Ready, false)]
@@ -523,11 +523,84 @@ public sealed class ProviderSelectionAndProjectionTests
             new PresenceTemplateOptions
             {
                 State = "{ActivityLine}",
-                ToolUseText = "Provider tools"
+                RunningCommandText = "Provider tools"
             },
             context);
 
         Assert.Equal("Provider tools", presence.State);
+    }
+
+    [Fact]
+    public void Render_AntigravityIdleWithinGracePeriodUsesWaitingLabel()
+    {
+        var projection = AntigravityPresenceProjection.Build(
+            Observation(
+                "conversation-a",
+                ProviderAgentState.Idle,
+                DateTimeOffset.UtcNow.AddMinutes(-4).ToString("O")));
+        var context = CreatePresenceContext(projection);
+
+        var presence = new PresenceTemplateRenderer().Render(
+            new PresenceTemplateOptions { State = "{ActivityLine}" },
+            context);
+
+        Assert.Equal("Waiting", presence.State);
+    }
+
+    [Fact]
+    public void Render_AntigravityIdleAfterGracePeriodUsesIdlingLabel()
+    {
+        var projection = AntigravityPresenceProjection.Build(
+            Observation(
+                "conversation-a",
+                ProviderAgentState.Idle,
+                DateTimeOffset.UtcNow.AddMinutes(-6).ToString("O")));
+        var context = CreatePresenceContext(projection);
+
+        var presence = new PresenceTemplateRenderer().Render(
+            new PresenceTemplateOptions { State = "{ActivityLine}" },
+            context);
+
+        Assert.Equal("Idling", presence.State);
+    }
+
+    [Fact]
+    public void Render_AntigravityThinkingUsesThinkingLabelWithoutSummary()
+    {
+        var projection = AntigravityPresenceProjection.Build(
+            Observation(
+                "conversation-a",
+                ProviderAgentState.Thinking,
+                DateTimeOffset.UtcNow.ToString("O")));
+        var context = CreatePresenceContext(projection);
+
+        var presence = new PresenceTemplateRenderer().Render(
+            new PresenceTemplateOptions { State = "{ActivityLine}" },
+            context);
+
+        Assert.Equal("Thinking", presence.State);
+        Assert.Null(projection.Activity.LatestThinkingSummary);
+    }
+
+    [Fact]
+    public void Build_PreservesActivityStartWhileAntigravityStateRemainsIdle()
+    {
+        var first = AntigravityPresenceProjection.Build(
+            Observation(
+                "conversation-a",
+                ProviderAgentState.Idle,
+                "2026-09-12T09:00:00Z"));
+        var second = AntigravityPresenceProjection.Build(
+            Observation(
+                "conversation-a",
+                ProviderAgentState.Idle,
+                "2026-09-12T09:01:00Z"),
+            first.Activity);
+
+        Assert.Equal(first.Activity.ActivityStartedAt, second.Activity.ActivityStartedAt);
+        Assert.Equal(
+            second.Activity.LastObservedAt,
+            DateTimeOffset.Parse("2026-09-12T09:01:00Z").UtcDateTime);
     }
 
     [Fact]
@@ -580,5 +653,20 @@ public sealed class ProviderSelectionAndProjectionTests
             null,
             null,
             conversationId);
+    }
+
+    private static PresenceContext CreatePresenceContext(
+        AntigravityPresenceProjectionResult projection)
+    {
+        return new PresenceContext(
+            projection.ModelName,
+            projection.Activity,
+            new ProjectSnapshot("repo", @"C:\repo", null, null, 0, 0, 0, []),
+            new GitSnapshot(false, 0, null),
+            new SessionSnapshot(DateTime.UtcNow, TimeSpan.Zero),
+            new TokenUsageSnapshot(null, null))
+        {
+            ProviderId = ProviderIds.Antigravity
+        };
     }
 }

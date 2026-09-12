@@ -32,7 +32,7 @@ internal sealed record AntigravityActivitySnapshot(
     public bool IsMcpOperation => false;
     public string? McpServerName => null;
     public IReadOnlyList<string> ActiveMcpServerNames => Array.Empty<string>();
-    public CodexActivityEventKind? LatestActivityEventKind => null;
+    public CodexActivityEventKind? LatestActivityEventKind { get; init; }
     public IReadOnlyList<string> ActivityFilePaths => Array.Empty<string>();
     public int PendingOperationCount => 0;
     public int PendingMutationCount => 0;
@@ -50,7 +50,9 @@ internal static class AntigravityPresenceProjection
     private const string FallbackModelName = "Unknown model";
     private const int MaxDisplayValueLength = 128;
 
-    public static AntigravityPresenceProjectionResult Build(ProviderObservation observation)
+    public static AntigravityPresenceProjectionResult Build(
+        ProviderObservation observation,
+        AntigravityActivitySnapshot? previousActivity = null)
     {
         ArgumentNullException.ThrowIfNull(observation);
 
@@ -63,10 +65,17 @@ internal static class AntigravityPresenceProjection
             IsThinking: state.IsThinking,
             ActivityKind: state.ActivityKind,
             ProviderState: ToProviderState(observation.AgentState),
-            ActivityStartedAt: observedAtUtc,
+            ActivityStartedAt: ResolveActivityStartedAt(
+                observedAtUtc,
+                state.ActivityKind,
+                observation.AgentState,
+                previousActivity),
             LastObservedAt: observedAtUtc,
             LastEffectiveSignalAt: observedAtUtc,
-            ActiveTurnId: conversationId);
+            ActiveTurnId: conversationId)
+        {
+            LatestActivityEventKind = state.LatestActivityEventKind
+        };
 
         return new AntigravityPresenceProjectionResult(
             activity,
@@ -90,18 +99,46 @@ internal static class AntigravityPresenceProjection
         };
     }
 
-    private static (CodexActivityKind ActivityKind, bool IsThinking) MapState(
+    private static (CodexActivityKind ActivityKind, bool IsThinking, CodexActivityEventKind? LatestActivityEventKind) MapState(
         ProviderAgentState agentState)
     {
         return agentState switch
         {
-            ProviderAgentState.Thinking => (CodexActivityKind.AnalyzingProject, true),
-            ProviderAgentState.Working => (CodexActivityKind.AnalyzingProject, false),
-            ProviderAgentState.ToolUse => (CodexActivityKind.RunningCommand, false),
-            ProviderAgentState.Initializing => (CodexActivityKind.AnalyzingProject, true),
-            ProviderAgentState.Idle => (CodexActivityKind.Ready, false),
-            _ => (CodexActivityKind.Ready, false)
+            ProviderAgentState.Thinking =>
+                (CodexActivityKind.AnalyzingProject, true, CodexActivityEventKind.Reasoning),
+            ProviderAgentState.Working =>
+                (CodexActivityKind.AnalyzingProject, true, null),
+            ProviderAgentState.ToolUse =>
+                (CodexActivityKind.RunningCommand, false, CodexActivityEventKind.OperationStarted),
+            ProviderAgentState.Initializing =>
+                (CodexActivityKind.AnalyzingProject, true, CodexActivityEventKind.TurnStarted),
+            ProviderAgentState.Idle =>
+                (CodexActivityKind.Ready, false, CodexActivityEventKind.TurnCompleted),
+            _ =>
+                (CodexActivityKind.Ready, false, null)
         };
+    }
+
+    private static DateTime? ResolveActivityStartedAt(
+        DateTime? observedAtUtc,
+        CodexActivityKind activityKind,
+        ProviderAgentState agentState,
+        AntigravityActivitySnapshot? previousActivity)
+    {
+        if (!observedAtUtc.HasValue)
+        {
+            return null;
+        }
+
+        return previousActivity is not null &&
+            previousActivity.ActivityKind == activityKind &&
+            string.Equals(
+                previousActivity.ProviderState,
+                ToProviderState(agentState),
+                StringComparison.Ordinal) &&
+            previousActivity.ActivityStartedAt.HasValue
+            ? previousActivity.ActivityStartedAt
+            : observedAtUtc;
     }
 
     private static string? FormatExecutionMode(ProviderExecutionMode executionMode)

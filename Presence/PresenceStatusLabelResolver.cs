@@ -15,12 +15,6 @@ public sealed class PresenceStatusLabelResolver
             return FirstNonEmpty(template.ErrorText, "Error");
         }
 
-        if (context.ProviderId == ProviderIds.Antigravity &&
-            ResolveAntigravityLabel(template, context.Activity.ProviderState) is { } providerLabel)
-        {
-            return providerLabel;
-        }
-
         var label = activityKind switch
         {
             CodexActivityKind.Planning => FirstNonEmpty(template.PlanningText, "Planning"),
@@ -41,21 +35,6 @@ public sealed class PresenceStatusLabelResolver
         };
 
         return label.Replace("{n}", changedFileCount.ToString(CultureInfo.InvariantCulture), StringComparison.Ordinal);
-    }
-
-    private static string? ResolveAntigravityLabel(
-        PresenceTemplateOptions template,
-        string? providerState)
-    {
-        return providerState?.ToLowerInvariant() switch
-        {
-            "idle" => FirstNonEmpty(template.IdlingText, "Idling"),
-            "thinking" => FirstNonEmpty(template.ThinkingText, template.AnalyzingProjectText, "Thinking"),
-            "working" => FirstNonEmpty(template.WorkingText, "Working"),
-            "tool_use" => FirstNonEmpty(template.ToolUseText, "Using tools"),
-            "initializing" => FirstNonEmpty(template.InitializingText, "Starting"),
-            _ => null
-        };
     }
 
     private static string ResolveAnalyzingLabel(PresenceTemplateOptions template, PresenceContext context)
