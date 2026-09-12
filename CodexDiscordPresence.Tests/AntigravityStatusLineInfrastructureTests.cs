@@ -390,6 +390,10 @@ public sealed class AntigravityStatusLineInfrastructureTests
         Assert.Contains("$MaxPayloadBytes = 262144", result.ScriptContent, StringComparison.Ordinal);
         Assert.Contains("ConvertFrom-Json", result.ScriptContent, StringComparison.Ordinal);
         Assert.Contains("Write-BoundedEvent", result.ScriptContent, StringComparison.Ordinal);
+        Assert.Contains(
+            "Global\\CodexDiscordPresence.AntigravityStatusLine",
+            result.ScriptContent,
+            StringComparison.Ordinal);
         Assert.Contains("Exit-WithStatus $statusLine", result.ScriptContent, StringComparison.Ordinal);
         Assert.Contains("active_subagent_count", result.ScriptContent, StringComparison.Ordinal);
         Assert.Contains("subagents", result.ScriptContent, StringComparison.Ordinal);

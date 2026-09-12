@@ -51,7 +51,9 @@ internal sealed class AntigravityHookCommandBuilder : IAntigravityHookCommandBui
         return new(
             IsSupported: true,
             Commands: commands,
-            ScriptContent: AntigravityEventPowerShellScript.Create(paths.EventFilePath),
+            ScriptContent: AntigravityEventPowerShellScript.Create(
+                paths.EventFilePath,
+                AntigravityEventPowerShellScript.HookMutexName),
             Error: null);
     }
 

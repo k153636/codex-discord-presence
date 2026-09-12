@@ -49,7 +49,9 @@ public sealed class AntigravityStatusLineCommandBuilder : IAntigravityStatusLine
         return new(
             IsSupported: true,
             Command: command,
-            ScriptContent: AntigravityEventPowerShellScript.Create(paths.EventFilePath),
+            ScriptContent: AntigravityEventPowerShellScript.Create(
+                paths.EventFilePath,
+                AntigravityEventPowerShellScript.StatusLineMutexName),
             Error: null);
     }
 
@@ -74,9 +76,13 @@ public sealed class AntigravityStatusLineCommandBuilder : IAntigravityStatusLine
 
 internal static class AntigravityEventPowerShellScript
 {
-    internal static string Create(string eventFilePath)
+    internal const string StatusLineMutexName = "Global\\CodexDiscordPresence.AntigravityStatusLine";
+    internal const string HookMutexName = "Global\\CodexDiscordPresence.AntigravityHook";
+
+    internal static string Create(string eventFilePath, string mutexName)
     {
         var quotedEventPath = QuotePowerShellString(eventFilePath);
+        var quotedMutexName = QuotePowerShellString(mutexName);
         return $$"""
             param([string] $HookEvent = '')
 
@@ -88,6 +94,7 @@ internal static class AntigravityEventPowerShellScript
             $MaxValueLength = 128
             $MaxActivityPathLength = 2048
             $EventFilePath = {{quotedEventPath}}
+            $MutexName = {{quotedMutexName}}
 
             function Exit-WithStatus([string] $Value) {
                 if ([string]::IsNullOrWhiteSpace($Value)) { $Value = 'Idling' }
@@ -375,7 +382,7 @@ internal static class AntigravityEventPowerShellScript
             }
 
             function Write-BoundedEvent([string] $Line) {
-                $mutex = [Threading.Mutex]::new($false, 'Global\CodexDiscordPresence.AntigravityStatusLine')
+                $mutex = [Threading.Mutex]::new($false, $MutexName)
                 $acquired = $false
                 try {
                     $acquired = $mutex.WaitOne(2000)

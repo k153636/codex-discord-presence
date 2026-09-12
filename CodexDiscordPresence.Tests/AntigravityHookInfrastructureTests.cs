@@ -17,6 +17,10 @@ public sealed class AntigravityHookInfrastructureTests
 
         Assert.True(result.IsSupported);
         Assert.NotNull(result.Commands);
+        Assert.Contains(
+            "Global\\CodexDiscordPresence.AntigravityHook",
+            result.ScriptContent,
+            StringComparison.Ordinal);
         Assert.Equal(AntigravityHookEvents.All.Count, result.Commands!.Count);
         Assert.All(AntigravityHookEvents.All, hookEvent =>
         {
