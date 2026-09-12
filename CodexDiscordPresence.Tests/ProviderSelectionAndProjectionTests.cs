@@ -825,8 +825,12 @@ public sealed class ProviderSelectionAndProjectionTests
         Assert.Equal("gemini 3.8 flash medium", presence.Details);
     }
 
-    [Fact]
-    public void Build_PreservesClaudeThinkingAsNativeModelIdentity()
+    [Theory]
+    [InlineData("Claude Sonnet 4.6 (Thinking)", "claude sonnet 4.6")]
+    [InlineData("Claude Opus 4.6 (Thinking)", "claude opus 4.6")]
+    public void Build_SplitsNonGeminiParenthesizedModelVariant(
+        string displayName,
+        string expectedModelName)
     {
         var projection = AntigravityPresenceProjection.Build(
             new ProviderObservation(
@@ -834,13 +838,59 @@ public sealed class ProviderSelectionAndProjectionTests
                 DateTimeOffset.UtcNow,
                 ProviderAgentState.Idle,
                 new ProviderModelObservation(
-                    "Claude Sonnet 4.6 (Thinking)",
-                    "Claude Sonnet 4.6 (Thinking)"),
+                    displayName,
+                    displayName),
                 null,
                 null));
 
-        Assert.Equal("Claude Sonnet 4.6 (Thinking)", projection.ModelName);
+        Assert.Equal(expectedModelName, projection.ModelName);
         Assert.Null(projection.ModelReasoningLevel);
+        Assert.Equal("thinking", projection.ModelVariant);
+    }
+
+    [Fact]
+    public void Build_SplitsUnknownParenthesizedModelVariantWithoutModelSpecificCode()
+    {
+        var projection = AntigravityPresenceProjection.Build(
+            new ProviderObservation(
+                ProviderObservationSource.AntigravityCli,
+                DateTimeOffset.UtcNow,
+                ProviderAgentState.Idle,
+                new ProviderModelObservation(
+                    "future-model-4-preview",
+                    "Future Model 4 (Preview)"),
+                null,
+                null));
+
+        Assert.Equal("future model 4", projection.ModelName);
+        Assert.Null(projection.ModelReasoningLevel);
+        Assert.Equal("preview", projection.ModelVariant);
+    }
+
+    [Fact]
+    public void Render_UsesCodexModelFormatForClaudeVariant()
+    {
+        var projection = AntigravityPresenceProjection.Build(
+            new ProviderObservation(
+                ProviderObservationSource.AntigravityCli,
+                DateTimeOffset.UtcNow,
+                ProviderAgentState.Idle,
+                new ProviderModelObservation(
+                    "Claude Opus 4.6 (Thinking)",
+                    "Claude Opus 4.6 (Thinking)"),
+                null,
+                null));
+        var context = CreatePresenceContext(projection);
+
+        var presence = new PresenceTemplateRenderer().Render(
+            new PresenceTemplateOptions
+            {
+                Details = "{ModelName}",
+                State = "{ActivityLine}"
+            },
+            context);
+
+        Assert.Equal("claude opus 4.6 thinking", presence.Details);
     }
 
     private static ProviderSelectionCandidate Candidate(
@@ -895,7 +945,8 @@ public sealed class ProviderSelectionAndProjectionTests
         {
             ProviderId = ProviderIds.Antigravity,
             ExecutionMode = projection.ExecutionMode,
-            ModelReasoningLevel = projection.ModelReasoningLevel
+            ModelReasoningLevel = projection.ModelReasoningLevel,
+            ModelVariant = projection.ModelVariant
         };
     }
 }

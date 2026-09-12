@@ -4,6 +4,7 @@ internal sealed record AntigravityPresenceProjectionResult(
     AntigravityActivitySnapshot Activity,
     string ModelName,
     string? ModelReasoningLevel,
+    string? ModelVariant,
     string? WorkspaceName,
     string? ConversationId,
     string? ExecutionMode,
@@ -105,6 +106,7 @@ internal static class AntigravityPresenceProjection
             activity,
             modelDisplay.ModelName,
             modelDisplay.ReasoningLevel,
+            modelDisplay.Variant,
             observation.Workspace?.WorkspaceName,
             conversationId,
             FormatExecutionMode(observation.ExecutionMode),
@@ -326,11 +328,21 @@ internal static class AntigravityPresenceProjection
                 NormalizeGeminiReasoningLevel(displayName);
             return new(
                 ResolveGeminiModelName(modelId, displayName, reasoningLevel),
-                reasoningLevel);
+                reasoningLevel,
+                null);
         }
 
-        var modelName = displayName ?? modelId ?? FallbackModelName;
-        return new(CodexModelDisplayFormatter.Format(modelName, null, null), null);
+        var variant = NormalizeModelVariant(displayName) ?? NormalizeModelVariant(modelId);
+        if (variant is null)
+        {
+            var modelName = displayName ?? modelId ?? FallbackModelName;
+            return new(CodexModelDisplayFormatter.Format(modelName, null, null), null, null);
+        }
+
+        return new(
+            ResolveVariantModelName(modelId, displayName, variant),
+            null,
+            variant);
     }
 
     private static bool IsGeminiModel(string? value)
@@ -367,7 +379,7 @@ internal static class AntigravityPresenceProjection
     {
         var lastToken = value is null
             ? null
-            : TokenizeGeminiModel(value).LastOrDefault();
+            : TokenizeModel(value).LastOrDefault();
         return lastToken switch
         {
             "low" => "low",
@@ -398,7 +410,7 @@ internal static class AntigravityPresenceProjection
         string modelName,
         string? reasoningLevel)
     {
-        var tokens = TokenizeGeminiModel(modelName).ToArray();
+        var tokens = TokenizeModel(modelName).ToArray();
         if (reasoningLevel is not null &&
             tokens.Length > 0 &&
             string.Equals(tokens[^1], reasoningLevel, StringComparison.OrdinalIgnoreCase))
@@ -409,7 +421,61 @@ internal static class AntigravityPresenceProjection
         return string.Join(' ', tokens);
     }
 
-    private static IEnumerable<string> TokenizeGeminiModel(string value)
+    private static string ResolveVariantModelName(
+        string? modelId,
+        string? displayName,
+        string variant)
+    {
+        var displayVariant = NormalizeModelVariant(displayName);
+        var modelName = displayName ?? modelId ?? FallbackModelName;
+        if (displayVariant is not null)
+        {
+            modelName = RemoveTrailingModelVariant(modelName, displayVariant);
+        }
+        else if (displayName is null && modelId is not null)
+        {
+            modelName = RemoveTrailingModelVariant(modelId, variant);
+        }
+
+        return string.Join(' ', TokenizeModel(modelName));
+    }
+
+    private static string? NormalizeModelVariant(string? value)
+    {
+        if (value is null)
+        {
+            return null;
+        }
+
+        var trimmed = value.Trim();
+        if (trimmed.EndsWith(")", StringComparison.Ordinal))
+        {
+            var openParenthesis = trimmed.LastIndexOf('(');
+            if (openParenthesis >= 0 && openParenthesis < trimmed.Length - 2)
+            {
+                var parenthesizedValue = trimmed[(openParenthesis + 1)..^1];
+                return string.Join(' ', TokenizeModel(parenthesizedValue));
+            }
+        }
+
+        var lastToken = TokenizeModel(trimmed).LastOrDefault();
+        return string.Equals(lastToken, "thinking", StringComparison.Ordinal)
+            ? lastToken
+            : null;
+    }
+
+    private static string RemoveTrailingModelVariant(string modelName, string variant)
+    {
+        var parenthesizedSuffix = $"({variant})";
+        if (modelName.EndsWith(parenthesizedSuffix, StringComparison.OrdinalIgnoreCase))
+        {
+            return modelName[..^parenthesizedSuffix.Length].TrimEnd();
+        }
+
+        return modelName[..^variant.Length].TrimEnd().TrimEnd('(').TrimEnd();
+    }
+
+    private static IEnumerable<string> TokenizeModel(string value)
     {
         return value
             .Replace('-', ' ')
@@ -481,5 +547,6 @@ internal static class AntigravityPresenceProjection
 
     private sealed record ModelDisplay(
         string ModelName,
-        string? ReasoningLevel);
+        string? ReasoningLevel,
+        string? Variant);
 }

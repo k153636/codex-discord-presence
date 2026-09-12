@@ -746,7 +746,8 @@ public sealed class PresenceRuntime
         {
             ProviderId = ProviderIds.Antigravity,
             ExecutionMode = projection.ExecutionMode,
-            ModelReasoningLevel = projection.ModelReasoningLevel
+            ModelReasoningLevel = projection.ModelReasoningLevel,
+            ModelVariant = projection.ModelVariant
         };
     }
 

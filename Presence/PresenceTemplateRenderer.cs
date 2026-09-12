@@ -96,6 +96,7 @@ public sealed class PresenceTemplateRenderer
             ["ProjectPath"] = context.Project.Path,
             ["ExecutionMode"] = context.ExecutionMode ?? "",
             ["ModelReasoningLevel"] = context.ModelReasoningLevel ?? "",
+            ["ModelVariant"] = context.ModelVariant ?? "",
             ["GoalModePrefix"] = goalModePrefix,
             ["EditingFileName"] = editingFileName,
             ["EditingFileLabel"] = editingFileLabel,
@@ -137,17 +138,22 @@ public sealed class PresenceTemplateRenderer
     {
         var modelName = context.ModelName.Trim();
         var reasoningLevel = context.ModelReasoningLevel?.Trim().ToLowerInvariant();
+        var modelVariant = context.ModelVariant?.Trim().ToLowerInvariant();
+        var modelSuffix = string.Join(
+            ' ',
+            new[] { reasoningLevel, modelVariant }
+                .Where(value => !string.IsNullOrWhiteSpace(value)));
         if (string.IsNullOrWhiteSpace(modelName))
         {
-            return reasoningLevel ?? "";
+            return modelSuffix;
         }
 
-        if (string.IsNullOrWhiteSpace(reasoningLevel))
+        if (string.IsNullOrWhiteSpace(modelSuffix))
         {
             return modelName;
         }
 
-        return $"{modelName} {reasoningLevel}";
+        return $"{modelName} {modelSuffix}";
     }
 
     private string ResolveDetails(
