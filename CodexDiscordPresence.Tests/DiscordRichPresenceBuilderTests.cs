@@ -74,7 +74,7 @@ public sealed class DiscordRichPresenceBuilderTests
         var options = new DiscordOptions
         {
             ClientId = "1548038167041671259",
-            LargeImageKey = "rpc_antigravity",
+            LargeImageKey = "rpc_antigravity_cli",
             SmallImageKey = null,
             ExternalImageUrls = new(StringComparer.OrdinalIgnoreCase)
         };
@@ -84,7 +84,7 @@ public sealed class DiscordRichPresenceBuilderTests
         Assert.NotNull(payload.Party);
         Assert.Equal(1, payload.Party!.Size);
         Assert.Equal(1, payload.Party.Max);
-        Assert.Equal("rpc_antigravity", payload.Assets!.LargeImageKey);
+        Assert.Equal("rpc_antigravity_cli", payload.Assets!.LargeImageKey);
         Assert.Null(payload.Assets.SmallImageKey);
     }
 

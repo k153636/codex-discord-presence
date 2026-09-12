@@ -14,7 +14,7 @@ public sealed class DiscordAssetKeyResolverTests
                 ProviderId = ProviderIds.Antigravity
             });
 
-        Assert.Equal("rpc_antigravity", key);
+        Assert.Equal("rpc_antigravity_cli", key);
     }
 
     [Fact]
@@ -25,7 +25,7 @@ public sealed class DiscordAssetKeyResolverTests
         {
             ExternalImageUrls = new(StringComparer.OrdinalIgnoreCase)
             {
-                ["rpc_antigravity"] = iconUrl
+                ["rpc_antigravity_cli"] = iconUrl
             }
         };
         var presence = new RenderedPresence(
@@ -49,11 +49,11 @@ public sealed class DiscordAssetKeyResolverTests
     [InlineData("antigravity")]
     [InlineData("ANTIGRAVITY")]
     [InlineData("  Antigravity  ")]
-    public void ResolveProviderLargeImageKey_UsesFixedAntigravityKey(string providerId)
+    public void ResolveProviderLargeImageKey_UsesFixedAntigravityCliKey(string providerId)
     {
         var key = DiscordAssetKeyResolver.ResolveProviderLargeImageKey(providerId);
 
-        Assert.Equal("rpc_antigravity", key);
+        Assert.Equal("rpc_antigravity_cli", key);
     }
 
     [Theory]

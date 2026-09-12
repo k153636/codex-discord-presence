@@ -126,7 +126,7 @@ public sealed class AppOptionsMergeTests
   },
   "DiscordAntigravity": {
     "ClientId": "1548038167041671259",
-    "LargeImageKey": "rpc_antigravity",
+    "LargeImageKey": "rpc_antigravity_cli",
     "SmallImageKey": null,
     "ExternalImageUrls": {}
   },

@@ -3,13 +3,13 @@ namespace CodexDiscordPresence;
 internal static class DiscordAssetKeyResolver
 {
     private const string AntigravityProviderId = "antigravity";
-    private const string AntigravityImageKey = "rpc_antigravity";
+    private const string AntigravityCliImageKey = "rpc_antigravity_cli";
 
     public static string? ResolveProviderLargeImageKey(string? providerId)
     {
         return TryNormalize(providerId, out var normalizedProviderId) &&
             string.Equals(normalizedProviderId, AntigravityProviderId, StringComparison.OrdinalIgnoreCase)
-            ? AntigravityImageKey
+            ? AntigravityCliImageKey
             : null;
     }
 

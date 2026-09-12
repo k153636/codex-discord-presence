@@ -65,7 +65,7 @@ It checks the running Codex process, session logs, and CLI command-line informat
 
 Antigravity support is opt-in from the Dashboard. The integration reads only the official statusLine JSON payload, groups observations by `conversation_id`, and treats `thinking`, `working`, and `tool_use` as active states. It does not read the Antigravity transcript or use `task_count` as party size; Antigravity presence uses a temporary `1/1` party.
 
-Antigravity uses its own Discord application configuration and the `rpc_antigravity` static art asset; Codex application IDs and asset mappings are not reused.
+Antigravity CLI uses its own Discord application configuration and the `rpc_antigravity_cli` static art asset; the existing `rpc_antigravity` asset remains reserved for a future Antigravity desktop application. Codex application IDs and asset mappings are not reused.
 
 If Antigravity already has a user-owned `statusLine` setting, the application reports a conflict and leaves that setting unchanged.
 
