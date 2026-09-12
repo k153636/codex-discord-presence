@@ -58,8 +58,12 @@ internal sealed class AntigravityStatusLinePayloadParser : IProviderObservationP
         var executionMode = ReadExecutionMode(root);
         var contextWindow = ReadContextWindow(root);
         var activeSubagentCount = ReadActiveSubagentCount(root);
-
-        return new ProviderObservation(
+        var operation = ReadOperation(root);
+        if (operation is not null)
+        {
+            operation = operation with { ObservedAtUtc = observedAtUtc.ToUniversalTime() };
+        }
+        var observation = new ProviderObservation(
             ProviderObservationSource.AntigravityCli,
             observedAtUtc.ToUniversalTime(),
             agentState,
@@ -68,7 +72,22 @@ internal sealed class AntigravityStatusLinePayloadParser : IProviderObservationP
             conversationId,
             executionMode,
             contextWindow,
-            activeSubagentCount);
+            activeSubagentCount)
+        {
+            TranscriptPath = ReadPathValueAny(root, "transcript_path", "transcriptPath"),
+            ArtifactDirectoryPath = ReadPathValueAny(root, "artifact_directory_path", "artifactDirectoryPath"),
+            Operation = operation,
+            IsWaitingForInput = ReadBooleanAny(
+                root,
+                "waiting_for_input",
+                "waitingForInput",
+                "awaiting_confirmation",
+                "awaitingConfirmation",
+                "confirmation_pending",
+                "confirmationPending")
+        };
+
+        return observation;
     }
 
     private static ProviderModelObservation? CreateModel(JsonElement root)
@@ -166,6 +185,137 @@ internal sealed class AntigravityStatusLinePayloadParser : IProviderObservationP
         }
 
         return count;
+    }
+
+    private static ProviderOperationObservation? ReadOperation(JsonElement root)
+    {
+        var containers = new List<JsonElement> { root };
+        if (TryGetObject(root, "activity", out var activity))
+        {
+            containers.Add(activity);
+        }
+
+        if (TryGetObject(root, "operation", out var operation))
+        {
+            containers.Add(operation);
+        }
+
+        if (TryGetObject(root, "tool", out var tool))
+        {
+            containers.Add(tool);
+        }
+
+        var toolName = ReadSafeTextFromContainers(
+            containers,
+            "tool_name",
+            "toolName",
+            "name",
+            "operation_name",
+            "operationName");
+        var action = ReadSafeTextFromContainers(containers, "tool_action", "toolAction", "action");
+        var summary = ReadSafeTextFromContainers(
+            containers,
+            "tool_summary",
+            "toolSummary",
+            "summary",
+            "command",
+            "cmd");
+        var targetPath = ReadSafeTextFromContainers(
+            containers,
+            "target_path",
+            "targetPath",
+            "file_path",
+            "filePath",
+            "absolute_path",
+            "AbsolutePath",
+            "path",
+            "url",
+            "Url");
+        var isCompleted = ReadBooleanFromContainers(containers, "is_completed", "isCompleted", "completed");
+
+        if (toolName is null &&
+            TryGetString(root, "tool", out var directToolName))
+        {
+            toolName = NormalizeText(directToolName);
+        }
+
+        if (toolName is null && action is null && summary is null && targetPath is null)
+        {
+            return null;
+        }
+
+        return new ProviderOperationObservation(
+            CodexOperationKind.Unknown,
+            toolName,
+            action,
+            summary,
+            targetPath,
+            isCompleted);
+    }
+
+    private static string? ReadPathValueAny(JsonElement root, params string[] propertyNames)
+    {
+        foreach (var propertyName in propertyNames)
+        {
+            if (TryGetString(root, propertyName, out var value))
+            {
+                var trimmed = value.Trim();
+                if (trimmed.Length > 0)
+                {
+                    return trimmed;
+                }
+            }
+        }
+
+        return null;
+    }
+
+    private static bool ReadBooleanAny(JsonElement root, params string[] propertyNames)
+    {
+        foreach (var propertyName in propertyNames)
+        {
+            if (root.TryGetProperty(propertyName, out var value) &&
+                value.ValueKind is JsonValueKind.True or JsonValueKind.False)
+            {
+                return value.GetBoolean();
+            }
+        }
+
+        return false;
+    }
+
+    private static string? ReadSafeTextFromContainers(
+        IReadOnlyList<JsonElement> containers,
+        params string[] propertyNames)
+    {
+        foreach (var container in containers)
+        {
+            foreach (var propertyName in propertyNames)
+            {
+                var value = ReadSafeText(container, propertyName);
+                if (value is not null)
+                {
+                    return value;
+                }
+            }
+        }
+
+        return null;
+    }
+
+    private static bool ReadBooleanFromContainers(
+        IReadOnlyList<JsonElement> containers,
+        params string[] propertyNames)
+    {
+        foreach (var container in containers)
+        {
+            if (ReadBooleanAny(container, propertyNames))
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private static bool IsActiveSubagent(JsonElement subagent)

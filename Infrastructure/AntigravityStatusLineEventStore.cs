@@ -344,6 +344,18 @@ internal sealed class AntigravityStatusLineEventStore
         [JsonPropertyName("active_subagent_count")]
         public int? ActiveSubagentCount { get; init; }
 
+        [JsonPropertyName("transcript_path")]
+        public string? TranscriptPath { get; init; }
+
+        [JsonPropertyName("artifact_directory_path")]
+        public string? ArtifactDirectoryPath { get; init; }
+
+        [JsonPropertyName("operation")]
+        public EventOperation? Operation { get; init; }
+
+        [JsonPropertyName("waiting_for_input")]
+        public bool? WaitingForInput { get; init; }
+
         [JsonPropertyName("project_key")]
         public string? ProjectKey { get; init; }
 
@@ -371,6 +383,17 @@ internal sealed class AntigravityStatusLineEventStore
                         observation.ContextWindow.TotalInputTokens,
                         observation.ContextWindow.TotalOutputTokens),
                 ActiveSubagentCount = NormalizeActiveSubagentCount(observation.ActiveSubagentCount),
+                Operation = observation.Operation is null
+                    ? null
+                    : new EventOperation(
+                        ToWireOperationKind(observation.Operation.Kind),
+                        observation.Operation.ToolName,
+                        observation.Operation.Action,
+                        observation.Operation.Summary,
+                        observation.Operation.TargetPath,
+                        observation.Operation.IsCompleted,
+                        observation.Operation.ObservedAtUtc),
+                WaitingForInput = observation.IsWaitingForInput ? true : null,
                 ProjectKey = projectKey
             };
 
@@ -427,7 +450,13 @@ internal sealed class AntigravityStatusLineEventStore
                 : new ProviderContextWindowObservation(
                     ContextWindow.TotalInputTokens,
                     ContextWindow.TotalOutputTokens),
-            ActiveSubagentCount);
+            ActiveSubagentCount)
+        {
+            TranscriptPath = TranscriptPath,
+            ArtifactDirectoryPath = ArtifactDirectoryPath,
+            Operation = Operation?.ToObservation(),
+            IsWaitingForInput = WaitingForInput == true
+        };
 
         private static int? NormalizeActiveSubagentCount(int? count) =>
             IsValidActiveSubagentCount(count) ? count : null;
@@ -452,12 +481,53 @@ internal sealed class AntigravityStatusLineEventStore
             _ => null
         };
 
+        private static string ToWireOperationKind(CodexOperationKind kind) => kind switch
+        {
+            CodexOperationKind.Read => "read",
+            CodexOperationKind.Edit => "edit",
+            CodexOperationKind.Create => "create",
+            CodexOperationKind.Delete => "delete",
+            CodexOperationKind.Command => "command",
+            CodexOperationKind.Research => "research",
+            _ => "unknown"
+        };
+
         private static ProviderExecutionMode ParseExecutionMode(string? mode) => mode?.ToLowerInvariant() switch
         {
             "planning" => ProviderExecutionMode.Planning,
             "fast" => ProviderExecutionMode.Fast,
             _ => ProviderExecutionMode.Unknown
         };
+
+        public sealed record EventOperation(
+            [property: JsonPropertyName("kind")] string? Kind,
+            [property: JsonPropertyName("tool_name")] string? ToolName,
+            [property: JsonPropertyName("action")] string? Action,
+            [property: JsonPropertyName("summary")] string? Summary,
+            [property: JsonPropertyName("target_path")] string? TargetPath,
+            [property: JsonPropertyName("is_completed")] bool IsCompleted,
+            [property: JsonPropertyName("observed_at_utc")] DateTimeOffset? ObservedAtUtc)
+        {
+            public ProviderOperationObservation ToObservation() => new(
+                ParseOperationKind(Kind),
+                ToolName,
+                Action,
+                Summary,
+                TargetPath,
+                IsCompleted,
+                ObservedAtUtc?.ToUniversalTime());
+
+            private static CodexOperationKind ParseOperationKind(string? kind) => kind?.ToLowerInvariant() switch
+            {
+                "read" => CodexOperationKind.Read,
+                "edit" => CodexOperationKind.Edit,
+                "create" => CodexOperationKind.Create,
+                "delete" => CodexOperationKind.Delete,
+                "command" => CodexOperationKind.Command,
+                "research" => CodexOperationKind.Research,
+                _ => CodexOperationKind.Unknown
+            };
+        }
 
         private static ProviderAgentState ParseAgentState(string? state) => state?.ToLowerInvariant() switch
         {

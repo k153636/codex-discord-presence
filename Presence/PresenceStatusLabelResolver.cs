@@ -24,8 +24,14 @@ public sealed class PresenceStatusLabelResolver
             CodexActivityKind.DeletingFiles => FirstNonEmpty(template.DeletingFilesText, "Deleting files"),
             CodexActivityKind.RunningCommand => ResolveRunningCommandLabel(template, context),
             CodexActivityKind.Refactoring => FirstNonEmpty(template.RefactoringText, "Refactoring"),
-            CodexActivityKind.ReadingFiles => FirstNonEmpty(template.ReadingText, "Reading"),
-            CodexActivityKind.Researching => FirstNonEmpty(template.ResearchingText, "Researching"),
+            CodexActivityKind.ReadingFiles => ResolveActivityDescriptionLabel(
+                template.ReadingText,
+                context.Activity.ActiveActivityDescription,
+                "Reading"),
+            CodexActivityKind.Researching => ResolveActivityDescriptionLabel(
+                template.ResearchingText,
+                context.Activity.ActiveActivityDescription,
+                "Researching"),
             CodexActivityKind.WaitingForInput => FirstNonEmpty(template.WaitingText, "Waiting"),
             CodexActivityKind.Stalled => FirstNonEmpty(template.StalledText, "Stalled"),
             CodexActivityKind.AnalyzingProject => ResolveAnalyzingLabel(template, context),
@@ -104,6 +110,19 @@ public sealed class PresenceStatusLabelResolver
         }
 
         return $"{baseLabel}: {commandName}";
+    }
+
+    private static string ResolveActivityDescriptionLabel(
+        string configuredLabel,
+        string? description,
+        string fallback)
+    {
+        if (!string.IsNullOrWhiteSpace(description))
+        {
+            return description.Trim();
+        }
+
+        return FirstNonEmpty(configuredLabel, fallback);
     }
 
     private static string ResolveRunningCommandName(string commandName, RunningCommandKind commandKind)

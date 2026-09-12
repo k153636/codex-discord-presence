@@ -70,6 +70,39 @@ public sealed class AntigravityStatusLinePayloadParserTests
     }
 
     [Fact]
+    public void TryParse_ActivityMetadata_ProducesOperationAndWaitingEvidence()
+    {
+        const string payload = """
+            {
+              "conversation_id": "conversation-id",
+              "agent_state": "tool_use",
+              "transcript_path": "C:\\Users\\redacted\\.gemini\\transcript.jsonl",
+              "activity": {
+                "toolName": "read_url_content",
+                "toolAction": "Reading pricing page",
+                "toolSummary": "Pricing content",
+                "Url": "https://example.invalid/pricing"
+              },
+              "confirmation_pending": true
+            }
+            """;
+        var parser = new AntigravityStatusLinePayloadParser();
+
+        var parsed = parser.TryParse(
+            Encoding.UTF8.GetBytes(payload),
+            DateTimeOffset.UtcNow,
+            out var observation);
+
+        var result = Assert.IsType<ProviderObservation>(observation);
+        Assert.True(parsed);
+        Assert.Equal("C:\\Users\\redacted\\.gemini\\transcript.jsonl", result.TranscriptPath);
+        Assert.True(result.IsWaitingForInput);
+        Assert.Equal("read_url_content", result.Operation?.ToolName);
+        Assert.Equal("Reading pricing page", result.Operation?.Action);
+        Assert.Equal("https://example.invalid/pricing", result.Operation?.TargetPath);
+    }
+
+    [Fact]
     public void TryParse_TaskCountWithoutSubagents_DoesNotCreatePartyEvidence()
     {
         const string payload = "{\"agent_state\":\"working\",\"task_count\":4}";

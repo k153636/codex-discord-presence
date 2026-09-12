@@ -31,6 +31,15 @@ internal enum ProviderExecutionMode
     Fast = 2
 }
 
+internal sealed record ProviderOperationObservation(
+    CodexOperationKind Kind,
+    string? ToolName = null,
+    string? Action = null,
+    string? Summary = null,
+    string? TargetPath = null,
+    bool IsCompleted = false,
+    DateTimeOffset? ObservedAtUtc = null);
+
 internal sealed record ProviderObservation(
     ProviderObservationSource Source,
     DateTimeOffset ObservedAtUtc,
@@ -43,6 +52,14 @@ internal sealed record ProviderObservation(
     int? ActiveSubagentCount = null)
 {
     internal const int MaxActiveSubagentCount = 64;
+
+    // These fields stay inside the local activity pipeline. They are intentionally
+    // not part of the public observation serialization surface because they can
+    // contain local transcript paths or tool arguments.
+    internal string? TranscriptPath { get; init; }
+    internal string? ArtifactDirectoryPath { get; init; }
+    internal ProviderOperationObservation? Operation { get; init; }
+    internal bool IsWaitingForInput { get; init; }
 }
 
 internal sealed record ProviderModelObservation(

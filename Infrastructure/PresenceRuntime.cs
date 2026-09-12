@@ -59,6 +59,7 @@ public sealed class PresenceRuntime
         var antigravityEventStore = new AntigravityStatusLineEventStore(antigravityPaths.EventFilePath);
         var antigravityHookPaths = AntigravityHookPaths.CreateDefault();
         var antigravityHookEventStore = new AntigravityStatusLineEventStore(antigravityHookPaths.EventFilePath);
+        var antigravityActivityEnricher = new AntigravityActivityEnricher();
         var antigravityIntegration = new AntigravityIntegrationCoordinator(
             new AntigravityStatusLineInstaller(),
             new AntigravityHookInstaller(),
@@ -153,6 +154,12 @@ public sealed class PresenceRuntime
                         antigravityHookObservations,
                         antigravityStatusLineObservations,
                         antigravityState.CurrentConversationId);
+                    if (antigravityObservation is not null)
+                    {
+                        antigravityObservation = antigravityActivityEnricher.Enrich(
+                            antigravityObservation,
+                            DateTimeOffset.UtcNow);
+                    }
                     var antigravityPreviousActivity = antigravityObservation is null
                         ? null
                         : antigravityState.GetLastActivity(antigravityObservation.ConversationId);

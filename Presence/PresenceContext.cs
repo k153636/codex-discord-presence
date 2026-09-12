@@ -23,6 +23,7 @@ public interface IPresenceActivitySnapshot
     IReadOnlyList<string> ActiveMcpServerNames { get; }
     CodexActivityEventKind? LatestActivityEventKind { get; }
     IReadOnlyList<string> ActivityFilePaths { get; }
+    string? ActiveActivityDescription { get; }
     int PendingOperationCount { get; }
     int PendingMutationCount { get; }
     string? ActiveTurnId { get; }
@@ -133,6 +134,7 @@ public sealed partial record CodexProcessSnapshot
     public string? LastDirectToolFilePath { get; init; }
     public DateTime? LastDirectToolFileAt { get; init; }
     public string? ActiveToolFilePath { get; init; }
+    public string? ActiveActivityDescription => null;
     public bool IsMcpOperation { get; init; }
     public string? McpServerName { get; init; }
     public IReadOnlyList<string> ActiveMcpServerNames { get; init; } = Array.Empty<string>();

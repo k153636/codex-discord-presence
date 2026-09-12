@@ -59,7 +59,8 @@ internal static class AntigravityConversationObservationSelector
         return agentState is
             ProviderAgentState.Thinking or
             ProviderAgentState.Working or
-            ProviderAgentState.ToolUse;
+            ProviderAgentState.ToolUse or
+            ProviderAgentState.Initializing;
     }
 
     private static ProviderObservation Rank(
@@ -133,7 +134,33 @@ internal static class AntigravityConversationObservationSelector
                 : hookObservation.ExecutionMode,
             ContextWindow = hookObservation.ContextWindow ?? statusLineObservation.ContextWindow,
             ActiveSubagentCount = hookObservation.ActiveSubagentCount ??
-                statusLineObservation.ActiveSubagentCount
+                statusLineObservation.ActiveSubagentCount,
+            TranscriptPath = hookObservation.TranscriptPath ?? statusLineObservation.TranscriptPath,
+            ArtifactDirectoryPath = hookObservation.ArtifactDirectoryPath ??
+                statusLineObservation.ArtifactDirectoryPath,
+            Operation = SelectOperation(hookObservation, statusLineObservation),
+            IsWaitingForInput = hookObservation.IsWaitingForInput || statusLineObservation.IsWaitingForInput
         };
+    }
+
+    private static ProviderOperationObservation? SelectOperation(
+        ProviderObservation hookObservation,
+        ProviderObservation statusLineObservation)
+    {
+        if (hookObservation.Operation is null)
+        {
+            return statusLineObservation.Operation;
+        }
+
+        if (statusLineObservation.Operation is null)
+        {
+            return hookObservation.Operation;
+        }
+
+        var hookObservedAt = hookObservation.Operation.ObservedAtUtc ?? hookObservation.ObservedAtUtc;
+        var statusLineObservedAt = statusLineObservation.Operation.ObservedAtUtc ?? statusLineObservation.ObservedAtUtc;
+        return hookObservedAt >= statusLineObservedAt
+            ? hookObservation.Operation
+            : statusLineObservation.Operation;
     }
 }

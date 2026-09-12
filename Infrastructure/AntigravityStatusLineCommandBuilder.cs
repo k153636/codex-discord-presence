@@ -86,6 +86,7 @@ internal static class AntigravityEventPowerShellScript
             $MaxEventCount = 64
             $MaxActiveSubagentCount = {{ProviderObservation.MaxActiveSubagentCount}}
             $MaxValueLength = 128
+            $MaxActivityPathLength = 2048
             $EventFilePath = {{quotedEventPath}}
 
             function Exit-WithStatus([string] $Value) {
@@ -137,6 +138,70 @@ internal static class AntigravityEventPowerShellScript
                 $property = $Object.PSObject.Properties[$Name]
                 if ($null -eq $property) { return $null }
                 return $property.Value
+            }
+
+            function Get-FirstPropertyValue([object[]] $Objects, [string[]] $Names) {
+                foreach ($object in @($Objects)) {
+                    if ($null -eq $object) { continue }
+                    foreach ($name in $Names) {
+                        $value = Get-PropertyValue $object $name
+                        if ($null -ne $value) { return $value }
+                    }
+                }
+                return $null
+            }
+
+            function Get-BooleanValue([object] $Value) {
+                if ($null -eq $Value) { return $null }
+                if ($Value -is [bool]) { return [bool]$Value }
+                $parsed = [bool]$false
+                if ([bool]::TryParse([string]$Value, [ref]$parsed)) { return $parsed }
+                return $null
+            }
+
+            function Get-SafeActivityPath([object] $Value) {
+                if ($null -eq $Value -or $Value -isnot [string]) { return $null }
+                $clean = -join ($Value.ToCharArray() | Where-Object { -not [char]::IsControl($_) })
+                $clean = $clean.Trim()
+                if ([string]::IsNullOrWhiteSpace($clean)) { return $null }
+                if ($clean.Length -gt $MaxActivityPathLength) { return $clean.Substring(0, $MaxActivityPathLength) }
+                return $clean
+            }
+
+            function Get-Activity([object] $Payload, [bool] $IsCompleted) {
+                if ($null -eq $Payload) { return $null }
+                $objects = @($Payload)
+                foreach ($containerName in @('activity', 'operation')) {
+                    $nested = Get-PropertyValue $Payload $containerName
+                    if ($null -ne $nested) { $objects += $nested }
+                }
+                $tool = Get-PropertyValue $Payload 'tool'
+                if ($null -ne $tool -and $tool -isnot [string]) { $objects += $tool }
+
+                $toolName = Get-SafeText (Get-FirstPropertyValue $objects @(
+                    'tool_name', 'toolName', 'name', 'operation_name', 'operationName'))
+                if ($null -eq $toolName -and $tool -is [string]) {
+                    $toolName = Get-SafeText $tool
+                }
+                $action = Get-SafeText (Get-FirstPropertyValue $objects @('tool_action', 'toolAction', 'action'))
+                $summary = Get-SafeText (Get-FirstPropertyValue $objects @(
+                    'tool_summary', 'toolSummary', 'summary', 'command', 'cmd'))
+                $targetPath = Get-SafeActivityPath (Get-FirstPropertyValue $objects @(
+                    'target_path', 'targetPath', 'file_path', 'filePath', 'absolute_path', 'AbsolutePath',
+                    'path', 'url', 'Url'))
+                if ($null -eq $toolName -and $null -eq $action -and $null -eq $summary -and $null -eq $targetPath) {
+                    return $null
+                }
+
+                return [ordered]@{
+                    kind = 'unknown'
+                    tool_name = $toolName
+                    action = $action
+                    summary = $summary
+                    target_path = $targetPath
+                    is_completed = $IsCompleted
+                    observed_at_utc = [DateTimeOffset]::UtcNow.ToString('O')
+                }
             }
 
             function Get-ActiveSubagentCount([object] $Payload) {
@@ -325,6 +390,10 @@ internal static class AntigravityEventPowerShellScript
                             project_name = Get-PathLeafValue $workspacePath
                         }
                     }
+                    $activity = Get-Activity $payload ($HookEvent -in @('PostToolUse', 'PostInvocation', 'Stop'))
+                    $waitingForInput = Get-BooleanValue (Get-FirstPropertyValue @($payload) @(
+                        'waitingForInput', 'waiting_for_input', 'awaitingConfirmation', 'awaiting_confirmation',
+                        'confirmationPending', 'confirmation_pending'))
                     $event = [ordered]@{
                         schema_version = 1
                         source = 'antigravity'
@@ -336,6 +405,8 @@ internal static class AntigravityEventPowerShellScript
                         execution_mode = $null
                         context_window = $null
                         active_subagent_count = Get-ActiveSubagentCount $payload
+                        operation = $activity
+                        waiting_for_input = $waitingForInput
                         project_key = Get-ProjectKeyFromPath $workspacePath
                     }
                     $line = $event | ConvertTo-Json -Depth 8 -Compress
@@ -373,6 +444,10 @@ internal static class AntigravityEventPowerShellScript
                 $conversationId = Get-SafeText (Get-PropertyValue $payload 'conversation_id')
                 if ($null -ne $conversationId -and ($conversationId.Contains('/') -or $conversationId.Contains('\'))) { $conversationId = $null }
                 $activeSubagentCount = Get-ActiveSubagentCount $payload
+                $activity = Get-Activity $payload $false
+                $waitingForInput = Get-BooleanValue (Get-FirstPropertyValue @($payload) @(
+                    'waiting_for_input', 'waitingForInput', 'awaiting_confirmation', 'awaitingConfirmation',
+                    'confirmation_pending', 'confirmationPending'))
                 $event = [ordered]@{
                     schema_version = 1
                     source = 'antigravity'
@@ -384,6 +459,8 @@ internal static class AntigravityEventPowerShellScript
                     execution_mode = $executionMode
                     context_window = $contextWindow
                     active_subagent_count = $activeSubagentCount
+                    operation = $activity
+                    waiting_for_input = $waitingForInput
                     project_key = Get-ProjectKey $payload
                 }
                 $line = $event | ConvertTo-Json -Depth 8 -Compress

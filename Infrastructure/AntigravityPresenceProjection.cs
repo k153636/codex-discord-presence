@@ -21,20 +21,21 @@ internal sealed record AntigravityActivitySnapshot(
     public string? ProcessName => null;
     public ActivityConfidence Confidence => ActivityConfidence.High;
     public ActivityProvenance ActivityProvenance => ActivityProvenance.Observed;
-    public string ActivityReason => "Antigravity CLI status-line agent state";
+    public string ActivityReason { get; init; } = "Antigravity CLI status-line agent state";
     public string? CollaborationMode => null;
     public DateTime? LastTaskStartedAt => null;
-    public RunningCommandKind RunningCommandKind => RunningCommandKind.Unknown;
-    public string RunningCommandName => "";
-    public string? LastDirectToolFilePath => null;
-    public DateTime? LastDirectToolFileAt => null;
-    public string? ActiveToolFilePath => null;
+    public RunningCommandKind RunningCommandKind { get; init; }
+    public string RunningCommandName { get; init; } = "";
+    public string? LastDirectToolFilePath { get; init; }
+    public DateTime? LastDirectToolFileAt { get; init; }
+    public string? ActiveToolFilePath { get; init; }
     public bool IsMcpOperation => false;
     public string? McpServerName => null;
     public IReadOnlyList<string> ActiveMcpServerNames => Array.Empty<string>();
     public CodexActivityEventKind? LatestActivityEventKind { get; init; }
-    public IReadOnlyList<string> ActivityFilePaths => Array.Empty<string>();
-    public int PendingOperationCount => 0;
+    public IReadOnlyList<string> ActivityFilePaths { get; init; } = Array.Empty<string>();
+    public string? ActiveActivityDescription { get; init; }
+    public int PendingOperationCount { get; init; }
     public int PendingMutationCount => 0;
     public string? LatestThinkingSummary => null;
     public int? PartySize => ActiveSubagentCount is > 0
@@ -60,8 +61,16 @@ internal static class AntigravityPresenceProjection
         ArgumentNullException.ThrowIfNull(observation);
 
         var observedAtUtc = ToUtcDateTime(observation.ObservedAtUtc);
-        var state = MapState(observation.AgentState);
+        var state = MapState(observation);
         var conversationId = NormalizeIdentifier(observation.ConversationId);
+        var operation = observation.Operation is null
+            ? null
+            : AntigravityOperationClassifier.Classify(observation.Operation);
+        var activeFilePath = NormalizeActivityFilePath(operation?.TargetPath);
+        var activityFiles = activeFilePath is null
+            ? Array.Empty<string>()
+            : new[] { activeFilePath };
+        var activityDescription = ResolveActivityDescription(state.ActivityKind, operation, activeFilePath);
 
         var activity = new AntigravityActivitySnapshot(
             IsRunning: true,
@@ -78,7 +87,16 @@ internal static class AntigravityPresenceProjection
             ActiveTurnId: conversationId)
         {
             LatestActivityEventKind = state.LatestActivityEventKind,
-            ActiveSubagentCount = NormalizeActiveSubagentCount(observation.ActiveSubagentCount)
+            ActiveSubagentCount = NormalizeActiveSubagentCount(observation.ActiveSubagentCount),
+            ActivityReason = ResolveActivityReason(observation, operation),
+            RunningCommandKind = ResolveRunningCommandKind(operation),
+            RunningCommandName = ResolveRunningCommandName(operation),
+            LastDirectToolFilePath = activeFilePath,
+            LastDirectToolFileAt = activeFilePath is null ? null : observedAtUtc,
+            ActiveToolFilePath = activeFilePath,
+            ActivityFilePaths = activityFiles,
+            ActiveActivityDescription = activityDescription,
+            PendingOperationCount = operation is not null && state.ActivityKind.IsActive() ? 1 : 0
         };
 
         return new AntigravityPresenceProjectionResult(
@@ -87,7 +105,7 @@ internal static class AntigravityPresenceProjection
             observation.Workspace?.WorkspaceName,
             conversationId,
             FormatExecutionMode(observation.ExecutionMode),
-            observation.ContextWindow?.TotalTokens);
+            NormalizeTotalTokens(observation.ContextWindow?.TotalTokens));
     }
 
     private static string ToProviderState(ProviderAgentState agentState)
@@ -103,24 +121,160 @@ internal static class AntigravityPresenceProjection
         };
     }
 
-    private static (CodexActivityKind ActivityKind, bool IsThinking, CodexActivityEventKind? LatestActivityEventKind) MapState(
-        ProviderAgentState agentState)
+    private static StateMapping MapState(ProviderObservation observation)
     {
-        return agentState switch
+        if (observation.IsWaitingForInput)
+        {
+            return new(
+                CodexActivityKind.WaitingForInput,
+                false,
+                CodexActivityEventKind.InputRequested);
+        }
+
+        var operation = observation.Operation is null
+            ? null
+            : AntigravityOperationClassifier.Classify(observation.Operation);
+        if (operation is not null &&
+            IsOperationState(observation.AgentState) &&
+            (!operation.IsCompleted || observation.AgentState == ProviderAgentState.ToolUse))
+        {
+            var operationKind = operation.Kind switch
+            {
+                CodexOperationKind.Read => CodexActivityKind.ReadingFiles,
+                CodexOperationKind.Edit => CodexActivityKind.ApplyingEdits,
+                CodexOperationKind.Create => CodexActivityKind.CreatingFiles,
+                CodexOperationKind.Delete => CodexActivityKind.DeletingFiles,
+                CodexOperationKind.Research => CodexActivityKind.Researching,
+                CodexOperationKind.Command => CodexActivityKind.RunningCommand,
+                _ => CodexActivityKind.RunningCommand
+            };
+
+            return new(operationKind, false, CodexActivityEventKind.OperationStarted);
+        }
+
+        return observation.AgentState switch
         {
             ProviderAgentState.Thinking =>
-                (CodexActivityKind.AnalyzingProject, true, CodexActivityEventKind.Reasoning),
+                new(
+                    observation.ExecutionMode == ProviderExecutionMode.Planning
+                        ? CodexActivityKind.Planning
+                        : CodexActivityKind.AnalyzingProject,
+                    true,
+                    CodexActivityEventKind.Reasoning),
             ProviderAgentState.Working =>
-                (CodexActivityKind.AnalyzingProject, true, null),
+                new(
+                    observation.ExecutionMode == ProviderExecutionMode.Planning
+                        ? CodexActivityKind.Planning
+                        : CodexActivityKind.AnalyzingProject,
+                    true,
+                    CodexActivityEventKind.Reasoning),
             ProviderAgentState.ToolUse =>
-                (CodexActivityKind.RunningCommand, false, CodexActivityEventKind.OperationStarted),
+                new(CodexActivityKind.RunningCommand, false, CodexActivityEventKind.OperationStarted),
             ProviderAgentState.Initializing =>
-                (CodexActivityKind.AnalyzingProject, true, CodexActivityEventKind.TurnStarted),
+                observation.ExecutionMode == ProviderExecutionMode.Planning
+                    ? new(CodexActivityKind.Planning, true, CodexActivityEventKind.TurnStarted)
+                    : new(CodexActivityKind.AnalyzingProject, true, CodexActivityEventKind.TurnStarted),
             ProviderAgentState.Idle =>
-                (CodexActivityKind.Ready, false, CodexActivityEventKind.TurnCompleted),
+                new(CodexActivityKind.Ready, false, CodexActivityEventKind.TurnCompleted),
             _ =>
-                (CodexActivityKind.Ready, false, null)
+                new(CodexActivityKind.Ready, false, null)
         };
+    }
+
+    private static bool IsOperationState(ProviderAgentState agentState) =>
+        agentState is ProviderAgentState.Thinking or
+            ProviderAgentState.Working or
+            ProviderAgentState.ToolUse;
+
+    private static string ResolveActivityReason(
+        ProviderObservation observation,
+        ProviderOperationObservation? operation)
+    {
+        if (observation.IsWaitingForInput)
+        {
+            return "Antigravity CLI confirmation pending";
+        }
+
+        return operation?.ToolName is { Length: > 0 } toolName
+            ? $"Antigravity tool {toolName}"
+            : "Antigravity CLI status-line agent state";
+    }
+
+    private static string? ResolveActivityDescription(
+        CodexActivityKind activityKind,
+        ProviderOperationObservation? operation,
+        string? activeFilePath)
+    {
+        if (operation is null || activityKind is not (CodexActivityKind.ReadingFiles or CodexActivityKind.Researching))
+        {
+            return null;
+        }
+
+        var description = NormalizeDisplayValue(operation.Action ?? operation.Summary);
+        if (description is not null)
+        {
+            return description;
+        }
+
+        return activeFilePath is null
+            ? null
+            : $"{(activityKind == CodexActivityKind.Researching ? "Researching" : "Reading")} {Path.GetFileName(activeFilePath)}";
+    }
+
+    private static RunningCommandKind ResolveRunningCommandKind(ProviderOperationObservation? operation)
+    {
+        if (operation?.Kind != CodexOperationKind.Command)
+        {
+            return RunningCommandKind.Unknown;
+        }
+
+        var text = string.Join(
+            ' ',
+            operation.ToolName,
+            operation.Action,
+            operation.Summary).ToLowerInvariant();
+        return text switch
+        {
+            _ when text.Contains("git", StringComparison.Ordinal) => RunningCommandKind.Git,
+            _ when text.Contains("test", StringComparison.Ordinal) => RunningCommandKind.Test,
+            _ when text.Contains("build", StringComparison.Ordinal) => RunningCommandKind.Build,
+            _ when text.Contains("search", StringComparison.Ordinal) || text.Contains("grep", StringComparison.Ordinal) => RunningCommandKind.Search,
+            _ => RunningCommandKind.Unknown
+        };
+    }
+
+    private static string ResolveRunningCommandName(ProviderOperationObservation? operation)
+    {
+        if (operation?.Kind != CodexOperationKind.Command)
+        {
+            return "";
+        }
+
+        return NormalizeDisplayValue(operation.Action ?? operation.Summary ?? operation.ToolName) ?? "";
+    }
+
+    private static string? NormalizeActivityFilePath(string? path)
+    {
+        if (string.IsNullOrWhiteSpace(path) ||
+            Uri.TryCreate(path, UriKind.Absolute, out var uri) && !uri.IsFile)
+        {
+            return null;
+        }
+
+        try
+        {
+            return Path.IsPathFullyQualified(path)
+                ? Path.GetFullPath(path)
+                : null;
+        }
+        catch (ArgumentException)
+        {
+            return null;
+        }
+        catch (NotSupportedException)
+        {
+            return null;
+        }
     }
 
     private static DateTime? ResolveActivityStartedAt(
@@ -160,10 +314,14 @@ internal static class AntigravityPresenceProjection
 
     private static string ResolveModelName(ProviderModelObservation? model)
     {
-        return NormalizeDisplayValue(model?.DisplayName) ??
+        var modelName = NormalizeDisplayValue(model?.DisplayName) ??
             NormalizeDisplayValue(model?.Id) ??
             FallbackModelName;
+        return CodexModelDisplayFormatter.Format(modelName, null, null);
     }
+
+    private static long? NormalizeTotalTokens(long? totalTokens) =>
+        totalTokens is > 0 ? totalTokens : null;
 
     private static DateTime? ToUtcDateTime(DateTimeOffset observedAtUtc)
     {
@@ -215,4 +373,9 @@ internal static class AntigravityPresenceProjection
             (value.Length >= 3 && char.IsLetter(value[0]) && value[1] == ':' && value[2] == '/') ||
             value.StartsWith("/", StringComparison.Ordinal);
     }
+
+    private sealed record StateMapping(
+        CodexActivityKind ActivityKind,
+        bool IsThinking,
+        CodexActivityEventKind? LatestActivityEventKind);
 }

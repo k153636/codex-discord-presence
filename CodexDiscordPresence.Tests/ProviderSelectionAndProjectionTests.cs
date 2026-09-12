@@ -363,11 +363,11 @@ public sealed class ProviderSelectionAndProjectionTests
     }
 
     [Fact]
-    public void ConversationSelector_InitializingIsNotAnActiveConversation()
+    public void ConversationSelector_InitializingIsAnActiveConversation()
     {
         var initializing = Observation("conversation-a", ProviderAgentState.Initializing, "2026-09-12T08:00:00Z");
 
-        Assert.False(AntigravityConversationObservationSelector.IsActive(initializing.AgentState));
+        Assert.True(AntigravityConversationObservationSelector.IsActive(initializing.AgentState));
     }
 
     [Fact]
@@ -545,6 +545,110 @@ public sealed class ProviderSelectionAndProjectionTests
             context);
 
         Assert.Equal("Provider tools", presence.State);
+    }
+
+    [Fact]
+    public void Build_UsesStructuredToolMetadataForReadingActivity()
+    {
+        var projection = AntigravityPresenceProjection.Build(
+            Observation(
+                "conversation-a",
+                ProviderAgentState.ToolUse,
+                "2026-09-12T09:00:00Z") with
+            {
+                Operation = new ProviderOperationObservation(
+                    CodexOperationKind.Read,
+                    "view_file",
+                    "Reading source",
+                    "Source file",
+                    @"C:\repo\src\Program.cs")
+            });
+
+        Assert.Equal(CodexActivityKind.ReadingFiles, projection.Activity.ActivityKind);
+        Assert.False(projection.Activity.IsThinking);
+        Assert.Equal("Reading source", projection.Activity.ActiveActivityDescription);
+        Assert.Equal([@"C:\repo\src\Program.cs"], projection.Activity.ActivityFilePaths);
+        Assert.Equal(CodexActivityEventKind.OperationStarted, projection.Activity.LatestActivityEventKind);
+        Assert.Null(projection.Activity.LatestThinkingSummary);
+    }
+
+    [Fact]
+    public void Build_ConfirmationEvidenceOverridesToolActivityWithWaiting()
+    {
+        var projection = AntigravityPresenceProjection.Build(
+            Observation(
+                "conversation-a",
+                ProviderAgentState.Working,
+                "2026-09-12T09:00:00Z") with
+            {
+                Operation = new ProviderOperationObservation(
+                    CodexOperationKind.Research,
+                    "read_url_content",
+                    "Reading pricing page"),
+                IsWaitingForInput = true
+            });
+
+        Assert.Equal(CodexActivityKind.WaitingForInput, projection.Activity.ActivityKind);
+        Assert.False(projection.Activity.IsThinking);
+        Assert.Equal(CodexActivityEventKind.InputRequested, projection.Activity.LatestActivityEventKind);
+    }
+
+    [Fact]
+    public void Build_IdleStateDoesNotResurfaceCompletedOperation()
+    {
+        var projection = AntigravityPresenceProjection.Build(
+            Observation(
+                "conversation-a",
+                ProviderAgentState.Idle,
+                "2026-09-12T09:00:00Z") with
+            {
+                Operation = new ProviderOperationObservation(
+                    CodexOperationKind.Research,
+                    "search_web",
+                    "Searching the web",
+                    IsCompleted: true)
+            });
+
+        Assert.Equal(CodexActivityKind.Ready, projection.Activity.ActivityKind);
+        Assert.Equal(CodexActivityEventKind.TurnCompleted, projection.Activity.LatestActivityEventKind);
+        Assert.Null(projection.Activity.ActiveActivityDescription);
+        Assert.Equal(0, projection.Activity.PendingOperationCount);
+    }
+
+    [Fact]
+    public void Build_ZeroContextTokensAreOmittedFromDetails()
+    {
+        var projection = AntigravityPresenceProjection.Build(
+            Observation("conversation-a", ProviderAgentState.Working, "2026-09-12T09:00:00Z") with
+            {
+                ContextWindow = new ProviderContextWindowObservation(0, 0)
+            });
+
+        Assert.Null(projection.TotalTokens);
+    }
+
+    [Fact]
+    public void Render_UsesAntigravityResearchDescriptionWithoutThinkingSummary()
+    {
+        var projection = AntigravityPresenceProjection.Build(
+            Observation(
+                "conversation-a",
+                ProviderAgentState.ToolUse,
+                "2026-09-12T09:00:00Z") with
+            {
+                Operation = new ProviderOperationObservation(
+                    CodexOperationKind.Research,
+                    "search_web",
+                    "Searching the web")
+            });
+        var context = CreatePresenceContext(projection);
+
+        var presence = new PresenceTemplateRenderer().Render(
+            new PresenceTemplateOptions { State = "{ActivityLine}" },
+            context);
+
+        Assert.Equal("Searching the web", presence.State);
+        Assert.Null(projection.Activity.LatestThinkingSummary);
     }
 
     [Fact]
