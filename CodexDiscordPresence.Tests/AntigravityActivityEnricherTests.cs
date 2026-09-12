@@ -28,6 +28,37 @@ public sealed class AntigravityActivityEnricherTests
     }
 
     [Fact]
+    public void Enricher_UsesInProgressTranscriptToolCallWhileAgentIsWorking()
+    {
+        using var fixture = new TemporaryFixture();
+        File.WriteAllText(
+            fixture.TranscriptPath,
+            """
+            {"step_index":1,"source":"MODEL","type":"PLANNER_RESPONSE","status":"IN_PROGRESS","created_at":"2026-09-12T10:42:19Z","tool_calls":[{"name":"search_web","args":{"toolAction":"Searching the web","query":"pricing"}}]}
+            """,
+            Encoding.UTF8);
+
+        var observedAt = DateTimeOffset.Parse("2026-09-12T10:42:20Z");
+        var observation = new ProviderObservation(
+            ProviderObservationSource.AntigravityCli,
+            observedAt,
+            ProviderAgentState.Working,
+            null,
+            null,
+            "conversation-id");
+        var enricher = new AntigravityActivityEnricher(
+            fixture.UserProfile,
+            new AntigravityTranscriptActivityReader(),
+            new AntigravityCliConfirmationReader(fixture.LogDirectory, TimeZoneInfo.Utc));
+
+        var enriched = enricher.Enrich(observation, observedAt);
+
+        Assert.Equal(CodexOperationKind.Research, enriched.Operation?.Kind);
+        Assert.Equal("search_web", enriched.Operation?.ToolName);
+        Assert.False(enriched.Operation?.IsCompleted);
+    }
+
+    [Fact]
     public void ConfirmationReader_ReportsPendingRequestUntilItIsResolved()
     {
         using var fixture = new TemporaryFixture();

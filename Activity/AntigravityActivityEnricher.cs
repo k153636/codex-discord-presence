@@ -64,7 +64,8 @@ internal sealed class AntigravityActivityEnricher
 
         if (transcriptOperation is not null &&
             IsCurrentOperation(transcriptOperation, observation.ObservedAtUtc) &&
-            observation.AgentState == ProviderAgentState.ToolUse)
+            (observation.AgentState == ProviderAgentState.ToolUse ||
+             observation.AgentState == ProviderAgentState.Working && !transcriptOperation.IsCompleted))
         {
             return transcriptOperation;
         }

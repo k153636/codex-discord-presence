@@ -111,7 +111,7 @@ internal sealed class AntigravityTranscriptActivityReader
                             action,
                             summary,
                             targetPath,
-                            IsCompleted: string.Equals(status, "DONE", StringComparison.OrdinalIgnoreCase),
+                            IsCompleted: IsCompletedStatus(status),
                             ObservedAtUtc: recordTimestamp));
                 }
             }
@@ -122,6 +122,19 @@ internal sealed class AntigravityTranscriptActivityReader
         }
 
         return latestOperation;
+    }
+
+    private static bool IsCompletedStatus(string? status)
+    {
+        return status?.Trim().ToUpperInvariant() is
+            "DONE" or
+            "COMPLETED" or
+            "SUCCESS" or
+            "SUCCEEDED" or
+            "FAILED" or
+            "ERROR" or
+            "CANCELLED" or
+            "CANCELED";
     }
 
     private static IEnumerable<string> ReadTailLines(string path)
