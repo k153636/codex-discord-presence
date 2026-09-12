@@ -45,6 +45,7 @@ public sealed class AntigravityHookInfrastructureTests
         foreach (var (hookEvent, expectedState) in new Dictionary<string, ProviderAgentState>
         {
             [AntigravityHookEvents.PreInvocation] = ProviderAgentState.Thinking,
+            [AntigravityHookEvents.PreToolUse] = ProviderAgentState.ToolUse,
             [AntigravityHookEvents.PostToolUse] = ProviderAgentState.Working,
             [AntigravityHookEvents.PostInvocation] = ProviderAgentState.Idle,
             [AntigravityHookEvents.Stop] = ProviderAgentState.Idle
@@ -65,6 +66,34 @@ public sealed class AntigravityHookInfrastructureTests
             Assert.Equal("conversation-id", observation?.ConversationId);
             Assert.Equal("Claude Sonnet 4.6 (Thinking)", observation?.Model?.Id);
         }
+    }
+
+    [Fact]
+    public void CommandBuilder_WindowsScript_ExtractsOfficialToolCallPayload()
+    {
+        if (!OperatingSystem.IsWindows())
+        {
+            return;
+        }
+
+        using var fixture = new TemporaryFixture();
+        var result = new AntigravityHookCommandBuilder(AntigravityStatusLinePlatform.Windows)
+            .Build(fixture.Paths);
+        File.WriteAllText(fixture.Paths.ScriptPath, result.ScriptContent!);
+
+        var execution = ExecutePowerShellScript(
+            fixture.Paths.ScriptPath,
+            AntigravityHookEvents.PreToolUse,
+            OfficialToolHookPayload);
+
+        Assert.Equal(0, execution.ExitCode);
+        Assert.Equal("{}", execution.Output.Trim());
+        var store = new AntigravityStatusLineEventStore(fixture.Paths.EventFilePath);
+        Assert.True(store.TryReadLatest(@"C:\repo", out var observation));
+        Assert.Equal(ProviderAgentState.ToolUse, observation?.AgentState);
+        Assert.Equal("read_file", observation?.Operation?.ToolName);
+        Assert.Equal(@"C:\repo\README.md", observation?.Operation?.TargetPath);
+        Assert.False(observation?.Operation?.IsCompleted);
     }
 
     [Fact]
@@ -111,10 +140,10 @@ public sealed class AntigravityHookInfrastructureTests
         Assert.True(installed["future"]!.GetValue<bool>());
         var owned = Assert.IsType<JsonObject>(installed["codex-discord-presence"]);
         Assert.NotNull(owned["PreInvocation"]);
+        Assert.NotNull(owned["PreToolUse"]);
         Assert.NotNull(owned["PostToolUse"]);
         Assert.NotNull(owned["PostInvocation"]);
         Assert.NotNull(owned["Stop"]);
-        Assert.Null(owned["PreToolUse"]);
 
         Assert.Equal(AntigravityHookOperationStatus.NotInstalled, installer.Uninstall().Status);
         var uninstalled = JsonNode.Parse(File.ReadAllText(fixture.Paths.SettingsPath))!.AsObject();
@@ -166,6 +195,22 @@ public sealed class AntigravityHookInfrastructureTests
           "transcriptPath": "C:\\Users\\redacted\\.gemini\\antigravity-cli\\transcript.jsonl",
           "artifactDirectoryPath": "C:\\Users\\redacted\\.gemini\\antigravity-cli\\brain",
           "modelName": "Claude Sonnet 4.6 (Thinking)"
+        }
+        """;
+
+    private const string OfficialToolHookPayload = """
+        {
+          "conversationId": "conversation-id",
+          "workspacePaths": ["C:\\repo"],
+          "transcriptPath": "C:\\Users\\redacted\\.gemini\\antigravity-cli\\transcript.jsonl",
+          "artifactDirectoryPath": "C:\\Users\\redacted\\.gemini\\antigravity-cli\\brain",
+          "modelName": "Claude Sonnet 4.6 (Thinking)",
+          "toolCall": {
+            "name": "read_file",
+            "args": {
+              "path": "C:\\repo\\README.md"
+            }
+          }
         }
         """;
 

@@ -219,6 +219,14 @@ internal static class AntigravityEventPowerShellScript
                 }
                 $tool = Get-PropertyValue $Payload 'tool'
                 if ($null -ne $tool -and $tool -isnot [string]) { $objects += $tool }
+                $toolCall = Get-FirstPropertyValue @($Payload) @('toolCall', 'tool_call')
+                if ($null -ne $toolCall -and $toolCall -isnot [string]) {
+                    $objects += $toolCall
+                    $toolArguments = Get-FirstPropertyValue @($toolCall) @('args', 'arguments')
+                    if ($null -ne $toolArguments -and $toolArguments -isnot [string]) {
+                        $objects += $toolArguments
+                    }
+                }
 
                 $toolName = Get-SafeText (Get-FirstPropertyValue $objects @(
                     'tool_name', 'toolName', 'name', 'operation_name', 'operationName'))
@@ -407,6 +415,7 @@ internal static class AntigravityEventPowerShellScript
                 if (-not [string]::IsNullOrWhiteSpace($HookEvent)) {
                     $hookAgentState = switch ($HookEvent) {
                         'PreInvocation' { 'thinking'; break }
+                        'PreToolUse' { 'tool_use'; break }
                         'PostToolUse' { 'working'; break }
                         'PostInvocation' { 'idle'; break }
                         'Stop' { 'idle'; break }

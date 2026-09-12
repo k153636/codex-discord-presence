@@ -60,17 +60,22 @@ internal sealed class AntigravityHookCommandBuilder : IAntigravityHookCommandBui
         {
             ["PreInvocation"] = new JsonArray(
                 CreateCommand(commands, AntigravityHookEvents.PreInvocation)),
+            ["PreToolUse"] = new JsonArray(
+                CreateMatcherCommand(commands, AntigravityHookEvents.PreToolUse)),
             ["PostToolUse"] = new JsonArray(
-                new JsonObject
-                {
-                    ["matcher"] = "*",
-                    ["hooks"] = new JsonArray(
-                        CreateCommand(commands, AntigravityHookEvents.PostToolUse))
-                }),
+                CreateMatcherCommand(commands, AntigravityHookEvents.PostToolUse)),
             ["PostInvocation"] = new JsonArray(
                 CreateCommand(commands, AntigravityHookEvents.PostInvocation)),
             ["Stop"] = new JsonArray(
                 CreateCommand(commands, AntigravityHookEvents.Stop))
+        };
+
+    private static JsonObject CreateMatcherCommand(
+        IReadOnlyDictionary<string, string> commands,
+        string hookEvent) => new()
+        {
+            ["matcher"] = "*",
+            ["hooks"] = new JsonArray(CreateCommand(commands, hookEvent))
         };
 
     private static JsonObject CreateCommand(
@@ -86,6 +91,7 @@ internal sealed class AntigravityHookCommandBuilder : IAntigravityHookCommandBui
 internal static class AntigravityHookEvents
 {
     internal const string PreInvocation = "PreInvocation";
+    internal const string PreToolUse = "PreToolUse";
     internal const string PostToolUse = "PostToolUse";
     internal const string PostInvocation = "PostInvocation";
     internal const string Stop = "Stop";
@@ -93,6 +99,7 @@ internal static class AntigravityHookEvents
     internal static IReadOnlyList<string> All { get; } =
     [
         PreInvocation,
+        PreToolUse,
         PostToolUse,
         PostInvocation,
         Stop
