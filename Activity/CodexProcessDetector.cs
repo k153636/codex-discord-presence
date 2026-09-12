@@ -36,7 +36,8 @@ public sealed class CodexProcessDetector
         var matchedProcess = _processNameMatcher.FindMatchingProcess(cancellationToken);
         cancellationToken.ThrowIfCancellationRequested();
         var matchedProcessName = matchedProcess?.ProcessName;
-        var projectPathMismatch = sessionInspection is not null &&
+        var projectPathMismatch = !string.IsNullOrWhiteSpace(projectPath) &&
+            sessionInspection is not null &&
             sessionInspection.HasProjectPath &&
             !sessionInspection.MatchesProject;
         var isRunning = matchedProcessName is not null ||

@@ -62,6 +62,42 @@ public sealed class ProviderActivationGateTests
                 initialTime.AddMinutes(3))?.ProviderId);
     }
 
+    [Fact]
+    public void Select_SwitchesToCodex_WhenCurrentAntigravityBecomesIdleAndCodexBecomesActive()
+    {
+        var initialTime = DateTimeOffset.Parse("2026-09-12T21:39:52Z");
+        var gate = new ProviderActivationGate(ProviderIds.Antigravity);
+
+        // 1. Antigravity is active
+        var selected = gate.Select(
+            [
+                Candidate(ProviderIds.Antigravity, observedAt: initialTime, isActive: true, activityStartedAt: initialTime),
+                Candidate(ProviderIds.Codex, observedAt: initialTime, isActive: false)
+            ],
+            initialTime);
+        Assert.Equal(ProviderIds.Antigravity, selected?.ProviderId);
+
+        // 2. Antigravity transitions to idle at 21:40:09
+        var idleTime = DateTimeOffset.Parse("2026-09-12T21:40:09Z");
+        selected = gate.Select(
+            [
+                Candidate(ProviderIds.Antigravity, observedAt: idleTime, isActive: false),
+                Candidate(ProviderIds.Codex, observedAt: idleTime, isActive: false)
+            ],
+            idleTime);
+        Assert.Equal(ProviderIds.Antigravity, selected?.ProviderId);
+
+        // 3. Codex starts thinking at 21:45:13
+        var codexStartTime = DateTimeOffset.Parse("2026-09-12T21:45:13Z");
+        selected = gate.Select(
+            [
+                Candidate(ProviderIds.Antigravity, observedAt: codexStartTime, isActive: false),
+                Candidate(ProviderIds.Codex, observedAt: codexStartTime, isActive: true, activityStartedAt: codexStartTime)
+            ],
+            codexStartTime);
+        Assert.Equal(ProviderIds.Codex, selected?.ProviderId);
+    }
+
     private static ProviderSelectionCandidate Candidate(
         string providerId,
         DateTimeOffset observedAt,

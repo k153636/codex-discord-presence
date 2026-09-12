@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Diagnostics;
 using System.IO;
 using CodexDiscordPresence;
@@ -1148,6 +1148,39 @@ public class CodexStateTests
             {
                 Directory.Delete(projectRoot, true);
             }
+        }
+        finally
+        {
+            Directory.Delete(tempPath, true);
+        }
+    }
+
+    [Fact]
+    public void Test_GetSnapshot_WithoutProjectPath_WhenSessionHasProjectPath_DoesNotTreatAsMismatch()
+    {
+        var tempPath = CreateTempSessionDirectory();
+        try
+        {
+            var projectPath = @"E:\tool\codex-discord-RPC";
+            var nowStr = DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ss.fffZ");
+            WriteMockSessionLog(tempPath, "session1.jsonl",
+            [
+                $"{{\"timestamp\":\"{nowStr}\",\"type\":\"event_msg\",\"payload\":{{\"type\":\"session_meta\",\"cwd\":\"{EscapeJson(projectPath)}\"}}}}",
+                $"{{\"timestamp\":\"{nowStr}\",\"type\":\"event_msg\",\"payload\":{{\"type\":\"task_started\",\"turn_id\":\"turn-123\"}}}}"
+            ]);
+
+            var detector = new CodexProcessDetector(
+                new CodexDetectionOptions { HomePath = tempPath },
+                new PresenceTemplateOptions { ThinkingStaleTimeoutMinutes = 10 });
+
+            var snapshot = detector.GetSnapshot();
+
+            Assert.True(snapshot.IsRunning);
+            Assert.True(snapshot.IsThinking);
+            Assert.Equal(CodexActivityKind.AnalyzingProject, snapshot.ActivityKind);
+            Assert.True(snapshot.HasDirectActivityEvidence);
+            Assert.Equal(projectPath, snapshot.ObservedProjectPath);
+            Assert.DoesNotContain("does not match active project path", snapshot.ActivityReason);
         }
         finally
         {
