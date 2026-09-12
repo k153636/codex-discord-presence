@@ -652,6 +652,25 @@ public sealed class ProviderSelectionAndProjectionTests
     }
 
     [Fact]
+    public void Render_AntigravityWorkingWithoutOperationUsesWorkingLabel()
+    {
+        var projection = AntigravityPresenceProjection.Build(
+            Observation(
+                "conversation-a",
+                ProviderAgentState.Working,
+                "2026-09-12T09:00:00Z"));
+        var context = CreatePresenceContext(projection);
+
+        var presence = new PresenceTemplateRenderer().Render(
+            new PresenceTemplateOptions { State = "{ActivityLine}" },
+            context);
+
+        Assert.Equal("Working", presence.State);
+        Assert.Null(projection.Activity.LatestActivityEventKind);
+        Assert.Null(projection.Activity.LatestThinkingSummary);
+    }
+
+    [Fact]
     public void Render_AntigravityIdleWithinGracePeriodUsesWaitingLabel()
     {
         var projection = AntigravityPresenceProjection.Build(

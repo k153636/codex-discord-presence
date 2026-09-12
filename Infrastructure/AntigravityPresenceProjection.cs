@@ -167,7 +167,7 @@ internal static class AntigravityPresenceProjection
                         ? CodexActivityKind.Planning
                         : CodexActivityKind.AnalyzingProject,
                     true,
-                    CodexActivityEventKind.Reasoning),
+                    null),
             ProviderAgentState.ToolUse =>
                 new(CodexActivityKind.RunningCommand, false, CodexActivityEventKind.OperationStarted),
             ProviderAgentState.Initializing =>
