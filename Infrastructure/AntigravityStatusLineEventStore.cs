@@ -341,6 +341,9 @@ internal sealed class AntigravityStatusLineEventStore
         [JsonPropertyName("context_window")]
         public EventContextWindow? ContextWindow { get; init; }
 
+        [JsonPropertyName("active_subagent_count")]
+        public int? ActiveSubagentCount { get; init; }
+
         [JsonPropertyName("project_key")]
         public string? ProjectKey { get; init; }
 
@@ -367,6 +370,7 @@ internal sealed class AntigravityStatusLineEventStore
                     : new EventContextWindow(
                         observation.ContextWindow.TotalInputTokens,
                         observation.ContextWindow.TotalOutputTokens),
+                ActiveSubagentCount = NormalizeActiveSubagentCount(observation.ActiveSubagentCount),
                 ProjectKey = projectKey
             };
 
@@ -384,6 +388,7 @@ internal sealed class AntigravityStatusLineEventStore
                     parsed.SchemaVersion != 1 ||
                     !string.Equals(parsed.Source, "antigravity", StringComparison.Ordinal) ||
                     parsed.ObservedAtUtc == default ||
+                    !IsValidActiveSubagentCount(parsed.ActiveSubagentCount) ||
                     !IsSafeProjectKey(parsed.ProjectKey))
                 {
                     return false;
@@ -421,7 +426,14 @@ internal sealed class AntigravityStatusLineEventStore
                 ? null
                 : new ProviderContextWindowObservation(
                     ContextWindow.TotalInputTokens,
-                    ContextWindow.TotalOutputTokens));
+                    ContextWindow.TotalOutputTokens),
+            ActiveSubagentCount);
+
+        private static int? NormalizeActiveSubagentCount(int? count) =>
+            IsValidActiveSubagentCount(count) ? count : null;
+
+        private static bool IsValidActiveSubagentCount(int? count) =>
+            count is null || count is >= 0 and <= ProviderObservation.MaxActiveSubagentCount;
 
         private static string ToWireAgentState(ProviderAgentState state) => state switch
         {

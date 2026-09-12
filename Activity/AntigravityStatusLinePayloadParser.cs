@@ -57,6 +57,7 @@ internal sealed class AntigravityStatusLinePayloadParser : IProviderObservationP
         var agentState = ReadAgentState(root);
         var executionMode = ReadExecutionMode(root);
         var contextWindow = ReadContextWindow(root);
+        var activeSubagentCount = ReadActiveSubagentCount(root);
 
         return new ProviderObservation(
             ProviderObservationSource.AntigravityCli,
@@ -66,7 +67,8 @@ internal sealed class AntigravityStatusLinePayloadParser : IProviderObservationP
             workspace,
             conversationId,
             executionMode,
-            contextWindow);
+            contextWindow,
+            activeSubagentCount);
     }
 
     private static ProviderModelObservation? CreateModel(JsonElement root)
@@ -136,6 +138,54 @@ internal sealed class AntigravityStatusLinePayloadParser : IProviderObservationP
         return totalInputTokens is null && totalOutputTokens is null
             ? null
             : new ProviderContextWindowObservation(totalInputTokens, totalOutputTokens);
+    }
+
+    private static int? ReadActiveSubagentCount(JsonElement root)
+    {
+        if (!root.TryGetProperty("subagents", out var subagents) ||
+            subagents.ValueKind != JsonValueKind.Array)
+        {
+            return null;
+        }
+
+        var count = 0;
+        foreach (var subagent in subagents.EnumerateArray())
+        {
+            if (subagent.ValueKind != JsonValueKind.Object ||
+                !IsActiveSubagent(subagent) ||
+                !HasSubagentIdentity(subagent))
+            {
+                continue;
+            }
+
+            count++;
+            if (count == ProviderObservation.MaxActiveSubagentCount)
+            {
+                break;
+            }
+        }
+
+        return count;
+    }
+
+    private static bool IsActiveSubagent(JsonElement subagent)
+    {
+        var status = ReadSafeText(subagent, "status")?.ToLowerInvariant();
+        return status is
+            "running" or
+            "active" or
+            "thinking" or
+            "working" or
+            "tool_use" or
+            "initializing";
+    }
+
+    private static bool HasSubagentIdentity(JsonElement subagent)
+    {
+        return ReadSafeText(subagent, "id") is not null ||
+            ReadSafeText(subagent, "conversation_id") is not null ||
+            ReadSafeText(subagent, "name") is not null ||
+            ReadSafeText(subagent, "role") is not null;
     }
 
     private static long? ReadNonNegativeInt64(JsonElement root, string propertyName)

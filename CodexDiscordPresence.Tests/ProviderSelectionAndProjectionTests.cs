@@ -403,7 +403,8 @@ public sealed class ProviderSelectionAndProjectionTests
             new ProviderWorkspaceObservation(@"C:\repo", @"C:\repo", @"C:\repo"),
             "conversation-a",
             ProviderExecutionMode.Planning,
-            new ProviderContextWindowObservation(10, 20));
+            new ProviderContextWindowObservation(10, 20),
+            2);
 
         var selected = AntigravityConversationObservationSelector.Select(
             [hook],
@@ -415,6 +416,7 @@ public sealed class ProviderSelectionAndProjectionTests
         Assert.Equal("repo", selected?.Workspace?.WorkspaceName);
         Assert.Equal(ProviderExecutionMode.Planning, selected?.ExecutionMode);
         Assert.Equal(30, selected?.ContextWindow?.TotalTokens);
+        Assert.Equal(2, selected?.ActiveSubagentCount);
     }
 
     [Fact]
@@ -470,6 +472,21 @@ public sealed class ProviderSelectionAndProjectionTests
             _ => "unknown"
         };
         Assert.Equal(expectedProviderState, projection.Activity.ProviderState);
+        Assert.Null(projection.Activity.PartySize);
+    }
+
+    [Fact]
+    public void Build_UsesOnlyExplicitActiveSubagentCountForParty()
+    {
+        var projection = AntigravityPresenceProjection.Build(
+            Observation(
+                "conversation-a",
+                ProviderAgentState.Working,
+                "2026-09-11T04:05:06Z",
+                activeSubagentCount: 2));
+
+        Assert.Equal(2, projection.Activity.ActiveSubagentCount);
+        Assert.Equal(3, projection.Activity.PartySize);
     }
 
     [Fact]
@@ -644,7 +661,8 @@ public sealed class ProviderSelectionAndProjectionTests
     private static ProviderObservation Observation(
         string conversationId,
         ProviderAgentState agentState,
-        string observedAt)
+        string observedAt,
+        int? activeSubagentCount = null)
     {
         return new ProviderObservation(
             ProviderObservationSource.AntigravityCli,
@@ -652,7 +670,10 @@ public sealed class ProviderSelectionAndProjectionTests
             agentState,
             null,
             null,
-            conversationId);
+            conversationId,
+            ProviderExecutionMode.Unknown,
+            null,
+            activeSubagentCount);
     }
 
     private static PresenceContext CreatePresenceContext(

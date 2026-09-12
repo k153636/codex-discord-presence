@@ -84,6 +84,7 @@ internal static class AntigravityEventPowerShellScript
             $MaxPayloadBytes = 262144
             $MaxEventFileBytes = 1048576
             $MaxEventCount = 64
+            $MaxActiveSubagentCount = {{ProviderObservation.MaxActiveSubagentCount}}
             $MaxValueLength = 128
             $EventFilePath = {{quotedEventPath}}
 
@@ -136,6 +137,30 @@ internal static class AntigravityEventPowerShellScript
                 $property = $Object.PSObject.Properties[$Name]
                 if ($null -eq $property) { return $null }
                 return $property.Value
+            }
+
+            function Get-ActiveSubagentCount([object] $Payload) {
+                if ($null -eq $Payload) { return $null }
+                $property = $Payload.PSObject.Properties['subagents']
+                if ($null -eq $property -or $property.Value -isnot [array]) { return $null }
+
+                $count = 0
+                foreach ($candidate in @($property.Value)) {
+                    if ($null -eq $candidate) { continue }
+                    $status = Get-SafeText (Get-PropertyValue $candidate 'status')
+                    if ($null -eq $status -or $status.ToLowerInvariant() -notin @(
+                        'running', 'active', 'thinking', 'working', 'tool_use', 'initializing')) {
+                        continue
+                    }
+                    $identity = Get-SafeText (Get-PropertyValue $candidate 'id')
+                    if ($null -eq $identity) { $identity = Get-SafeText (Get-PropertyValue $candidate 'conversation_id') }
+                    if ($null -eq $identity) { $identity = Get-SafeText (Get-PropertyValue $candidate 'name') }
+                    if ($null -eq $identity) { $identity = Get-SafeText (Get-PropertyValue $candidate 'role') }
+                    if ($null -eq $identity) { continue }
+                    $count++
+                    if ($count -ge $MaxActiveSubagentCount) { return $MaxActiveSubagentCount }
+                }
+                return $count
             }
 
             function Get-PathLeaf([object] $Object, [string] $Parent, [string] $Child) {
@@ -310,6 +335,7 @@ internal static class AntigravityEventPowerShellScript
                         conversation_id = $conversationId
                         execution_mode = $null
                         context_window = $null
+                        active_subagent_count = Get-ActiveSubagentCount $payload
                         project_key = Get-ProjectKeyFromPath $workspacePath
                     }
                     $line = $event | ConvertTo-Json -Depth 8 -Compress
@@ -346,6 +372,7 @@ internal static class AntigravityEventPowerShellScript
                 if ($null -eq $workspace.workspace_name -and $null -eq $workspace.project_name) { $workspace = $null }
                 $conversationId = Get-SafeText (Get-PropertyValue $payload 'conversation_id')
                 if ($null -ne $conversationId -and ($conversationId.Contains('/') -or $conversationId.Contains('\'))) { $conversationId = $null }
+                $activeSubagentCount = Get-ActiveSubagentCount $payload
                 $event = [ordered]@{
                     schema_version = 1
                     source = 'antigravity'
@@ -356,6 +383,7 @@ internal static class AntigravityEventPowerShellScript
                     conversation_id = $conversationId
                     execution_mode = $executionMode
                     context_window = $contextWindow
+                    active_subagent_count = $activeSubagentCount
                     project_key = Get-ProjectKey $payload
                 }
                 $line = $event | ConvertTo-Json -Depth 8 -Compress

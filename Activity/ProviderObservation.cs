@@ -39,7 +39,11 @@ internal sealed record ProviderObservation(
     ProviderWorkspaceObservation? Workspace,
     string? ConversationId,
     ProviderExecutionMode ExecutionMode = ProviderExecutionMode.Unknown,
-    ProviderContextWindowObservation? ContextWindow = null);
+    ProviderContextWindowObservation? ContextWindow = null,
+    int? ActiveSubagentCount = null)
+{
+    internal const int MaxActiveSubagentCount = 64;
+}
 
 internal sealed record ProviderModelObservation(
     string? Id,

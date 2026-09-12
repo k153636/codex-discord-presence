@@ -131,7 +131,9 @@ internal static class AntigravityConversationObservationSelector
             ExecutionMode = hookObservation.ExecutionMode == ProviderExecutionMode.Unknown
                 ? statusLineObservation.ExecutionMode
                 : hookObservation.ExecutionMode,
-            ContextWindow = hookObservation.ContextWindow ?? statusLineObservation.ContextWindow
+            ContextWindow = hookObservation.ContextWindow ?? statusLineObservation.ContextWindow,
+            ActiveSubagentCount = hookObservation.ActiveSubagentCount ??
+                statusLineObservation.ActiveSubagentCount
         };
     }
 }

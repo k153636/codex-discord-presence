@@ -38,6 +38,7 @@ public sealed class AntigravityStatusLineInfrastructureTests
         Assert.Equal("gemini-3.5-flash-high", latest?.Model?.Id);
         Assert.Equal(ProviderExecutionMode.Planning, latest?.ExecutionMode);
         Assert.Equal(149318, latest?.ContextWindow?.TotalTokens);
+        Assert.Equal(1, latest?.ActiveSubagentCount);
         var persisted = File.ReadAllText(fixture.EventFilePath);
         Assert.DoesNotContain("redacted@example.invalid", persisted, StringComparison.Ordinal);
         Assert.DoesNotContain("transcript.jsonl", persisted, StringComparison.Ordinal);
@@ -388,6 +389,8 @@ public sealed class AntigravityStatusLineInfrastructureTests
         Assert.Contains("ConvertFrom-Json", result.ScriptContent, StringComparison.Ordinal);
         Assert.Contains("Write-BoundedEvent", result.ScriptContent, StringComparison.Ordinal);
         Assert.Contains("Exit-WithStatus $statusLine", result.ScriptContent, StringComparison.Ordinal);
+        Assert.Contains("active_subagent_count", result.ScriptContent, StringComparison.Ordinal);
+        Assert.Contains("subagents", result.ScriptContent, StringComparison.Ordinal);
         Assert.DoesNotContain("transcript", result.ScriptContent, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("task_count", result.ScriptContent, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("session_id", result.ScriptContent, StringComparison.OrdinalIgnoreCase);
@@ -421,6 +424,7 @@ public sealed class AntigravityStatusLineInfrastructureTests
         var store = new AntigravityStatusLineEventStore(fixture.EventFilePath);
         Assert.True(store.TryReadLatest(@"C:\repo", out var observation));
         Assert.Equal(ProviderAgentState.Working, observation?.AgentState);
+        Assert.Equal(1, observation?.ActiveSubagentCount);
     }
 
     [Fact]
@@ -604,6 +608,10 @@ public sealed class AntigravityStatusLineInfrastructureTests
             "total_input_tokens": 88244,
             "total_output_tokens": 61074
           },
+          "subagents": [
+            { "name": "researcher", "role": "research", "status": "running" },
+            { "name": "finished", "role": "build", "status": "completed" }
+          ],
           "email": "redacted@example.invalid"
         }
         """;
@@ -620,7 +628,11 @@ public sealed class AntigravityStatusLineInfrastructureTests
             "current_dir": "C:\\repo\\src",
             "project_dir": "C:\\repo"
           },
-          "agent_state": "working"
+          "agent_state": "working",
+          "subagents": [
+            { "name": "researcher", "role": "research", "status": "running" },
+            { "name": "finished", "role": "build", "status": "completed" }
+          ]
         }
         """;
 

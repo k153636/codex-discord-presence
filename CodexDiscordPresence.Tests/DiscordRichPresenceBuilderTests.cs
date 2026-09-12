@@ -54,7 +54,7 @@ public sealed class DiscordRichPresenceBuilderTests
     }
 
     [Fact]
-    public void Create_AntigravityPublishesOneOfOnePartyWithoutUsingTaskCount()
+    public void Create_AntigravityOmitsPartyForSoloPresence()
     {
         var rendered = new RenderedPresence(
             "details",
@@ -81,11 +81,36 @@ public sealed class DiscordRichPresenceBuilderTests
 
         var payload = DiscordRichPresenceBuilder.Create(options, rendered, "antigravity-party");
 
-        Assert.NotNull(payload.Party);
-        Assert.Equal(1, payload.Party!.Size);
-        Assert.Equal(1, payload.Party.Max);
+        Assert.Null(payload.Party);
         Assert.Equal("rpc_antigravity_cli", payload.Assets!.LargeImageKey);
         Assert.Null(payload.Assets.SmallImageKey);
+    }
+
+    [Fact]
+    public void Create_AntigravityPublishesPartyForExplicitActiveSubagents()
+    {
+        var rendered = new RenderedPresence(
+            "details",
+            "working",
+            null,
+            "small text",
+            [],
+            DateTime.UtcNow,
+            CodexActivityKind.AnalyzingProject,
+            RunningCommandKind.Unknown,
+            "")
+        {
+            ProviderId = ProviderIds.Antigravity,
+            PartySize = 3
+        };
+
+        var payload = DiscordRichPresenceBuilder.Create(
+            new DiscordOptions { ClientId = "1548038167041671259" },
+            rendered,
+            "antigravity-party");
+
+        Assert.Equal(3, payload.Party!.Size);
+        Assert.Equal(3, payload.Party.Max);
     }
 
     [Fact]

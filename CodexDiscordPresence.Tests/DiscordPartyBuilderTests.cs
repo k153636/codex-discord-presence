@@ -31,14 +31,4 @@ public sealed class DiscordPartyBuilderTests
         Assert.Null(DiscordPartyBuilder.Create(0, "stable-party-id"));
         Assert.Null(DiscordPartyBuilder.Create(1, "stable-party-id"));
     }
-
-    [Fact]
-    public void Create_AllowsAntigravitySoloPartyAsOneOfOne()
-    {
-        var party = DiscordPartyBuilder.Create(1, "party-id", includeSolo: true);
-
-        Assert.NotNull(party);
-        Assert.Equal(1, party!.Size);
-        Assert.Equal(1, party.Max);
-    }
 }

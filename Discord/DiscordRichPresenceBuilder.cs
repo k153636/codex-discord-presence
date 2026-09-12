@@ -33,8 +33,7 @@ internal static class DiscordRichPresenceBuilder
             },
             Party = DiscordPartyBuilder.Create(
                 presence.PartySize,
-                partyId,
-                includeSolo: presence.ProviderId == ProviderIds.Antigravity),
+                partyId),
             Buttons = buttons.Length == 0 ? null : buttons,
             Timestamps = presence.StartedAt is null ? null : new Timestamps(presence.StartedAt.Value)
         };

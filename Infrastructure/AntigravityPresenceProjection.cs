@@ -37,7 +37,10 @@ internal sealed record AntigravityActivitySnapshot(
     public int PendingOperationCount => 0;
     public int PendingMutationCount => 0;
     public string? LatestThinkingSummary => null;
-    public int? PartySize => 1;
+    public int? PartySize => ActiveSubagentCount is > 0
+        ? 1 + ActiveSubagentCount.Value
+        : null;
+    public int? ActiveSubagentCount { get; init; }
     public bool IsSuccessfulCompletion => false;
     public bool IsError => false;
     public bool HasDirectActivityEvidence => true;
@@ -74,7 +77,8 @@ internal static class AntigravityPresenceProjection
             LastEffectiveSignalAt: observedAtUtc,
             ActiveTurnId: conversationId)
         {
-            LatestActivityEventKind = state.LatestActivityEventKind
+            LatestActivityEventKind = state.LatestActivityEventKind,
+            ActiveSubagentCount = NormalizeActiveSubagentCount(observation.ActiveSubagentCount)
         };
 
         return new AntigravityPresenceProjectionResult(
@@ -150,6 +154,9 @@ internal static class AntigravityPresenceProjection
             _ => null
         };
     }
+
+    private static int? NormalizeActiveSubagentCount(int? count) =>
+        count is > 0 and <= ProviderObservation.MaxActiveSubagentCount ? count : null;
 
     private static string ResolveModelName(ProviderModelObservation? model)
     {

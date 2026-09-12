@@ -31,7 +31,12 @@ public sealed class AntigravityStatusLinePayloadParserTests
               "context_window": {
                 "total_input_tokens": 88244,
                 "total_output_tokens": 61074
-              }
+              },
+              "task_count": 4,
+              "subagents": [
+                { "name": "researcher", "role": "research", "status": "running" },
+                { "name": "finished", "role": "build", "status": "completed" }
+              ]
             }
             """;
         var observedAt = new DateTimeOffset(2026, 9, 11, 4, 5, 6, TimeSpan.FromHours(9));
@@ -49,6 +54,7 @@ public sealed class AntigravityStatusLinePayloadParserTests
         Assert.Equal(88244, result.ContextWindow?.TotalInputTokens);
         Assert.Equal(61074, result.ContextWindow?.TotalOutputTokens);
         Assert.Equal(149318, result.ContextWindow?.TotalTokens);
+        Assert.Equal(1, result.ActiveSubagentCount);
         Assert.Equal("gemini-3.5-flash-high", result.Model?.Id);
         Assert.Equal("Gemini 3.5 Flash (High)", result.Model?.DisplayName);
         var workspace = Assert.IsType<ProviderWorkspaceObservation>(result.Workspace);
@@ -61,6 +67,21 @@ public sealed class AntigravityStatusLinePayloadParserTests
         Assert.DoesNotContain("redacted@example.invalid", serialized, StringComparison.Ordinal);
         Assert.DoesNotContain("transcript.jsonl", serialized, StringComparison.Ordinal);
         Assert.DoesNotContain(@"C:\Users\redacted", serialized, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void TryParse_TaskCountWithoutSubagents_DoesNotCreatePartyEvidence()
+    {
+        const string payload = "{\"agent_state\":\"working\",\"task_count\":4}";
+        var parser = new AntigravityStatusLinePayloadParser();
+
+        var parsed = parser.TryParse(
+            Encoding.UTF8.GetBytes(payload),
+            DateTimeOffset.UtcNow,
+            out var observation);
+
+        Assert.True(parsed);
+        Assert.Null(observation?.ActiveSubagentCount);
     }
 
     [Fact]
