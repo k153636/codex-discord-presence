@@ -70,6 +70,20 @@ internal sealed class AntigravityHookCommandBuilder : IAntigravityHookCommandBui
                 CreateCommand(commands, AntigravityHookEvents.Stop))
         };
 
+    // This exact shape identifies the previous application-owned definition during a safe upgrade.
+    internal static JsonObject CreateLegacyManagedDefinition(
+        IReadOnlyDictionary<string, string> commands) => new()
+        {
+            ["PreInvocation"] = new JsonArray(
+                CreateCommand(commands, AntigravityHookEvents.PreInvocation)),
+            ["PostToolUse"] = new JsonArray(
+                CreateMatcherCommand(commands, AntigravityHookEvents.PostToolUse)),
+            ["PostInvocation"] = new JsonArray(
+                CreateCommand(commands, AntigravityHookEvents.PostInvocation)),
+            ["Stop"] = new JsonArray(
+                CreateCommand(commands, AntigravityHookEvents.Stop))
+        };
+
     private static JsonObject CreateMatcherCommand(
         IReadOnlyDictionary<string, string> commands,
         string hookEvent) => new()

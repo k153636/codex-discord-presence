@@ -95,15 +95,35 @@ internal sealed class AntigravityHookInstaller
         var existingDefinition = root[GroupName];
         if (existingDefinition is not null)
         {
-            if (!JsonNode.DeepEquals(existingDefinition, _managedDefinition) ||
-                !TryReadOwnership(out _, out _))
+            if (!TryReadOwnership(out var ownership, out var ownershipError))
             {
                 return Result(
                     AntigravityHookOperationStatus.Conflict,
-                    "A user-owned or modified Antigravity hook group already exists and was left unchanged.");
+                    ownershipError ?? "A user-owned or modified Antigravity hook group already exists and was left unchanged.");
             }
 
-            return VerifyManagedInstallation();
+            if (ownership is null || !MatchesOwnedScript(ownership))
+            {
+                return Result(
+                    AntigravityHookOperationStatus.Conflict,
+                    "The application-owned Antigravity hook script was changed and was left unchanged.");
+            }
+
+            if (JsonNode.DeepEquals(existingDefinition, _managedDefinition))
+            {
+                return Result(AntigravityHookOperationStatus.AlreadyInstalled);
+            }
+
+            if (JsonNode.DeepEquals(
+                    existingDefinition,
+                    AntigravityHookCommandBuilder.CreateLegacyManagedDefinition(_command.Commands!)))
+            {
+                return UpgradeOwnedInstallation(root, settingsSnapshot);
+            }
+
+            return Result(
+                AntigravityHookOperationStatus.Conflict,
+                "A user-owned or modified Antigravity hook group already exists and was left unchanged.");
         }
 
         if (File.Exists(_paths.OwnershipPath) ||
@@ -194,7 +214,7 @@ internal sealed class AntigravityHookInstaller
 
         HookOwnershipDocument? ownership = null;
         string? ownershipError = null;
-        if (!JsonNode.DeepEquals(existingDefinition, _managedDefinition) ||
+        if (!IsKnownManagedDefinition(existingDefinition) ||
             !TryReadOwnership(out ownership, out ownershipError))
         {
             return Result(
@@ -235,21 +255,74 @@ internal sealed class AntigravityHookInstaller
         }
     }
 
-    private AntigravityHookOperationResult VerifyManagedInstallation()
+    private AntigravityHookOperationResult UpgradeOwnedInstallation(
+        JsonObject root,
+        SettingsFileSnapshot settingsSnapshot)
     {
-        if (!TryReadOwnership(out var ownership, out var ownershipError))
+        var originalScript = "";
+        var originalOwnership = "";
+        var scriptUpdated = false;
+        var ownershipUpdated = false;
+
+        try
         {
-            return Result(AntigravityHookOperationStatus.Conflict, ownershipError);
+            originalScript = File.ReadAllText(_paths.ScriptPath);
+            originalOwnership = File.ReadAllText(_paths.OwnershipPath);
+
+            WriteAtomically(_paths.ScriptPath, _command.ScriptContent!, emitUtf8Bom: true);
+            scriptUpdated = true;
+            WriteAtomically(
+                _paths.OwnershipPath,
+                CreateOwnershipDocument().ToJsonString(JsonOptions));
+            ownershipUpdated = true;
+
+            if (!MatchesSettingsSnapshot(settingsSnapshot))
+            {
+                RestoreOwnedInstallation(originalScript, originalOwnership, scriptUpdated, ownershipUpdated);
+                return Result(
+                    AntigravityHookOperationStatus.Conflict,
+                    "The Antigravity hooks settings changed while the integration was being upgraded.");
+            }
+
+            root[GroupName] = _managedDefinition!.DeepClone();
+            WriteAtomically(_paths.SettingsPath, root.ToJsonString(JsonOptions));
+            return Result(AntigravityHookOperationStatus.Installed);
+        }
+        catch (IOException ex)
+        {
+            RestoreOwnedInstallation(originalScript, originalOwnership, scriptUpdated, ownershipUpdated);
+            return Result(AntigravityHookOperationStatus.Failed, ex.Message);
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            RestoreOwnedInstallation(originalScript, originalOwnership, scriptUpdated, ownershipUpdated);
+            return Result(AntigravityHookOperationStatus.Failed, ex.Message);
+        }
+    }
+
+    private void RestoreOwnedInstallation(
+        string originalScript,
+        string originalOwnership,
+        bool scriptUpdated,
+        bool ownershipUpdated)
+    {
+        if (ownershipUpdated)
+        {
+            WriteAtomically(_paths.OwnershipPath, originalOwnership);
         }
 
-        if (ownership is null || !MatchesOwnedScript(ownership))
+        if (scriptUpdated)
         {
-            return Result(
-                AntigravityHookOperationStatus.Conflict,
-                "The application-owned Antigravity hook script was changed and was left unchanged.");
+            WriteAtomically(_paths.ScriptPath, originalScript, emitUtf8Bom: true);
         }
+    }
 
-        return Result(AntigravityHookOperationStatus.AlreadyInstalled);
+    private bool IsKnownManagedDefinition(JsonNode existingDefinition)
+    {
+        return JsonNode.DeepEquals(existingDefinition, _managedDefinition) ||
+            JsonNode.DeepEquals(
+                existingDefinition,
+                AntigravityHookCommandBuilder.CreateLegacyManagedDefinition(_command.Commands!));
     }
 
     private JsonObject CreateOwnershipDocument() => new()

@@ -172,6 +172,42 @@ public sealed class AntigravityHookInfrastructureTests
     }
 
     [Fact]
+    public void Installer_UpgradesPreviouslyOwnedHookDefinition()
+    {
+        using var fixture = new TemporaryFixture();
+        var command = new AntigravityHookCommandBuilder(AntigravityStatusLinePlatform.Windows)
+            .Build(fixture.Paths);
+        File.WriteAllText(fixture.Paths.ScriptPath, "legacy script");
+        File.WriteAllText(
+            fixture.Paths.OwnershipPath,
+            new JsonObject
+            {
+                ["schema_version"] = 1,
+                ["group_name"] = "codex-discord-presence",
+                ["script_path"] = fixture.Paths.ScriptPath,
+                ["script_sha256"] = Convert.ToHexString(
+                    System.Security.Cryptography.SHA256.HashData(
+                        System.Text.Encoding.UTF8.GetBytes("legacy script")))
+            }.ToJsonString());
+        File.WriteAllText(
+            fixture.Paths.SettingsPath,
+            new JsonObject
+            {
+                ["codex-discord-presence"] =
+                    AntigravityHookCommandBuilder.CreateLegacyManagedDefinition(command.Commands!)
+            }.ToJsonString());
+
+        var installer = fixture.CreateInstaller();
+
+        Assert.Equal(AntigravityHookOperationStatus.Installed, installer.Install().Status);
+        var installed = JsonNode.Parse(File.ReadAllText(fixture.Paths.SettingsPath))!.AsObject();
+        var owned = Assert.IsType<JsonObject>(installed["codex-discord-presence"]);
+        Assert.NotNull(owned["PreToolUse"]);
+        Assert.Contains("'PreToolUse'", File.ReadAllText(fixture.Paths.ScriptPath), StringComparison.Ordinal);
+        Assert.Equal(AntigravityHookOperationStatus.AlreadyInstalled, installer.Install().Status);
+    }
+
+    [Fact]
     public void Installer_ChangedOwnedScriptReturnsConflictAndPreservesIt()
     {
         using var fixture = new TemporaryFixture();
