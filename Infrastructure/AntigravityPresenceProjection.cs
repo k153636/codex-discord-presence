@@ -314,10 +314,68 @@ internal static class AntigravityPresenceProjection
 
     private static string ResolveModelName(ProviderModelObservation? model)
     {
-        var modelName = NormalizeDisplayValue(model?.DisplayName) ??
-            NormalizeDisplayValue(model?.Id) ??
-            FallbackModelName;
+        var modelId = NormalizeDisplayValue(model?.Id);
+        var displayName = NormalizeDisplayValue(model?.DisplayName);
+
+        // Gemini's suffixes (for example "flash-high") are part of the model
+        // identity, not a provider-independent reasoning-effort field. Use the
+        // identifier when the friendly display name drops any of those tokens.
+        if (IsGeminiModel(modelId))
+        {
+            return HasCompleteGeminiDisplayName(displayName, modelId!)
+                ? displayName!
+                : FormatGeminiIdentifier(modelId!);
+        }
+
+        if (IsGeminiModel(displayName))
+        {
+            return FormatGeminiDisplayName(displayName!);
+        }
+
+        var modelName = displayName ?? modelId ?? FallbackModelName;
         return CodexModelDisplayFormatter.Format(modelName, null, null);
+    }
+
+    private static bool IsGeminiModel(string? value)
+    {
+        return value is not null &&
+            (string.Equals(value, "gemini", StringComparison.OrdinalIgnoreCase) ||
+             value.StartsWith("gemini-", StringComparison.OrdinalIgnoreCase) ||
+             value.StartsWith("gemini ", StringComparison.OrdinalIgnoreCase));
+    }
+
+    private static bool HasCompleteGeminiDisplayName(string? displayName, string modelId)
+    {
+        if (!IsGeminiModel(displayName))
+        {
+            return false;
+        }
+
+        var displayTokens = TokenizeGeminiModel(displayName!);
+        return TokenizeGeminiModel(modelId).All(displayTokens.Contains);
+    }
+
+    private static string FormatGeminiDisplayName(string displayName)
+    {
+        return displayName.StartsWith("gemini-", StringComparison.OrdinalIgnoreCase)
+            ? FormatGeminiIdentifier(displayName)
+            : displayName;
+    }
+
+    private static string FormatGeminiIdentifier(string modelId)
+    {
+        return string.Join(' ', TokenizeGeminiModel(modelId));
+    }
+
+    private static IEnumerable<string> TokenizeGeminiModel(string value)
+    {
+        return value
+            .Replace('-', ' ')
+            .Replace('_', ' ')
+            .Replace('(', ' ')
+            .Replace(')', ' ')
+            .Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries)
+            .Select(token => token.ToLowerInvariant());
     }
 
     private static long? NormalizeTotalTokens(long? totalTokens) =>

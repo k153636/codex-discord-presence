@@ -760,6 +760,55 @@ public sealed class ProviderSelectionAndProjectionTests
         Assert.Null(projection.ConversationId);
     }
 
+    [Fact]
+    public void Build_UsesCompleteGeminiIdentifierWhenDisplayNameOmitsVariant()
+    {
+        var projection = AntigravityPresenceProjection.Build(
+            new ProviderObservation(
+                ProviderObservationSource.AntigravityCli,
+                DateTimeOffset.UtcNow,
+                ProviderAgentState.Idle,
+                new ProviderModelObservation("gemini-3.8-flash-high", "Gemini 3.8 Flash"),
+                null,
+                null));
+
+        Assert.Equal("gemini 3.8 flash high", projection.ModelName);
+    }
+
+    [Fact]
+    public void Build_PreservesCompleteGeminiDisplayName()
+    {
+        var projection = AntigravityPresenceProjection.Build(
+            new ProviderObservation(
+                ProviderObservationSource.AntigravityCli,
+                DateTimeOffset.UtcNow,
+                ProviderAgentState.Idle,
+                new ProviderModelObservation(
+                    "gemini-3.8-flash-high",
+                    "Gemini 3.8 Flash (High)"),
+                null,
+                null));
+
+        Assert.Equal("Gemini 3.8 Flash (High)", projection.ModelName);
+    }
+
+    [Fact]
+    public void Build_PreservesClaudeThinkingAsNativeModelIdentity()
+    {
+        var projection = AntigravityPresenceProjection.Build(
+            new ProviderObservation(
+                ProviderObservationSource.AntigravityCli,
+                DateTimeOffset.UtcNow,
+                ProviderAgentState.Idle,
+                new ProviderModelObservation(
+                    "Claude Sonnet 4.6 (Thinking)",
+                    "Claude Sonnet 4.6 (Thinking)"),
+                null,
+                null));
+
+        Assert.Equal("Claude Sonnet 4.6 (Thinking)", projection.ModelName);
+    }
+
     private static ProviderSelectionCandidate Candidate(
         string providerId,
         bool isEnabled = true,
