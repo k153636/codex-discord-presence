@@ -102,6 +102,63 @@ that distinction when changing activity detection.
   tier. Do not display the literal word `fast`, and do not infer speed from a
   config-only value.
 
+## Provider and CLI extensibility contract
+
+This application can support multiple CLI/provider integrations, but a new
+integration must not be implemented by making Antigravity look like Codex or
+by copying Codex-specific behavior into a shared fallback.
+
+### Provider identity and boundaries
+
+- `AppProfileKind` is the Codex Desktop/CLI profile axis. `ProviderId` is the
+  provider/CLI integration axis. Do not add a new provider by adding another
+  `AppProfileKind` unless it is genuinely another Codex profile.
+- Each provider owns its detection, raw parser, observation persistence,
+  activity projection, model/reasoning normalization, usage/billing meaning,
+  party evidence, external integration, and provider-owned runtime state.
+- Only normalized presence contracts may cross the provider boundary:
+  `PresenceContext`, the common activity vocabulary, project/Git snapshots,
+  session timing, and rendered Discord payloads. `CodexActivityKind` is a
+  display vocabulary, not a provider event schema.
+- Unknown or partially registered provider IDs must fail closed. They must
+  not silently inherit Codex parsers, Codex billing labels, Codex assets, or
+  Codex fallback behavior.
+
+### Runtime switching
+
+- Keep one `PresenceRuntime`, one `DiscordPresenceClient`, and one
+  `SessionClock` for the application process. A provider switch updates the
+  selected Discord options, requests a presence refresh, and preserves the
+  runtime session timestamp.
+- Keep dispatch and activity state provider-owned: Codex state is profile and
+  session scoped; Antigravity state is conversation scoped. Do not replace
+  these with one global cache or allow the previous provider's activity,
+  model, quota, party, or image state to leak across a switch.
+- Provider selection must go through the central selection/gate policy using
+  enabled/configured status, project evidence, freshness, and active activity.
+  An old idle observation must not take over from a newer active provider.
+
+### New provider completion contract
+
+A new CLI/provider is not complete when configuration alone can name it. The
+implementation must provide, with focused tests:
+
+1. provider ID, enable/disable persistence, configuration, and availability;
+2. provider-specific observation, freshness, project matching, and projection
+   into the shared presence contract;
+3. provider-specific model/reasoning, usage/billing, party, and asset policy;
+4. provider switch behavior, isolated runtime state, diagnostics, and RPC
+   refresh behavior;
+5. external configuration installation/uninstallation, when applicable, with
+   ownership checks, backup/restore, conflict detection, and atomic writes;
+6. regression coverage proving no cross-provider leakage of activity text,
+   thinking summaries, MCP/file evidence, quotas, party metadata, or assets.
+
+Provider-specific Discord application IDs and assets are separate by default.
+Sharing the Discord transport is allowed; sharing a provider's identity,
+asset policy, or billing semantics requires an explicit design decision and
+tests.
+
 ## Discord assets and configuration
 
 - Keep the internal Discord asset keys stable (`rpc_codex`, `rpc_thinking`,
