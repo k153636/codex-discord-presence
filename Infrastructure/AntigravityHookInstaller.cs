@@ -111,7 +111,9 @@ internal sealed class AntigravityHookInstaller
 
             if (JsonNode.DeepEquals(existingDefinition, _managedDefinition))
             {
-                return Result(AntigravityHookOperationStatus.AlreadyInstalled);
+                return MatchesCurrentScript()
+                    ? Result(AntigravityHookOperationStatus.AlreadyInstalled)
+                    : UpgradeOwnedInstallation(root, settingsSnapshot);
             }
 
             if (JsonNode.DeepEquals(
@@ -378,6 +380,26 @@ internal sealed class AntigravityHookInstaller
         {
             return File.Exists(_paths.ScriptPath) &&
                 string.Equals(ComputeScriptHash(), ownership.ScriptSha256, StringComparison.OrdinalIgnoreCase);
+        }
+        catch (IOException)
+        {
+            return false;
+        }
+        catch (UnauthorizedAccessException)
+        {
+            return false;
+        }
+    }
+
+    private bool MatchesCurrentScript()
+    {
+        try
+        {
+            return File.Exists(_paths.ScriptPath) &&
+                string.Equals(
+                    File.ReadAllText(_paths.ScriptPath),
+                    _command.ScriptContent,
+                    StringComparison.Ordinal);
         }
         catch (IOException)
         {
