@@ -23,7 +23,7 @@ Beyond generic “Thinking” or “Editing” labels, it can show reasoning sum
 - Session duration, token usage, and estimated cost when available
 - Project information and Git change counts
 - Party information for active subagents
-- Buttons such as a link to the project website
+- A project website button labeled `K's Codex RPC`
 
 K's Code Presence updates Discord Rich Presence using available Codex session events and process signals, plus the Antigravity CLI statusLine payload when that provider is enabled.
 
