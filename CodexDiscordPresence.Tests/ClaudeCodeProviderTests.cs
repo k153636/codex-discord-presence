@@ -424,6 +424,20 @@ public sealed class ClaudeCodeProviderTests
         });
     }
 
+    [Fact]
+    public void Observation_SubagentLifecycle_DoesNotAdvanceMainActivityEvidence()
+    {
+        var main = Apply(null, "UserPromptSubmit");
+        var party = ClaudeCodeSessionObservation.Apply(main,
+            new("main", ProjectPath, "SubagentStart", Now.AddSeconds(10), AgentId: "worker"));
+        Assert.Equal(Now, party.LastActivityEventAtUtc);
+        Assert.Equal(Now.AddSeconds(10), party.ObservedAtUtc);
+        Assert.Single(party.ActiveAgentIds);
+        var next = ClaudeCodeSessionObservation.Apply(party,
+            new("main", ProjectPath, "PreToolUse", Now.AddSeconds(20), ToolName: "Read"));
+        Assert.Equal(Now.AddSeconds(20), next.LastActivityEventAtUtc);
+    }
+
     private static ClaudeCodeSessionObservation Apply(ClaudeCodeSessionObservation? previous, string name,
         string? tool = null, string? toolId = null, string? file = null, string? agentId = null) =>
         ClaudeCodeSessionObservation.Apply(previous, new("main", ProjectPath, name, Now, tool, toolId, file, agentId));

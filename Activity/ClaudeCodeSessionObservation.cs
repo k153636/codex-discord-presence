@@ -15,6 +15,7 @@ internal sealed record ClaudeCodeSessionObservation(
     IReadOnlyList<string> ActiveAgentIds)
 {
     public bool FromTranscript { get; init; }
+    public DateTimeOffset? LastActivityEventAtUtc { get; init; }
 
     internal static ClaudeCodeSessionObservation Apply(
         ClaudeCodeSessionObservation? previous,
@@ -75,6 +76,11 @@ internal sealed record ClaudeCodeSessionObservation(
             eventName, current.EventName == "SessionEnd",
             current.Model ?? (reset ? null : previous!.Model),
             current.TranscriptPath ?? (reset ? null : previous!.TranscriptPath),
-            tools.ToArray(), agents.Order(StringComparer.Ordinal).ToArray());
+            tools.ToArray(), agents.Order(StringComparer.Ordinal).ToArray())
+        {
+            LastActivityEventAtUtc = !reset && current.EventName is "SubagentStart" or "SubagentStop"
+                ? previous!.LastActivityEventAtUtc ?? previous.ObservedAtUtc
+                : current.ObservedAtUtc
+        };
     }
 }

@@ -468,7 +468,8 @@ public sealed class PresenceRuntime
                 codexSnapshot.ActivityStartedAt ??
                 codexSnapshot.LastTaskStartedAt ??
                 codexSnapshot.LastEffectiveSignalAt ??
-                codexSnapshot.LastObservedAt));
+                codexSnapshot.LastObservedAt),
+            LastActivityEventAtUtc: ToUtcOffset(codexSnapshot.LastEffectiveSignalAt));
 
         var candidates = new List<ProviderSelectionCandidate> { codexCandidate };
         if (claudeObservation is not null)
@@ -483,7 +484,8 @@ public sealed class PresenceRuntime
                 IsProjectMatch: new ProviderWorkspaceObservation(claudeObservation.ProjectPath, null, null).MatchesProjectPath(activeProjectPath),
                 DetectionStrength: 500,
                 IsActive: claudeActivity.ActivityKind.IsActive(),
-                ActivityStartedAtUtc: claudeObservation.ActivityStartedAtUtc));
+                ActivityStartedAtUtc: claudeObservation.ActivityStartedAtUtc,
+                LastActivityEventAtUtc: claudeObservation.LastActivityEventAtUtc ?? claudeObservation.ObservedAtUtc));
         }
         if (antigravityObservation is not null)
         {

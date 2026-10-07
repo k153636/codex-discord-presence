@@ -158,7 +158,7 @@ internal sealed class ProviderActivationGate
 
     private static DateTimeOffset? GetActivityTimestamp(ProviderSelectionCandidate candidate)
     {
-        return candidate.ActivityStartedAtUtc ?? candidate.LastObservedAtUtc;
+        return ProviderSelectionPolicy.GetActivityTimestamp(candidate);
     }
 
     private bool IsCurrentProvider(ProviderSelectionCandidate candidate)

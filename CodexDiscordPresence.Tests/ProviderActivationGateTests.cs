@@ -98,6 +98,52 @@ public sealed class ProviderActivationGateTests
         Assert.Equal(ProviderIds.Codex, selected?.ProviderId);
     }
 
+    [Fact]
+    public void Select_ClaudeActive_FollowsNewCodexEventFromAnOlderTask()
+    {
+        var start = DateTimeOffset.Parse("2026-10-07T10:00:00Z");
+        var gate = new ProviderActivationGate(ProviderIds.ClaudeCode);
+        var claude = Candidate(ProviderIds.ClaudeCode, start.AddMinutes(1), true, start.AddMinutes(1)) with
+        { LastActivityEventAtUtc = start.AddMinutes(1) };
+        var codex = Candidate(ProviderIds.Codex, start, true, start) with
+        { LastActivityEventAtUtc = start };
+        Assert.Equal(ProviderIds.ClaudeCode, gate.Select([claude, codex], start.AddMinutes(1))?.ProviderId);
+
+        codex = codex with { LastActivityEventAtUtc = start.AddMinutes(2), LastObservedAtUtc = start.AddMinutes(2) };
+        Assert.Equal(ProviderIds.Codex, gate.Select([claude, codex], start.AddMinutes(2))?.ProviderId);
+
+        // Polling or a party update must not reclaim the display without a main-agent event.
+        claude = claude with { LastObservedAtUtc = start.AddMinutes(3) };
+        Assert.Equal(ProviderIds.Codex, gate.Select([claude, codex], start.AddMinutes(3))?.ProviderId);
+        claude = claude with { LastActivityEventAtUtc = start.AddMinutes(4) };
+        Assert.Equal(ProviderIds.ClaudeCode, gate.Select([claude, codex], start.AddMinutes(4))?.ProviderId);
+    }
+
+    [Fact]
+    public void Select_ClaudeActive_DoesNotFollowNewerIdleCodexObservation()
+    {
+        var now = DateTimeOffset.Parse("2026-10-07T10:00:00Z");
+        var gate = new ProviderActivationGate(ProviderIds.ClaudeCode);
+        var claude = Candidate(ProviderIds.ClaudeCode, now, true, now) with { LastActivityEventAtUtc = now };
+        var codex = Candidate(ProviderIds.Codex, now.AddMinutes(1), false) with
+        { LastActivityEventAtUtc = now.AddMinutes(1) };
+        Assert.Equal(ProviderIds.ClaudeCode, gate.Select([claude, codex], now.AddMinutes(1))?.ProviderId);
+    }
+
+    [Fact]
+    public void Select_ClaudeBecomesIdle_FollowsNewCodexEventFromAnOlderTask()
+    {
+        var now = DateTimeOffset.Parse("2026-10-07T10:00:00Z");
+        var gate = new ProviderActivationGate(ProviderIds.ClaudeCode);
+        var claude = Candidate(ProviderIds.ClaudeCode, now, true, now) with { LastActivityEventAtUtc = now };
+        var codex = Candidate(ProviderIds.Codex, now.AddMinutes(-1), true, now.AddMinutes(-1)) with
+        { LastActivityEventAtUtc = now.AddMinutes(-1) };
+        Assert.Equal(ProviderIds.ClaudeCode, gate.Select([claude, codex], now)?.ProviderId);
+        claude = claude with { IsActive = false, LastObservedAtUtc = now.AddSeconds(1) };
+        codex = codex with { LastActivityEventAtUtc = now.AddSeconds(2) };
+        Assert.Equal(ProviderIds.Codex, gate.Select([claude, codex], now.AddSeconds(2))?.ProviderId);
+    }
+
     private static ProviderSelectionCandidate Candidate(
         string providerId,
         DateTimeOffset observedAt,

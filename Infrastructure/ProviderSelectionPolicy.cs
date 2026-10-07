@@ -9,7 +9,8 @@ internal sealed record ProviderSelectionCandidate(
     bool IsProjectMatch,
     int DetectionStrength = 0,
     bool IsActive = false,
-    DateTimeOffset? ActivityStartedAtUtc = null);
+    DateTimeOffset? ActivityStartedAtUtc = null,
+    DateTimeOffset? LastActivityEventAtUtc = null);
 
 internal static class ProviderSelectionPolicy
 {
@@ -47,10 +48,16 @@ internal static class ProviderSelectionPolicy
     private static DateTimeOffset GetSelectionTimestamp(ProviderSelectionCandidate candidate)
     {
         return (candidate.IsActive
-                ? candidate.ActivityStartedAtUtc
+                ? GetActivityTimestamp(candidate)
                 : null) ??
             candidate.LastObservedAtUtc ??
             DateTimeOffset.MinValue;
+    }
+
+    internal static DateTimeOffset? GetActivityTimestamp(ProviderSelectionCandidate candidate)
+    {
+        // A refresh observation is not necessarily a new provider activity.
+        return candidate.LastActivityEventAtUtc ?? candidate.ActivityStartedAtUtc ?? candidate.LastObservedAtUtc;
     }
 
     private static bool IsEligible(ProviderSelectionCandidate candidate)
