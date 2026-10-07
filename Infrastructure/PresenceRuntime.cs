@@ -64,6 +64,8 @@ public sealed class PresenceRuntime
             claudeDirectory,
             Path.Combine(_paths.BaseDirectory, "discord-presence-for-codex.exe"));
         var claudeDispatch = new PresenceDispatchCache();
+        var claudeSpinnerReader = new ClaudeCodeSpinnerReader(
+            Path.Combine(_paths.BaseDirectory, "discord-presence-for-codex.exe"));
         string? claudeSessionId = null;
         var antigravityPaths = AntigravityStatusLinePaths.CreateDefault();
         var antigravityEventStore = new AntigravityStatusLineEventStore(antigravityPaths.EventFilePath);
@@ -281,8 +283,11 @@ public sealed class PresenceRuntime
                     IPresenceActivitySnapshot displayActivity;
                     if (selectedProvider.ProviderId == ProviderIds.ClaudeCode && claudeObservation is not null)
                     {
+                        var spinnerLabel = ClaudeCodePresenceProjection.Build(claudeObservation).ActivityKind.IsThinking()
+                            ? await claudeSpinnerReader.ReadAsync(claudeObservation.SessionId, _cancellationToken)
+                            : null;
                         context = ClaudeCodePresenceProjection.CreateContext(
-                            claudeObservation, projectSnapshot, gitSnapshot, sessionSnapshot);
+                            claudeObservation, projectSnapshot, gitSnapshot, sessionSnapshot, spinnerLabel);
                         displayActivity = context.Activity;
                     }
                     else if (selectedProvider.ProviderId == ProviderIds.Antigravity && antigravityObservation is not null)

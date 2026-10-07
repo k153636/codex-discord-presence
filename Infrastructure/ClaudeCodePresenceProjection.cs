@@ -30,7 +30,7 @@ internal sealed record ClaudeCodeActivitySnapshot(
     public int PendingOperationCount { get; init; }
     public int PendingMutationCount => ActivityFilePaths.Count;
     public DateTime? LastEffectiveSignalAt => LastObservedAt;
-    public string? LatestThinkingSummary => null;
+    public string? LatestThinkingSummary { get; init; }
     public int? PartySize { get; init; }
     public bool IsSuccessfulCompletion => false;
     public bool IsError { get; init; }
@@ -42,7 +42,7 @@ internal sealed record ClaudeCodeActivitySnapshot(
 
 internal static class ClaudeCodePresenceProjection
 {
-    internal static ClaudeCodeActivitySnapshot Build(ClaudeCodeSessionObservation observation)
+    internal static ClaudeCodeActivitySnapshot Build(ClaudeCodeSessionObservation observation, string? spinnerLabel = null)
     {
         var tool = observation.Tools.LastOrDefault();
         var waiting = observation.EventName is "PermissionRequest" or "Notification";
@@ -65,17 +65,18 @@ internal static class ClaudeCodePresenceProjection
             ActiveActivityDescription = kind == CodexActivityKind.ReadingFiles && files.Length > 0
                 ? "Reading " + files[0] : null,
             PendingOperationCount = waiting ? 0 : observation.Tools.Count,
+            LatestThinkingSummary = kind.IsThinking() && tool is null ? ClaudeCodeHookParser.SafeText(spinnerLabel, 48) : null,
             PartySize = observation.ActiveAgentIds.Count > 0 ? observation.ActiveAgentIds.Count + 1 : null,
             IsError = observation.EventName == "PostToolUseFailure"
         };
     }
 
     internal static PresenceContext CreateContext(ClaudeCodeSessionObservation observation,
-        ProjectSnapshot project, GitSnapshot git, SessionSnapshot session)
+        ProjectSnapshot project, GitSnapshot git, SessionSnapshot session, string? spinnerLabel = null)
     {
         var metadata = ClaudeCodeTranscriptMetadata.Read(observation.TranscriptPath, observation.SessionId);
         var model = metadata.Model ?? observation.Model;
-        return new PresenceContext(NormalizeModel(model), Build(observation), project, git, session,
+        return new PresenceContext(NormalizeModel(model), Build(observation, spinnerLabel), project, git, session,
             new TokenUsageSnapshot(null, null))
         {
             ProviderId = ProviderIds.ClaudeCode,
