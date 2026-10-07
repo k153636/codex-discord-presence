@@ -1,6 +1,7 @@
 namespace CodexDiscordPresence;
 
-internal sealed record ClaudeCodeToolObservation(string Id, string Name, string? FileName);
+internal sealed record ClaudeCodeToolObservation(string Id, string Name, string? FileName,
+    bool IsClaudeDesignOperation = false);
 
 internal sealed record ClaudeCodeSessionObservation(
     string SessionId,
@@ -16,6 +17,8 @@ internal sealed record ClaudeCodeSessionObservation(
 {
     public bool FromTranscript { get; init; }
     public DateTimeOffset? LastActivityEventAtUtc { get; init; }
+    public bool HasConfirmedClaudeDesignUsage { get; init; }
+    public bool UsesClaudeDesign => HasConfirmedClaudeDesignUsage || Tools.Any(tool => tool.IsClaudeDesignOperation);
 
     internal static ClaudeCodeSessionObservation Apply(
         ClaudeCodeSessionObservation? previous,
@@ -32,14 +35,20 @@ internal sealed record ClaudeCodeSessionObservation(
         var tools = reset ? new List<ClaudeCodeToolObservation>() : previous!.Tools.ToList();
         var agents = reset ? new HashSet<string>(StringComparer.Ordinal) : previous!.ActiveAgentIds.ToHashSet(StringComparer.Ordinal);
         var eventName = current.EventName;
+        var confirmedDesign = !reset && previous!.HasConfirmedClaudeDesignUsage;
         if (eventName == "PreToolUse" && current.ToolName is { } toolName && tools.Count < 64)
         {
             var id = current.ToolUseId ?? toolName;
             tools.RemoveAll(tool => tool.Id == id);
-            tools.Add(new ClaudeCodeToolObservation(id, toolName, current.FileName));
+            tools.Add(new ClaudeCodeToolObservation(id, toolName, current.FileName, current.IsClaudeDesignOperation));
         }
         else if (eventName is "PostToolUse" or "PostToolUseFailure")
         {
+            if (eventName == "PostToolUse")
+            {
+                confirmedDesign |= current.IsClaudeDesignOperation || tools.Any(tool => tool.IsClaudeDesignOperation &&
+                    (current.ToolUseId is { } completedId ? tool.Id == completedId : tool.Name == current.ToolName));
+            }
             tools.RemoveAll(tool => current.ToolUseId is { } id
                 ? tool.Id == id
                 : tool.Name == current.ToolName);
@@ -61,6 +70,7 @@ internal sealed record ClaudeCodeSessionObservation(
         if (current.EventName is "UserPromptSubmit" or "Stop" or "SessionEnd")
         {
             tools.Clear();
+            confirmedDesign = false;
         }
         if (current.EventName == "SessionEnd")
         {
@@ -78,6 +88,7 @@ internal sealed record ClaudeCodeSessionObservation(
             current.TranscriptPath ?? (reset ? null : previous!.TranscriptPath),
             tools.ToArray(), agents.Order(StringComparer.Ordinal).ToArray())
         {
+            HasConfirmedClaudeDesignUsage = confirmedDesign,
             LastActivityEventAtUtc = !reset && current.EventName is "SubagentStart" or "SubagentStop"
                 ? previous!.LastActivityEventAtUtc ?? previous.ObservedAtUtc
                 : current.ObservedAtUtc

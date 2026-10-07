@@ -91,6 +91,7 @@ public sealed class PresenceTemplateRenderer
         var values = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
         {
             ["ModelName"] = modelDisplayLabel,
+            ["FeatureLabel"] = context.FeatureLabel ?? "",
             ["CodexStatus"] = context.ProviderId is not (null or ProviderIds.Codex)
                 ? ""
                 : context.Activity.IsRunning ? "Codex running" : "Codex not detected",

@@ -80,6 +80,7 @@ internal static class ClaudeCodePresenceProjection
             new TokenUsageSnapshot(null, null))
         {
             ProviderId = ProviderIds.ClaudeCode,
+            FeatureLabel = observation.UsesClaudeDesign ? "Claude Design" : null,
             ModelReasoningLevel = metadata.Effort
         };
     }

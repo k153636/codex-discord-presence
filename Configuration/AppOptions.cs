@@ -343,7 +343,7 @@ public sealed class PresenceTemplateOptions
 {
     public bool AutoDetectModelName { get; set; } = true;
     public string ModelName { get; set; } = "Codex";
-    public string Details { get; set; } = "{GoalModePrefix} {ModelName} \u2022 {ExecutionMode} \u2022 {Tokens}";
+    public string Details { get; set; } = "{GoalModePrefix} {FeatureLabel} \u2022 {ModelName} \u2022 {ExecutionMode} \u2022 {Tokens}";
     public string WaitingDetails { get; set; } = "{Cost} {BillingType}{RateLimitDetails}";
     public string State { get; set; } = "{ActivityLine}";
     public bool EnableLargeImageText { get; set; } = true;

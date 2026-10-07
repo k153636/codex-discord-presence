@@ -134,14 +134,18 @@ internal sealed class ClaudeCodeTranscriptActivityReader(string projectsDirector
                         EventName = "PreToolUse",
                         ToolName = ClaudeCodeHookParser.Text(item, "name"),
                         ToolUseId = ClaudeCodeHookParser.Text(item, "id"),
-                        FileName = ClaudeCodeHookParser.SafeText(file?.Replace('\\', '/').Split('/').LastOrDefault())
+                        FileName = ClaudeCodeHookParser.SafeText(file?.Replace('\\', '/').Split('/').LastOrDefault()),
+                        IsClaudeDesignOperation = ClaudeCodeDesignUsageDetector.IsDesignOperation(
+                            ClaudeCodeHookParser.Text(item, "name"), input)
                     });
                 }
                 else if (type == "user" && contentType == "tool_result")
                 {
                     state = ClaudeCodeSessionObservation.Apply(state, baseEvent with
                     {
-                        EventName = "PostToolUse", ToolUseId = ClaudeCodeHookParser.Text(item, "tool_use_id")
+                        EventName = item.TryGetProperty("is_error", out var error) && error.ValueKind == JsonValueKind.True
+                            ? "PostToolUseFailure" : "PostToolUse",
+                        ToolUseId = ClaudeCodeHookParser.Text(item, "tool_use_id")
                     });
                 }
                 else if (contentType is "thinking" or "text" && type == "assistant")

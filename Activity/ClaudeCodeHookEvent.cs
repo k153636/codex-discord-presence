@@ -13,7 +13,8 @@ internal sealed record ClaudeCodeHookEvent(
     string? AgentId = null,
     string? Model = null,
     string? TranscriptPath = null,
-    string? NotificationType = null);
+    string? NotificationType = null,
+    bool IsClaudeDesignOperation = false);
 
 internal static class ClaudeCodeHookParser
 {
@@ -64,7 +65,8 @@ internal static class ClaudeCodeHookParser
                 sessionId, Path.GetFullPath(cwd), eventName, nowUtc,
                 Text(root, "tool_name"), Text(root, "tool_use_id"),
                 SafeText(fileName), agentId, Text(root, "model"),
-                Text(root, "transcript_path", 4096), Text(root, "notification_type"));
+                Text(root, "transcript_path", 4096), Text(root, "notification_type"),
+                ClaudeCodeDesignUsageDetector.IsDesignOperation(Text(root, "tool_name"), input));
         }
         catch (Exception ex) when (ex is JsonException or ArgumentException or NotSupportedException)
         {

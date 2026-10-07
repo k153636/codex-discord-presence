@@ -47,6 +47,7 @@ public sealed record PresenceContext(
     TokenUsageSnapshot TokenUsage)
 {
     public string? ProviderId { get; init; }
+    public string? FeatureLabel { get; init; }
     public string? ExecutionMode { get; init; }
     public string? ModelReasoningLevel { get; init; }
     public string? ModelVariant { get; init; }

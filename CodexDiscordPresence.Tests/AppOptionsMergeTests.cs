@@ -160,7 +160,7 @@ public sealed class AppOptionsMergeTests
             Assert.Null(options.GetAntigravityDiscordOptions().SmallImageKey);
             Assert.Empty(options.GetAntigravityDiscordOptions().ExternalImageUrls);
             Assert.Equal("codexcli_logo1", options.DiscordCli.LargeImageKey);
-            Assert.Equal("{GoalModePrefix} {ModelName} \u2022 {ExecutionMode} \u2022 {Tokens}", options.Presence.Details);
+            Assert.Equal("{GoalModePrefix} {FeatureLabel} \u2022 {ModelName} \u2022 {ExecutionMode} \u2022 {Tokens}", options.Presence.Details);
             Assert.Equal("Working", options.Presence.WorkingText);
             Assert.Equal("Researching", options.Presence.ResearchingText);
             Assert.Equal("Waiting", options.Presence.WaitingText);
