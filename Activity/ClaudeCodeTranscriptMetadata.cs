@@ -23,7 +23,7 @@ internal sealed record ClaudeCodeTranscriptMetadata(string? Model, string? Effor
                     if (ClaudeCodeHookParser.Text(root, "sessionId") != sessionId ||
                         root.TryGetProperty("isSidechain", out var sidechain) && sidechain.ValueKind == JsonValueKind.True ||
                         ClaudeCodeHookParser.Text(root, "type") != "assistant" ||
-                        !root.TryGetProperty("message", out var message))
+                        !root.TryGetProperty("message", out var message) || message.ValueKind != JsonValueKind.Object)
                     {
                         continue;
                     }

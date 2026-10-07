@@ -83,8 +83,17 @@ internal sealed class ClaudeCodeObservationStore(string directory)
             }
             var observation = JsonSerializer.Deserialize<ClaudeCodeSessionObservation>(File.ReadAllText(path));
             return observation is { Tools: not null, ActiveAgentIds: not null } &&
-                !string.IsNullOrWhiteSpace(observation.SessionId) && !string.IsNullOrWhiteSpace(observation.ProjectPath) &&
-                observation.Tools.Count <= 64 && observation.ActiveAgentIds.Count <= 64
+                ClaudeCodeHookParser.SafeText(observation.SessionId) is not null &&
+                ClaudeCodeHookParser.SafeText(observation.ProjectPath, 4096) is not null &&
+                Path.IsPathFullyQualified(observation.ProjectPath) &&
+                ClaudeCodeHookParser.EventNames.Contains(observation.EventName, StringComparer.Ordinal) &&
+                observation.Tools.Count <= 64 && observation.ActiveAgentIds.Count <= 64 &&
+                observation.Tools.All(tool => tool is not null &&
+                    ClaudeCodeHookParser.SafeText(tool.Id) is not null &&
+                    ClaudeCodeHookParser.SafeText(tool.Name) is not null &&
+                    (tool.FileName is null || ClaudeCodeHookParser.SafeText(tool.FileName) is not null &&
+                        tool.FileName.IndexOfAny(['/', '\\', ':']) < 0)) &&
+                observation.ActiveAgentIds.All(id => ClaudeCodeHookParser.SafeText(id) is not null)
                 ? observation
                 : null;
         }

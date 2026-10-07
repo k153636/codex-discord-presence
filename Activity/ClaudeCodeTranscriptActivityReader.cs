@@ -88,7 +88,8 @@ internal sealed class ClaudeCodeTranscriptActivityReader(string projectsDirector
         {
             using var document = JsonDocument.Parse(line);
             var root = document.RootElement;
-            if (root.TryGetProperty("isSidechain", out var sidechain) && sidechain.ValueKind == JsonValueKind.True ||
+            if (root.ValueKind != JsonValueKind.Object ||
+                root.TryGetProperty("isSidechain", out var sidechain) && sidechain.ValueKind == JsonValueKind.True ||
                 ClaudeCodeHookParser.Text(root, "sessionId") is not { } sessionId ||
                 ClaudeCodeHookParser.Text(root, "cwd", 4096) is not { } cwd || !Path.IsPathFullyQualified(cwd) ||
                 ClaudeCodeHookParser.Text(root, "timestamp") is not { } timestamp ||
@@ -102,7 +103,8 @@ internal sealed class ClaudeCodeTranscriptActivityReader(string projectsDirector
             {
                 return ClaudeCodeSessionObservation.Apply(state, baseEvent with { EventName = "Stop" });
             }
-            if (type is not ("assistant" or "user") || !root.TryGetProperty("message", out var message))
+            if (type is not ("assistant" or "user") || !root.TryGetProperty("message", out var message) ||
+                message.ValueKind != JsonValueKind.Object)
             {
                 return state;
             }

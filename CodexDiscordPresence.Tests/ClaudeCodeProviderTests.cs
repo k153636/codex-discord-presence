@@ -372,6 +372,58 @@ public sealed class ClaudeCodeProviderTests
         });
     }
 
+    [Theory]
+    [InlineData("[]")]
+    [InlineData("null")]
+    [InlineData("42")]
+    [InlineData("\"text\"")]
+    public void Transcript_NonObjectJsonLine_DoesNotBreakObservation(string malformedLine)
+    {
+        InTemporaryDirectory(directory =>
+        {
+            var path = Path.Combine(directory, "main.jsonl");
+            var valid = JsonSerializer.Serialize(new { type = "user", sessionId = "main", cwd = ProjectPath,
+                timestamp = Now, message = new { content = "private" } });
+            File.WriteAllLines(path, [valid, malformedLine]);
+            Assert.Equal("UserPromptSubmit", ClaudeCodeTranscriptActivityReader.Read(path)!.EventName);
+        });
+    }
+
+    [Fact]
+    public void Transcript_NonObjectMessage_DoesNotBreakActivityOrEraseMetadata()
+    {
+        InTemporaryDirectory(directory =>
+        {
+            var path = Path.Combine(directory, "main.jsonl");
+            var valid = JsonSerializer.Serialize(new { type = "assistant", sessionId = "main", cwd = ProjectPath,
+                timestamp = Now, effort = "high", message = new { model = "claude-opus-4-6",
+                    content = new[] { new { type = "thinking", thinking = "private" } } } });
+            var invalid = JsonSerializer.Serialize(new { type = "assistant", sessionId = "main", cwd = ProjectPath,
+                timestamp = Now.AddSeconds(1), message = (object?)null });
+            File.WriteAllLines(path, [valid, invalid]);
+            Assert.Equal(Now, ClaudeCodeTranscriptActivityReader.Read(path)!.ObservedAtUtc);
+            Assert.Equal("high", ClaudeCodeTranscriptMetadata.Read(path, "main").Effort);
+        });
+    }
+
+    [Theory]
+    [InlineData("Tools", "[null]")]
+    [InlineData("Tools", "[{\"Id\":\"id\",\"Name\":null}]")]
+    [InlineData("Tools", "[{\"Id\":\"id\",\"Name\":\"Edit\",\"FileName\":\"../private.cs\"}]")]
+    [InlineData("ActiveAgentIds", "[null]")]
+    [InlineData("EventName", "\"Unknown\"")]
+    public void Store_InvalidPersistedObservation_IsRejected(string field, string invalidValue)
+    {
+        InTemporaryDirectory(directory =>
+        {
+            var store = new ClaudeCodeObservationStore(directory);
+            var json = JsonSerializer.SerializeToNode(Apply(null, "UserPromptSubmit"))!;
+            json[field] = JsonNode.Parse(invalidValue);
+            File.WriteAllText(Path.Combine(directory, "invalid.json"), json.ToJsonString());
+            Assert.Null(store.Select(ProjectPath, Now, TimeSpan.FromMinutes(5)));
+        });
+    }
+
     private static ClaudeCodeSessionObservation Apply(ClaudeCodeSessionObservation? previous, string name,
         string? tool = null, string? toolId = null, string? file = null, string? agentId = null) =>
         ClaudeCodeSessionObservation.Apply(previous, new("main", ProjectPath, name, Now, tool, toolId, file, agentId));
