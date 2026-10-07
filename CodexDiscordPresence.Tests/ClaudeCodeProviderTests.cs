@@ -425,6 +425,30 @@ public sealed class ClaudeCodeProviderTests
     }
 
     [Fact]
+    public void Installer_FailedExecutableUpgrade_PreservesOwnershipForUninstall()
+    {
+        InTemporaryDirectory(directory =>
+        {
+            var settings = Path.Combine(directory, "settings.json");
+            var owned = Path.Combine(directory, "owned");
+            var original = new ClaudeCodeHookInstaller(settings, owned, "C:/old/rpc.exe");
+            original.Install();
+            var before = File.ReadAllText(settings);
+            var upgrade = new ClaudeCodeHookInstaller(settings, owned, "C:/new/rpc.exe");
+            using (var locked = new FileStream(settings, FileMode.Open, FileAccess.Read, FileShare.Read))
+            {
+                var failure = Record.Exception(() => upgrade.Install());
+                Assert.True(failure is IOException or UnauthorizedAccessException);
+                failure = Record.Exception(() => upgrade.Install());
+                Assert.True(failure is IOException or UnauthorizedAccessException);
+            }
+            Assert.Equal(before, File.ReadAllText(settings));
+            upgrade.Uninstall();
+            Assert.Null(JsonNode.Parse(File.ReadAllText(settings))!["hooks"]);
+        });
+    }
+
+    [Fact]
     public void Observation_SubagentLifecycle_DoesNotAdvanceMainActivityEvidence()
     {
         var main = Apply(null, "UserPromptSubmit");

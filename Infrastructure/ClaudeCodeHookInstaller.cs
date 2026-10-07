@@ -86,7 +86,7 @@ internal sealed class ClaudeCodeHookInstaller(string settingsPath, string integr
         var hooks = root["hooks"] as JsonObject ?? new JsonObject();
         var manifestPath = Path.Combine(integrationDirectory, "hook-owner.json");
         var definition = CreateDefinition(executablePath);
-        JsonNode? ownedDefinition = null;
+        var ownedDefinitions = new List<JsonNode>();
         if (File.Exists(manifestPath))
         {
             var manifest = JsonNode.Parse(File.ReadAllText(manifestPath)) as JsonObject;
@@ -94,7 +94,16 @@ internal sealed class ClaudeCodeHookInstaller(string settingsPath, string integr
             {
                 throw new InvalidOperationException("Claude hook ownership cannot be verified; settings preserved.");
             }
-            ownedDefinition = manifest["definition"];
+            ownedDefinitions.Add(manifest["definition"]!);
+            if (manifest["previousDefinitions"] is JsonArray previousDefinitions &&
+                previousDefinitions.Count <= 64 && previousDefinitions.All(node => node is JsonObject))
+            {
+                ownedDefinitions.AddRange(previousDefinitions.Select(node => node!));
+            }
+            else if (manifest["previousDefinitions"] is not null)
+            {
+                throw new InvalidOperationException("Claude hook ownership cannot be verified; settings preserved.");
+            }
         }
 
         foreach (var name in ClaudeCodeHookParser.EventNames)
@@ -107,14 +116,14 @@ internal sealed class ClaudeCodeHookInstaller(string settingsPath, string integr
             foreach (var group in groups)
             {
                 if (IsAppDefinition(group) &&
-                    (ownedDefinition is null || !JsonNode.DeepEquals(group, ownedDefinition)))
+                    !ownedDefinitions.Any(owned => JsonNode.DeepEquals(group, owned)))
                 {
                     throw new InvalidOperationException("An app hook was changed or is unowned; settings preserved.");
                 }
             }
             for (var index = groups.Count - 1; index >= 0; index--)
             {
-                if (ownedDefinition is not null && JsonNode.DeepEquals(groups[index], ownedDefinition))
+                if (ownedDefinitions.Any(owned => JsonNode.DeepEquals(groups[index], owned)))
                 {
                     groups.RemoveAt(index);
                 }
@@ -143,13 +152,37 @@ internal sealed class ClaudeCodeHookInstaller(string settingsPath, string integr
         var updated = root.ToJsonString(new JsonSerializerOptions { WriteIndented = true });
         if (original is not null && JsonNode.DeepEquals(JsonNode.Parse(original), root))
         {
+            if (!install && File.Exists(manifestPath))
+            {
+                File.Delete(manifestPath);
+            }
             return;
         }
         if (original is not null)
         {
             File.WriteAllText(Path.Combine(integrationDirectory, $"settings-backup-{Guid.NewGuid():N}.json"), original);
         }
-        // Establish ownership first so an interrupted installation remains recoverable.
+        if ((File.Exists(settingsPath) ? File.ReadAllText(settingsPath) : null) != original)
+        {
+            throw new IOException("Claude settings changed concurrently; installation deferred.");
+        }
+        // Retain old definitions until the settings replacement succeeds, including after interruption.
+        if (install)
+        {
+            AtomicWrite(manifestPath, new JsonObject
+            {
+                ["owner"] = OwnershipMarker,
+                ["definition"] = definition.DeepClone(),
+                ["previousDefinitions"] = new JsonArray(ownedDefinitions
+                    .Where(owned => !JsonNode.DeepEquals(owned, definition))
+                    .Select(owned => owned.DeepClone()).ToArray())
+            }.ToJsonString());
+        }
+        if ((File.Exists(settingsPath) ? File.ReadAllText(settingsPath) : null) != original)
+        {
+            throw new IOException("Claude settings changed concurrently; installation deferred.");
+        }
+        AtomicWrite(settingsPath, updated);
         if (install)
         {
             AtomicWrite(manifestPath, new JsonObject
@@ -158,12 +191,7 @@ internal sealed class ClaudeCodeHookInstaller(string settingsPath, string integr
                 ["definition"] = definition.DeepClone()
             }.ToJsonString());
         }
-        if ((File.Exists(settingsPath) ? File.ReadAllText(settingsPath) : null) != original)
-        {
-            throw new IOException("Claude settings changed concurrently; installation deferred.");
-        }
-        AtomicWrite(settingsPath, updated);
-        if (!install && File.Exists(manifestPath))
+        else if (File.Exists(manifestPath))
         {
             File.Delete(manifestPath);
         }
