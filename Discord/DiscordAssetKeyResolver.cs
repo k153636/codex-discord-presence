@@ -43,6 +43,11 @@ internal static class DiscordAssetKeyResolver
         ArgumentNullException.ThrowIfNull(options);
         ArgumentNullException.ThrowIfNull(presence);
 
+        if (presence.ProviderId == ProviderIds.ClaudeCode)
+        {
+            return ClaudeCodeAssetPolicy.ResolveImageKey(options, presence);
+        }
+
         if (ResolveProviderLargeImageKey(presence.ProviderId) is { } providerImageKey)
         {
             return providerImageKey;

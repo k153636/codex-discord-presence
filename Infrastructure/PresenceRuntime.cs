@@ -55,6 +55,16 @@ public sealed class PresenceRuntime
             new AppProfileSelectionCandidate(AppProfileKind.Codex, initialProfileSnapshots[AppProfileKind.Codex], profileStates[AppProfileKind.Codex].DiscordOptions),
             new AppProfileSelectionCandidate(AppProfileKind.CodexCli, initialProfileSnapshots[AppProfileKind.CodexCli], profileStates[AppProfileKind.CodexCli].DiscordOptions));
         var antigravityState = new AntigravityRuntimeState();
+        var claudeDirectory = Path.Combine(_paths.AppDataDirectory, "claude-code");
+        var claudeStore = new ClaudeCodeObservationStore(Path.Combine(claudeDirectory, "sessions"));
+        var claudeTranscriptReader = new ClaudeCodeTranscriptActivityReader(
+            Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".claude", "projects"));
+        var claudeInstaller = new ClaudeCodeHookInstaller(
+            Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".claude", "settings.json"),
+            claudeDirectory,
+            Path.Combine(_paths.BaseDirectory, "discord-presence-for-codex.exe"));
+        var claudeDispatch = new PresenceDispatchCache();
+        string? claudeSessionId = null;
         var antigravityPaths = AntigravityStatusLinePaths.CreateDefault();
         var antigravityEventStore = new AntigravityStatusLineEventStore(antigravityPaths.EventFilePath);
         var antigravityHookPaths = AntigravityHookPaths.CreateDefault();
@@ -91,6 +101,8 @@ public sealed class PresenceRuntime
                     var antigravityAvailable = SyncAntigravityIntegration(
                         antigravityIntegration,
                         antigravityEnabled);
+                    var claudeAvailable = claudeInstaller.Sync(
+                        _state.Enabled && IsProviderEnabled(ProviderIds.ClaudeCode, defaultValue: false), _log);
 
                     if (!HandleDisabledState(rpc, wasDisabled))
                     {
@@ -105,6 +117,7 @@ public sealed class PresenceRuntime
                         wasDisabled = false;
                         ResetAllProfilePresenceCaches(profileStates);
                         antigravityState.ResetPresenceCaches();
+                        claudeDispatch.ResetPresenceCache();
                         providerActivationGate.Reset(currentProviderId);
                     }
 
@@ -129,6 +142,7 @@ public sealed class PresenceRuntime
                     {
                         ResetAllProfilePresenceCaches(profileStates);
                         antigravityState.ResetPresenceCaches();
+                        claudeDispatch.ResetPresenceCache();
                         providerActivationGate.Reset(currentProviderId);
                     }
 
@@ -168,6 +182,21 @@ public sealed class PresenceRuntime
                         : AntigravityPresenceProjection.Build(
                             antigravityObservation,
                             antigravityPreviousActivity);
+                    var claudeObservation = claudeAvailable
+                        ? claudeStore.Select(activeProjectPath, DateTimeOffset.UtcNow,
+                            TimeSpan.FromMinutes(Math.Max(1, _options.Presence.ThinkingStaleTimeoutMinutes)))
+                        : null;
+                    if (claudeAvailable && ClaudeCodeTranscriptActivityReader.IsNativeProcessRunning())
+                    {
+                        var transcriptObservation = claudeTranscriptReader.Select(activeProjectPath, DateTimeOffset.UtcNow,
+                            TimeSpan.FromMinutes(Math.Max(1, _options.Presence.ThinkingStaleTimeoutMinutes)));
+                        // Hooks remain authoritative once this session has supplied lifecycle evidence.
+                        if (claudeObservation is null && transcriptObservation is not null &&
+                            !claudeStore.HasSessionEvidence(transcriptObservation.SessionId))
+                        {
+                            claudeObservation = transcriptObservation;
+                        }
+                    }
                     var selectedProvider = SelectActiveProvider(
                         providerActivationGate,
                         selectedProfile,
@@ -175,7 +204,8 @@ public sealed class PresenceRuntime
                         observedProfileSnapshots[selectedProfile],
                         activeProjectPath,
                         antigravityObservation,
-                        antigravityProjection?.Activity);
+                        antigravityProjection?.Activity,
+                        claudeObservation);
                     if (selectedProvider is null)
                     {
                         rpc.Clear();
@@ -200,7 +230,13 @@ public sealed class PresenceRuntime
                         : null;
                     PresenceDispatchCache selectedDispatchState = selectedProvider.ProviderId == ProviderIds.Antigravity
                         ? antigravityConversationState!
-                        : selectedProfileState;
+                        : selectedProvider.ProviderId == ProviderIds.ClaudeCode ? claudeDispatch : selectedProfileState;
+                    if (selectedProvider.ProviderId == ProviderIds.ClaudeCode && claudeSessionId != claudeObservation?.SessionId)
+                    {
+                        claudeDispatch.ResetPresenceCache();
+                        claudeSessionId = claudeObservation?.SessionId;
+                        _log.Info("Claude Code activity detection: new session selected.");
+                    }
                     var providerChanged = !string.Equals(
                         currentProviderId,
                         selectedProvider.ProviderId,
@@ -223,12 +259,14 @@ public sealed class PresenceRuntime
 
                     var selectedDiscordOptions = selectedProvider.ProviderId == ProviderIds.Antigravity
                         ? _options.GetAntigravityDiscordOptions()
-                        : selectedProfileState.DiscordOptions;
+                        : selectedProvider.ProviderId == ProviderIds.ClaudeCode
+                            ? _options.DiscordClaudeCode : selectedProfileState.DiscordOptions;
                     rpc.UpdateOptions(selectedDiscordOptions);
 
                     var selectedProjectPath = selectedProvider.ProviderId == ProviderIds.Antigravity
                         ? activeProjectPath
-                        : selectedProfileProjectPath;
+                        : selectedProvider.ProviderId == ProviderIds.ClaudeCode
+                            ? claudeObservation!.ProjectPath : selectedProfileProjectPath;
                     var projectSnapshot = projectSnapshotCache.GetSnapshot(projectInspector, selectedProjectPath);
                     var gitSnapshot = gitSnapshotCache.GetSnapshot(
                         gitInspector,
@@ -241,7 +279,13 @@ public sealed class PresenceRuntime
                     var sessionSnapshot = session.GetSnapshot();
                     PresenceContext context;
                     IPresenceActivitySnapshot displayActivity;
-                    if (selectedProvider.ProviderId == ProviderIds.Antigravity && antigravityObservation is not null)
+                    if (selectedProvider.ProviderId == ProviderIds.ClaudeCode && claudeObservation is not null)
+                    {
+                        context = ClaudeCodePresenceProjection.CreateContext(
+                            claudeObservation, projectSnapshot, gitSnapshot, sessionSnapshot);
+                        displayActivity = context.Activity;
+                    }
+                    else if (selectedProvider.ProviderId == ProviderIds.Antigravity && antigravityObservation is not null)
                     {
                         var projection = antigravityProjection ?? AntigravityPresenceProjection.Build(
                             antigravityObservation,
@@ -336,6 +380,7 @@ public sealed class PresenceRuntime
         }
         finally
         {
+            claudeInstaller.Sync(false, _log);
             antigravityIntegration.UninstallIfNeeded();
 
             rpc.Clear();
@@ -398,7 +443,8 @@ public sealed class PresenceRuntime
         CodexProcessSnapshot codexSnapshot,
         string activeProjectPath,
         ProviderObservation? antigravityObservation,
-        AntigravityActivitySnapshot? antigravityActivity)
+        AntigravityActivitySnapshot? antigravityActivity,
+        ClaudeCodeSessionObservation? claudeObservation)
     {
         var codexOptions = selectedProfileState.DiscordOptions;
         var codexHasValidClientId = !string.IsNullOrWhiteSpace(codexOptions.ClientId) &&
@@ -425,6 +471,20 @@ public sealed class PresenceRuntime
                 codexSnapshot.LastObservedAt));
 
         var candidates = new List<ProviderSelectionCandidate> { codexCandidate };
+        if (claudeObservation is not null)
+        {
+            var claudeActivity = ClaudeCodePresenceProjection.Build(claudeObservation);
+            candidates.Add(new ProviderSelectionCandidate(
+                ProviderIds.ClaudeCode,
+                IsProviderEnabled(ProviderIds.ClaudeCode, defaultValue: false),
+                IsProviderConfiguredForRuntime(_options.DiscordClaudeCode),
+                claudeObservation.ObservedAtUtc,
+                HasProjectPath: true,
+                IsProjectMatch: new ProviderWorkspaceObservation(claudeObservation.ProjectPath, null, null).MatchesProjectPath(activeProjectPath),
+                DetectionStrength: 500,
+                IsActive: claudeActivity.ActivityKind.IsActive(),
+                ActivityStartedAtUtc: claudeObservation.ActivityStartedAtUtc));
+        }
         if (antigravityObservation is not null)
         {
             candidates.Add(new ProviderSelectionCandidate(

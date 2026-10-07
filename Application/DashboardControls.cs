@@ -73,10 +73,11 @@ internal sealed class ProviderEnabledChangedEventArgs : EventArgs
 
 internal sealed class ProviderIntegrationPanel : Panel
 {
-    public const int PreferredHeight = 72;
+    public const int PreferredHeight = 96;
 
     private readonly CheckBox _codexCheckBox;
     private readonly CheckBox _antigravityCheckBox;
+    private readonly CheckBox _claudeCodeCheckBox;
 
     public ProviderIntegrationPanel()
     {
@@ -104,12 +105,15 @@ internal sealed class ProviderIntegrationPanel : Panel
             "Antigravity integration",
             "Enable Antigravity CLI activity detection and Discord Rich Presence.",
             ProviderIds.Antigravity);
+        _claudeCodeCheckBox = CreateCheckBox(
+            "Claude Code", "Claude Code integration",
+            "Enable Claude Code activity detection and Discord Rich Presence.", ProviderIds.ClaudeCode);
 
         var flow = new FlowLayoutPanel
         {
             Dock = DockStyle.Fill,
             AutoSize = false,
-            WrapContents = false,
+            WrapContents = true,
             FlowDirection = FlowDirection.LeftToRight,
             BackColor = DashboardPalette.SurfaceInset,
             Margin = Padding.Empty,
@@ -117,6 +121,7 @@ internal sealed class ProviderIntegrationPanel : Panel
         };
         flow.Controls.Add(_codexCheckBox);
         flow.Controls.Add(_antigravityCheckBox);
+        flow.Controls.Add(_claudeCodeCheckBox);
 
         var layout = new TableLayoutPanel
         {
@@ -136,6 +141,7 @@ internal sealed class ProviderIntegrationPanel : Panel
 
         _codexCheckBox.CheckedChanged += (_, _) => RaiseProviderChanged(ProviderIds.Codex, _codexCheckBox.Checked);
         _antigravityCheckBox.CheckedChanged += (_, _) => RaiseProviderChanged(ProviderIds.Antigravity, _antigravityCheckBox.Checked);
+        _claudeCodeCheckBox.CheckedChanged += (_, _) => RaiseProviderChanged(ProviderIds.ClaudeCode, _claudeCodeCheckBox.Checked);
     }
 
     public event EventHandler<ProviderEnabledChangedEventArgs>? ProviderEnabledChanged;
@@ -143,11 +149,13 @@ internal sealed class ProviderIntegrationPanel : Panel
     public CheckBox CodexCheckBox => _codexCheckBox;
 
     public CheckBox AntigravityCheckBox => _antigravityCheckBox;
+    public CheckBox ClaudeCodeCheckBox => _claudeCodeCheckBox;
 
-    public void ApplyProviderState(bool codexEnabled, bool antigravityEnabled)
+    public void ApplyProviderState(bool codexEnabled, bool antigravityEnabled, bool claudeCodeEnabled = false)
     {
         _codexCheckBox.Checked = codexEnabled;
         _antigravityCheckBox.Checked = antigravityEnabled;
+        _claudeCodeCheckBox.Checked = claudeCodeEnabled;
     }
 
     private static CheckBox CreateCheckBox(

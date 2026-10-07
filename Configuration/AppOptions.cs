@@ -8,13 +8,15 @@ public sealed class AppOptions
     public DiscordOptions Discord { get; set; } = new();
     public DiscordOptions? DiscordCli { get; set; }
     public DiscordOptions DiscordAntigravity { get; set; } = CreateUnconfiguredProviderDiscordOptions();
+    public DiscordOptions DiscordClaudeCode { get; set; } = ClaudeCodeAssetPolicy.CreateDiscordOptions();
     public CodexDetectionOptions Codex { get; set; } = new();
     public CodexDetectionOptions? CodexCli { get; set; }
     public Dictionary<string, ProviderOptions> Providers { get; set; } =
         new(StringComparer.OrdinalIgnoreCase)
         {
             [ProviderIds.Codex] = new() { Enabled = true },
-            [ProviderIds.Antigravity] = new() { Enabled = false }
+            [ProviderIds.Antigravity] = new() { Enabled = false },
+            [ProviderIds.ClaudeCode] = new() { Enabled = false }
         };
     public ProjectOptions Project { get; set; } = new();
     public PresenceTemplateOptions Presence { get; set; } = new();
@@ -57,7 +59,8 @@ public sealed class AppOptions
     public static AppOptions LoadFromFile(string path)
     {
         var options = File.Exists(path)
-            ? JsonSerializer.Deserialize<AppOptions>(File.ReadAllText(path), JsonOptions()) ?? new AppOptions()
+            ? DeserializeOptions(JsonNode.Parse(File.ReadAllText(path), documentOptions: new JsonDocumentOptions
+                { CommentHandling = JsonCommentHandling.Skip, AllowTrailingCommas = true }) as JsonObject ?? new JsonObject())
             : new AppOptions();
         options.EnsureProviderDefaults();
         return options;
@@ -77,9 +80,22 @@ public sealed class AppOptions
             MergeJsonObject(merged, node);
         }
 
-        var options = merged.Deserialize<AppOptions>(JsonOptions()) ?? new AppOptions();
+        var options = DeserializeOptions(merged);
         options.EnsureProviderDefaults();
         return options;
+    }
+
+    private static AppOptions DeserializeOptions(JsonObject settings)
+    {
+        // Partial provider overrides must inherit that provider's defaults, never Codex assets.
+        var claudeDefaults = JsonSerializer.SerializeToNode(ClaudeCodeAssetPolicy.CreateDiscordOptions())!.AsObject();
+        var key = FindPropertyName(settings, nameof(DiscordClaudeCode)) ?? nameof(DiscordClaudeCode);
+        if (settings[key] is JsonObject overrides)
+        {
+            MergeJsonObject(claudeDefaults, overrides);
+        }
+        settings[key] = claudeDefaults;
+        return settings.Deserialize<AppOptions>(JsonOptions()) ?? new AppOptions();
     }
 
     public CodexDetectionOptions GetCodexDetectionOptions(AppProfileKind profile)
@@ -101,6 +117,7 @@ public sealed class AppOptions
     private void EnsureProviderDefaults()
     {
         DiscordAntigravity ??= CreateUnconfiguredProviderDiscordOptions();
+        DiscordClaudeCode ??= ClaudeCodeAssetPolicy.CreateDiscordOptions();
 
         var normalizedProviders = new Dictionary<string, ProviderOptions>(StringComparer.OrdinalIgnoreCase);
         if (Providers is not null)
@@ -117,6 +134,7 @@ public sealed class AppOptions
         Providers = normalizedProviders;
         Providers.TryAdd(ProviderIds.Codex, new ProviderOptions { Enabled = true });
         Providers.TryAdd(ProviderIds.Antigravity, new ProviderOptions { Enabled = false });
+        Providers.TryAdd(ProviderIds.ClaudeCode, new ProviderOptions { Enabled = false });
     }
 
     private static DiscordOptions CreateUnconfiguredProviderDiscordOptions() => new()

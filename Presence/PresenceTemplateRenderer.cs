@@ -91,10 +91,10 @@ public sealed class PresenceTemplateRenderer
         var values = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
         {
             ["ModelName"] = modelDisplayLabel,
-            ["CodexStatus"] = context.ProviderId == ProviderIds.Antigravity
+            ["CodexStatus"] = context.ProviderId is not (null or ProviderIds.Codex)
                 ? ""
                 : context.Activity.IsRunning ? "Codex running" : "Codex not detected",
-            ["CodexProcessName"] = context.ProviderId == ProviderIds.Antigravity
+            ["CodexProcessName"] = context.ProviderId is not (null or ProviderIds.Codex)
                 ? ""
                 : context.Activity.ProcessName ?? "",
             ["ProjectName"] = context.Project.Name,

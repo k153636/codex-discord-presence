@@ -124,7 +124,8 @@ public sealed class CodexDashboardForm : Form
         {
             _providerPanel.ApplyProviderState(
                 _runtimeState.IsProviderEnabled(ProviderIds.Codex, defaultValue: true),
-                _runtimeState.IsProviderEnabled(ProviderIds.Antigravity, defaultValue: false));
+                _runtimeState.IsProviderEnabled(ProviderIds.Antigravity, defaultValue: false),
+                _runtimeState.IsProviderEnabled(ProviderIds.ClaudeCode, defaultValue: false));
         }
         finally
         {
