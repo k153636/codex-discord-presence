@@ -15,6 +15,20 @@ public sealed class TrayIconHost : ApplicationContext
     private readonly ToolStripMenuItem _enableMenuItem;
     private CodexDashboardForm? _dashboardForm;
     private bool _exitRequested;
+    private int _dashboardOpen;
+    private ApplicationUpdateMenu? _updateMenu;
+
+    internal bool IsDashboardOpen => Volatile.Read(ref _dashboardOpen) != 0;
+
+    internal void AttachUpdates(ApplicationUpdateCoordinator updates)
+    {
+        _updateMenu = new ApplicationUpdateMenu(updates, _notifyIcon);
+        _notifyIcon.ContextMenuStrip!.Items.Insert(3, _updateMenu.Menu);
+        if (Program.RestartedAfterUpdate)
+        {
+            _notifyIcon.ShowBalloonTip(5000, ProductBrand.Name, $"Updated to {AppVersion.Current}. Your settings have been retained.", ToolTipIcon.Info);
+        }
+    }
 
     public TrayIconHost(
         PresenceRuntimeState state,
@@ -69,10 +83,13 @@ public sealed class TrayIconHost : ApplicationContext
 
         _exitRequested = true;
         _stateStore.Save(_statePath, _state);
+        _updateMenu?.Dispose();
+        _updateMenu = null;
         _notifyIcon.Visible = false;
         _notifyIcon.Dispose();
         _dashboardForm?.Close();
         _dashboardForm = null;
+        Interlocked.Exchange(ref _dashboardOpen, 0);
         _quitCallback();
         ExitThread();
     }
@@ -87,9 +104,11 @@ public sealed class TrayIconHost : ApplicationContext
                 if (ReferenceEquals(_dashboardForm, dashboard))
                 {
                     _dashboardForm = null;
+                    Interlocked.Exchange(ref _dashboardOpen, 0);
                 }
             };
             _dashboardForm = dashboard;
+            Interlocked.Exchange(ref _dashboardOpen, 1);
         }
 
         if (_dashboardForm.WindowState == FormWindowState.Minimized)

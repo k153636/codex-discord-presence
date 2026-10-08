@@ -7,6 +7,34 @@ namespace CodexDiscordPresence.Tests;
 
 public sealed class GitHubReleaseCheckerTests
 {
+    [Theory]
+    [InlineData(341494232, "v1.0.0", "0.1.0")]
+    [InlineData(341678513, "v1.1.0", "0.1.1")]
+    [InlineData(383922312, "v1.2.0", "0.2.0")]
+    [InlineData(385872123, "v1.2.5", "0.2.5")]
+    public async Task CheckLatestReleaseAsync_NormalizesArchivedReleaseIdentity(long id, string tag, string expected)
+    {
+        using var client = CreateClient($$"""{ "id": {{id}}, "tag_name": "{{tag}}" }""");
+        var result = await new GitHubReleaseChecker(client).CheckLatestReleaseAsync(CancellationToken.None);
+
+        Assert.True(result.Succeeded);
+        Assert.False(result.UpdateAvailable);
+        Assert.Equal(expected, result.LatestVersion!.ToString());
+    }
+
+    [Theory]
+    [InlineData(1, "v1.2.5", "1.2.5")]
+    [InlineData(385872123, "v9.9.9", "9.9.9")]
+    [InlineData(2, "v0.5.0", "0.5.0")]
+    public async Task CheckLatestReleaseAsync_PreservesNewReleaseVersions(long id, string tag, string expected)
+    {
+        using var client = CreateClient($$"""{ "id": {{id}}, "tag_name": "{{tag}}" }""");
+        var result = await new GitHubReleaseChecker(client).CheckLatestReleaseAsync(CancellationToken.None);
+
+        Assert.True(result.UpdateAvailable);
+        Assert.Equal(expected, result.LatestVersion!.ToString());
+    }
+
     [Fact]
     public async Task CheckLatestReleaseAsync_ReturnsUpdateAvailable_WhenLatestIsNewer()
     {

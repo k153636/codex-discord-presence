@@ -7,7 +7,7 @@ The app displays the currently selected AI coding tool's work in Discord Rich Pr
 Beyond generic “Thinking” or “Editing” labels, it can show reasoning summaries available from Codex sessions, active MCP servers, edited files, command execution, and research activity.
 
 <p>
-  <a href="https://github.com/k153636/codex-discord-presence/releases/latest"><img src="https://img.shields.io/github/v/release/k153636/codex-discord-presence?display_name=tag&style=for-the-badge&label=Download" alt="Latest release"></a>
+  <a href="https://github.com/k153636/codex-discord-presence/releases/latest"><img src="https://img.shields.io/github/v/release/k153636/codex-discord-presence?display_name=release&sort=date&style=for-the-badge&label=Download" alt="Latest release"></a>
   <a href="https://k153636.github.io/codex-discord-presence/"><img src="https://img.shields.io/badge/Website-K%27s%20Code%20Presence-5865F2?style=for-the-badge&logo=googlechrome&logoColor=white" alt="K's Code Presence website"></a>
   <a href="https://github.com/k153636/codex-discord-presence"><img src="https://img.shields.io/badge/Source-GitHub-181717?style=for-the-badge&logo=github&logoColor=white" alt="Source repository"></a>
   <a href="https://github.com/k153636/codex-discord-presence/blob/main/LICENSE"><img src="https://img.shields.io/github/license/k153636/codex-discord-presence?style=for-the-badge&label=License" alt="MIT License"></a>
@@ -23,7 +23,7 @@ Beyond generic “Thinking” or “Editing” labels, it can show reasoning sum
 - Session duration, token usage, and estimated cost when available
 - Project information and Git change counts
 - Party information for active subagents
-- A project website button labeled `K's Codex RPC`
+- A project website button labeled `K's Code RPC`
 
 K's Code Presence updates Discord Rich Presence using available Codex session events and process signals, plus the Antigravity CLI statusLine payload when that provider is enabled.
 
@@ -54,6 +54,11 @@ The content shown in Discord may include project names, file names, and reasonin
 
 The app stays in the Windows system tray.
 Use the tray menu to enable or disable Discord Rich Presence, open the Dashboard, edit K's Code Presence settings, or quit the app.
+
+The next packaged distribution also supports [automatic updates](docs/automatic-updates.md):
+background downloads, a restart after the app is idle, postponement, and manual
+update controls in the tray. Historical standalone EXEs need a one-time move to
+the Setup installer or portable ZIP. See the [version migration](docs/version-history.md).
 
 ## Codex CLI and Codex Desktop
 

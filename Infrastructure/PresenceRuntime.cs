@@ -7,6 +7,7 @@ public sealed class PresenceRuntime
     private readonly CancellationToken _cancellationToken;
     private readonly AppPaths _paths;
     private readonly DiagnosticLog _log;
+    private readonly DateTime? _sessionStartedAtUtc;
     private readonly ForegroundProjectPathDetector _foregroundProjectPathDetector;
     private RuntimeTimingSettings _timingSettings;
     private DateTime _executableSettingsLastWriteTimeUtc;
@@ -15,13 +16,15 @@ public sealed class PresenceRuntime
     private string? _lastLoggedFocusedProjectPath;
     private string? _lastLoggedFocusedProjectPathDecision;
 
-    public PresenceRuntime(AppOptions options, PresenceRuntimeState state, CancellationToken cancellationToken, AppPaths paths, DiagnosticLog log)
+    public PresenceRuntime(AppOptions options, PresenceRuntimeState state, CancellationToken cancellationToken, AppPaths paths, DiagnosticLog log,
+        DateTime? sessionStartedAtUtc = null)
     {
         _options = options;
         _state = state;
         _cancellationToken = cancellationToken;
         _paths = paths;
         _log = log;
+        _sessionStartedAtUtc = sessionStartedAtUtc;
         _foregroundProjectPathDetector = new ForegroundProjectPathDetector();
         _timingSettings = RuntimeTimingSettings.From(options);
         _executableSettingsLastWriteTimeUtc = GetSettingsLastWriteTimeUtc(_paths.ExecutableSettingsPath);
@@ -83,7 +86,7 @@ public sealed class PresenceRuntime
         try
         {
             await rpc.StartAsync(_cancellationToken);
-            var session = new SessionClock(DateTime.UtcNow);
+            var session = new SessionClock(_sessionStartedAtUtc ?? DateTime.UtcNow);
 
             var keepAliveInterval = TimeSpan.FromSeconds(15);
             var lastLoggedProjectPath = activeProjectPath;

@@ -57,7 +57,7 @@ public sealed class AppOptionsMergeTests
             Assert.True(options.Providers[ProviderIds.Codex].Enabled);
             Assert.False(options.Providers[ProviderIds.Antigravity].Enabled);
             var button = Assert.Single(options.Presence.Buttons);
-            Assert.Equal("K's Codex RPC", button.Label);
+            Assert.Equal("K's Code RPC", button.Label);
             Assert.Equal("https://k153636.github.io/codex-discord-presence/", button.Url);
         }
         finally
@@ -67,7 +67,7 @@ public sealed class AppOptionsMergeTests
     }
 
     [Fact]
-    public void Load_WhenSettingsFilesAreMissing_UsesCompiledCodexRpcButton()
+    public void Load_WhenSettingsFilesAreMissing_UsesCompiledCodeRpcButton()
     {
         var root = Path.Combine(Path.GetTempPath(), "CodexAppOptionsDefaultsTests_" + Guid.NewGuid());
         var exeDir = Path.Combine(root, "exe");
@@ -89,7 +89,7 @@ public sealed class AppOptionsMergeTests
             var options = AppOptions.Load(Array.Empty<string>(), paths);
 
             var button = Assert.Single(options.Presence.Buttons);
-            Assert.Equal("K's Codex RPC", button.Label);
+            Assert.Equal("K's Code RPC", button.Label);
             Assert.Equal("https://k153636.github.io/codex-discord-presence/", button.Url);
             Assert.Empty(options.GetAntigravityDiscordOptions().ClientId);
         }
