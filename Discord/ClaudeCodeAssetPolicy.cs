@@ -7,7 +7,7 @@ internal static class ClaudeCodeAssetPolicy
     {
         ClientId = "1506443909406920948",
         LargeImageKey = "claude_idle",
-        SmallImageKey = null,
+        SmallImageKey = "claude_notification",
         CompletedImageKey = null,
         ErrorImageKey = "claude_notification",
         ActivityImageKeys = Enum.GetValues<CodexActivityKind>().ToDictionary(

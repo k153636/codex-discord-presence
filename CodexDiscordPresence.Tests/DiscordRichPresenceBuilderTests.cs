@@ -4,6 +4,48 @@ namespace CodexDiscordPresence.Tests;
 
 public sealed class DiscordRichPresenceBuilderTests
 {
+    [Theory]
+    [InlineData("appsettings.json")]
+    [InlineData("appsettings.cli.json")]
+    public void Create_ShippedAntigravityProfilesUseTheirOwnSmallIcon(string settingsFile)
+    {
+        using var settings = System.Text.Json.JsonDocument.Parse(
+            File.ReadAllText(Path.Combine(AppContext.BaseDirectory, settingsFile)));
+        var configured = settings.RootElement.GetProperty("DiscordAntigravity");
+        var options = new DiscordOptions
+        {
+            ClientId = configured.GetProperty("ClientId").GetString()!,
+            LargeImageKey = configured.GetProperty("LargeImageKey").GetString(),
+            SmallImageKey = configured.GetProperty("SmallImageKey").GetString()
+        };
+        var rendered = new RenderedPresence("Antigravity", "Working", null, "", [],
+            null, CodexActivityKind.AnalyzingProject, RunningCommandKind.Unknown, "")
+        {
+            ProviderId = ProviderIds.Antigravity
+        };
+
+        var payload = DiscordRichPresenceBuilder.Create(options, rendered, "party");
+
+        Assert.Equal("rpc_antigravity_cli", payload.Assets.SmallImageKey);
+        Assert.Equal("rpc_antigravity_cli", payload.Assets.LargeImageKey);
+    }
+
+    [Fact]
+    public void Create_ClaudeCodeSmallIconUsesClawdWithoutCodexAssets()
+    {
+        var rendered = new RenderedPresence("Claude Code", "Working", null, "", [],
+            null, CodexActivityKind.AnalyzingProject, RunningCommandKind.Unknown, "")
+        {
+            ProviderId = ProviderIds.ClaudeCode
+        };
+
+        var payload = DiscordRichPresenceBuilder.Create(
+            ClaudeCodeAssetPolicy.CreateDiscordOptions(), rendered, "party");
+
+        Assert.Equal("https://cdn.qualit.ly/clawd-notification.gif", payload.Assets.SmallImageKey);
+        Assert.DoesNotContain("rpc_codex", payload.Assets.LargeImageKey);
+    }
+
     [Fact]
     public void Create_ProducesThePayloadAndSnapshotUsedForTheDiscordPreview()
     {
