@@ -2,7 +2,9 @@ namespace CodexDiscordPresence;
 
 internal sealed class ProviderActivationGate
 {
+    internal static readonly TimeSpan MinimumSwitchInterval = TimeSpan.FromSeconds(5);
     private string? _currentProviderId;
+    private DateTimeOffset? _lastSelectionUtc;
     private bool _hasEvaluated;
     private bool _currentWasActive;
     private DateTimeOffset? _inactiveBoundaryUtc;
@@ -48,6 +50,14 @@ internal sealed class ProviderActivationGate
                     ProviderSelectionPolicy.Select(_currentProviderId, eligibleCandidates);
             }
 
+            if (initialCandidate is not null && !IsCurrentProvider(initialCandidate))
+            {
+                if (_lastSelectionUtc is not null)
+                {
+                    SetCurrent(currentCandidate, nowUtc);
+                }
+                return SelectReplacement(initialCandidate, currentCandidate, nowUtc);
+            }
             SetCurrent(initialCandidate, nowUtc);
             return initialCandidate;
         }
@@ -71,7 +81,7 @@ internal sealed class ProviderActivationGate
             var replacement = SelectActiveCandidate(newlyActiveReplacements, _currentProviderId);
             if (replacement is not null)
             {
-                SetCurrent(replacement, nowUtc);
+                return SelectReplacement(replacement, currentCandidate, nowUtc);
             }
 
             return replacement;
@@ -90,8 +100,7 @@ internal sealed class ProviderActivationGate
             var replacement = SelectActiveCandidate(newerActiveCandidates, _currentProviderId);
             if (replacement is not null)
             {
-                SetCurrent(replacement, nowUtc);
-                return replacement;
+                return SelectReplacement(replacement, currentCandidate, nowUtc);
             }
 
             return currentCandidate;
@@ -115,11 +124,24 @@ internal sealed class ProviderActivationGate
         var nextCandidate = SelectActiveCandidate(newlyActiveCandidates, _currentProviderId);
         if (nextCandidate is not null)
         {
-            SetCurrent(nextCandidate, nowUtc);
-            return nextCandidate;
+            return SelectReplacement(nextCandidate, currentCandidate, nowUtc);
         }
 
         return currentCandidate;
+    }
+
+    private ProviderSelectionCandidate? SelectReplacement(
+        ProviderSelectionCandidate replacement,
+        ProviderSelectionCandidate? currentCandidate,
+        DateTimeOffset nowUtc)
+    {
+        // Re-evaluate live candidates on every poll; never queue an obsolete switch.
+        if (_lastSelectionUtc is { } lastSelection && nowUtc - lastSelection < MinimumSwitchInterval)
+        {
+            return currentCandidate;
+        }
+        SetCurrent(replacement, nowUtc);
+        return replacement;
     }
 
     private ProviderSelectionCandidate? FindCurrentCandidate(
@@ -181,6 +203,10 @@ internal sealed class ProviderActivationGate
             return;
         }
 
+        if (_lastSelectionUtc is null || !IsCurrentProvider(candidate))
+        {
+            _lastSelectionUtc = nowUtc;
+        }
         _currentProviderId = candidate.ProviderId.Trim();
         _currentWasActive = candidate.IsActive;
         _inactiveBoundaryUtc = candidate.IsActive

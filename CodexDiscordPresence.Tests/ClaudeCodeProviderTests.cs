@@ -169,7 +169,8 @@ public sealed class ClaudeCodeProviderTests
             IsActive: true, ActivityStartedAtUtc: Now);
         var claude = codex with { ProviderId = ProviderIds.ClaudeCode, LastObservedAtUtc = Now.AddSeconds(1), ActivityStartedAtUtc = Now.AddSeconds(1) };
         Assert.Equal(ProviderIds.Codex, gate.Select([codex], Now)!.ProviderId);
-        Assert.Equal(ProviderIds.ClaudeCode, gate.Select([codex, claude], Now.AddSeconds(1))!.ProviderId);
+        Assert.Equal(ProviderIds.Codex, gate.Select([codex, claude], Now.AddSeconds(1))!.ProviderId);
+        Assert.Equal(ProviderIds.ClaudeCode, gate.Select([codex, claude], Now.AddSeconds(5))!.ProviderId);
         var idle = claude with { IsActive = false, LastObservedAtUtc = Now.AddSeconds(-10) };
         gate.Reset(ProviderIds.Codex);
         Assert.Equal(ProviderIds.Codex, gate.Select([codex, idle], Now)!.ProviderId);

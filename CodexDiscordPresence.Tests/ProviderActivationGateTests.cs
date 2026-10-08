@@ -141,7 +141,65 @@ public sealed class ProviderActivationGateTests
         Assert.Equal(ProviderIds.ClaudeCode, gate.Select([claude, codex], now)?.ProviderId);
         claude = claude with { IsActive = false, LastObservedAtUtc = now.AddSeconds(1) };
         codex = codex with { LastActivityEventAtUtc = now.AddSeconds(2) };
-        Assert.Equal(ProviderIds.Codex, gate.Select([claude, codex], now.AddSeconds(2))?.ProviderId);
+        Assert.Equal(ProviderIds.ClaudeCode, gate.Select([claude, codex], now.AddSeconds(2))?.ProviderId);
+        Assert.Equal(ProviderIds.Codex, gate.Select([claude, codex], now.AddSeconds(5))?.ProviderId);
+    }
+
+    [Fact]
+    public void Select_RapidAlternation_WaitsFiveSecondsAndUsesLatestCandidate()
+    {
+        var now = DateTimeOffset.Parse("2026-10-08T00:00:00Z");
+        var gate = new ProviderActivationGate(ProviderIds.Codex);
+        var codex = Candidate(ProviderIds.Codex, now, true);
+        var claude = Candidate(ProviderIds.ClaudeCode, now.AddSeconds(-1), true);
+        Assert.Equal(ProviderIds.Codex, gate.Select([codex, claude], now)?.ProviderId);
+        claude = claude with { LastObservedAtUtc = now.AddSeconds(1) };
+        Assert.Equal(ProviderIds.Codex, gate.Select([codex, claude], now.AddSeconds(1))?.ProviderId);
+        codex = codex with { LastObservedAtUtc = now.AddSeconds(4) };
+        Assert.Equal(ProviderIds.Codex, gate.Select([codex, claude], now.AddSeconds(5))?.ProviderId);
+        claude = claude with { LastObservedAtUtc = now.AddSeconds(6) };
+        Assert.Equal(ProviderIds.ClaudeCode, gate.Select([codex, claude], now.AddSeconds(6))?.ProviderId);
+        codex = codex with { LastObservedAtUtc = now.AddSeconds(7) };
+        Assert.Equal(ProviderIds.ClaudeCode, gate.Select([codex, claude], now.AddSeconds(10.999))?.ProviderId);
+        Assert.Equal(ProviderIds.Codex, gate.Select([codex, claude], now.AddSeconds(11))?.ProviderId);
+    }
+
+    [Fact]
+    public void Select_PendingProviderBecomesUnavailable_DoesNotSwitchToCachedCandidate()
+    {
+        var now = DateTimeOffset.Parse("2026-10-08T00:00:00Z");
+        var gate = new ProviderActivationGate(ProviderIds.Codex);
+        var codex = Candidate(ProviderIds.Codex, now, true);
+        var claude = Candidate(ProviderIds.ClaudeCode, now.AddSeconds(1), true);
+        gate.Select([codex], now);
+        Assert.Equal(ProviderIds.Codex, gate.Select([codex, claude], now.AddSeconds(1))?.ProviderId);
+        claude = claude with { IsAvailable = false };
+        Assert.Equal(ProviderIds.Codex, gate.Select([codex, claude], now.AddSeconds(5))?.ProviderId);
+    }
+
+    [Fact]
+    public void Reset_ProjectChange_PreservesMinimumSwitchInterval()
+    {
+        var now = DateTimeOffset.Parse("2026-10-08T00:00:00Z");
+        var gate = new ProviderActivationGate(ProviderIds.Codex);
+        var codex = Candidate(ProviderIds.Codex, now, true);
+        var claude = Candidate(ProviderIds.ClaudeCode, now.AddSeconds(1), true);
+        gate.Select([codex], now);
+        gate.Reset(ProviderIds.Codex);
+        Assert.Equal(ProviderIds.Codex, gate.Select([codex, claude], now.AddSeconds(1))?.ProviderId);
+        Assert.Equal(ProviderIds.ClaudeCode, gate.Select([codex, claude], now.AddSeconds(5))?.ProviderId);
+    }
+
+    [Fact]
+    public void Select_CurrentProviderMissing_ClearsDuringCooldownThenUsesFreshReplacement()
+    {
+        var now = DateTimeOffset.Parse("2026-10-08T00:00:00Z");
+        var gate = new ProviderActivationGate(ProviderIds.Codex);
+        gate.Select([Candidate(ProviderIds.Codex, now, true)], now);
+        Assert.Null(gate.Select([Candidate(ProviderIds.ClaudeCode, now.AddSeconds(1), true)], now.AddSeconds(1)));
+        var claude = Candidate(ProviderIds.ClaudeCode, now.AddSeconds(2), true);
+        Assert.Null(gate.Select([claude], now.AddSeconds(2)));
+        Assert.Equal(ProviderIds.ClaudeCode, gate.Select([claude], now.AddSeconds(5))?.ProviderId);
     }
 
     private static ProviderSelectionCandidate Candidate(
