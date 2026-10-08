@@ -874,6 +874,8 @@ a:focus-visible {
   display: flex;
   align-items: center;
   gap: 0.85rem;
+  justify-self: center;
+  width: min(100%, 19rem);
   min-width: 0;
   padding: 0.8rem;
   border: 1px solid rgba(255, 255, 255, 0.08);
