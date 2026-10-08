@@ -3,8 +3,8 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>K's Code Presence compatibility | Codex Discord Rich Presence</title>
-  <meta name="description" content="Current platform, profile, runtime, and evidence boundaries for K's Code Presence and its Codex Discord Rich Presence integration.">
+  <title>K's Code Presence compatibility | AI coding Discord Rich Presence</title>
+  <meta name="description" content="Current platform, runtime, AI coding tool, and evidence boundaries for K's Code Presence with Codex, Claude Code, and Antigravity CLI.">
   <link rel="canonical" href="https://k153636.github.io/codex-discord-presence/compatibility.html">
   <link rel="icon" type="image/png" href="https://raw.githubusercontent.com/k153636/codex-discord-presence/main/Assets/RpcArt/rpc_codex.png">
   <link rel="stylesheet" href="styles.css">
@@ -12,10 +12,10 @@
 <body>
   <header class="site-header">
     <div class="shell nav-row">
-      <a class="brand" href="./">K's Code Presence</a>
+      <a class="brand" href="./"><span class="brand-mark" aria-hidden="true"></span><span>K's Code Presence</span></a>
       <nav aria-label="Primary navigation">
-        <a href="./">Home</a>
         <a href="faq.html">FAQ</a>
+        <a href="compatibility.html" aria-current="page">Compatibility</a>
         <a href="privacy.html">Data flow</a>
         <a href="https://github.com/k153636/codex-discord-presence">GitHub</a>
       </nav>
@@ -23,7 +23,7 @@
   </header>
 
   <main class="shell section prose">
-    <p class="eyebrow">CURRENT RELEASE BOUNDARIES</p>
+    <p class="eyebrow">Current release boundaries</p>
     <h1>Compatibility notes</h1>
     <p class="lead">This page describes what the current published build supports and where its evidence falls back.</p>
 
@@ -35,6 +35,19 @@
       <li>Distribution: the latest release is published as <code>discord-presence-for-codex.exe</code>.</li>
     </ul>
 
+    <h2>AI coding tools</h2>
+    <table>
+      <thead>
+        <tr><th>Tool</th><th>Integration</th><th>What Discord can show</th></tr>
+      </thead>
+      <tbody>
+        <tr><td data-label="Tool">Codex CLI &amp; Desktop</td><td data-label="Integration">Built in: process and window signals, local session JSONL</td><td data-label="What Discord can show">Reasoning summaries, MCP, files, model, effort, tokens, party</td></tr>
+        <tr><td data-label="Tool">Claude Code</td><td data-label="Integration"><span>Opt-in: observational hooks in <code>~/.claude/settings.json</code></span></td><td data-label="What Discord can show">Model, effort, MCP, files, spinner labels, Claude Design, party</td></tr>
+        <tr><td data-label="Tool">Antigravity CLI</td><td data-label="Integration">Opt-in: official statusLine payload</td><td data-label="What Discord can show">Model, plan and quota usage, tool activity, reported subagents</td></tr>
+      </tbody>
+    </table>
+    <p>Claude Code and Antigravity CLI are enabled from the Dashboard. Enabling an integration does not force it to take over; the tool with current, project-matching activity is shown. Claude Code hook changes keep a local backup, and disabling the integration removes only the app's own hook definitions.</p>
+
     <h2>Codex profiles</h2>
     <table>
       <thead>
@@ -42,7 +55,7 @@
       </thead>
       <tbody>
         <tr><td data-label="Profile">Desktop</td><td data-label="Detection source">Codex process and window signals, local session JSONL, Codex configuration</td><td data-label="Purpose">Default desktop launch flow</td></tr>
-        <tr><td data-label="Profile">CLI</td><td data-label="Detection source">CLI command-line signatures, local session JSONL, Codex configuration</td><td data-label="Purpose">Separate CLI launch flow via <code>start-cli.cmd</code></td></tr>
+        <tr><td data-label="Profile">CLI</td><td data-label="Detection source">CLI command-line signatures, local session JSONL, Codex configuration</td><td data-label="Purpose"><span>Separate CLI launch flow via <code>start-cli.cmd</code></span></td></tr>
       </tbody>
     </table>
 
@@ -54,7 +67,8 @@
       <li>macOS or Linux binaries</li>
       <li>A hosted dashboard or team account</li>
       <li>Guaranteed live quota values from every Codex plan</li>
-      <li>Official affiliation with OpenAI or Discord</li>
+      <li>Tokens, cost, or quota for Claude Code</li>
+      <li>Official affiliation with OpenAI, Anthropic, Google, or Discord</li>
     </ul>
 
     <p><a href="https://github.com/k153636/codex-discord-presence/releases/latest">Download the latest release →</a></p>
@@ -63,7 +77,12 @@
   <footer class="site-footer" data-motion="site-footer">
     <div class="shell footer-row">
       <span>K's Code Presence · Unofficial community project</span>
-      <a href="https://github.com/k153636/codex-discord-presence">Source repository</a>
+      <nav class="footer-links" aria-label="Footer navigation">
+        <a href="faq.html">FAQ</a>
+        <a href="compatibility.html" aria-current="page">Compatibility</a>
+        <a href="privacy.html">Data flow</a>
+        <a href="https://github.com/k153636/codex-discord-presence/releases/latest">Latest release</a>
+      </nav>
     </div>
   </footer>
   <script src="motion.js"></script>
