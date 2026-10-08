@@ -55,6 +55,11 @@ The content shown in Discord may include project names, file names, and reasonin
 The app stays in the Windows system tray.
 Use the tray menu to enable or disable Discord Rich Presence, open the Dashboard, edit K's Code Presence settings, or quit the app.
 
+The next packaged distribution also supports [automatic updates](docs/automatic-updates.md):
+background downloads, a restart after the app is idle, postponement, and manual
+update controls in the tray. Historical standalone EXEs need a one-time move to
+the Setup installer or portable ZIP. See the [version migration](docs/version-history.md).
+
 ## Codex CLI and Codex Desktop
 
 The app supports separate detection settings for Desktop and CLI.

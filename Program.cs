@@ -4,9 +4,13 @@ namespace CodexDiscordPresence;
 
 public static class Program
 {
+    internal static bool RestartedAfterUpdate { get; private set; }
+
     [STAThread]
-    public static async Task<int> Main(string[] args)
+    public static int Main(string[] args)
     {
-        return await PresenceApplication.RunAsync(args);
+        Velopack.VelopackApp.Build().SetAutoApplyOnStartup(false)
+            .OnRestarted(_ => RestartedAfterUpdate = true).Run();
+        return PresenceApplication.RunAsync(args).GetAwaiter().GetResult();
     }
 }

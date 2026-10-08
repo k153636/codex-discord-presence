@@ -1,0 +1,48 @@
+name: Prepare release
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - 'v0.*'
+
+permissions:
+  contents: read
+
+jobs:
+  package:
+    runs-on: windows-latest
+    timeout-minutes: 20
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - uses: actions/setup-dotnet@v6.0.0
+        with:
+          dotnet-version: 9.0.x
+      - name: Check version against release tag
+        if: startsWith(github.ref, 'refs/tags/')
+        shell: pwsh
+        run: |
+          [xml]$project = Get-Content discord-presence-for-codex.csproj
+          $expected = 'v' + $project.Project.PropertyGroup.Version
+          if ($env:GITHUB_REF_NAME -ne $expected) { throw "Tag must match assembly version: $expected" }
+      - name: Validate application
+        run: dotnet test CodexDiscordPresence.Tests/CodexDiscordPresence.Tests.csproj -c Release
+      - name: Package installer, portable app, and update feed
+        shell: pwsh
+        run: ./scripts/BuildRelease.ps1
+      - uses: actions/upload-artifact@v7.0.2
+        with:
+          name: windows-release
+          path: Releases/**/*
+          if-no-files-found: error
+      - name: Create draft release with complete update assets
+        if: startsWith(github.ref, 'refs/tags/')
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $assets = @(Get-ChildItem -LiteralPath Releases -File -Recurse | ForEach-Object FullName)
+          gh release create $env:GITHUB_REF_NAME @assets --draft --verify-tag --generate-notes --title $env:GITHUB_REF_NAME
+          if ($LASTEXITCODE -ne 0) { throw 'Draft release creation failed.' }
