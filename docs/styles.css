@@ -877,6 +877,7 @@ a:focus-visible {
   justify-self: center;
   width: min(100%, 19rem);
   min-width: 0;
+  text-align: left;
   padding: 0.8rem;
   border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: 14px;
@@ -1241,7 +1242,14 @@ body::before {
 
   .origin {
     grid-template-columns: minmax(0, 1fr);
+    justify-items: center;
     gap: 2.25rem;
+    text-align: center;
+  }
+
+  .origin-copy h2,
+  .origin-copy h2 + p {
+    margin-inline: auto;
   }
 
   .origin-compare {
