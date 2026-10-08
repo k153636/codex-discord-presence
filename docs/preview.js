@@ -406,6 +406,7 @@
     const incomingParts = partsByCard.get(incomingCard);
 
     clearCarouselAutoAdvance();
+    clearCardHover();
     isTransitioning = true;
     updateButtons();
     renderCard(incomingCard, incomingParts, nextThemeIndex);
@@ -441,6 +442,30 @@
       scheduleCarouselAutoAdvance();
     });
   };
+
+  // Hit-test against the card's resting box so the hover lift cannot move it out from under the cursor.
+  const hoverLiftPixels = 6;
+  const clearCardHover = () => {
+    cards.forEach((card) => card.classList.remove("is-hovered"));
+  };
+
+  const updateCardHover = (event) => {
+    if (event.pointerType !== "mouse") {
+      return;
+    }
+
+    const activeCard = cardsByOffset.get(0);
+    const rect = activeCard.getBoundingClientRect();
+    const lift = activeCard.classList.contains("is-hovered") ? hoverLiftPixels : 0;
+    const inside = event.clientX >= rect.left
+      && event.clientX <= rect.right
+      && event.clientY >= rect.top
+      && event.clientY <= rect.bottom + lift;
+    cards.forEach((card) => card.classList.toggle("is-hovered", inside && card === activeCard));
+  };
+
+  carousel.addEventListener("pointermove", updateCardHover);
+  carousel.addEventListener("pointerleave", clearCardHover);
 
   buttons.forEach((button) => {
     button.addEventListener("click", () => {

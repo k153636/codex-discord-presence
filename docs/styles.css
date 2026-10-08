@@ -545,11 +545,7 @@ a:focus-visible {
   transform: translateX(-50%) scale(var(--rpc-preview-active-scale));
 }
 
-.rpc-preview-card--active {
-  pointer-events: auto;
-}
-
-.rpc-preview-card--active:hover {
+.rpc-preview-card--active.is-hovered {
   translate: 0 -6px;
   border-color: rgba(96, 165, 250, 0.35);
   box-shadow: 0 18px 40px -24px rgba(41, 151, 255, 0.55), inset 0 1px 0 rgba(255, 255, 255, 0.08);
@@ -866,6 +862,15 @@ html.motion-enhanced .feature-card[data-motion] {
     translate var(--motion-hover-release-duration) var(--motion-ease),
     border-color var(--motion-hover-release-duration) var(--motion-ease),
     box-shadow var(--motion-hover-release-duration) var(--motion-ease);
+}
+
+.feature-card:hover::after {
+  position: absolute;
+  top: 100%;
+  right: 0;
+  left: 0;
+  height: 6px;
+  content: "";
 }
 
 .feature-card:hover,
