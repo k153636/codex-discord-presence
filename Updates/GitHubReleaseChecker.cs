@@ -46,6 +46,8 @@ public sealed class GitHubReleaseChecker
                 return GitHubReleaseCheckResult.Failed($"GitHub release tag '{release.TagName ?? "<missing>"}' is not a valid SemVer tag.");
             }
 
+            latestVersion = ReleaseVersionHistory.Resolve(release.Id, release.TagName!, latestVersion);
+
             var currentVersion = AppVersion.Current;
             if (latestVersion.CompareTo(currentVersion) <= 0)
             {
@@ -65,6 +67,7 @@ public sealed class GitHubReleaseChecker
     }
 
     private sealed record GitHubReleaseDto(
+        [property: JsonPropertyName("id")] long Id,
         [property: JsonPropertyName("tag_name")] string? TagName,
         [property: JsonPropertyName("html_url")] string? HtmlUrl);
 }
