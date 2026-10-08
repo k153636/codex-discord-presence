@@ -758,6 +758,7 @@ a:focus-visible {
 }
 
 .provider-card {
+  position: relative;
   display: flex;
   flex-direction: column;
   gap: 0.9rem;
@@ -766,7 +767,8 @@ a:focus-visible {
   border: 1px solid var(--border);
   border-radius: 20px;
   background: linear-gradient(180deg, rgba(255, 255, 255, 0.045) 0%, rgba(255, 255, 255, 0.015) 100%);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  box-shadow: 0 18px 40px -24px rgba(41, 151, 255, 0), inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  translate: 0 0;
 }
 
 .provider-card-head {
@@ -860,9 +862,13 @@ a:focus-visible {
   translate: 0 0;
 }
 
-/* Shares the preview card hover motion; also outranks the scroll-reveal transition. */
+/* Card surfaces share the preview card hover motion; the html.motion-enhanced selectors outrank the scroll-reveal transition. */
 .feature-card,
-html.motion-enhanced .feature-card[data-motion] {
+.provider-card,
+.origin-compare,
+html.motion-enhanced .feature-card[data-motion],
+html.motion-enhanced .provider-card[data-motion],
+html.motion-enhanced .origin-compare[data-motion] {
   transition:
     opacity var(--motion-duration) var(--motion-ease) var(--motion-delay, 0ms),
     transform var(--motion-duration) var(--motion-ease) var(--motion-delay, 0ms),
@@ -871,7 +877,9 @@ html.motion-enhanced .feature-card[data-motion] {
     box-shadow var(--motion-hover-release-duration) var(--motion-ease);
 }
 
-.feature-card:hover::after {
+.feature-card:hover::after,
+.provider-card:hover::after,
+.origin-compare:hover::after {
   position: absolute;
   top: 100%;
   right: 0;
@@ -881,7 +889,11 @@ html.motion-enhanced .feature-card[data-motion] {
 }
 
 .feature-card:hover,
-html.motion-enhanced .feature-card[data-motion]:hover {
+.provider-card:hover,
+.origin-compare:hover,
+html.motion-enhanced .feature-card[data-motion]:hover,
+html.motion-enhanced .provider-card[data-motion]:hover,
+html.motion-enhanced .origin-compare[data-motion]:hover {
   translate: 0 -6px;
   border-color: rgba(96, 165, 250, 0.35);
   box-shadow: 0 18px 40px -24px rgba(41, 151, 255, 0.55), inset 0 1px 0 rgba(255, 255, 255, 0.08);
@@ -971,6 +983,7 @@ html.motion-enhanced .feature-card[data-motion]:hover {
 }
 
 .origin-compare {
+  position: relative;
   display: grid;
   gap: 0.75rem;
   padding: clamp(1.25rem, 2.5vw, 1.75rem);
@@ -979,7 +992,8 @@ html.motion-enhanced .feature-card[data-motion]:hover {
   background:
     radial-gradient(ellipse 80% 60% at 50% 100%, rgba(41, 151, 255, 0.14) 0%, transparent 70%),
     linear-gradient(180deg, rgba(255, 255, 255, 0.035) 0%, rgba(255, 255, 255, 0.01) 100%);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  box-shadow: 0 18px 40px -24px rgba(41, 151, 255, 0), inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  translate: 0 0;
 }
 
 .compare-row {
