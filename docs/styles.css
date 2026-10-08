@@ -167,8 +167,16 @@ nav a {
   transition: color var(--motion-duration-short) var(--motion-ease);
 }
 
-nav a:hover {
+nav a:hover,
+nav a[aria-current="page"] {
   color: var(--text);
+}
+
+.nav-row nav a[aria-current="page"] {
+  text-decoration: underline;
+  text-decoration-color: var(--accent);
+  text-decoration-thickness: 2px;
+  text-underline-offset: 0.55em;
 }
 
 .hero {
