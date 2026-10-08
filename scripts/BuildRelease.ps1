@@ -28,7 +28,7 @@ Push-Location $repoDirectory
 try {
     dotnet tool restore
     if ($LASTEXITCODE -ne 0) { throw 'The pinned Velopack packaging tool could not be restored.' }
-    dotnet publish $projectFile -c Release -r win-x64 --self-contained false -p:Version=$Version -o $stagingDirectory
+    dotnet publish $projectFile -c Release -r win-x64 --self-contained true -p:Version=$Version -o $stagingDirectory
     if ($LASTEXITCODE -ne 0) { throw 'Release publish failed.' }
     foreach ($name in @('appsettings.json', 'appsettings.cli.json')) {
         Copy-Item -LiteralPath (Join-Path $stagingDirectory $name) -Destination (Join-Path $stagingDirectory ($name.Replace('.json', '.defaults.json')))
@@ -37,7 +37,7 @@ try {
     $packArguments = @('pack', '--packId', 'K.CodePresence', '--packVersion', $Version,
         '--packTitle', "K's Code Presence", '--packDir', $stagingDirectory,
         '--mainExe', 'discord-presence-for-codex.exe', '--channel', 'win', '--runtime', 'win-x64',
-        '--framework', 'net9.0-x64-desktop', '--shortcuts', 'StartMenuRoot', '--outputDir', $releaseDirectory)
+        '--shortcuts', 'StartMenuRoot', '--outputDir', $releaseDirectory)
     if ($ReleaseNotes) { $packArguments += @('--releaseNotes', (Resolve-Path -LiteralPath $ReleaseNotes).Path) }
     dotnet tool run vpk -- @packArguments
     if ($LASTEXITCODE -ne 0) { throw 'Velopack packaging failed.' }

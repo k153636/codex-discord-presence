@@ -17,6 +17,7 @@
 - Product type: local Windows tray application.
 - Supported published target: Windows x64.
 - Current runtime requirement: .NET 9 Desktop Runtime.
+- Upcoming Setup and portable distribution: self-contained .NET 10 Desktop Runtime, including automatic-update packages; no separate .NET installation required. Archived standalone EXEs remain .NET 9 builds.
 - Discord requirement: Discord Desktop must be running for local Rich Presence delivery.
 - Supported tools: Codex Desktop and a separate Codex CLI profile (built in), plus opt-in Claude Code and Antigravity CLI integrations enabled from the Dashboard.
 - Claude Code: observational hooks in ~/.claude/settings.json; shows model, effort, MCP and file activity, terminal spinner labels, Claude Design, and subagent party; prompts, tool output, and source text are discarded; tokens, cost, and quota are not shown.

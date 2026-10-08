@@ -69,6 +69,11 @@ background downloads, a restart after the app is idle, postponement, and manual
 update controls in the tray. Historical standalone EXEs need a one-time move to
 the Setup installer or portable ZIP. See the [version migration](docs/version-history.md).
 
+The next Setup installer and portable ZIP include the .NET 10 Desktop Runtime;
+users do not need to install .NET separately. Source builds require the .NET 10
+SDK, and `build.cmd` also produces a self-contained executable. The installation
+steps above still apply to the currently published .NET 9 standalone release.
+
 ## Codex CLI and Codex Desktop
 
 The app supports separate detection settings for Desktop and CLI.

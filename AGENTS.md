@@ -2,7 +2,7 @@
 
 ## Project purpose
 
-This repository is a .NET 9 Windows Forms tray application that publishes the
+This repository is a .NET 10 Windows Forms tray application that publishes the
 current Codex session to Discord Rich Presence. The application must favor
 observable Codex log evidence and a stable, readable Discord line over guesses
 from filesystem timestamps or generic fallback labels.
@@ -207,8 +207,8 @@ Run commands from the repository root:
 
 - `dotnet test CodexDiscordPresence.Tests\CodexDiscordPresence.Tests.csproj`
   runs the full xUnit suite.
-- `build.cmd` publishes the Release `win-x64` single-file application to
-  `publish/`.
+- `build.cmd` publishes the Release `win-x64` self-contained single-file
+  application to `publish/`, including the .NET 10 Desktop Runtime.
 - `start.cmd` stops a previous published instance, publishes the latest source,
   and starts the latest published executable. Use `start-cli.cmd` for the CLI
   profile.
