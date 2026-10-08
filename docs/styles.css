@@ -842,7 +842,6 @@ a:focus-visible {
   align-items: center;
   gap: clamp(2.5rem, 5vw, 4.5rem);
   padding: clamp(2.75rem, 4.5vw, 4rem) 0;
-  border-bottom: 1px solid var(--border-subtle);
 }
 
 .origin-copy {
@@ -961,11 +960,25 @@ a:focus-visible {
 }
 
 .install-line {
-  display: grid;
-  grid-template-columns: minmax(220px, 0.9fr) minmax(300px, 1.1fr) auto;
+  display: flex;
+  flex-direction: column;
   align-items: center;
-  gap: 2rem;
-  padding: 2.75rem 0;
+  gap: 1.5rem;
+  margin-block: clamp(2rem, 4vw, 3rem) clamp(1rem, 3vw, 2rem);
+  padding: clamp(2.75rem, 6vw, 4.5rem) clamp(1.25rem, 4vw, 3rem);
+  border: 1px solid rgba(96, 165, 250, 0.24);
+  border-radius: var(--radius-lg);
+  background:
+    radial-gradient(ellipse 70% 90% at 50% 0%, rgba(41, 151, 255, 0.24) 0%, rgba(41, 151, 255, 0.06) 45%, transparent 75%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.04) 0%, rgba(255, 255, 255, 0.01) 100%);
+  box-shadow: 0 40px 90px -45px rgba(41, 151, 255, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.09);
+  text-align: center;
+}
+
+.install-line .button {
+  min-height: 3.1rem;
+  padding: 0.75rem 2rem;
+  font-size: 1rem;
 }
 
 .install-intro .eyebrow {
@@ -973,13 +986,14 @@ a:focus-visible {
 }
 
 .install-intro h2 {
-  font-size: clamp(1.6rem, 3vw, 2.4rem);
+  font-size: clamp(2rem, 4.5vw, 3.25rem);
   letter-spacing: -0.04em;
 }
 
 .install-requirements {
   display: flex;
   flex-wrap: wrap;
+  justify-content: center;
   gap: 0.5rem;
   align-items: center;
   margin: 0;
@@ -1243,15 +1257,6 @@ body::before {
   h1 {
     font-size: clamp(2.2rem, 6vw, 3.2rem);
   }
-
-  .install-line {
-    grid-template-columns: 1fr auto;
-  }
-
-  .install-requirements {
-    grid-column: 1 / -1;
-    grid-row: 2;
-  }
 }
 
 @media (max-width: 760px) {
@@ -1316,21 +1321,6 @@ body::before {
   .origin {
     grid-template-columns: 1fr;
     gap: 2.25rem;
-  }
-
-  .install-line {
-    grid-template-columns: 1fr;
-    align-items: start;
-    gap: 1.75rem;
-  }
-
-  .install-requirements {
-    grid-column: auto;
-    grid-row: auto;
-  }
-
-  .install-line .button {
-    width: max-content;
   }
 
   .presence-figure {
