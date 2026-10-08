@@ -11,6 +11,8 @@ public sealed record PresenceDashboardSnapshot(
 {
     public DiscordPresenceSnapshot? PublishedPresence { get; init; }
 
+    public bool IsDiscordConnecting { get; init; }
+
     public bool HasNoActiveProvider { get; init; }
 
     public static PresenceDashboardSnapshot Empty { get; } = new(

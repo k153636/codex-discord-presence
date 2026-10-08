@@ -10,6 +10,11 @@ public sealed class DiscordPresenceClient : IDisposable
     private readonly Func<DateTime> _utcNow;
     private IDiscordPresenceTransport? _client;
     private bool _isReady;
+    private bool _disposed;
+    private DateTime? _connectionStartedUtc;
+    private PendingPresence? _pendingPresence;
+    internal static readonly TimeSpan ResponseTimeout = TimeSpan.FromSeconds(30);
+    private sealed record PendingPresence(DiscordPresenceSnapshot? Presence, DateTime SentAtUtc);
     private bool _clearPending;
     private bool _clearSentForCurrentConnection;
     private bool _needsPresenceRefresh = true;
@@ -39,7 +44,8 @@ public sealed class DiscordPresenceClient : IDisposable
     public Task StartAsync(CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        TryInitialize(logSuccess: true);
+        TryInitialize();
+        ProcessPendingNotifications();
         return Task.CompletedTask;
     }
 
@@ -47,15 +53,19 @@ public sealed class DiscordPresenceClient : IDisposable
 
     public bool IsConnected => _isReady;
 
+    public bool IsConnecting => !_disposed && _client is not null && !_isReady;
+
     public DiscordPresenceSnapshot? LastPublishedPresence { get; private set; }
 
     internal void RequestPresenceRefresh()
     {
+        ProcessPendingNotifications();
         _needsPresenceRefresh = true;
     }
 
     public void UpdateOptions(DiscordOptions options)
     {
+        ProcessPendingNotifications();
         if (string.Equals(_options.ClientId, options.ClientId, StringComparison.Ordinal) &&
             string.Equals(_options.LargeImageKey, options.LargeImageKey, StringComparison.Ordinal) &&
             string.Equals(_options.SmallImageKey, options.SmallImageKey, StringComparison.Ordinal) &&
@@ -119,6 +129,11 @@ public sealed class DiscordPresenceClient : IDisposable
                 client = _client;
             }
 
+            if (_pendingPresence is not null)
+            {
+                return false;
+            }
+
             var publishedPresence = DiscordRichPresenceBuilder.Create(_options, presence, _partyId);
             var nowUtc = _utcNow();
             if (!_updateThrottle.TryReserve(nowUtc, out var retryAtUtc))
@@ -127,32 +142,39 @@ public sealed class DiscordPresenceClient : IDisposable
                 return false;
             }
 
+            _pendingPresence = new(DiscordPresenceSnapshot.From(publishedPresence), nowUtc);
             client.SetPresence(publishedPresence);
-            LastPublishedPresence = DiscordPresenceSnapshot.From(publishedPresence);
             _clearSentForCurrentConnection = false;
             _needsPresenceRefresh = false;
             _lastRateLimitLogUtc = null;
-            return true;
+            ProcessPendingNotifications();
+            return _isReady;
         }
         catch (Exception ex)
         {
-            _isReady = false;
-            ResetClient();
-            LastPublishedPresence = null;
-            _needsPresenceRefresh = true;
-            _failedInitializeAttempts = Math.Min(_failedInitializeAttempts + 1, int.MaxValue);
-            var delay = DiscordReconnectBackoff.GetDelay(_failedInitializeAttempts);
-            _log.Error($"Discord RPC update failed. Reconnecting in {delay.TotalSeconds:0}s.", ex);
-            _nextInitializeAttemptUtc = _utcNow().Add(delay);
+            ScheduleReconnect("Discord RPC update failed.", ex);
             return false;
         }
     }
 
     public void Clear()
     {
-        if (_client is null)
+        ProcessPendingNotifications();
+        if (_disposed)
         {
-            LastPublishedPresence = null;
+            return;
+        }
+
+        if (_pendingPresence is not null)
+        {
+            _clearPending = _pendingPresence.Presence is not null;
+            _needsPresenceRefresh = true;
+            return;
+        }
+
+        if (!_isReady || _client is null)
+        {
+            _clearPending = true;
             _needsPresenceRefresh = true;
             return;
         }
@@ -174,119 +196,211 @@ public sealed class DiscordPresenceClient : IDisposable
 
         try
         {
+            _pendingPresence = new(null, nowUtc);
             _client.ClearPresence();
             _clearPending = false;
             _clearSentForCurrentConnection = true;
-            LastPublishedPresence = null;
             _needsPresenceRefresh = true;
             _lastRateLimitLogUtc = null;
+            ProcessPendingNotifications();
         }
         catch (Exception ex)
         {
-            _isReady = false;
-            ResetClient();
             _clearPending = true;
-            _clearSentForCurrentConnection = false;
-            LastPublishedPresence = null;
-            _needsPresenceRefresh = true;
-            _failedInitializeAttempts = Math.Min(_failedInitializeAttempts + 1, int.MaxValue);
-            var delay = DiscordReconnectBackoff.GetDelay(_failedInitializeAttempts);
-            _nextInitializeAttemptUtc = _utcNow().Add(delay);
-            _log.Error($"Discord RPC clear failed. Reconnecting in {delay.TotalSeconds:0}s.", ex);
+            ScheduleReconnect("Discord RPC clear failed.", ex);
         }
     }
 
     public void Dispose()
     {
-        try
+        _disposed = true;
+        ResetClient();
+        _isReady = false;
+        LastPublishedPresence = null;
+        _clearPending = false;
+        _clearSentForCurrentConnection = false;
+        _needsPresenceRefresh = true;
+    }
+
+    // Called by the runtime thread even when no presence update is required.
+    // Transport callbacks only enqueue immutable notifications and never mutate client state.
+    internal void ProcessPendingNotifications()
+    {
+        var client = _client;
+        while (client is not null && ReferenceEquals(client, _client) &&
+            client.TryDequeueNotification(out var notification))
         {
-            _client?.Dispose();
+            if (notification is null)
+            {
+                continue;
+            }
+
+            switch (notification.Kind)
+            {
+                case DiscordPresenceNotificationKind.Connecting:
+                    _isReady = false;
+                    _pendingPresence = null;
+                    LastPublishedPresence = null;
+                    _connectionStartedUtc = _utcNow();
+                    _needsPresenceRefresh = true;
+                    break;
+                case DiscordPresenceNotificationKind.Ready:
+                    _isReady = true;
+                    _connectionStartedUtc = null;
+                    _failedInitializeAttempts = 0;
+                    _nextInitializeAttemptUtc = DateTime.MinValue;
+                    _pendingPresence = null;
+                    LastPublishedPresence = null;
+                    _clearSentForCurrentConnection = false;
+                    _needsPresenceRefresh = true;
+                    _log.Info("Discord RPC initialized. Connection ready.");
+                    break;
+                case DiscordPresenceNotificationKind.Closed:
+                    ScheduleReconnect("Discord RPC connection closed.");
+                    break;
+                case DiscordPresenceNotificationKind.Error:
+                    ScheduleReconnect($"Discord RPC update failed asynchronously (code {notification.ErrorCode}).", error: true);
+                    break;
+                case DiscordPresenceNotificationKind.PresenceAcknowledged:
+                    AcceptAcknowledgment(notification.Presence);
+                    break;
+            }
         }
-        finally
+
+        var waitingSinceUtc = _pendingPresence?.SentAtUtc ?? _connectionStartedUtc;
+        if (waitingSinceUtc.HasValue && _utcNow() - waitingSinceUtc.Value >= ResponseTimeout)
         {
-            _client = null;
-            _isReady = false;
-            LastPublishedPresence = null;
-            _clearPending = false;
-            _clearSentForCurrentConnection = false;
-            _needsPresenceRefresh = true;
+            ScheduleReconnect("Discord RPC response timed out.");
         }
     }
 
+    private void AcceptAcknowledgment(DiscordPresenceSnapshot? presence)
+    {
+        if (!_isReady || _pendingPresence is null || !MatchesAcknowledgment(_pendingPresence.Presence, presence))
+        {
+            return;
+        }
+
+        var requested = _pendingPresence.Presence;
+        LastPublishedPresence = presence is not null && requested is not null
+            ? presence with
+            {
+                LargeImageKey = ResolveAcknowledgedImageKey(requested.LargeImageKey, presence.LargeImageKey),
+                SmallImageKey = ResolveAcknowledgedImageKey(requested.SmallImageKey, presence.SmallImageKey)
+            }
+            : presence;
+        _pendingPresence = null;
+        _log.Info(presence is null ? "Discord RPC presence clear acknowledged." : "Discord RPC presence acknowledged.");
+    }
+
+    private static string? ResolveAcknowledgedImageKey(string? requested, string? acknowledged)
+    {
+        // Discord returns uploaded assets as numeric IDs and external URLs as mp: IDs.
+        // Retain their request alias only when this response actually contains an asset.
+        if (!string.IsNullOrWhiteSpace(requested) && !string.IsNullOrWhiteSpace(acknowledged) &&
+            (acknowledged.All(char.IsAsciiDigit) || acknowledged.StartsWith("mp:", StringComparison.Ordinal)))
+        {
+            return requested;
+        }
+
+        return acknowledged;
+    }
+
+    private static bool MatchesAcknowledgment(DiscordPresenceSnapshot? expected, DiscordPresenceSnapshot? actual)
+    {
+        if (expected is null || actual is null)
+        {
+            return expected is null && actual is null;
+        }
+
+        // Discord resolves asset keys to CDN IDs and omits button URLs. Compare the
+        // response fields it preserves; serialize requests because the SDK drops nonces.
+        return expected.Details == actual.Details && expected.State == actual.State &&
+            expected.ActivityType == actual.ActivityType &&
+            ToUnixTimeSeconds(expected.StartedAtUtc) == ToUnixTimeSeconds(actual.StartedAtUtc) &&
+            expected.PartySize == actual.PartySize && expected.PartyMax == actual.PartyMax;
+    }
+
+    private static long? ToUnixTimeSeconds(DateTime? value) =>
+        value.HasValue ? new DateTimeOffset(value.Value).ToUnixTimeSeconds() : null;
+
     private bool EnsureReady()
     {
-        if (!_isReady && _utcNow() < _nextInitializeAttemptUtc)
+        ProcessPendingNotifications();
+        if (_disposed)
         {
             return false;
         }
 
-        return _isReady || TryInitialize(logSuccess: false);
+        if (_client is null && _utcNow() >= _nextInitializeAttemptUtc)
+        {
+            TryInitialize();
+            ProcessPendingNotifications();
+        }
+
+        return _isReady;
     }
 
-    private bool TryInitialize(bool logSuccess)
+    private void TryInitialize()
     {
+        if (_disposed || _client is not null)
+        {
+            return;
+        }
+
+        if (IsMissingClientId(_options.ClientId))
+        {
+            ScheduleReconnect("Discord RPC client id is not configured for the current profile.");
+            return;
+        }
+
         try
         {
-            if (IsMissingClientId(_options.ClientId))
-            {
-                _isReady = false;
-                LastPublishedPresence = null;
-                _needsPresenceRefresh = true;
-                _failedInitializeAttempts = Math.Min(_failedInitializeAttempts + 1, int.MaxValue);
-                var delay = DiscordReconnectBackoff.GetDelay(_failedInitializeAttempts);
-                _log.Warn($"Discord RPC client id is not configured for the current profile. Reconnecting in {delay.TotalSeconds:0}s.");
-                _nextInitializeAttemptUtc = _utcNow().Add(delay);
-                return false;
-            }
-
-            ResetClient();
             _client = _transportFactory(_options.ClientId);
-            _isReady = _client.Initialize();
-
-            if (_isReady)
+            _connectionStartedUtc = _utcNow();
+            if (!_client.Initialize())
             {
-                _failedInitializeAttempts = 0;
-                LastPublishedPresence = null;
-                _clearSentForCurrentConnection = false;
-                _needsPresenceRefresh = true;
-                if (logSuccess)
-                {
-                    _log.Info("Discord RPC initialized.");
-                }
-            }
-            else if (!_isReady)
-            {
-                ResetClient();
-                LastPublishedPresence = null;
-                _clearSentForCurrentConnection = false;
-                _failedInitializeAttempts = Math.Min(_failedInitializeAttempts + 1, int.MaxValue);
-                var delay = DiscordReconnectBackoff.GetDelay(_failedInitializeAttempts);
-                _log.Warn($"Discord RPC is not ready. Reconnecting in {delay.TotalSeconds:0}s.");
-                _needsPresenceRefresh = true;
+                ScheduleReconnect("Discord RPC initialization did not start.");
             }
         }
         catch (Exception ex)
         {
-            _isReady = false;
-            ResetClient();
-            LastPublishedPresence = null;
-            _clearSentForCurrentConnection = false;
-            _needsPresenceRefresh = true;
-            _failedInitializeAttempts = Math.Min(_failedInitializeAttempts + 1, int.MaxValue);
-            var delay = DiscordReconnectBackoff.GetDelay(_failedInitializeAttempts);
-            _log.Error($"Discord RPC initialization failed. Reconnecting in {delay.TotalSeconds:0}s.", ex);
+            ScheduleReconnect("Discord RPC initialization failed.", ex);
         }
+    }
 
-        _nextInitializeAttemptUtc = _isReady
-            ? DateTime.MinValue
-            : _utcNow().Add(DiscordReconnectBackoff.GetDelay(_failedInitializeAttempts));
-        return _isReady;
+    private void ScheduleReconnect(string message, Exception? exception = null, bool error = false)
+    {
+        _isReady = false;
+        ResetClient();
+        LastPublishedPresence = null;
+        _clearSentForCurrentConnection = false;
+        _needsPresenceRefresh = true;
+        _failedInitializeAttempts = Math.Min(_failedInitializeAttempts + 1, int.MaxValue);
+        var delay = DiscordReconnectBackoff.GetDelay(_failedInitializeAttempts);
+        _nextInitializeAttemptUtc = _utcNow().Add(delay);
+        var detail = $"{message} Reconnecting in {delay.TotalSeconds:0}s.";
+        if (exception is not null)
+        {
+            _log.Error(detail, exception);
+        }
+        else if (error)
+        {
+            _log.Error(detail);
+        }
+        else
+        {
+            _log.Warn(detail);
+        }
     }
 
     private void ResetClient()
     {
-        _client?.Dispose();
+        var client = _client;
         _client = null;
+        _pendingPresence = null;
+        _connectionStartedUtc = null;
+        client?.Dispose();
     }
 
     private void LogRateLimitDeferral(DateTime nowUtc, DateTime retryAtUtc)

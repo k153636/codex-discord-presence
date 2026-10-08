@@ -99,6 +99,7 @@ public sealed class PresenceRuntime
                 var activityKind = profileStates[currentProfile].LastActivityKind;
                 try
                 {
+                    rpc.ProcessPendingNotifications();
                     RefreshTimingSettingsIfNeeded();
 
                     var antigravityEnabled = _state.Enabled &&
@@ -224,6 +225,7 @@ public sealed class PresenceRuntime
                             DateTime.UtcNow)
                         {
                             PublishedPresence = rpc.LastPublishedPresence,
+                            IsDiscordConnecting = rpc.IsConnecting,
                             HasNoActiveProvider = true
                         });
                         deferSessionEnrichment = false;
@@ -363,7 +365,8 @@ public sealed class PresenceRuntime
                         rpc.IsConnected,
                         DateTime.UtcNow)
                     {
-                        PublishedPresence = rpc.LastPublishedPresence
+                        PublishedPresence = rpc.LastPublishedPresence,
+                        IsDiscordConnecting = rpc.IsConnecting
                     };
                     _state.PublishDashboardSnapshot(dashboardSnapshot);
                     deferSessionEnrichment = false;
@@ -411,6 +414,14 @@ public sealed class PresenceRuntime
         }
 
         rpc.Clear();
+
+        _state.PublishDashboardSnapshot(_state.DashboardSnapshot with
+        {
+            IsDiscordConnected = rpc.IsConnected,
+            IsDiscordConnecting = rpc.IsConnecting,
+            PublishedPresence = rpc.LastPublishedPresence,
+            UpdatedAtUtc = DateTime.UtcNow
+        });
 
         return false;
     }
