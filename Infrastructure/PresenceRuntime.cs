@@ -223,7 +223,8 @@ public sealed class PresenceRuntime
                             rpc.IsConnected,
                             DateTime.UtcNow)
                         {
-                            PublishedPresence = rpc.LastPublishedPresence
+                            PublishedPresence = rpc.LastPublishedPresence,
+                            HasNoActiveProvider = true
                         });
                         deferSessionEnrichment = false;
                         await Delay(TimeSpan.FromSeconds(1));

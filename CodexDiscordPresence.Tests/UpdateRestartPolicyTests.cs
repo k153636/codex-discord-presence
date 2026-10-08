@@ -32,6 +32,31 @@ public sealed class UpdateRestartPolicyTests
     }
 
     [Fact]
+    public void CanRestart_FreshCompletedProviderSelectionWithoutActivityCountsAsIdle()
+    {
+        var state = new PresenceRuntimeState();
+        state.PublishDashboardSnapshot(PresenceDashboardSnapshot.Empty with
+        {
+            UpdatedAtUtc = Now,
+            HasNoActiveProvider = true
+        });
+        Assert.True(UpdateRestartPolicy.CanRestart(state, false, Now));
+        Assert.False(UpdateRestartPolicy.CanRestart(state, true, Now));
+        Assert.False(UpdateRestartPolicy.CanRestart(state, false, Now.AddSeconds(16)));
+        Assert.False(UpdateRestartPolicy.CanRestart(state, false, Now.AddSeconds(-1)));
+    }
+
+    [Fact]
+    public void CanRestart_ActivePresenceIsNotOverriddenByNoProviderFlag()
+    {
+        var state = new PresenceRuntimeState();
+        state.PublishDashboardSnapshot(new PresenceDashboardSnapshot(AppProfileKind.Codex, null, null,
+            new RenderedPresence("", "", null, "", [], Now, CodexActivityKind.RunningCommand,
+                RunningCommandKind.Unknown, ""), null, true, Now) { HasNoActiveProvider = true });
+        Assert.False(UpdateRestartPolicy.CanRestart(state, false, Now));
+    }
+
+    [Fact]
     public void RestartArguments_PreserveSpacedArgumentsAndReplacePreviousTimestamp()
     {
         var started = Now.AddHours(-2);
