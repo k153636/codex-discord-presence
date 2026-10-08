@@ -1,6 +1,6 @@
 # K's Code Presence
 
-> AI coding status for Discord: K's Code Presence is an unofficial Windows tray application for showing observable Codex CLI and Codex Desktop activity in Discord Rich Presence.
+> AI coding status for Discord: K's Code Presence is an unofficial Windows tray application for showing observable Codex CLI, Codex Desktop, Claude Code, and Antigravity CLI activity in Discord Rich Presence.
 
 ## Canonical links
 
@@ -18,13 +18,15 @@
 - Supported published target: Windows x64.
 - Current runtime requirement: .NET 9 Desktop Runtime.
 - Discord requirement: Discord Desktop must be running for local Rich Presence delivery.
-- Supported profiles: Codex Desktop and a separate Codex CLI profile.
+- Supported tools: Codex Desktop and a separate Codex CLI profile (built in), plus opt-in Claude Code and Antigravity CLI integrations enabled from the Dashboard.
+- Claude Code: observational hooks in ~/.claude/settings.json; shows model, effort, MCP and file activity, terminal spinner labels, Claude Design, and subagent party; prompts, tool output, and source text are discarded; tokens, cost, and quota are not shown.
+- Antigravity CLI: official statusLine payload; shows model, plan and quota usage, tool activity, and explicitly reported subagents.
 - Main output: one readable Discord activity line with configured details, state, assets, timestamps, and buttons.
 - Activity evidence: structured Codex session events and direct tool targets take precedence over fallback file and timestamp evidence.
 - MCP behavior: a current MCP operation can replace the normal reasoning, file, or command label with the active server identity.
 - Local inputs: Codex session JSONL, Codex configuration, process/window signals, project metadata, and Git metadata according to configuration.
 - Hosted service: none operated by this project.
-- Affiliation: unofficial community project; not endorsed by OpenAI or Discord.
+- Affiliation: unofficial community project; not endorsed by OpenAI, Anthropic, Google, or Discord.
 
 ## Important limits
 
