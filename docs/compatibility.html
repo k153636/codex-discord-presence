@@ -12,10 +12,10 @@
 <body>
   <header class="site-header">
     <div class="shell nav-row">
-      <a class="brand" href="./">K's Code Presence</a>
+      <a class="brand" href="./"><span class="brand-mark" aria-hidden="true"></span><span>K's Code Presence</span></a>
       <nav aria-label="Primary navigation">
-        <a href="./">Home</a>
         <a href="faq.html">FAQ</a>
+        <a href="compatibility.html" aria-current="page">Compatibility</a>
         <a href="privacy.html">Data flow</a>
         <a href="https://github.com/k153636/codex-discord-presence">GitHub</a>
       </nav>
@@ -23,7 +23,7 @@
   </header>
 
   <main class="shell section prose">
-    <p class="eyebrow">CURRENT RELEASE BOUNDARIES</p>
+    <p class="eyebrow">Current release boundaries</p>
     <h1>Compatibility notes</h1>
     <p class="lead">This page describes what the current published build supports and where its evidence falls back.</p>
 
@@ -63,7 +63,12 @@
   <footer class="site-footer" data-motion="site-footer">
     <div class="shell footer-row">
       <span>K's Code Presence · Unofficial community project</span>
-      <a href="https://github.com/k153636/codex-discord-presence">Source repository</a>
+      <nav class="footer-links" aria-label="Footer navigation">
+        <a href="faq.html">FAQ</a>
+        <a href="compatibility.html" aria-current="page">Compatibility</a>
+        <a href="privacy.html">Data flow</a>
+        <a href="https://github.com/k153636/codex-discord-presence/releases/latest">Latest release</a>
+      </nav>
     </div>
   </footer>
   <script src="motion.js"></script>

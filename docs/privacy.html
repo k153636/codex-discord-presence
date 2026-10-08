@@ -12,18 +12,18 @@
 <body>
   <header class="site-header">
     <div class="shell nav-row">
-      <a class="brand" href="./">K's Code Presence</a>
+      <a class="brand" href="./"><span class="brand-mark" aria-hidden="true"></span><span>K's Code Presence</span></a>
       <nav aria-label="Primary navigation">
-        <a href="./">Home</a>
         <a href="faq.html">FAQ</a>
         <a href="compatibility.html">Compatibility</a>
+        <a href="privacy.html" aria-current="page">Data flow</a>
         <a href="https://github.com/k153636/codex-discord-presence">GitHub</a>
       </nav>
     </div>
   </header>
 
   <main class="shell section prose">
-    <p class="eyebrow">DATA FLOW</p>
+    <p class="eyebrow">Data flow</p>
     <h1>What the app reads and publishes</h1>
     <p class="lead">The app is local-first, but a Discord activity is still shared with Discord and can contain the text configured by the user.</p>
 
@@ -55,7 +55,12 @@
   <footer class="site-footer" data-motion="site-footer">
     <div class="shell footer-row">
       <span>K's Code Presence · Unofficial community project</span>
-      <a href="https://github.com/k153636/codex-discord-presence">Source repository</a>
+      <nav class="footer-links" aria-label="Footer navigation">
+        <a href="faq.html">FAQ</a>
+        <a href="compatibility.html">Compatibility</a>
+        <a href="privacy.html" aria-current="page">Data flow</a>
+        <a href="https://github.com/k153636/codex-discord-presence/releases/latest">Latest release</a>
+      </nav>
     </div>
   </footer>
   <script src="motion.js"></script>
