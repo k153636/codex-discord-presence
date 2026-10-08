@@ -45,6 +45,48 @@ public sealed class UpdateSettingsPreserverTests : IDisposable
     }
 
     [Fact]
+    public void Preserve_DesktopOverrideShadowedByCliDefaultDoesNotBecomeUserOverride()
+    {
+        const string defaults = """{"UpdateIntervalSeconds":2,"Discord":{"ClientId":"default"}}""";
+        Write("appsettings.defaults.json", defaults);
+        Write("appsettings.cli.defaults.json", defaults);
+        Write("appsettings.cli.json", defaults);
+        Write("appsettings.json", """{"UpdateIntervalSeconds":5,"Discord":{"ClientId":"desktop"}}""");
+
+        var before = AppOptions.Load([], _paths);
+        new UpdateSettingsPreserver(_paths).Preserve();
+        var overrides = JsonNode.Parse(File.ReadAllText(_paths.UserSettingsPath))!.AsObject();
+        Assert.Empty(overrides);
+
+        Write("appsettings.json", defaults);
+        var after = AppOptions.Load([], _paths);
+        Assert.Equal(before.UpdateIntervalSeconds, after.UpdateIntervalSeconds);
+        Assert.Equal(before.Discord.ClientId, after.Discord.ClientId);
+
+        Write("appsettings.cli.json", """{"UpdateIntervalSeconds":3,"Discord":{"ClientId":"default"}}""");
+        Assert.Equal(3, AppOptions.Load([], _paths).UpdateIntervalSeconds);
+    }
+
+    [Fact]
+    public void Preserve_CliAndUserOverridesRetainTheirEffectivePrecedence()
+    {
+        const string defaults = """{"UpdateIntervalSeconds":2,"Discord":{"ClientId":"default"}}""";
+        Write("appsettings.defaults.json", defaults);
+        Write("appsettings.cli.defaults.json", defaults);
+        Write("appsettings.json", """{"UpdateIntervalSeconds":5,"Discord":{"ClientId":"desktop"}}""");
+        Write("appsettings.cli.json", """{"UpdateIntervalSeconds":7,"Discord":{"ClientId":"cli"}}""");
+        File.WriteAllText(_paths.UserSettingsPath, """{"UpdateIntervalSeconds":6}""");
+
+        var before = AppOptions.Load([], _paths);
+        new UpdateSettingsPreserver(_paths).Preserve();
+        Write("appsettings.json", defaults);
+        Write("appsettings.cli.json", defaults);
+        var after = AppOptions.Load([], _paths);
+        Assert.Equal(before.UpdateIntervalSeconds, after.UpdateIntervalSeconds);
+        Assert.Equal(before.Discord.ClientId, after.Discord.ClientId);
+    }
+
+    [Fact]
     public void Preserve_HandlesCaseInsensitiveKeysCommentsAndArrays()
     {
         Write("appsettings.defaults.json", """{"Discord":{"ClientId":"default"},"List":[1]}""");
