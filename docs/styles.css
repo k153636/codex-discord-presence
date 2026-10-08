@@ -838,8 +838,8 @@ a:focus-visible {
 
 .origin {
   display: grid;
-  grid-template-columns: max-content minmax(0, 1fr);
-  align-items: start;
+  grid-template-columns: minmax(0, 1.1fr) minmax(0, 0.9fr);
+  align-items: center;
   gap: clamp(2.5rem, 5vw, 4.5rem);
   padding: clamp(2.75rem, 4.5vw, 4rem) 0;
   border-bottom: 1px solid var(--border-subtle);
@@ -855,12 +855,103 @@ a:focus-visible {
   font-size: clamp(2rem, 3.4vw, 2.8rem);
 }
 
-.origin-copy p {
+.origin-copy h2 + p {
   max-width: 680px;
   margin: 1.1rem 0 0;
   color: var(--text-secondary);
   font-size: clamp(1rem, 1.25vw, 1.08rem);
   line-height: 1.68;
+}
+
+.origin-compare {
+  display: grid;
+  gap: 0.75rem;
+  padding: clamp(1.25rem, 2.5vw, 1.75rem);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background:
+    radial-gradient(ellipse 80% 60% at 50% 100%, rgba(41, 151, 255, 0.14) 0%, transparent 70%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.035) 0%, rgba(255, 255, 255, 0.01) 100%);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06);
+}
+
+.compare-row {
+  display: grid;
+  gap: 0.5rem;
+}
+
+.compare-label {
+  color: var(--muted);
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.compare-row--live .compare-label {
+  color: var(--eyebrow-accent);
+}
+
+.compare-card {
+  display: flex;
+  align-items: center;
+  gap: 0.85rem;
+  min-width: 0;
+  padding: 0.8rem;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 14px;
+  background: var(--discord-card-bg);
+  font-family: "gg sans", "Segoe UI Variable Text", "Segoe UI", ui-sans-serif, system-ui, sans-serif;
+}
+
+.compare-card img {
+  flex: 0 0 52px;
+  width: 52px;
+  height: 52px;
+  border-radius: 10px;
+  object-fit: cover;
+}
+
+.compare-copy {
+  display: grid;
+  min-width: 0;
+  line-height: 1.35;
+}
+
+.compare-copy strong {
+  color: var(--discord-card-title);
+  font-size: 0.95rem;
+}
+
+.compare-copy span {
+  color: var(--discord-card-text);
+  font-size: 0.85rem;
+}
+
+.compare-row--generic .compare-card {
+  opacity: 0.55;
+  filter: saturate(0.2);
+}
+
+.compare-row--live .compare-card {
+  border-color: rgba(90, 175, 255, 0.4);
+  box-shadow: 0 0 0 1px rgba(41, 151, 255, 0.12), 0 12px 32px -12px rgba(41, 151, 255, 0.55);
+}
+
+.compare-arrow {
+  display: grid;
+  place-items: center;
+  color: var(--accent);
+}
+
+.compare-arrow svg {
+  width: 1.25rem;
+  height: 1.25rem;
+  fill: none;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 2;
 }
 
 .origin .eyebrow {
@@ -1016,10 +1107,6 @@ html.motion-enhanced [data-motion="hero-copy"] {
 
 html.motion-enhanced [data-motion="presence-figure"] {
   transform: translate3d(0, 1rem, 0);
-}
-
-html.motion-enhanced [data-motion="origin-label"] {
-  transform: translate3d(-0.75rem, 0, 0);
 }
 
 html.motion-enhanced [data-motion].is-visible,
@@ -1228,7 +1315,7 @@ body::before {
 
   .origin {
     grid-template-columns: 1fr;
-    gap: 0;
+    gap: 2.25rem;
   }
 
   .install-line {
