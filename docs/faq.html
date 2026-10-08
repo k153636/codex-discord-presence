@@ -3,8 +3,8 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>K's Code Presence FAQ | Codex Discord Rich Presence</title>
-  <meta name="description" content="Frequently asked questions about K's Code Presence, an unofficial Windows Codex CLI and Codex Desktop Discord Rich Presence app.">
+  <title>K's Code Presence FAQ | AI coding Discord Rich Presence</title>
+  <meta name="description" content="Frequently asked questions about K's Code Presence, an unofficial Windows Discord Rich Presence app for Codex CLI, Codex Desktop, Claude Code, and Antigravity CLI.">
   <link rel="canonical" href="https://k153636.github.io/codex-discord-presence/faq.html">
   <link rel="icon" type="image/png" href="https://raw.githubusercontent.com/k153636/codex-discord-presence/main/Assets/RpcArt/rpc_codex.png">
   <link rel="stylesheet" href="styles.css">
@@ -18,7 +18,31 @@
         "name": "What is K's Code Presence?",
         "acceptedAnswer": {
           "@type": "Answer",
-          "text": "K's Code Presence is an unofficial Windows tray app that reads observable Codex CLI or Codex Desktop session activity and publishes a readable Discord Rich Presence through Discord's local RPC connection."
+          "text": "K's Code Presence is an unofficial Windows tray app that reads observable activity from Codex CLI, Codex Desktop, Claude Code, and Antigravity CLI and publishes a readable Discord Rich Presence through Discord's local RPC connection."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "Which AI coding tools does it support?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "Codex CLI and Codex Desktop are detected by default. Claude Code and Antigravity CLI are opt-in integrations you enable from the Dashboard. Discord shows the tool you are actually using; enabling an integration does not force it to take over."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "What does it show for Claude Code?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "Observed model and effort, MCP and file activity, terminal spinner labels such as Cerebrating, Claude Design work, and subagent party size. Tokens, cost, and quota are not shown for Claude Code, and prompts, tool output, and source text are discarded."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "What does it show for Antigravity CLI?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "Model, plan and quota usage, and tool activity from Antigravity's official statusLine payload. A party appears only when the payload reports active subagents. If you already have your own statusLine setting, the app reports a conflict and leaves it unchanged."
         }
       },
       {
@@ -55,10 +79,10 @@
       },
       {
         "@type": "Question",
-        "name": "Is this an official OpenAI or Discord product?",
+        "name": "Is this an official OpenAI, Anthropic, Google, or Discord product?",
         "acceptedAnswer": {
           "@type": "Answer",
-          "text": "No. This is an unofficial community project and is not endorsed by OpenAI or Discord."
+          "text": "No. This is an unofficial community project and is not endorsed by OpenAI, Anthropic, Google, or Discord."
         }
       }
     ]
@@ -84,7 +108,16 @@
     <p class="lead">Answers are intentionally specific so users and search assistants can distinguish K's Code Presence from other Codex RPC tools.</p>
 
     <h2>What is K's Code Presence?</h2>
-    <p>K's Code Presence is an unofficial Windows tray app that reads observable Codex CLI or Codex Desktop session activity and publishes a readable Discord Rich Presence through Discord's local RPC connection.</p>
+    <p>K's Code Presence is an unofficial Windows tray app that reads observable activity from Codex CLI, Codex Desktop, Claude Code, and Antigravity CLI and publishes a readable Discord Rich Presence through Discord's local RPC connection.</p>
+
+    <h2>Which AI coding tools does it support?</h2>
+    <p>Codex CLI and Codex Desktop are detected by default. Claude Code and Antigravity CLI are opt-in integrations you enable from the Dashboard. Discord shows the tool you are actually using; enabling an integration does not force it to take over. See the <a href="compatibility.html">compatibility notes</a>.</p>
+
+    <h2>What does it show for Claude Code?</h2>
+    <p>Observed model and effort, MCP and file activity, terminal spinner labels such as Cerebrating, Claude Design work, and subagent party size. Tokens, cost, and quota are not shown for Claude Code, and prompts, tool output, and source text are discarded.</p>
+
+    <h2>What does it show for Antigravity CLI?</h2>
+    <p>Model, plan and quota usage, and tool activity from Antigravity's official statusLine payload. A party appears only when the payload reports active subagents. If you already have your own statusLine setting, the app reports a conflict and leaves it unchanged.</p>
 
     <h2>Does it support Codex CLI and Codex Desktop?</h2>
     <p>The published Windows profile supports Codex Desktop process detection. A separate CLI profile supports Codex CLI process and session detection. See the <a href="compatibility.html">compatibility notes</a>.</p>
@@ -98,8 +131,8 @@
     <h2>What are the current requirements?</h2>
     <p>The current published build targets Windows x64, requires the .NET 9 Desktop Runtime, and requires Discord Desktop to be running for Rich Presence delivery.</p>
 
-    <h2>Is this an official OpenAI or Discord product?</h2>
-    <p>No. This is an unofficial community project and is not endorsed by OpenAI or Discord.</p>
+    <h2>Is this an official OpenAI, Anthropic, Google, or Discord product?</h2>
+    <p>No. This is an unofficial community project and is not endorsed by OpenAI, Anthropic, Google, or Discord.</p>
 
     <h2>Where can I download it?</h2>
     <p>Use the <a href="https://github.com/k153636/codex-discord-presence/releases/latest">latest GitHub Release</a>. The release currently provides <code>discord-presence-for-codex.exe</code>.</p>

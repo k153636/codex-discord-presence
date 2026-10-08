@@ -3,12 +3,12 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>K's Code Presence — Codex activity in Discord for Windows</title>
-  <meta name="description" content="K's Code Presence is an unofficial Windows tray app for AI coding status that turns observable Codex activity into one clear Discord Rich Presence.">
+  <title>K's Code Presence — AI coding activity in Discord for Windows</title>
+  <meta name="description" content="K's Code Presence is an unofficial Windows tray app that turns observable Codex, Claude Code, and Antigravity CLI activity into one clear Discord Rich Presence.">
   <link rel="canonical" href="https://k153636.github.io/codex-discord-presence/">
   <meta property="og:type" content="website">
-  <meta property="og:title" content="K's Code Presence — Codex activity in Discord for Windows">
-  <meta property="og:description" content="Turn observable Codex activity into one clear Discord Rich Presence from a local Windows tray app for AI coding status.">
+  <meta property="og:title" content="K's Code Presence — AI coding activity in Discord for Windows">
+  <meta property="og:description" content="Turn observable Codex, Claude Code, and Antigravity CLI activity into one clear Discord Rich Presence from a local Windows tray app.">
   <meta property="og:site_name" content="K's Code Presence">
   <meta property="og:url" content="https://k153636.github.io/codex-discord-presence/">
   <meta property="og:image" content="https://raw.githubusercontent.com/k153636/codex-discord-presence/main/Assets/RpcArt/rpc_codex.png">
@@ -21,7 +21,7 @@
     "@context": "https://schema.org",
     "@type": "SoftwareApplication",
     "name": "K's Code Presence",
-    "description": "Unofficial Windows tray app for showing observable Codex CLI and Codex Desktop activity in Discord Rich Presence.",
+    "description": "Unofficial Windows tray app for showing observable Codex CLI, Codex Desktop, Claude Code, and Antigravity CLI activity in Discord Rich Presence.",
     "applicationCategory": "DeveloperApplication",
     "operatingSystem": "Windows",
     "softwareVersion": "1.2.5",
@@ -52,10 +52,10 @@
     <section class="hero shell" aria-labelledby="hero-title">
       <div class="hero-grid">
         <div class="hero-copy" data-motion="hero-copy">
-          <p class="hero-badge"><span class="hero-badge-dot" aria-hidden="true"></span>Codex RPC for Windows</p>
-          <p class="hero-badge-note">Unofficial</p>
+          <p class="hero-badge"><span class="hero-badge-dot" aria-hidden="true"></span>AI coding presence for Windows</p>
           <h1 id="hero-title">Show the work behind the <span class="text-gradient">status.</span></h1>
           <p class="lead">Live AI coding activity, carried into Discord while you work.</p>
+          <p class="hero-scope-note">Thinking summaries are available for Codex only. Claude Code and Antigravity CLI show general status labels.</p>
           <div class="actions">
             <a class="button primary" href="https://github.com/k153636/codex-discord-presence/releases/latest">Download for Windows</a>
             <a class="button secondary" href="https://github.com/k153636/codex-discord-presence">View source</a>
@@ -81,10 +81,10 @@
                       <div class="rpc-preview-content">
                         <div class="rpc-preview-art" aria-hidden="true">
                           <img class="rpc-preview-large" data-rpc-card-image src="assets/rpc_reading.gif" alt="" width="100" height="100">
-                          <img class="rpc-preview-small" src="assets/rpc_codex.png" alt="" width="32" height="32">
+                          <img class="rpc-preview-small" data-rpc-card-small src="assets/rpc_codex.png" alt="" width="32" height="32">
                         </div>
                         <div class="rpc-preview-copy">
-                          <strong>Codex</strong>
+                          <strong data-rpc-card-title>Codex</strong>
                           <span data-rpc-card-details>gpt 6 astra xhigh 1.5x • 35.6M Token</span>
                           <span data-rpc-card-state>MCP chrome-devtools</span>
                           <span class="rpc-preview-elapsed" role="timer" aria-live="off" aria-label="Elapsed time">
@@ -109,11 +109,45 @@
       </div>
     </section>
 
+    <section class="shell section providers" aria-labelledby="providers-heading">
+      <div class="section-intro" data-motion="providers-intro">
+        <p class="eyebrow">Works with</p>
+        <h2 id="providers-heading">One presence for the tools you code with.</h2>
+        <p class="section-lead">Discord follows the AI coding tool you are actually using. Codex works out of the box; Claude Code and Antigravity CLI are opt-in from the Dashboard.</p>
+      </div>
+      <div class="provider-grid">
+        <article class="provider-card" data-motion="provider-card">
+          <div class="provider-card-head">
+            <img src="assets/rpc_thinking.gif" alt="" width="48" height="48" loading="lazy">
+            <h3>Codex CLI &amp; Desktop</h3>
+            <span class="provider-chip provider-chip--builtin">Built in</span>
+          </div>
+          <p>Reasoning summaries, MCP servers, edited files, model and effort, tokens, and subagent party from local session logs.</p>
+        </article>
+        <article class="provider-card" data-motion="provider-card">
+          <div class="provider-card-head">
+            <img src="assets/clawd-working-typing.gif" alt="" width="48" height="48" loading="lazy">
+            <h3>Claude Code</h3>
+            <span class="provider-chip provider-chip--optin">Opt-in</span>
+          </div>
+          <p>Observational hooks show model and effort, MCP and file activity, terminal spinner labels, Claude Design, and subagent party. Prompts and code are never stored.</p>
+        </article>
+        <article class="provider-card" data-motion="provider-card">
+          <div class="provider-card-head">
+            <img src="assets/rpc_antigravity_cli.png" alt="" width="48" height="48" loading="lazy">
+            <h3>Antigravity CLI</h3>
+            <span class="provider-chip provider-chip--optin">Opt-in</span>
+          </div>
+          <p>The official statusLine payload shows model, plan and quota usage, tool activity, and subagents only when they are reported.</p>
+        </article>
+      </div>
+    </section>
+
     <section class="shell section features" aria-labelledby="features-heading">
       <div class="section-intro" data-motion="features-intro">
         <p class="eyebrow">What it can show</p>
         <h2 id="features-heading">One line, always the most specific one.</h2>
-        <p class="section-lead">The activity line follows the newest Codex evidence, so Discord shows what is actually happening instead of a generic label.</p>
+        <p class="section-lead">The activity line follows the newest evidence from the selected tool, so Discord shows what is actually happening instead of a generic label.</p>
       </div>
       <div class="feature-grid">
         <article class="feature-card" data-motion="feature-card">
@@ -167,7 +201,7 @@
       <div class="origin-copy" data-motion="origin-copy">
         <p class="eyebrow">Why I made it</p>
         <h2 id="origin-heading">Standard states were never enough.</h2>
-        <p>I had used other Codex RPCs, but they all showed standard states like “Thinking” and “Editing.” They never felt right to me. K's Code Presence can display Codex's actual thinking summaries.</p>
+        <p>I had used other Codex RPCs, but they all showed standard states like “Thinking” and “Editing.” They never felt right to me. K's Code Presence can display Codex's actual thinking summaries, and it now follows Claude Code and Antigravity CLI too.</p>
       </div>
       <div class="origin-compare" data-motion="origin-compare">
         <div class="compare-row compare-row--generic">
@@ -193,9 +227,9 @@
     <section class="shell install-line" data-motion="install-line" aria-labelledby="install-heading">
       <div class="install-intro">
         <p class="eyebrow">Ready when you are</p>
-        <h2 id="install-heading">Start with one clear line.</h2>
+        <h2 id="install-heading">Show your AI coding in Discord.</h2>
       </div>
-      <p class="install-requirements"><span>Windows x64</span><span>.NET 9 Desktop Runtime</span><span>Discord Desktop</span></p>
+      <p class="install-requirements"><span>Windows x64</span><span>.NET 9 Desktop Runtime</span><span>Discord Desktop</span><span>Codex, Claude Code, or Antigravity CLI</span></p>
       <a class="button primary" href="https://github.com/k153636/codex-discord-presence/releases/latest">Download</a>
     </section>
   </main>
