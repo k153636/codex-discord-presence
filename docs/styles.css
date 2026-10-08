@@ -863,6 +863,7 @@ a:focus-visible {
   font-size: 0.78rem;
   font-weight: 600;
   letter-spacing: 0.02em;
+  text-align: center;
 }
 
 .compare-row--live .compare-label {
