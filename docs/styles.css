@@ -541,6 +541,7 @@ a:focus-visible {
     0 24px 48px -12px rgba(0, 0, 0, 0.85),
     0 8px 20px -4px rgba(0, 0, 0, 0.5),
     0 0 20px -2px rgba(41, 151, 255, 0.24),
+    0 18px 40px -24px rgba(41, 151, 255, 0),
     inset 0 1px 0 rgba(255, 255, 255, 0.24);
   transform: translateX(-50%) scale(var(--rpc-preview-active-scale));
 }
@@ -548,7 +549,13 @@ a:focus-visible {
 .rpc-preview-card--active.is-hovered {
   translate: 0 -6px;
   border-color: rgba(96, 165, 250, 0.35);
-  box-shadow: 0 18px 40px -24px rgba(41, 151, 255, 0.55), inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  /* Same layer order as the resting card so the glow interpolates instead of jumping. */
+  box-shadow:
+    0 24px 48px -12px rgba(0, 0, 0, 0.85),
+    0 8px 20px -4px rgba(0, 0, 0, 0.5),
+    0 0 20px -2px rgba(41, 151, 255, 0.24),
+    0 18px 40px -24px rgba(41, 151, 255, 0.55),
+    inset 0 1px 0 rgba(255, 255, 255, 0.24);
   transition-duration: var(--motion-surface-duration);
   transition-timing-function: var(--motion-ease);
 }
@@ -849,7 +856,7 @@ a:focus-visible {
   border: 1px solid var(--border);
   border-radius: 20px;
   background: linear-gradient(180deg, rgba(255, 255, 255, 0.045) 0%, rgba(255, 255, 255, 0.015) 100%);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  box-shadow: 0 18px 40px -24px rgba(41, 151, 255, 0), inset 0 1px 0 rgba(255, 255, 255, 0.06);
   translate: 0 0;
 }
 
