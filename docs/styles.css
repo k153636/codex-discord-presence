@@ -34,6 +34,7 @@
   --motion-duration: 900ms;
   --motion-duration-short: 260ms;
   --motion-surface-duration: 640ms;
+  --motion-hover-release-duration: 760ms;
   --motion-ease: cubic-bezier(0.2, 0.8, 0.2, 1);
   --motion-ambient-ease: cubic-bezier(0.37, 0, 0.63, 1);
   --motion-reveal-duration: 1120ms;
@@ -857,12 +858,30 @@ a:focus-visible {
   border-radius: 20px;
   background: linear-gradient(180deg, rgba(255, 255, 255, 0.045) 0%, rgba(255, 255, 255, 0.015) 100%);
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06);
-  transition: border-color var(--motion-duration-short) var(--motion-ease), transform var(--motion-duration-short) var(--motion-ease), box-shadow var(--motion-duration-short) var(--motion-ease);
+  translate: 0 0;
 }
 
-.feature-card:hover {
-  border-color: rgba(96, 165, 250, 0.35);
-  box-shadow: 0 18px 40px -24px rgba(41, 151, 255, 0.55), inset 0 1px 0 rgba(255, 255, 255, 0.08);
+/* Matches the preview card hover; also outranks the scroll-reveal transition. */
+.feature-card,
+html.motion-enhanced .feature-card[data-motion] {
+  transition:
+    opacity var(--motion-duration) var(--motion-ease) var(--motion-delay, 0ms),
+    transform var(--motion-duration) var(--motion-ease) var(--motion-delay, 0ms),
+    translate var(--motion-hover-release-duration) var(--motion-ease),
+    border-color var(--motion-hover-release-duration) var(--motion-ease),
+    box-shadow var(--motion-hover-release-duration) var(--motion-ease);
+}
+
+.feature-card:hover,
+html.motion-enhanced .feature-card[data-motion]:hover {
+  translate: 0 -6px;
+  border-color: rgba(96, 165, 250, 0.45);
+  box-shadow:
+    0 0 0 1px rgba(96, 165, 250, 0.22),
+    0 0 18px rgba(41, 151, 255, 0.22),
+    0 18px 40px -24px rgba(41, 151, 255, 0.55),
+    inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  transition-duration: var(--motion-duration), var(--motion-duration), var(--motion-surface-duration), var(--motion-surface-duration), var(--motion-surface-duration);
 }
 
 .feature-visual {
