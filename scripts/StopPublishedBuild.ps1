@@ -9,10 +9,10 @@ $ErrorActionPreference = 'Stop'
 try {
     $stopped = Stop-CodexRpcProcess -RootDir $RootDir
     if ($stopped) {
-        Write-Host 'Stopped Codex Discord RPC.'
+        Write-Host "Stopped K's Code Presence."
     }
     else {
-        Write-Host 'No running Codex Discord RPC instance was found.'
+        Write-Host "No running K's Code Presence instance was found."
     }
 }
 catch {

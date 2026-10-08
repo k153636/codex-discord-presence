@@ -7,8 +7,17 @@ public sealed class AppOptions
 {
     public DiscordOptions Discord { get; set; } = new();
     public DiscordOptions? DiscordCli { get; set; }
+    public DiscordOptions DiscordAntigravity { get; set; } = CreateUnconfiguredProviderDiscordOptions();
+    public DiscordOptions DiscordClaudeCode { get; set; } = ClaudeCodeAssetPolicy.CreateDiscordOptions();
     public CodexDetectionOptions Codex { get; set; } = new();
     public CodexDetectionOptions? CodexCli { get; set; }
+    public Dictionary<string, ProviderOptions> Providers { get; set; } =
+        new(StringComparer.OrdinalIgnoreCase)
+        {
+            [ProviderIds.Codex] = new() { Enabled = true },
+            [ProviderIds.Antigravity] = new() { Enabled = false },
+            [ProviderIds.ClaudeCode] = new() { Enabled = false }
+        };
     public ProjectOptions Project { get; set; } = new();
     public PresenceTemplateOptions Presence { get; set; } = new();
     public TokenUsageOptions TokenUsage { get; set; } = new();
@@ -49,9 +58,12 @@ public sealed class AppOptions
 
     public static AppOptions LoadFromFile(string path)
     {
-        return File.Exists(path)
-            ? JsonSerializer.Deserialize<AppOptions>(File.ReadAllText(path), JsonOptions()) ?? new AppOptions()
+        var options = File.Exists(path)
+            ? DeserializeOptions(JsonNode.Parse(File.ReadAllText(path), documentOptions: new JsonDocumentOptions
+                { CommentHandling = JsonCommentHandling.Skip, AllowTrailingCommas = true }) as JsonObject ?? new JsonObject())
             : new AppOptions();
+        options.EnsureProviderDefaults();
+        return options;
     }
 
     public static AppOptions LoadMerged(params string[] paths)
@@ -68,7 +80,22 @@ public sealed class AppOptions
             MergeJsonObject(merged, node);
         }
 
-        return merged.Deserialize<AppOptions>(JsonOptions()) ?? new AppOptions();
+        var options = DeserializeOptions(merged);
+        options.EnsureProviderDefaults();
+        return options;
+    }
+
+    private static AppOptions DeserializeOptions(JsonObject settings)
+    {
+        // Partial provider overrides must inherit that provider's defaults, never Codex assets.
+        var claudeDefaults = JsonSerializer.SerializeToNode(ClaudeCodeAssetPolicy.CreateDiscordOptions())!.AsObject();
+        var key = FindPropertyName(settings, nameof(DiscordClaudeCode)) ?? nameof(DiscordClaudeCode);
+        if (settings[key] is JsonObject overrides)
+        {
+            MergeJsonObject(claudeDefaults, overrides);
+        }
+        settings[key] = claudeDefaults;
+        return settings.Deserialize<AppOptions>(JsonOptions()) ?? new AppOptions();
     }
 
     public CodexDetectionOptions GetCodexDetectionOptions(AppProfileKind profile)
@@ -84,6 +111,36 @@ public sealed class AppOptions
             ? DiscordCli
             : Discord;
     }
+
+    public DiscordOptions GetAntigravityDiscordOptions() => DiscordAntigravity;
+
+    private void EnsureProviderDefaults()
+    {
+        DiscordAntigravity ??= CreateUnconfiguredProviderDiscordOptions();
+        DiscordClaudeCode ??= ClaudeCodeAssetPolicy.CreateDiscordOptions();
+
+        var normalizedProviders = new Dictionary<string, ProviderOptions>(StringComparer.OrdinalIgnoreCase);
+        if (Providers is not null)
+        {
+            foreach (var (providerId, providerOptions) in Providers)
+            {
+                if (!string.IsNullOrWhiteSpace(providerId) && providerOptions is not null)
+                {
+                    normalizedProviders[providerId.Trim()] = providerOptions;
+                }
+            }
+        }
+
+        Providers = normalizedProviders;
+        Providers.TryAdd(ProviderIds.Codex, new ProviderOptions { Enabled = true });
+        Providers.TryAdd(ProviderIds.Antigravity, new ProviderOptions { Enabled = false });
+        Providers.TryAdd(ProviderIds.ClaudeCode, new ProviderOptions { Enabled = false });
+    }
+
+    private static DiscordOptions CreateUnconfiguredProviderDiscordOptions() => new()
+    {
+        ClientId = ""
+    };
 
     private static bool TryLoadJsonObject(string path, out JsonObject node)
     {
@@ -122,22 +179,30 @@ public sealed class AppOptions
     {
         foreach (var (key, value) in source)
         {
+            var targetKey = FindPropertyName(target, key) ?? key;
             if (value is JsonObject sourceObject)
             {
-                if (target[key] is JsonObject targetObject)
+                if (target[targetKey] is JsonObject targetObject)
                 {
                     MergeJsonObject(targetObject, sourceObject);
                 }
                 else
                 {
-                    target[key] = sourceObject.DeepClone();
+                    target[targetKey] = sourceObject.DeepClone();
                 }
 
                 continue;
             }
 
-            target[key] = value?.DeepClone();
+            target[targetKey] = value?.DeepClone();
         }
+    }
+
+    private static string? FindPropertyName(JsonObject node, string propertyName)
+    {
+        return node
+            .Select(pair => pair.Key)
+            .FirstOrDefault(key => string.Equals(key, propertyName, StringComparison.OrdinalIgnoreCase));
     }
 
     private static JsonSerializerOptions JsonOptions() => new()
@@ -184,6 +249,7 @@ public sealed class DiscordOptions
     };
     public Dictionary<string, string> ExternalImageUrls { get; set; } = new(StringComparer.OrdinalIgnoreCase)
     {
+        ["rpc_antigravity"] = "https://antigravity.google/assets/image/brand/antigravity-icon__full-color.png",
         ["rpc_codex"] = "https://raw.githubusercontent.com/SSHdotCodes/codex-rpc/1a44161a554c4de584c0af7d5eb47c4545983410/assets/codex.png",
         ["rpc_coding"] = "https://raw.githubusercontent.com/SSHdotCodes/codex-rpc/1a44161a554c4de584c0af7d5eb47c4545983410/assets/coding.gif",
         ["rpc_debugging"] = "https://raw.githubusercontent.com/SSHdotCodes/codex-rpc/1a44161a554c4de584c0af7d5eb47c4545983410/assets/debugging.gif",
@@ -277,7 +343,7 @@ public sealed class PresenceTemplateOptions
 {
     public bool AutoDetectModelName { get; set; } = true;
     public string ModelName { get; set; } = "Codex";
-    public string Details { get; set; } = "{GoalModePrefix} {ModelName} \u2022 {Tokens}";
+    public string Details { get; set; } = "{GoalModePrefix} {FeatureLabel} \u2022 {ModelName} \u2022 {ExecutionMode} \u2022 {Tokens}";
     public string WaitingDetails { get; set; } = "{Cost} {BillingType}{RateLimitDetails}";
     public string State { get; set; } = "{ActivityLine}";
     public bool EnableLargeImageText { get; set; } = true;
@@ -287,7 +353,7 @@ public sealed class PresenceTemplateOptions
     [
         new()
         {
-            Label = "K's Codex RPC",
+            Label = ProductBrand.DiscordButtonLabel,
             Url = "https://k153636.github.io/codex-discord-presence/"
         }
     ];
@@ -304,6 +370,8 @@ public sealed class PresenceTemplateOptions
     public string ErrorText { get; set; } = "Error";
     public string ThinkingText { get; set; } = "Thinking";
     public string WorkingText { get; set; } = "Working";
+    public string ToolUseText { get; set; } = "Using tools";
+    public string InitializingText { get; set; } = "Starting";
     public string ResearchingText { get; set; } = "Researching";
     public string IdlingText { get; set; } = "Idling";
     public string ReadyText { get; set; } = "Hold on";

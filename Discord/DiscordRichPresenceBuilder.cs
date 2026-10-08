@@ -31,7 +31,9 @@ internal static class DiscordRichPresenceBuilder
                 SmallImageKey = DiscordAssetKeyResolver.ResolveImageReference(options, options.SmallImageKey),
                 SmallImageText = DiscordPresencePayloadPolicy.NormalizeOptionalText(presence.SmallImageText)
             },
-            Party = DiscordPartyBuilder.Create(presence.PartySize, partyId),
+            Party = DiscordPartyBuilder.Create(
+                presence.PartySize,
+                partyId),
             Buttons = buttons.Length == 0 ? null : buttons,
             Timestamps = presence.StartedAt is null ? null : new Timestamps(presence.StartedAt.Value)
         };

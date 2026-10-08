@@ -48,7 +48,7 @@ function Wait-ForCodexRpcStop {
     } while ([DateTime]::UtcNow -lt $deadline)
 
     $pids = (Get-RunningPresenceProcesses | Select-Object -ExpandProperty Id) -join ', '
-    throw "The previous Codex Discord RPC process did not exit within $TimeoutSeconds seconds. PID(s): $pids"
+    throw "The previous K's Code Presence process did not exit within $TimeoutSeconds seconds. PID(s): $pids"
 }
 
 function Stop-CodexRpcProcess {
@@ -64,7 +64,7 @@ function Stop-CodexRpcProcess {
     }
 
     if ([string]::IsNullOrWhiteSpace($paths.StopExe)) {
-        throw "A previous Codex Discord RPC process is running, but no published executable was found to stop it."
+        throw "A previous K's Code Presence process is running, but no published executable was found to stop it."
     }
 
     $stopProcess = Start-Process `
@@ -76,7 +76,7 @@ function Stop-CodexRpcProcess {
         -PassThru `
         -ErrorAction Stop
     if ($stopProcess.ExitCode -ne 0) {
-        throw "The previous Codex Discord RPC process could not be stopped. Exit code: $($stopProcess.ExitCode)"
+        throw "The previous K's Code Presence process could not be stopped. Exit code: $($stopProcess.ExitCode)"
     }
 
     Wait-ForCodexRpcStop

@@ -146,7 +146,7 @@ public sealed class PresenceEditedFileActivityTests
             directToolFileAt: now,
             taskStartedAt: now.AddSeconds(-1)) with
         {
-            Codex = new CodexProcessSnapshot(true, "codex", false)
+            Activity = new CodexProcessSnapshot(true, "codex", false)
             {
                 DetectedActivityKind = CodexActivityKind.ApplyingEdits,
                 ActivityProvenance = ActivityProvenance.Observed,

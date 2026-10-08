@@ -49,6 +49,11 @@ public sealed class DiscordPresenceClient : IDisposable
 
     public DiscordPresenceSnapshot? LastPublishedPresence { get; private set; }
 
+    internal void RequestPresenceRefresh()
+    {
+        _needsPresenceRefresh = true;
+    }
+
     public void UpdateOptions(DiscordOptions options)
     {
         if (string.Equals(_options.ClientId, options.ClientId, StringComparison.Ordinal) &&

@@ -2,7 +2,6 @@ namespace CodexDiscordPresence;
 
 public sealed class CodexProcessDetector
 {
-    private readonly CodexDetectionOptions _options;
     private readonly PresenceTemplateOptions _presenceOptions;
     private readonly CodexProcessNameMatcher _processNameMatcher;
     private readonly CodexActivityResolver _activityResolver;
@@ -10,12 +9,19 @@ public sealed class CodexProcessDetector
     private readonly RecentEditedFileTracker _recentEditedFileTracker = new();
 
     public CodexProcessDetector(CodexDetectionOptions options, PresenceTemplateOptions presenceOptions)
+        : this(options, presenceOptions, new CodexSessionLogParser(options, presenceOptions))
     {
-        _options = options;
+    }
+
+    internal CodexProcessDetector(
+        CodexDetectionOptions options,
+        PresenceTemplateOptions presenceOptions,
+        CodexSessionLogParser sessionLogParser)
+    {
         _presenceOptions = presenceOptions;
         _processNameMatcher = new CodexProcessNameMatcher(options);
         _activityResolver = new CodexActivityResolver();
-        _sessionLogParser = new CodexSessionLogParser(options, presenceOptions);
+        _sessionLogParser = sessionLogParser;
     }
 
     public CodexProcessSnapshot GetSnapshot(
@@ -30,7 +36,8 @@ public sealed class CodexProcessDetector
         var matchedProcess = _processNameMatcher.FindMatchingProcess(cancellationToken);
         cancellationToken.ThrowIfCancellationRequested();
         var matchedProcessName = matchedProcess?.ProcessName;
-        var projectPathMismatch = sessionInspection is not null &&
+        var projectPathMismatch = !string.IsNullOrWhiteSpace(projectPath) &&
+            sessionInspection is not null &&
             sessionInspection.HasProjectPath &&
             !sessionInspection.MatchesProject;
         var isRunning = matchedProcessName is not null ||
@@ -41,6 +48,7 @@ public sealed class CodexProcessDetector
         {
             return new CodexProcessSnapshot(false, null, false)
             {
+                SessionInspection = sessionInspection,
                 DetectedActivityKind = CodexActivityKind.Offline,
                 ActivityProvenance = ActivityProvenance.Observed,
                 Confidence = ActivityConfidence.High,
@@ -53,6 +61,7 @@ public sealed class CodexProcessDetector
         {
             return new CodexProcessSnapshot(true, matchedProcessName, false)
             {
+                SessionInspection = sessionInspection,
                 DetectedActivityKind = CodexActivityKind.Ready,
                 ActivityProvenance = ActivityProvenance.Observed,
                 Confidence = ActivityConfidence.Low,
@@ -101,6 +110,7 @@ public sealed class CodexProcessDetector
             matchedProcessName,
             CodexActivityEvidence.IsThinkingPhase(activity, activityState))
         {
+            SessionInspection = sessionInspection,
             DetectedActivityKind = activity,
             ActivityProvenance = provenance,
             Confidence = confidence,
@@ -128,6 +138,10 @@ public sealed class CodexProcessDetector
             PartySize = sessionInspection?.PartySize ?? 1,
             IsSuccessfulCompletion = isSuccessfulCompletion,
             IsError = activityState?.Lifecycle == CodexTurnLifecycle.Failed,
+            HasDirectActivityEvidence = HasDirectActivityEvidence(
+                activity,
+                activityState,
+                sessionInspection),
             TurnLifecycle = activityState?.Lifecycle ?? CodexTurnLifecycle.None,
             ObservedProjectPath = sessionInspection?.ProjectPath,
             RecentEditedFiles = recentEditedFiles
@@ -180,6 +194,34 @@ public sealed class CodexProcessDetector
     public bool DetermineIfThinking(string? projectPath = null)
     {
         return GetSnapshot(projectPath).IsThinking;
+    }
+
+    internal void PrimeRecentEditedFileBaseline(ProjectSnapshot projectSnapshot)
+    {
+        ArgumentNullException.ThrowIfNull(projectSnapshot);
+        _recentEditedFileTracker.PrimeBaseline(projectSnapshot);
+    }
+
+    private bool HasDirectActivityEvidence(
+        CodexActivityKind activity,
+        CodexActivityState? activityState,
+        SessionInspection? sessionInspection)
+    {
+        if (activityState is not null)
+        {
+            return true;
+        }
+
+        return activity switch
+        {
+            CodexActivityKind.AnalyzingProject or CodexActivityKind.Planning =>
+                sessionInspection?.HasTaskStarted == true &&
+                sessionInspection.LastTaskStartedAt.HasValue &&
+                DateTime.UtcNow - sessionInspection.LastTaskStartedAt.Value <=
+                TimeSpan.FromMinutes(Math.Max(1, _presenceOptions.ThinkingStaleTimeoutMinutes)),
+            CodexActivityKind.RunningCommand => sessionInspection?.HasRunningCommand == true,
+            _ => false
+        };
     }
 
     private SessionInspection? InspectRecentSessions(

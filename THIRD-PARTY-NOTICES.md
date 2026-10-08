@@ -1,6 +1,6 @@
 # Third-party notices
 
-The root [`LICENSE`](LICENSE) applies to original K's Codex RPC code and
+The root [`LICENSE`](LICENSE) applies to original K's Code Presence code and
 documentation. The asset files listed below are redistributed under the
 upstream license shown in this document.
 

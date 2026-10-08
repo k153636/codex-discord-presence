@@ -1,13 +1,14 @@
-# K's Codex RPC
+# K's Code Presence
 
-Show Codex CLI / Codex Desktop activity in Discord RPC from a local Windows tray app.
+K's Code Presence — AI coding status for Discord.
 
-The app displays Codex's current work in Discord Rich Presence.
+K's Code Presence is an unofficial Windows tray app for showing observable Codex CLI / Codex Desktop and Antigravity CLI activity in Discord Rich Presence.
+The app displays the currently selected AI coding tool's work in Discord Rich Presence.
 Beyond generic “Thinking” or “Editing” labels, it can show reasoning summaries available from Codex sessions, active MCP servers, edited files, command execution, and research activity.
 
 <p>
   <a href="https://github.com/k153636/codex-discord-presence/releases/latest"><img src="https://img.shields.io/github/v/release/k153636/codex-discord-presence?display_name=tag&style=for-the-badge&label=Download" alt="Latest release"></a>
-  <a href="https://k153636.github.io/codex-discord-presence/"><img src="https://img.shields.io/badge/Website-K%27s%20Codex%20RPC-5865F2?style=for-the-badge&logo=googlechrome&logoColor=white" alt="Website"></a>
+  <a href="https://k153636.github.io/codex-discord-presence/"><img src="https://img.shields.io/badge/Website-K%27s%20Code%20Presence-5865F2?style=for-the-badge&logo=googlechrome&logoColor=white" alt="K's Code Presence website"></a>
   <a href="https://github.com/k153636/codex-discord-presence"><img src="https://img.shields.io/badge/Source-GitHub-181717?style=for-the-badge&logo=github&logoColor=white" alt="Source repository"></a>
   <a href="https://github.com/k153636/codex-discord-presence/blob/main/LICENSE"><img src="https://img.shields.io/github/license/k153636/codex-discord-presence?style=for-the-badge&label=License" alt="MIT License"></a>
 </p>
@@ -22,9 +23,9 @@ Beyond generic “Thinking” or “Editing” labels, it can show reasoning sum
 - Session duration, token usage, and estimated cost when available
 - Project information and Git change counts
 - Party information for active subagents
-- Buttons such as a link to the project website
+- A project website button labeled `K's Codex RPC`
 
-The app updates Discord RPC using available Codex session events and process signals.
+K's Code Presence updates Discord Rich Presence using available Codex session events and process signals, plus the Antigravity CLI statusLine payload when that provider is enabled.
 
 ## Codex analysis and state detection happen locally
 
@@ -42,7 +43,7 @@ The content shown in Discord may include project names, file names, and reasonin
 - Windows x64
 - .NET 9 Desktop Runtime
 - Discord Desktop
-- Codex CLI or Codex Desktop
+- Codex CLI, Codex Desktop, or Antigravity CLI
 
 ## Installation
 
@@ -52,13 +53,21 @@ The content shown in Discord may include project names, file names, and reasonin
 4. Run the executable.
 
 The app stays in the Windows system tray.
-Use the tray menu to enable or disable Discord RPC, open the Dashboard, edit settings, or quit the app.
+Use the tray menu to enable or disable Discord Rich Presence, open the Dashboard, edit K's Code Presence settings, or quit the app.
 
 ## Codex CLI and Codex Desktop
 
 The app supports separate detection settings for Desktop and CLI.
 
 It checks the running Codex process, session logs, and CLI command-line information to update the presence for the environment currently in use.
+
+## Antigravity CLI
+
+Antigravity support is opt-in from the Dashboard. The integration reads only the official statusLine JSON payload, groups observations by `conversation_id`, and treats `thinking`, `working`, and `tool_use` as active states. It omits Discord party metadata for solo sessions and publishes a party only when the payload explicitly reports active `subagents`; `task_count` is never used as a subagent count because it represents background work rather than confirmed subagents.
+
+Antigravity CLI uses its own Discord application configuration and the `rpc_antigravity_cli` static art asset; the existing `rpc_antigravity` asset remains reserved for a future Antigravity desktop application. Codex application IDs and asset mappings are not reused.
+
+If Antigravity already has a user-owned `statusLine` setting, the application reports a conflict and leaves that setting unchanged.
 
 ## More information
 

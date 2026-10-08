@@ -52,4 +52,99 @@ public sealed class DiscordRichPresenceBuilderTests
         Assert.Equal(3, snapshot.PartyMax);
         Assert.Equal(["one", "two"], snapshot.Buttons.Select(button => button.Label).ToArray());
     }
+
+    [Fact]
+    public void Create_AntigravityOmitsPartyForSoloPresence()
+    {
+        var rendered = new RenderedPresence(
+            "details",
+            "working",
+            null,
+            "small text",
+            [],
+            DateTime.UtcNow,
+            CodexActivityKind.AnalyzingProject,
+            RunningCommandKind.Unknown,
+            "")
+        {
+            ProviderId = ProviderIds.Antigravity,
+            PartySize = 1
+        };
+
+        var options = new DiscordOptions
+        {
+            ClientId = "1548038167041671259",
+            LargeImageKey = "rpc_antigravity_cli",
+            SmallImageKey = null,
+            ExternalImageUrls = new(StringComparer.OrdinalIgnoreCase)
+        };
+
+        var payload = DiscordRichPresenceBuilder.Create(options, rendered, "antigravity-party");
+
+        Assert.Null(payload.Party);
+        Assert.Equal("rpc_antigravity_cli", payload.Assets!.LargeImageKey);
+        Assert.Null(payload.Assets.SmallImageKey);
+    }
+
+    [Fact]
+    public void Create_AntigravityPublishesPartyForExplicitActiveSubagents()
+    {
+        var rendered = new RenderedPresence(
+            "details",
+            "working",
+            null,
+            "small text",
+            [],
+            DateTime.UtcNow,
+            CodexActivityKind.AnalyzingProject,
+            RunningCommandKind.Unknown,
+            "")
+        {
+            ProviderId = ProviderIds.Antigravity,
+            PartySize = 3
+        };
+
+        var payload = DiscordRichPresenceBuilder.Create(
+            new DiscordOptions { ClientId = "1548038167041671259" },
+            rendered,
+            "antigravity-party");
+
+        Assert.Equal(3, payload.Party!.Size);
+        Assert.Equal(3, payload.Party.Max);
+    }
+
+    [Fact]
+    public void Create_ProviderSwitchKeepsTheSharedRuntimeTimestamp()
+    {
+        var startedAt = new DateTime(2026, 9, 12, 3, 0, 0, DateTimeKind.Utc);
+        var codexPresence = new RenderedPresence(
+            "codex details",
+            "Working",
+            null,
+            "",
+            [],
+            startedAt,
+            CodexActivityKind.AnalyzingProject,
+            RunningCommandKind.Unknown,
+            "")
+        {
+            ProviderId = ProviderIds.Codex
+        };
+        var antigravityPresence = codexPresence with
+        {
+            Details = "antigravity details",
+            ProviderId = ProviderIds.Antigravity
+        };
+
+        var codexPayload = DiscordRichPresenceBuilder.Create(
+            new DiscordOptions(),
+            codexPresence,
+            "codex-party");
+        var antigravityPayload = DiscordRichPresenceBuilder.Create(
+            new DiscordOptions { ClientId = "1548038167041671259" },
+            antigravityPresence,
+            "antigravity-party");
+
+        Assert.Equal(codexPayload.Timestamps!.Start, antigravityPayload.Timestamps!.Start);
+    }
 }

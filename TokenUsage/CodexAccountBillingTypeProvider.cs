@@ -76,7 +76,7 @@ internal sealed class CodexAccountBillingTypeProvider : IBillingTypeProvider, IR
                         clientInfo = new
                         {
                             name = "codex-discord-presence",
-                            title = "Codex Discord Presence",
+                            title = ProductBrand.Name,
                             version = "1.0.0"
                         },
                         capabilities = new

@@ -1,3 +1,4 @@
+using System.Text.Json;
 using CodexDiscordPresence;
 using Xunit;
 
@@ -124,6 +125,104 @@ public sealed class CodexModelNameProviderTests
 
             Assert.Equal("default", snapshot.ServiceTier);
             Assert.Equal("gpt 5.6 luna max", snapshot.DisplayLabel);
+        }
+        finally
+        {
+            Directory.Delete(tempPath, true);
+        }
+    }
+
+    [Fact]
+    public void GetSnapshot_UsesPrimarySessionSettingsWhenSubagentIsNewer()
+    {
+        var tempPath = CreateTempCodexHome();
+        try
+        {
+            var projectPath = @"E:\tool\codex-discord-RPC";
+            var now = DateTime.UtcNow;
+            WriteSession(tempPath, "main.jsonl", new[]
+            {
+                CreateSessionMetaLine(now.AddMinutes(-1), "main-thread", "user", null, projectPath, "gpt-5.5", "max", "default"),
+                CreateSessionLine(now.AddSeconds(-30), new
+                {
+                    type = "turn_context",
+                    cwd = projectPath,
+                    model = "gpt-5.5",
+                    reasoning_effort = "max",
+                    service_tier = "default"
+                }, "event_msg")
+            });
+            WriteSession(tempPath, "subagent.jsonl", new[]
+            {
+                CreateSessionMetaLine(now, "subagent-thread", "subagent", "main-thread", projectPath, "gpt-5.4-mini", "medium", "priority"),
+                CreateSessionLine(now.AddSeconds(1), new
+                {
+                    type = "turn_context",
+                    cwd = projectPath,
+                    model = "gpt-5.4-mini",
+                    reasoning_effort = "medium",
+                    service_tier = "priority"
+                }, "event_msg")
+            });
+            File.SetLastWriteTimeUtc(Path.Combine(tempPath, "sessions", "main.jsonl"), now.AddSeconds(-10));
+            File.SetLastWriteTimeUtc(Path.Combine(tempPath, "sessions", "subagent.jsonl"), now);
+
+            var provider = new CodexModelNameProvider(
+                new CodexDetectionOptions { HomePath = tempPath, ModelEnvironmentVariables = [] },
+                new PresenceTemplateOptions { AutoDetectModelName = true, ModelName = "Codex" });
+
+            var snapshot = provider.GetSnapshot(projectPath);
+
+            Assert.Equal("gpt-5.5", snapshot.FinalDisplayedModel);
+            Assert.Equal("max", snapshot.ReasoningEffort);
+            Assert.Equal("default", snapshot.ServiceTier);
+            Assert.Equal("gpt 5.5 max", snapshot.DisplayLabel);
+        }
+        finally
+        {
+            Directory.Delete(tempPath, true);
+        }
+    }
+
+    [Fact]
+    public void GetSnapshot_UsesActivePrimaryWhenIdleCliSessionIsNewer()
+    {
+        var tempPath = CreateTempCodexHome();
+        try
+        {
+            var projectPath = @"E:\tool\codex-discord-RPC";
+            var now = DateTime.UtcNow;
+            WriteSession(tempPath, "active-primary.jsonl", new[]
+            {
+                CreateSessionMetaLine(now.AddMinutes(-2), "active-primary", "user", null, projectPath, "gpt-active", "xhigh", "default"),
+                CreateSessionLine(now.AddSeconds(-2), new
+                {
+                    type = "task_started",
+                    turn_id = "active-turn",
+                    cwd = projectPath
+                }, "event_msg"),
+                CreateSessionLine(now.AddSeconds(-1), new
+                {
+                    type = "reasoning",
+                    turn_id = "active-turn",
+                    summary = new[] { new { type = "summary_text", text = "**Active primary**" } }
+                }, "response_item")
+            });
+            WriteSession(tempPath, "idle-primary.jsonl", new[]
+            {
+                CreateSessionMetaLine(now, "idle-primary", "user", null, projectPath, "gpt-idle", "max", "priority")
+            });
+
+            var provider = new CodexModelNameProvider(
+                new CodexDetectionOptions { HomePath = tempPath, ModelEnvironmentVariables = [] },
+                new PresenceTemplateOptions { AutoDetectModelName = true, ModelName = "Codex" });
+
+            var snapshot = provider.GetSnapshot(projectPath);
+
+            Assert.Equal("gpt-active", snapshot.FinalDisplayedModel);
+            Assert.Equal("xhigh", snapshot.ReasoningEffort);
+            Assert.Equal("default", snapshot.ServiceTier);
+            Assert.Equal("gpt active xhigh", snapshot.DisplayLabel);
         }
         finally
         {
@@ -289,5 +388,38 @@ public sealed class CodexModelNameProviderTests
     private static void WriteSession(string tempPath, string fileName, string[] lines)
     {
         File.WriteAllLines(Path.Combine(tempPath, "sessions", fileName), lines);
+    }
+
+    private static string CreateSessionLine(DateTime timestamp, object payload, string type)
+    {
+        return JsonSerializer.Serialize(new
+        {
+            timestamp = timestamp.ToString("O"),
+            type,
+            payload
+        });
+    }
+
+    private static string CreateSessionMetaLine(
+        DateTime timestamp,
+        string threadId,
+        string threadSource,
+        string? parentThreadId,
+        string projectPath,
+        string model,
+        string reasoningEffort,
+        string serviceTier)
+    {
+        return CreateSessionLine(timestamp, new
+        {
+            session_id = threadId,
+            id = threadId,
+            parent_thread_id = parentThreadId,
+            thread_source = threadSource,
+            cwd = projectPath,
+            model,
+            reasoning_effort = reasoningEffort,
+            service_tier = serviceTier
+        }, "session_meta");
     }
 }

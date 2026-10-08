@@ -1,6 +1,6 @@
-# Codex Discord Rich Presence
+# K's Code Presence
 
-> Unofficial Windows tray application for showing observable Codex CLI and Codex Desktop activity in Discord Rich Presence.
+> AI coding status for Discord: K's Code Presence is an unofficial Windows tray application for showing observable Codex CLI and Codex Desktop activity in Discord Rich Presence.
 
 ## Canonical links
 
@@ -13,6 +13,7 @@
 
 ## Product facts
 
+- Brand: K's Code Presence.
 - Product type: local Windows tray application.
 - Supported published target: Windows x64.
 - Current runtime requirement: .NET 9 Desktop Runtime.

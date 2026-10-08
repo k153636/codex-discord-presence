@@ -15,7 +15,9 @@ internal sealed class CodexSessionLogParser
     private readonly CodexDetectionOptions _options;
     private readonly PresenceTemplateOptions _presenceOptions;
     private readonly Dictionary<string, CachedSessionInspection> _sessionCache = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<string, CachedSessionSettings> _sessionSettingsCache = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, LifecycleBoundaryCache> _lifecycleBoundaryCache = new(StringComparer.OrdinalIgnoreCase);
+    private string? _selectedPrimaryThreadId;
 
     public CodexSessionLogParser(CodexDetectionOptions options, PresenceTemplateOptions presenceOptions)
     {
@@ -112,7 +114,10 @@ internal sealed class CodexSessionLogParser
             return ApplyProjectMatch(cached.Inspection, normalizedProjectPath);
         }
 
-        var inspection = AnalyzeSessionFile(file.FullName, cancellationToken);
+        var inspection = AnalyzeSessionFile(file.FullName, cancellationToken) with
+        {
+            SessionLastWriteTimeUtc = file.LastWriteTimeUtc
+        };
         _sessionCache[cacheKey] = new CachedSessionInspection(
             file.Length,
             file.LastWriteTimeUtc,
@@ -140,6 +145,14 @@ internal sealed class CodexSessionLogParser
         var activityEvents = new List<CodexActivityEvent>();
         var sequence = 0L;
         string? runningCommandReason = null;
+        string? threadId = null;
+        string? threadSource = null;
+        string? parentThreadId = null;
+        string? modelName = null;
+        string? initialModelName = null;
+        string? reasoningEffort = null;
+        string? serviceTier = null;
+        CodexTokenUsageTotals? latestTokenUsage = null;
 
         try
         {
@@ -157,6 +170,16 @@ internal sealed class CodexSessionLogParser
                     continue;
                 }
 
+                var recordType = TryGetString(document.RootElement, "type");
+                var payloadType = TryGetString(payload, "type", out var type) ? type : null;
+                if (string.Equals(recordType, "session_meta", StringComparison.OrdinalIgnoreCase) ||
+                    string.Equals(payloadType, "session_meta", StringComparison.OrdinalIgnoreCase))
+                {
+                    threadId ??= TryGetFirstString(payload, "id", "thread_id", "threadId", "session_id");
+                    threadSource ??= TryGetFirstString(payload, "thread_source", "threadSource");
+                    parentThreadId ??= TryGetFirstString(payload, "parent_thread_id", "parentThreadId");
+                }
+
                 var timestamp = TryGetTimestamp(document.RootElement);
                 if (timestamp.HasValue)
                 {
@@ -169,7 +192,19 @@ internal sealed class CodexSessionLogParser
                     latestProjectPath = cwd;
                 }
 
-                var payloadType = TryGetString(payload, "type", out var type) ? type : null;
+                if (IsSessionSettingsRecord(recordType, payloadType))
+                {
+                    var sessionSettings = ExtractSessionSettings(payload);
+                    modelName = sessionSettings.ModelName ?? modelName;
+                    initialModelName ??= sessionSettings.ModelName;
+                    reasoningEffort = sessionSettings.ReasoningEffort ?? reasoningEffort;
+                    serviceTier = sessionSettings.ServiceTier ?? serviceTier;
+                }
+                if (string.Equals(payloadType, "token_count", StringComparison.OrdinalIgnoreCase) &&
+                    TryReadTokenUsage(payload, out var tokenUsage))
+                {
+                    latestTokenUsage = tokenUsage;
+                }
 
                 sequence++;
                 if (TryNormalizeActivityEvent(
@@ -273,6 +308,14 @@ internal sealed class CodexSessionLogParser
                     runningCommandReason = "pending shell_command function call in session log";
                 }
             }
+
+            if (new FileInfo(path).Length > MaxTailBytesToScan &&
+                TryGetCachedSessionSettings(path, cancellationToken, out var completeSessionSettings))
+            {
+                modelName = completeSessionSettings.ModelName ?? modelName;
+                reasoningEffort = completeSessionSettings.ReasoningEffort ?? reasoningEffort;
+                serviceTier = completeSessionSettings.ServiceTier ?? serviceTier;
+            }
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
@@ -303,6 +346,14 @@ internal sealed class CodexSessionLogParser
             null)
         {
             ProjectPath = latestProjectPath,
+            ThreadId = threadId,
+            ThreadSource = threadSource,
+            ParentThreadId = parentThreadId,
+            ModelName = modelName,
+            InitialModelName = initialModelName,
+            ReasoningEffort = reasoningEffort,
+            ServiceTier = serviceTier,
+            LatestTokenUsage = latestTokenUsage,
             LastShellCommandAt = lastShellCommandAt,
             LastRunningCommandKind = lastRunningCommandKind,
             LastRunningCommandName = lastRunningCommandName,
@@ -310,6 +361,106 @@ internal sealed class CodexSessionLogParser
             LastDirectToolFileAt = lastDirectToolFileAt,
             ActivityEvents = activityEvents
         };
+    }
+
+    private bool TryGetCachedSessionSettings(
+        string path,
+        CancellationToken cancellationToken,
+        out SessionSettings settings)
+    {
+        settings = new SessionSettings(null, null, null);
+        try
+        {
+            var file = new FileInfo(path);
+            var cacheKey = file.FullName;
+            if (!_sessionSettingsCache.TryGetValue(cacheKey, out var cached) ||
+                cached.LastWriteTimeUtc != file.LastWriteTimeUtc ||
+                file.Length < cached.ScannedLength)
+            {
+                cached = new CachedSessionSettings(
+                    0,
+                    file.LastWriteTimeUtc,
+                    new SessionSettings(null, null, null));
+            }
+
+            if (file.Length != cached.ScannedLength)
+            {
+                var scanOffset = cached.ScannedLength == 0
+                    ? 0
+                    : FindLineStart(path, cached.ScannedLength, cancellationToken);
+                var currentSettings = cached.Settings;
+                foreach (var line in ReadLinesFromOffset(
+                             path,
+                             scanOffset,
+                             includePartialFirstLine: true,
+                             cancellationToken))
+                {
+                    cancellationToken.ThrowIfCancellationRequested();
+                    if (!LooksLikeSessionSettingsLine(line))
+                    {
+                        continue;
+                    }
+
+                    try
+                    {
+                        using var document = JsonDocument.Parse(line);
+                        if (!document.RootElement.TryGetProperty("payload", out var payload))
+                        {
+                            continue;
+                        }
+
+                        var recordType = TryGetString(document.RootElement, "type");
+                        var payloadType = TryGetString(payload, "type", out var type) ? type : null;
+                        if (IsSessionSettingsRecord(recordType, payloadType))
+                        {
+                            currentSettings = MergeSessionSettings(
+                                currentSettings,
+                                ExtractSessionSettings(payload));
+                        }
+                    }
+                    catch (JsonException)
+                    {
+                        // The active writer can leave an incomplete final line; retry it next time.
+                    }
+                }
+
+                _sessionSettingsCache[cacheKey] = new CachedSessionSettings(
+                    file.Length,
+                    file.LastWriteTimeUtc,
+                    currentSettings);
+                settings = currentSettings;
+                return true;
+            }
+
+            settings = cached.Settings;
+            return true;
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    private static bool LooksLikeSessionSettingsLine(string line)
+    {
+        return line.Contains("\"payload\"", StringComparison.Ordinal) &&
+            (line.Contains("\"session_meta\"", StringComparison.OrdinalIgnoreCase) ||
+             line.Contains("\"turn_context\"", StringComparison.OrdinalIgnoreCase) ||
+             line.Contains("\"thread_settings_applied\"", StringComparison.OrdinalIgnoreCase));
+    }
+
+    private static SessionSettings MergeSessionSettings(
+        SessionSettings current,
+        SessionSettings next)
+    {
+        return new SessionSettings(
+            next.ModelName ?? current.ModelName,
+            next.ReasoningEffort ?? current.ReasoningEffort,
+            next.ServiceTier ?? current.ServiceTier);
     }
 
     private static SessionInspection ApplyProjectMatch(
@@ -1267,6 +1418,164 @@ internal sealed class CodexSessionLogParser
         }
 
         return null;
+    }
+
+    private static SessionSettings ExtractSessionSettings(JsonElement payload)
+    {
+        string? modelName = null;
+        string? reasoningEffort = null;
+        string? serviceTier = null;
+
+        if (TryGetString(payload, "model", out var directModel) && IsUsableSessionValue(directModel))
+        {
+            modelName = directModel;
+        }
+
+        if (TryGetString(payload, "reasoning_effort", out var directReasoningEffort) && IsUsableSessionValue(directReasoningEffort))
+        {
+            reasoningEffort = directReasoningEffort;
+        }
+
+        if (TryGetString(payload, "model_reasoning_effort", out var modelReasoningEffort) && IsUsableSessionValue(modelReasoningEffort))
+        {
+            reasoningEffort = modelReasoningEffort;
+        }
+
+        if (TryGetString(payload, "service_tier", out var directServiceTier) && IsUsableSessionValue(directServiceTier))
+        {
+            serviceTier = directServiceTier;
+        }
+
+        if (TryGetObjectProperty(payload, "thread_settings", out var threadSettings))
+        {
+            if (TryGetString(threadSettings, "model", out var threadModel) && IsUsableSessionValue(threadModel))
+            {
+                modelName = threadModel;
+            }
+
+            if (TryGetString(threadSettings, "reasoning_effort", out var threadReasoningEffort) && IsUsableSessionValue(threadReasoningEffort))
+            {
+                reasoningEffort = threadReasoningEffort;
+            }
+
+            if (TryGetString(threadSettings, "service_tier", out var threadServiceTier) && IsUsableSessionValue(threadServiceTier))
+            {
+                serviceTier = threadServiceTier;
+            }
+        }
+
+        if (TryGetNestedString(payload, "reasoning", "effort", out var reasoningEffortValue) &&
+            IsUsableSessionValue(reasoningEffortValue))
+        {
+            reasoningEffort = reasoningEffortValue;
+        }
+
+        if (TryGetObjectProperty(payload, "collaboration_mode", out var collaborationMode) &&
+            TryGetObjectProperty(collaborationMode, "settings", out var collaborationSettings))
+        {
+            if (TryGetString(collaborationSettings, "model", out var collaborationModel) && IsUsableSessionValue(collaborationModel))
+            {
+                modelName = collaborationModel;
+            }
+
+            if (TryGetString(collaborationSettings, "reasoning_effort", out var collaborationReasoningEffort) && IsUsableSessionValue(collaborationReasoningEffort))
+            {
+                reasoningEffort = collaborationReasoningEffort;
+            }
+
+            if (TryGetString(collaborationSettings, "service_tier", out var collaborationServiceTier) && IsUsableSessionValue(collaborationServiceTier))
+            {
+                serviceTier = collaborationServiceTier;
+            }
+        }
+
+        return new SessionSettings(modelName, reasoningEffort, serviceTier);
+    }
+
+    private static bool TryGetNestedString(
+        JsonElement element,
+        string objectPropertyName,
+        string valuePropertyName,
+        out string value)
+    {
+        value = "";
+        return TryGetObjectProperty(element, objectPropertyName, out var nested) &&
+            TryGetString(nested, valuePropertyName, out value);
+    }
+
+    private static bool TryGetObjectProperty(
+        JsonElement element,
+        string propertyName,
+        out JsonElement value)
+    {
+        value = default;
+        return element.ValueKind == JsonValueKind.Object &&
+            element.TryGetProperty(propertyName, out value) &&
+            value.ValueKind == JsonValueKind.Object;
+    }
+
+    private static bool IsSessionSettingsRecord(string? recordType, string? payloadType)
+    {
+        return IsSessionSettingsType(recordType) || IsSessionSettingsType(payloadType);
+    }
+
+    private static bool IsSessionSettingsType(string? value)
+    {
+        return value is not null &&
+            (string.Equals(value, "session_meta", StringComparison.OrdinalIgnoreCase) ||
+             string.Equals(value, "turn_context", StringComparison.OrdinalIgnoreCase) ||
+             string.Equals(value, "thread_settings_applied", StringComparison.OrdinalIgnoreCase));
+    }
+
+    private static bool TryReadTokenUsage(JsonElement payload, out CodexTokenUsageTotals totals)
+    {
+        totals = default;
+        if (!TryGetObjectProperty(payload, "info", out var info) ||
+            !TryGetObjectProperty(info, "total_token_usage", out var tokenUsage) ||
+            !TryReadLong(tokenUsage, "input_tokens", out var inputTokens) ||
+            !TryReadLong(tokenUsage, "cached_input_tokens", out var cachedInputTokens) ||
+            !TryReadLong(tokenUsage, "output_tokens", out var outputTokens) ||
+            !TryReadLong(tokenUsage, "reasoning_output_tokens", out var reasoningOutputTokens) ||
+            !TryReadLong(tokenUsage, "total_tokens", out var totalTokens))
+        {
+            return false;
+        }
+
+        totals = new CodexTokenUsageTotals(
+            inputTokens,
+            cachedInputTokens,
+            outputTokens,
+            reasoningOutputTokens,
+            totalTokens);
+        return totals.IsValid;
+    }
+
+    private static bool TryReadLong(JsonElement element, string propertyName, out long value)
+    {
+        value = 0;
+        if (!element.TryGetProperty(propertyName, out var property))
+        {
+            return false;
+        }
+
+        if (property.ValueKind == JsonValueKind.Number && property.TryGetInt64(out value))
+        {
+            return true;
+        }
+
+        return property.ValueKind == JsonValueKind.String &&
+            long.TryParse(
+                property.GetString(),
+                System.Globalization.NumberStyles.Integer,
+                System.Globalization.CultureInfo.InvariantCulture,
+                out value);
+    }
+
+    private static bool IsUsableSessionValue(string? value)
+    {
+        return !string.IsNullOrWhiteSpace(value) &&
+            !value.Contains('{', StringComparison.Ordinal) &&
+            !value.Contains('}', StringComparison.Ordinal);
     }
 
     private static string? TryGetDirectToolFilePath(
@@ -2554,7 +2863,8 @@ internal sealed class CodexSessionLogParser
     private static bool TryGetString(JsonElement element, string propertyName, out string value)
     {
         value = "";
-        if (!element.TryGetProperty(propertyName, out var property) ||
+        if (element.ValueKind != JsonValueKind.Object ||
+            !element.TryGetProperty(propertyName, out var property) ||
             property.ValueKind != JsonValueKind.String)
         {
             return false;
@@ -2589,65 +2899,153 @@ internal sealed class CodexSessionLogParser
             return null;
         }
 
-        SessionInspectionCandidate? best = null;
+        var primaryCandidates = candidates
+            .Where(candidate => candidate.Inspection.IsPrimaryThread)
+            .ToArray();
+        if (primaryCandidates.Length == 0)
+        {
+            return null;
+        }
+
+        var scoredCandidates = ScoreCandidates(primaryCandidates);
+        ScoredSessionInspectionCandidate? best = null;
 
         if (!string.IsNullOrWhiteSpace(normalizedProjectPath))
         {
-            best = PickBest(candidates.Where(candidate => candidate.Inspection.MatchesProject && candidate.Inspection.HasRecentActivity(_presenceOptions.ThinkingStaleTimeoutMinutes)));
+            var projectCandidates = scoredCandidates
+                .Where(candidate => candidate.Source.Inspection.MatchesProject)
+                .ToArray();
+            best = PickBestForDisplay(projectCandidates.Where(candidate =>
+                candidate.HasRecentObservedActivity),
+                projectCandidates);
             if (best is not null)
             {
-                return best.Inspection;
+                return RememberSelected(best).Source.Inspection;
             }
 
-            best = PickBest(candidates.Where(candidate => candidate.Inspection.MatchesProject));
+            best = PickBestForDisplay(projectCandidates);
             if (best is not null)
             {
-                return best.Inspection;
+                return RememberSelected(best).Source.Inspection;
             }
         }
 
-        best = PickBest(candidates.Where(candidate => candidate.Inspection.HasRecentActivity(_presenceOptions.ThinkingStaleTimeoutMinutes)));
+        best = PickBestForDisplay(
+            scoredCandidates.Where(candidate => candidate.HasRecentObservedActivity),
+            scoredCandidates);
         if (best is not null)
         {
-            return best.Inspection;
+            return RememberSelected(best).Source.Inspection;
         }
 
-        return PickBest(candidates)?.Inspection;
+        best = PickBestForDisplay(scoredCandidates);
+        return best is null
+            ? null
+            : RememberSelected(best).Source.Inspection;
     }
 
     private string? SelectLatestObservedProjectPath(IReadOnlyList<SessionInspectionCandidate> candidates)
     {
-        var best = PickBest(candidates.Where(candidate => candidate.Inspection.HasRecentActivity(_presenceOptions.ThinkingStaleTimeoutMinutes) && !string.IsNullOrWhiteSpace(candidate.Inspection.ProjectPath)))
-            ?? PickBest(candidates.Where(candidate => !string.IsNullOrWhiteSpace(candidate.Inspection.ProjectPath)));
+        var primaryCandidates = candidates
+            .Where(candidate => candidate.Inspection.IsPrimaryThread)
+            .ToArray();
+        var scoredCandidates = ScoreCandidates(primaryCandidates);
+        var best = PickBest(scoredCandidates.Where(candidate =>
+                candidate.HasRecentObservedActivity &&
+                !string.IsNullOrWhiteSpace(candidate.Source.Inspection.ProjectPath)))
+            ?? PickBest(scoredCandidates.Where(candidate => !string.IsNullOrWhiteSpace(candidate.Source.Inspection.ProjectPath)));
 
-        return best?.Inspection.ProjectPath;
+        return best?.Source.Inspection.ProjectPath;
     }
 
-    private SessionInspectionCandidate? PickBest(IEnumerable<SessionInspectionCandidate> candidates)
+    private IReadOnlyList<ScoredSessionInspectionCandidate> ScoreCandidates(
+        IEnumerable<SessionInspectionCandidate> candidates)
     {
         var nowUtc = DateTime.UtcNow;
         return candidates
-            .OrderByDescending(candidate => HasPendingMutation(candidate.Inspection, nowUtc))
-            .ThenByDescending(candidate => HasPendingOperation(candidate.Inspection, nowUtc))
-            .ThenByDescending(candidate => candidate.Inspection.HasRecentActivity(_presenceOptions.ThinkingStaleTimeoutMinutes))
-            .ThenByDescending(candidate => candidate.Inspection.LastObservedAt ?? DateTime.MinValue)
-            .ThenByDescending(candidate => candidate.SessionLastWriteTimeUtc)
+            .Select(candidate =>
+            {
+                var activityState = candidate.Inspection.GetActivityStateAt(nowUtc);
+                return new ScoredSessionInspectionCandidate(
+                    candidate,
+                    activityState,
+                    string.Equals(
+                        candidate.Inspection.ThreadId,
+                        _selectedPrimaryThreadId,
+                        StringComparison.OrdinalIgnoreCase),
+                    candidate.Inspection.HasRecentActivity(_presenceOptions.ThinkingStaleTimeoutMinutes),
+                    HasRecentEffectiveActivity(activityState, nowUtc));
+            })
+            .ToArray();
+    }
+
+    private ScoredSessionInspectionCandidate? PickBestForDisplay(
+        IEnumerable<ScoredSessionInspectionCandidate> candidates,
+        IEnumerable<ScoredSessionInspectionCandidate>? affinityCandidates = null)
+    {
+        var candidateArray = candidates.ToArray();
+        var best = PickBest(candidateArray);
+        if (best is null)
+        {
+            return null;
+        }
+
+        var affinityCandidateArray = affinityCandidates?.ToArray() ?? candidateArray;
+        if (affinityCandidateArray.Any(candidate =>
+                candidate.HasCurrentActivity ||
+                candidate.HasRecentEffectiveActivity))
+        {
+            return PickBest(affinityCandidateArray) ?? best;
+        }
+
+        // session_meta proves that a CLI was opened, not that it produced the
+        // current activity. Keep the last selected primary until another
+        // candidate provides current effective activity.
+        return affinityCandidateArray.FirstOrDefault(candidate => candidate.IsRemembered) ?? best;
+    }
+
+    private ScoredSessionInspectionCandidate? PickBest(
+        IEnumerable<ScoredSessionInspectionCandidate> candidates)
+    {
+        // Opening an additional CLI can refresh session metadata without starting
+        // a turn. Current effective activity must outrank that metadata.
+        return candidates
+            .OrderByDescending(candidate => candidate.HasCurrentActivity)
+            .ThenByDescending(candidate => candidate.HasPendingMutation)
+            .ThenByDescending(candidate => candidate.HasPendingOperation)
+            .ThenByDescending(candidate => candidate.HasRecentEffectiveActivity)
+            .ThenByDescending(candidate => candidate.HasRecentObservedActivity)
+            .ThenByDescending(candidate => candidate.Source.Inspection.LastObservedAt ?? DateTime.MinValue)
+            .ThenByDescending(candidate => candidate.Source.SessionLastWriteTimeUtc)
             .FirstOrDefault();
     }
 
-    private static bool HasPendingMutation(SessionInspection inspection, DateTime nowUtc)
+    private ScoredSessionInspectionCandidate RememberSelected(
+        ScoredSessionInspectionCandidate candidate)
     {
-        var state = inspection.GetActivityStateAt(nowUtc);
-        return state?.Lifecycle == CodexTurnLifecycle.Open && state.PendingMutationCount > 0;
+        if (!string.IsNullOrWhiteSpace(candidate.Source.Inspection.ThreadId))
+        {
+            _selectedPrimaryThreadId = candidate.Source.Inspection.ThreadId;
+        }
+
+        return candidate;
     }
 
-    private static bool HasPendingOperation(SessionInspection inspection, DateTime nowUtc)
+    private bool HasRecentEffectiveActivity(
+        CodexActivityState? activityState,
+        DateTime nowUtc)
     {
-        var state = inspection.GetActivityStateAt(nowUtc);
-        return state?.Lifecycle == CodexTurnLifecycle.Open && state.PendingOperationCount > 0;
+        var lastEffectiveSignalAt = activityState?.LastEffectiveSignalAtUtc;
+        return lastEffectiveSignalAt.HasValue &&
+            nowUtc - lastEffectiveSignalAt.Value <= TimeSpan.FromMinutes(_presenceOptions.ThinkingStaleTimeoutMinutes);
     }
 
     private sealed record PatchFile(string Path, CodexOperationKind OperationKind);
+
+    private sealed record SessionSettings(
+        string? ModelName,
+        string? ReasoningEffort,
+        string? ServiceTier);
 
     private readonly record struct ShellMutation(
         CodexOperationKind OperationKind,
@@ -2657,6 +3055,11 @@ internal sealed class CodexSessionLogParser
         long Length,
         DateTime LastWriteTimeUtc,
         SessionInspection Inspection);
+
+    private sealed record CachedSessionSettings(
+        long ScannedLength,
+        DateTime LastWriteTimeUtc,
+        SessionSettings Settings);
 
     private sealed class LifecycleBoundaryCache
     {
@@ -2673,4 +3076,21 @@ internal sealed class CodexSessionLogParser
         bool IsCoveredByHeader);
 
     private sealed record SessionInspectionCandidate(SessionInspection Inspection, DateTime SessionLastWriteTimeUtc);
+
+    private sealed record ScoredSessionInspectionCandidate(
+        SessionInspectionCandidate Source,
+        CodexActivityState? ActivityState,
+        bool IsRemembered,
+        bool HasRecentObservedActivity,
+        bool HasRecentEffectiveActivity)
+    {
+        public bool HasCurrentActivity => ActivityState?.Lifecycle is
+            CodexTurnLifecycle.Open or CodexTurnLifecycle.WaitingForInput;
+
+        public bool HasPendingMutation => ActivityState?.Lifecycle == CodexTurnLifecycle.Open &&
+            ActivityState.PendingMutationCount > 0;
+
+        public bool HasPendingOperation => ActivityState?.Lifecycle == CodexTurnLifecycle.Open &&
+            ActivityState.PendingOperationCount > 0;
+    }
 }

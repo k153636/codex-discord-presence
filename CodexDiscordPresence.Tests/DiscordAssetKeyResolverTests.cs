@@ -4,6 +4,71 @@ namespace CodexDiscordPresence.Tests;
 
 public sealed class DiscordAssetKeyResolverTests
 {
+    [Fact]
+    public void ResolveLargeImageKey_UsesProviderAssetWithoutChangingCodexStateMapping()
+    {
+        var key = DiscordAssetKeyResolver.ResolveLargeImageKey(
+            new DiscordOptions(),
+            CreatePresence(CodexActivityKind.ApplyingEdits) with
+            {
+                ProviderId = ProviderIds.Antigravity
+            });
+
+        Assert.Equal("rpc_antigravity_cli", key);
+    }
+
+    [Fact]
+    public void ResolveLargeImageReference_UsesConfiguredAntigravityIconFallback()
+    {
+        const string iconUrl = "https://antigravity.google/assets/image/brand/antigravity-icon__full-color.png";
+        var options = new DiscordOptions
+        {
+            ExternalImageUrls = new(StringComparer.OrdinalIgnoreCase)
+            {
+                ["rpc_antigravity_cli"] = iconUrl
+            }
+        };
+        var presence = new RenderedPresence(
+            "details",
+            "state",
+            null,
+            "small",
+            [],
+            null,
+            CodexActivityKind.Ready,
+            RunningCommandKind.Unknown,
+            "")
+        {
+            ProviderId = ProviderIds.Antigravity
+        };
+
+        Assert.Equal(iconUrl, DiscordAssetKeyResolver.ResolveLargeImageReference(options, presence));
+    }
+
+    [Theory]
+    [InlineData("antigravity")]
+    [InlineData("ANTIGRAVITY")]
+    [InlineData("  Antigravity  ")]
+    public void ResolveProviderLargeImageKey_UsesFixedAntigravityCliKey(string providerId)
+    {
+        var key = DiscordAssetKeyResolver.ResolveProviderLargeImageKey(providerId);
+
+        Assert.Equal("rpc_antigravity_cli", key);
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData("   ")]
+    [InlineData("google")]
+    [InlineData("antigravity-extra")]
+    public void ResolveProviderLargeImageKey_ReturnsNullForMissingOrUnknownProvider(string? providerId)
+    {
+        var key = DiscordAssetKeyResolver.ResolveProviderLargeImageKey(providerId);
+
+        Assert.Null(key);
+    }
+
     [Theory]
     [InlineData(CodexActivityKind.Offline, "rpc_sleeping")]
     [InlineData(CodexActivityKind.Ready, "rpc_sleeping")]

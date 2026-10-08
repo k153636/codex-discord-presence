@@ -11,6 +11,8 @@ public sealed record AppProfileSelectionCandidate(
 
     public bool IsRunning => HasValidDiscordClientId && Snapshot.IsRunning;
 
+    public bool IsActive => IsRunning && Snapshot.ActivityKind.IsActive();
+
     public int DetectionStrength => Snapshot.DetectionKind switch
     {
         CodexProcessDetectionKind.CommandLine => 400,
@@ -34,6 +36,20 @@ public static class AppProfileSelectionPolicy
             return codexCandidate.HasValidDiscordClientId
                 ? AppProfileKind.Codex
                 : AppProfileKind.CodexCli;
+        }
+
+        if (codexCandidate.IsActive != cliCandidate.IsActive)
+        {
+            return codexCandidate.IsActive
+                ? AppProfileKind.Codex
+                : AppProfileKind.CodexCli;
+        }
+
+        if (!codexCandidate.IsActive && !cliCandidate.IsActive)
+        {
+            return currentProfile == AppProfileKind.CodexCli
+                ? AppProfileKind.CodexCli
+                : AppProfileKind.Codex;
         }
 
         if (codexCandidate.DetectionStrength != cliCandidate.DetectionStrength)

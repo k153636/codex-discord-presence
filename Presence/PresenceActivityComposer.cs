@@ -8,55 +8,55 @@ internal static class PresenceActivityComposer
         string activeFileLabel,
         int editedFileCount)
     {
-        if (!context.Codex.IsRunning)
+        if (!context.Activity.IsRunning)
         {
             return stateLabel;
         }
 
         var thinkingSummary = ThinkingSummaryFormatter.FormatForCurrentReasoning(
-            context.Codex.LatestThinkingSummary,
-            context.Codex.LatestActivityEventKind);
+            context.Activity.LatestThinkingSummary,
+            context.Activity.LatestActivityEventKind);
         if (ShouldDisplayThinkingSummary(context, thinkingSummary))
         {
-            return MainAgentActivityComposer.AddRole(context, thinkingSummary!);
+            return PartyActivityComposer.AddPartyPrefix(context, thinkingSummary!);
         }
 
         if (ShouldDisplayMcpIdentity(context, thinkingSummary))
         {
-            return BuildMcpActivityLine(context);
+            return PartyActivityComposer.AddPartyPrefix(context, BuildMcpActivityLine(context));
         }
 
-        if (context.Codex.ActivityKind == CodexActivityKind.AnalyzingProject)
+        if (context.Activity.ActivityKind == CodexActivityKind.AnalyzingProject)
         {
-            return WithMainAgentRole(context, BuildIdleActivityLine(context, stateLabel));
+            return WithPartyPrefix(context, BuildIdleActivityLine(context, stateLabel));
         }
 
-        if (context.Codex.ActivityKind == CodexActivityKind.CoordinatingChanges)
+        if (context.Activity.ActivityKind == CodexActivityKind.CoordinatingChanges)
         {
-            return WithMainAgentRole(context, stateLabel);
+            return WithPartyPrefix(context, stateLabel);
         }
 
-        if (context.Codex.ActivityKind == CodexActivityKind.ApplyingEdits)
+        if (context.Activity.ActivityKind == CodexActivityKind.ApplyingEdits)
         {
-            return WithMainAgentRole(
+            return WithPartyPrefix(
                 context,
-                BuildEditingActivityLine(context.Codex.ActivityKind, stateLabel, activeFileLabel, editedFileCount));
+                BuildEditingActivityLine(context.Activity.ActivityKind, stateLabel, activeFileLabel, editedFileCount));
         }
 
-        if (context.Codex.ActivityKind is (CodexActivityKind.CreatingFiles or CodexActivityKind.DeletingFiles) &&
+        if (context.Activity.ActivityKind is (CodexActivityKind.CreatingFiles or CodexActivityKind.DeletingFiles) &&
             editedFileCount > 0)
         {
-            return WithMainAgentRole(
+            return WithPartyPrefix(
                 context,
-                BuildEditingActivityLine(context.Codex.ActivityKind, stateLabel, activeFileLabel, editedFileCount));
+                BuildEditingActivityLine(context.Activity.ActivityKind, stateLabel, activeFileLabel, editedFileCount));
         }
 
-        return WithMainAgentRole(context, BuildIdleActivityLine(context, stateLabel));
+        return WithPartyPrefix(context, BuildIdleActivityLine(context, stateLabel));
     }
 
-    private static string WithMainAgentRole(PresenceContext context, string activityLine)
+    private static string WithPartyPrefix(PresenceContext context, string activityLine)
     {
-        return MainAgentActivityComposer.AddRole(context, activityLine);
+        return PartyActivityComposer.AddPartyPrefix(context, activityLine);
     }
 
     private static bool ShouldDisplayThinkingSummary(
@@ -71,37 +71,37 @@ internal static class PresenceActivityComposer
         // A directly observed reasoning event is stronger than a stale
         // operation/file fallback. Otherwise, only generic thinking phases
         // may expose the retained summary after an operation completes.
-        if (context.Codex.LatestActivityEventKind == CodexActivityEventKind.Reasoning)
+        if (context.Activity.LatestActivityEventKind == CodexActivityEventKind.Reasoning)
         {
             return true;
         }
 
-        if (context.Codex.PendingOperationCount > 0)
+        if (context.Activity.PendingOperationCount > 0)
         {
             return false;
         }
 
-        return !context.Codex.IsMcpOperation && context.Codex.ActivityKind.IsThinking();
+        return !context.Activity.IsMcpOperation && context.Activity.ActivityKind.IsThinking();
     }
 
     private static bool ShouldDisplayMcpIdentity(
         PresenceContext context,
         string? thinkingSummary)
     {
-        if (!context.Codex.IsMcpOperation || !context.Codex.ActivityKind.IsActive())
+        if (!context.Activity.IsMcpOperation || !context.Activity.ActivityKind.IsActive())
         {
             return false;
         }
 
-        return context.Codex.LatestActivityEventKind is not CodexActivityEventKind.Reasoning ||
+        return context.Activity.LatestActivityEventKind is not CodexActivityEventKind.Reasoning ||
             string.IsNullOrWhiteSpace(thinkingSummary);
     }
 
     private static string BuildMcpActivityLine(PresenceContext context)
     {
         var mcpName = McpServerNameFormatter.Format(
-            context.Codex.McpServerName ?? context.Codex.ActiveMcpServerNames.FirstOrDefault());
-        var activeMcpCount = context.Codex.ActiveMcpServerNames.Count;
+            context.Activity.McpServerName ?? context.Activity.ActiveMcpServerNames.FirstOrDefault());
+        var activeMcpCount = context.Activity.ActiveMcpServerNames.Count;
         if (activeMcpCount == 0 && !string.IsNullOrWhiteSpace(mcpName))
         {
             activeMcpCount = 1;
@@ -144,7 +144,7 @@ internal static class PresenceActivityComposer
         PresenceContext context,
         string stateLabel)
     {
-        return context.Codex.ActivityKind switch
+        return context.Activity.ActivityKind switch
         {
             CodexActivityKind.Planning => stateLabel,
             CodexActivityKind.ApplyingEdits => stateLabel,

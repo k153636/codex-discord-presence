@@ -26,64 +26,83 @@ public sealed class PresenceTemplateRenderer
                 Apply(button.Label, values),
                 Apply(button.Url, values))).ToArray(),
             context.Session.StartedAt,
-            context.Codex.ActivityKind,
-            context.Codex.RunningCommandKind,
-            context.Codex.RunningCommandName)
+            context.Activity.ActivityKind,
+            context.Activity.RunningCommandKind,
+            context.Activity.RunningCommandName)
         {
-            PartySize = context.Codex.PartySize,
-            IsSuccessfulCompletion = context.Codex.IsSuccessfulCompletion,
-            IsError = context.Codex.IsError,
-            IsThinking = context.Codex.IsThinking,
-            WaitingStartedAt = context.Codex.ActivityKind is CodexActivityKind.Ready or CodexActivityKind.WaitingForInput
-                ? context.Codex.ActivityStartedAt ?? context.Codex.LastEffectiveSignalAt ?? context.Codex.LastObservedAt
+            ProviderId = context.ProviderId,
+            PartySize = context.Activity.PartySize,
+            IsSuccessfulCompletion = context.Activity.IsSuccessfulCompletion,
+            IsError = context.Activity.IsError,
+            IsThinking = context.Activity.IsThinking,
+            WaitingStartedAt = context.Activity.ActivityKind.IsWaiting()
+                ? context.Activity.ActivityStartedAt ?? context.Activity.LastEffectiveSignalAt ?? context.Activity.LastObservedAt
                 : null
         };
     }
 
     private Dictionary<string, string> BuildValues(PresenceTemplateOptions template, PresenceContext context)
     {
+        var modelDisplayLabel = FormatModelDisplayLabel(context);
         var editingFileSelection = EditedFileSelector.Select(context, template.EditingFreshnessSeconds);
         var editingFile = editingFileSelection.ActiveFile;
         var editingFileName = editingFile is null
             ? ""
             : EditedFileSelector.FormatForDisplay(context.Project, editingFile);
-        var isFileMutationActivity = context.Codex.ActivityKind is
+        var isFileMutationActivity = context.Activity.ActivityKind is
             (CodexActivityKind.ApplyingEdits or
              CodexActivityKind.CoordinatingChanges or
              CodexActivityKind.CreatingFiles or
              CodexActivityKind.DeletingFiles);
         var activityFileCount = !isFileMutationActivity
             ? editingFileSelection.TotalFileCount
-            : context.Codex.ActivityKind == CodexActivityKind.CoordinatingChanges && context.Codex.ActivityFilePaths.Count == 0
+            : context.Activity.ActivityKind == CodexActivityKind.CoordinatingChanges && context.Activity.ActivityFilePaths.Count == 0
                 ? Math.Max(editingFileSelection.TotalFileCount, context.Git.ChangedFileCount)
-                : Math.Max(editingFileSelection.TotalFileCount, context.Codex.ActivityFilePaths.Count);
+                : Math.Max(editingFileSelection.TotalFileCount, context.Activity.ActivityFilePaths.Count);
         var editingFileLabel = BuildEditingFileLabel(context, editingFileName, activityFileCount);
         var changedFilesText = FormatChangedFiles(context.Git.ChangedFileCount);
         var projectSizeText = FormatProjectSize(context.Project.TotalFileCount, context.Project.TotalLineCount);
-        var billingType = FormatBillingType(context.TokenUsage.BillingType);
+        var planName = NormalizePlanName(context.TokenUsage.PlanName) ?? "";
+        var billingType = context.ProviderId == ProviderIds.Antigravity
+            ? planName
+            : FormatBillingType(context.TokenUsage.BillingType);
         var cost = billingType == "API" && context.TokenUsage.EstimatedCostUsd is not null
             ? FormatCost(context.TokenUsage.EstimatedCostUsd.Value)
             : "";
-        var rateLimitDetails = billingType == "subsc"
-            ? FormatRateLimitDetails(context.TokenUsage.RateLimit)
-            : "";
+        var rateLimitDetails = context.ProviderId == ProviderIds.Antigravity
+            ? FormatUsageQuotaDetails(context.TokenUsage.UsageQuotas, context.ModelName)
+            : billingType == "subsc"
+                ? FormatRateLimitDetails(context.TokenUsage.RateLimit)
+                : "";
         var goalModePrefix = FormatGoalModePrefix(context);
-        var stateLabel = _labelResolver.ResolveStateLabel(template, context, context.Codex.ActivityKind, activityFileCount);
-        if (context.Codex.ActivityKind == CodexActivityKind.AnalyzingProject &&
-            context.Codex.ActivityRepeatCount > 1 &&
-            string.IsNullOrWhiteSpace(context.Codex.LatestThinkingSummary))
+        var stateLabel = _labelResolver.ResolveStateLabel(template, context, context.Activity.ActivityKind, activityFileCount);
+        if (context.Activity.ActivityKind == CodexActivityKind.AnalyzingProject &&
+            context.Activity.ActivityRepeatCount > 1 &&
+            string.IsNullOrWhiteSpace(context.Activity.LatestThinkingSummary))
         {
-            stateLabel = $"{stateLabel} x{context.Codex.ActivityRepeatCount}";
+            stateLabel = $"{stateLabel} x{context.Activity.ActivityRepeatCount}";
         }
-        var activityLine = PresenceActivityComposer.BuildActivityLine(context, stateLabel, editingFileName, activityFileCount);
+        var activityLine = PresenceActivityComposer.BuildActivityLine(
+            context,
+            stateLabel,
+            editingFileName,
+            activityFileCount);
 
         var values = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
         {
-            ["ModelName"] = context.ModelName,
-            ["CodexStatus"] = context.Codex.IsRunning ? "Codex running" : "Codex not detected",
-            ["CodexProcessName"] = context.Codex.ProcessName ?? "",
+            ["ModelName"] = modelDisplayLabel,
+            ["FeatureLabel"] = context.FeatureLabel ?? "",
+            ["CodexStatus"] = context.ProviderId is not (null or ProviderIds.Codex)
+                ? ""
+                : context.Activity.IsRunning ? "Codex running" : "Codex not detected",
+            ["CodexProcessName"] = context.ProviderId is not (null or ProviderIds.Codex)
+                ? ""
+                : context.Activity.ProcessName ?? "",
             ["ProjectName"] = context.Project.Name,
             ["ProjectPath"] = context.Project.Path,
+            ["ExecutionMode"] = context.ExecutionMode ?? "",
+            ["ModelReasoningLevel"] = context.ModelReasoningLevel ?? "",
+            ["ModelVariant"] = context.ModelVariant ?? "",
             ["GoalModePrefix"] = goalModePrefix,
             ["EditingFileName"] = editingFileName,
             ["EditingFileLabel"] = editingFileLabel,
@@ -93,16 +112,16 @@ public sealed class PresenceTemplateRenderer
             ["ChangedFileCount"] = context.Git.ChangedFileCount.ToString(CultureInfo.InvariantCulture),
             ["ChangedFilesText"] = changedFilesText,
             ["ActivityLabel"] = stateLabel,
-            ["ActivityKind"] = context.Codex.ActivityKind.ToString(),
-            ["ActivityConfidence"] = context.Codex.Confidence.ToString(),
-            ["ActivityProvenance"] = context.Codex.ActivityProvenance.ToString(),
-            ["ActivityReason"] = context.Codex.ActivityReason,
+            ["ActivityKind"] = context.Activity.ActivityKind.ToString(),
+            ["ActivityConfidence"] = context.Activity.Confidence.ToString(),
+            ["ActivityProvenance"] = context.Activity.ActivityProvenance.ToString(),
+            ["ActivityReason"] = context.Activity.ActivityReason,
             ["ActivityLine"] = activityLine,
             ["ThinkingSummary"] = ThinkingSummaryFormatter.FormatForCurrentReasoning(
-                context.Codex.LatestThinkingSummary,
-                context.Codex.LatestActivityEventKind) ?? "",
-            ["RunningCommandName"] = ResolveRunningCommandName(context.Codex.RunningCommandName, context.Codex.RunningCommandKind),
-            ["RunningCommandKind"] = context.Codex.RunningCommandKind.ToString(),
+                context.Activity.LatestThinkingSummary,
+                context.Activity.LatestActivityEventKind) ?? "",
+            ["RunningCommandName"] = ResolveRunningCommandName(context.Activity.RunningCommandName, context.Activity.RunningCommandKind),
+            ["RunningCommandKind"] = context.Activity.RunningCommandKind.ToString(),
             ["ProjectFileCount"] = context.Project.TotalFileCount.ToString(CultureInfo.InvariantCulture),
             ["ProjectLineCount"] = context.Project.TotalLineCount.ToString(CultureInfo.InvariantCulture),
             ["ProjectSizeText"] = projectSizeText,
@@ -113,6 +132,7 @@ public sealed class PresenceTemplateRenderer
                 : $"{CompactNumberFormatter.Format(context.TokenUsage.TotalTokens.Value)} Token",
             ["Cost"] = cost,
             ["BillingType"] = billingType,
+            ["PlanName"] = planName,
             ["RateLimitDetails"] = rateLimitDetails,
             ["EstimatedCost"] = "",
             ["CodexState"] = stateLabel,
@@ -121,21 +141,45 @@ public sealed class PresenceTemplateRenderer
         return values;
     }
 
+    private static string FormatModelDisplayLabel(PresenceContext context)
+    {
+        var modelName = context.ModelName.Trim();
+        var reasoningLevel = context.ModelReasoningLevel?.Trim().ToLowerInvariant();
+        var modelVariant = context.ModelVariant?.Trim().ToLowerInvariant();
+        var modelSuffix = string.Join(
+            ' ',
+            new[] { reasoningLevel, modelVariant }
+                .Where(value => !string.IsNullOrWhiteSpace(value)));
+        if (string.IsNullOrWhiteSpace(modelName))
+        {
+            return modelSuffix;
+        }
+
+        if (string.IsNullOrWhiteSpace(modelSuffix))
+        {
+            return modelName;
+        }
+
+        return $"{modelName} {modelSuffix}";
+    }
+
     private string ResolveDetails(
         PresenceTemplateOptions template,
         PresenceContext context,
         IReadOnlyDictionary<string, string> values)
     {
         var defaultDetails = Apply(template.Details, values);
-        if (context.Codex.ActivityKind != CodexActivityKind.Ready ||
-            (string.IsNullOrWhiteSpace(values["Cost"]) && string.IsNullOrWhiteSpace(values["BillingType"])))
+        if (!context.Activity.ActivityKind.IsWaiting() ||
+            (string.IsNullOrWhiteSpace(values["Cost"]) &&
+             string.IsNullOrWhiteSpace(values["BillingType"]) &&
+             string.IsNullOrWhiteSpace(values["RateLimitDetails"])))
         {
             return defaultDetails;
         }
 
-        var waitingStartedAt = context.Codex.ActivityStartedAt ??
-            context.Codex.LastEffectiveSignalAt ??
-            context.Codex.LastObservedAt;
+        var waitingStartedAt = context.Activity.ActivityStartedAt ??
+            context.Activity.LastEffectiveSignalAt ??
+            context.Activity.LastObservedAt;
         if (!waitingStartedAt.HasValue)
         {
             return defaultDetails;
@@ -172,13 +216,13 @@ public sealed class PresenceTemplateRenderer
             return "";
         }
 
-        if (context.Codex.ActivityKind is not (CodexActivityKind.ApplyingEdits or CodexActivityKind.CoordinatingChanges or CodexActivityKind.CreatingFiles or CodexActivityKind.DeletingFiles))
+        if (context.Activity.ActivityKind is not (CodexActivityKind.ApplyingEdits or CodexActivityKind.CoordinatingChanges or CodexActivityKind.CreatingFiles or CodexActivityKind.DeletingFiles))
         {
             return "";
         }
 
         var label = $"Editing {editingFileName}";
-        if (context.Codex.ActivityKind == CodexActivityKind.ApplyingEdits && activityFileCount >= 4)
+        if (context.Activity.ActivityKind == CodexActivityKind.ApplyingEdits && activityFileCount >= 4)
         {
             label += $" + {activityFileCount - 1} files";
         }
@@ -249,7 +293,106 @@ public sealed class PresenceTemplateRenderer
         var remainingMinutes = resetMinutes % 60;
         var resetText = $"{resetHours}h {remainingMinutes}m";
 
-        return $" \u2022 5h {rateLimit.UsedPercent.ToString(CultureInfo.InvariantCulture)}% used \u2022 reset {resetText}";
+        return FormatFiveHourUsageDetails(rateLimit.UsedPercent, resetText);
+    }
+
+    private string FormatUsageQuotaDetails(
+        IReadOnlyList<UsageQuotaSnapshot>? quotas,
+        string modelName)
+    {
+        if (quotas is null || quotas.Count == 0)
+        {
+            return "";
+        }
+
+        var modelGroup = ResolveQuotaModelGroup(modelName);
+        var fiveHourQuota = quotas
+            .Where(IsFiveHourQuota)
+            .Where(quota => modelGroup is null ||
+                string.Equals(ResolveQuotaModelGroup(quota.Id), modelGroup, StringComparison.Ordinal))
+            .OrderBy(quota => quota.Id, StringComparer.OrdinalIgnoreCase)
+            .FirstOrDefault();
+        if (fiveHourQuota is null)
+        {
+            return "";
+        }
+
+        return FormatUsageQuota(fiveHourQuota);
+    }
+
+    private string FormatUsageQuota(UsageQuotaSnapshot quota)
+    {
+        var usedFraction = 1m - Math.Clamp(quota.RemainingFraction, 0m, 1m);
+        var usedPercent = decimal.Round(
+            usedFraction * 100m,
+            0,
+            MidpointRounding.AwayFromZero);
+        var resetText = quota.ResetAtUtc is null
+            ? null
+            : FormatUsageQuotaReset(quota.ResetAtUtc.Value);
+        return FormatFiveHourUsageDetails(
+            (int)usedPercent,
+            resetText);
+    }
+
+    private static string FormatFiveHourUsageDetails(int usedPercent, string? resetText)
+    {
+        var resetSuffix = resetText is null ? "" : $" \u2022 reset {resetText}";
+        return $" \u2022 5h {usedPercent.ToString(CultureInfo.InvariantCulture)}% used{resetSuffix}";
+    }
+
+    private string FormatUsageQuotaReset(DateTimeOffset resetAtUtc)
+    {
+        var remaining = resetAtUtc.UtcDateTime - _utcNow();
+        var resetMinutes = remaining <= TimeSpan.Zero
+            ? 0L
+            : (long)Math.Ceiling(remaining.TotalMinutes);
+        var hours = resetMinutes / 60;
+        var minutes = resetMinutes % 60;
+        return $"{hours}h {minutes}m";
+    }
+
+    private static bool IsFiveHourQuota(UsageQuotaSnapshot quota)
+    {
+        var value = string.Join(' ', quota.Window, quota.Id).ToLowerInvariant();
+        return value.Contains("5h", StringComparison.Ordinal) ||
+            value.Contains("5-hour", StringComparison.Ordinal) ||
+            value.Contains("five-hour", StringComparison.Ordinal);
+    }
+
+    private static string? ResolveQuotaModelGroup(string value)
+    {
+        var normalized = value.Trim().ToLowerInvariant();
+        if (normalized.Contains("gemini", StringComparison.Ordinal))
+        {
+            return "gemini";
+        }
+
+        if (normalized.StartsWith("3p", StringComparison.Ordinal) ||
+            normalized.Contains("claude", StringComparison.Ordinal) ||
+            normalized.Contains("sonnet", StringComparison.Ordinal) ||
+            normalized.Contains("opus", StringComparison.Ordinal) ||
+            normalized.Contains("gpt", StringComparison.Ordinal) ||
+            normalized.Contains("openai", StringComparison.Ordinal))
+        {
+            return "3p";
+        }
+
+        return null;
+    }
+
+    private static string? NormalizePlanName(string? planName)
+    {
+        if (string.IsNullOrWhiteSpace(planName))
+        {
+            return null;
+        }
+
+        return string.Join(
+            ' ',
+            planName
+                .Trim()
+                .Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries));
     }
 
     private static string FormatBillingType(string? billingType)
@@ -276,7 +419,7 @@ public sealed class PresenceTemplateRenderer
 
     private static string FormatGoalModePrefix(PresenceContext context)
     {
-        var collaborationMode = context.Codex.CollaborationMode;
+        var collaborationMode = context.Activity.CollaborationMode;
         if (string.IsNullOrWhiteSpace(collaborationMode))
         {
             return "";
@@ -284,9 +427,9 @@ public sealed class PresenceTemplateRenderer
 
         return collaborationMode.Trim().ToLowerInvariant() switch
         {
-            "plan" when IsImplementationActivity(context.Codex.ActivityKind) => "Code mode:",
+            "plan" when IsImplementationActivity(context.Activity.ActivityKind) => "Code mode:",
             "plan" => "Plan mode:",
-            "goal" when IsImplementationActivity(context.Codex.ActivityKind) => "Code mode:",
+            "goal" when IsImplementationActivity(context.Activity.ActivityKind) => "Code mode:",
             "goal" => "Plan mode:",
             _ => ""
         };
@@ -324,6 +467,7 @@ public sealed record RenderedPresence(
     RunningCommandKind RunningCommandKind,
     string RunningCommandName)
 {
+    public string? ProviderId { get; init; }
     public int? PartySize { get; init; }
     public bool IsSuccessfulCompletion { get; init; }
     public bool IsError { get; init; }

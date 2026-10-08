@@ -175,6 +175,39 @@ public sealed class DiscordPresenceClientTests
         }
     }
 
+    [Fact]
+    public async Task RequestPresenceRefresh_ForcesTheNextUpdateAfterThePresenceWasPublished()
+    {
+        var transport = new FakeDiscordPresenceTransport();
+        var now = DateTime.UtcNow;
+        var tempPath = CreateTempDirectory();
+
+        try
+        {
+            using var log = new DiagnosticLog(Path.Combine(tempPath, "rpc.log"));
+            using var client = new DiscordPresenceClient(
+                CreateOptions(),
+                log,
+                _ => transport,
+                () => now);
+
+            await client.StartAsync(CancellationToken.None);
+            Assert.True(client.Update(CreatePresence()));
+            Assert.False(client.NeedsPresenceRefresh);
+
+            client.RequestPresenceRefresh();
+
+            Assert.True(client.NeedsPresenceRefresh);
+            Assert.True(client.Update(CreatePresence()));
+            Assert.Equal(2, transport.SetPresenceCalls.Count);
+            Assert.False(client.NeedsPresenceRefresh);
+        }
+        finally
+        {
+            Directory.Delete(tempPath, true);
+        }
+    }
+
     private static DiscordOptions CreateOptions() => new()
     {
         ClientId = "test-client-id"

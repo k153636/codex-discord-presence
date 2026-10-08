@@ -1,3 +1,4 @@
+using CodexDiscordPresence;
 using DiscordRPC;
 
 namespace CodexDiscordPresence.Tests;
@@ -15,6 +16,12 @@ public sealed class DiscordPartyBuilderTests
         Assert.Equal("stable-party-id", party!.ID);
         Assert.Equal(partySize, party.Size);
         Assert.Equal(partySize, party.Max);
+    }
+
+    [Fact]
+    public void Create_OmitsSoloPartyByDefault()
+    {
+        Assert.Null(DiscordPartyBuilder.Create(1, "party-id"));
     }
 
     [Fact]

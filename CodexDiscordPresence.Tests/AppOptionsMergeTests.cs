@@ -54,6 +54,8 @@ public sealed class AppOptionsMergeTests
             Assert.Equal(9, options.UpdateIntervalSeconds);
             Assert.Equal(3, options.Presence.ActiveUpdateIntervalSeconds);
             Assert.Equal("FromExe", options.Presence.ModelName);
+            Assert.True(options.Providers[ProviderIds.Codex].Enabled);
+            Assert.False(options.Providers[ProviderIds.Antigravity].Enabled);
             var button = Assert.Single(options.Presence.Buttons);
             Assert.Equal("K's Codex RPC", button.Label);
             Assert.Equal("https://k153636.github.io/codex-discord-presence/", button.Url);
@@ -89,6 +91,7 @@ public sealed class AppOptionsMergeTests
             var button = Assert.Single(options.Presence.Buttons);
             Assert.Equal("K's Codex RPC", button.Label);
             Assert.Equal("https://k153636.github.io/codex-discord-presence/", button.Url);
+            Assert.Empty(options.GetAntigravityDiscordOptions().ClientId);
         }
         finally
         {
@@ -121,6 +124,12 @@ public sealed class AppOptionsMergeTests
     "ClientId": "1516846793873424474",
     "LargeImageKey": "codexcli_logo1"
   },
+  "DiscordAntigravity": {
+    "ClientId": "1548038167041671259",
+    "LargeImageKey": "rpc_antigravity_cli",
+    "SmallImageKey": null,
+    "ExternalImageUrls": {}
+  },
   "Presence": {}
 }
 """);
@@ -147,8 +156,11 @@ public sealed class AppOptionsMergeTests
             Assert.Equal("1516846793873424474", options.Discord.ClientId);
             Assert.NotNull(options.DiscordCli);
             Assert.Equal("1516846793873424474", options.DiscordCli!.ClientId);
+            Assert.Equal("1548038167041671259", options.GetAntigravityDiscordOptions().ClientId);
+            Assert.Null(options.GetAntigravityDiscordOptions().SmallImageKey);
+            Assert.Empty(options.GetAntigravityDiscordOptions().ExternalImageUrls);
             Assert.Equal("codexcli_logo1", options.DiscordCli.LargeImageKey);
-            Assert.Equal("{GoalModePrefix} {ModelName} \u2022 {Tokens}", options.Presence.Details);
+            Assert.Equal("{GoalModePrefix} {FeatureLabel} \u2022 {ModelName} \u2022 {ExecutionMode} \u2022 {Tokens}", options.Presence.Details);
             Assert.Equal("Working", options.Presence.WorkingText);
             Assert.Equal("Researching", options.Presence.ResearchingText);
             Assert.Equal("Waiting", options.Presence.WaitingText);
@@ -163,6 +175,122 @@ public sealed class AppOptionsMergeTests
             Assert.Contains("@openai\\codex\\bin\\codex.js", options.CodexCli.CommandLineContains);
             Assert.Same(options.CodexCli, options.GetCodexDetectionOptions(AppProfileKind.CodexCli));
             Assert.Same(options.DiscordCli, options.GetDiscordOptions(AppProfileKind.CodexCli));
+        }
+        finally
+        {
+            Directory.Delete(root, true);
+        }
+    }
+
+    [Fact]
+    public void Load_UserProviderSettingsOverrideExecutableAndCliDefaults()
+    {
+        var root = Path.Combine(Path.GetTempPath(), "CodexProviderOptionsTests_" + Guid.NewGuid());
+        var exeDir = Path.Combine(root, "exe");
+        var appDataDir = Path.Combine(root, "appdata");
+        Directory.CreateDirectory(exeDir);
+        Directory.CreateDirectory(appDataDir);
+
+        try
+        {
+            File.WriteAllText(Path.Combine(exeDir, "appsettings.json"),
+                "{\"Providers\":{\"codex\":{\"Enabled\":true},\"antigravity\":{\"Enabled\":false}}}");
+            File.WriteAllText(Path.Combine(exeDir, "appsettings.cli.json"),
+                "{\"Providers\":{\"codex\":{\"Enabled\":false}}}");
+            File.WriteAllText(Path.Combine(appDataDir, "user-settings.json"),
+                "{\"Providers\":{\"codex\":{\"Enabled\":true}}}");
+
+            var paths = new AppPaths(
+                exeDir,
+                Path.Combine(exeDir, "appsettings.json"),
+                appDataDir,
+                Path.Combine(appDataDir, "logs"),
+                Path.Combine(appDataDir, "user-settings.json"),
+                Path.Combine(appDataDir, "presence-state.json"),
+                AppProfileKind.Codex);
+
+            var options = AppOptions.Load(Array.Empty<string>(), paths);
+
+            Assert.True(options.Providers[ProviderIds.Codex].Enabled);
+            Assert.False(options.Providers[ProviderIds.Antigravity].Enabled);
+        }
+        finally
+        {
+            Directory.Delete(root, true);
+        }
+    }
+
+    [Fact]
+    public void Load_PartialProviderConfiguration_RetainsKnownDefaults()
+    {
+        var root = Path.Combine(Path.GetTempPath(), "CodexProviderPartialTests_" + Guid.NewGuid());
+        Directory.CreateDirectory(root);
+
+        try
+        {
+            var settingsPath = Path.Combine(root, "appsettings.json");
+            File.WriteAllText(settingsPath, "{\"Providers\":{\"codex\":{\"Enabled\":false}}}");
+
+            var options = AppOptions.LoadMerged(settingsPath);
+
+            Assert.False(options.Providers[ProviderIds.Codex].Enabled);
+            Assert.False(options.Providers[ProviderIds.Antigravity].Enabled);
+        }
+        finally
+        {
+            Directory.Delete(root, true);
+        }
+    }
+
+    [Fact]
+    public void Load_MergesObjectNamesWithoutCaseSensitiveDuplicates()
+    {
+        var root = Path.Combine(Path.GetTempPath(), "CodexProviderCaseTests_" + Guid.NewGuid());
+        Directory.CreateDirectory(root);
+
+        try
+        {
+            var executableSettings = Path.Combine(root, "appsettings.json");
+            var userSettings = Path.Combine(root, "user-settings.json");
+            File.WriteAllText(
+                executableSettings,
+                "{\"Providers\":{\"antigravity\":{\"Enabled\":false}},\"Discord\":{\"ExternalImageUrls\":{\"rpc_antigravity\":\"https://example.invalid/old.png\"}}}");
+            File.WriteAllText(
+                userSettings,
+                "{\"providers\":{\"ANTIGRAVITY\":{\"enabled\":true}},\"discord\":{\"externalimageurls\":{\"RPC_ANTIGRAVITY\":\"https://example.invalid/new.png\"}}}");
+
+            var options = AppOptions.LoadMerged(executableSettings, userSettings);
+
+            Assert.True(options.Providers[ProviderIds.Antigravity].Enabled);
+            Assert.Equal(
+                "https://example.invalid/new.png",
+                options.Discord.ExternalImageUrls["rpc_antigravity"]);
+        }
+        finally
+        {
+            Directory.Delete(root, true);
+        }
+    }
+
+    [Fact]
+    public void Load_NormalizesProviderIdentifiersCaseInsensitively()
+    {
+        var root = Path.Combine(Path.GetTempPath(), "CodexProviderIdentifierTests_" + Guid.NewGuid());
+        Directory.CreateDirectory(root);
+
+        try
+        {
+            var settingsPath = Path.Combine(root, "appsettings.json");
+            File.WriteAllText(
+                settingsPath,
+                "{\"providers\":{\"ANTIGRAVITY\":{\"enabled\":true}}}");
+
+            var options = AppOptions.LoadMerged(settingsPath);
+
+            Assert.True(options.Providers[ProviderIds.Antigravity].Enabled);
+            Assert.Single(
+                options.Providers.Keys,
+                providerId => string.Equals(providerId, ProviderIds.Antigravity, StringComparison.OrdinalIgnoreCase));
         }
         finally
         {

@@ -1,0 +1,123 @@
+using System.Text.Json.Nodes;
+
+namespace CodexDiscordPresence;
+
+internal sealed record AntigravityHookCommandBuildResult(
+    bool IsSupported,
+    IReadOnlyDictionary<string, string>? Commands,
+    string? ScriptContent,
+    string? Error);
+
+internal interface IAntigravityHookCommandBuilder
+{
+    AntigravityHookCommandBuildResult Build(AntigravityHookPaths paths);
+}
+
+internal sealed class AntigravityHookCommandBuilder : IAntigravityHookCommandBuilder
+{
+    private readonly AntigravityStatusLinePlatform _platform;
+
+    public AntigravityHookCommandBuilder()
+        : this(OperatingSystem.IsWindows()
+            ? AntigravityStatusLinePlatform.Windows
+            : AntigravityStatusLinePlatform.Unsupported)
+    {
+    }
+
+    internal AntigravityHookCommandBuilder(AntigravityStatusLinePlatform platform)
+    {
+        _platform = platform;
+    }
+
+    public AntigravityHookCommandBuildResult Build(AntigravityHookPaths paths)
+    {
+        ArgumentNullException.ThrowIfNull(paths);
+        if (_platform != AntigravityStatusLinePlatform.Windows)
+        {
+            return new(
+                IsSupported: false,
+                Commands: null,
+                ScriptContent: null,
+                Error: "Antigravity hook integration is supported on Windows only.");
+        }
+
+        var commands = AntigravityHookEvents.All.ToDictionary(
+            hookEvent => hookEvent,
+            hookEvent => AntigravityPowerShellCommand.BuildEncoded(
+                paths.ScriptPath,
+                "-HookEvent",
+                hookEvent),
+            StringComparer.Ordinal);
+        return new(
+            IsSupported: true,
+            Commands: commands,
+            ScriptContent: AntigravityEventPowerShellScript.Create(
+                paths.EventFilePath,
+                AntigravityEventPowerShellScript.HookMutexName),
+            Error: null);
+    }
+
+    internal static JsonObject CreateManagedDefinition(
+        IReadOnlyDictionary<string, string> commands) => new()
+        {
+            ["PreInvocation"] = new JsonArray(
+                CreateCommand(commands, AntigravityHookEvents.PreInvocation)),
+            ["PreToolUse"] = new JsonArray(
+                CreateMatcherCommand(commands, AntigravityHookEvents.PreToolUse)),
+            ["PostToolUse"] = new JsonArray(
+                CreateMatcherCommand(commands, AntigravityHookEvents.PostToolUse)),
+            ["PostInvocation"] = new JsonArray(
+                CreateCommand(commands, AntigravityHookEvents.PostInvocation)),
+            ["Stop"] = new JsonArray(
+                CreateCommand(commands, AntigravityHookEvents.Stop))
+        };
+
+    // This exact shape identifies the previous application-owned definition during a safe upgrade.
+    internal static JsonObject CreateLegacyManagedDefinition(
+        IReadOnlyDictionary<string, string> commands) => new()
+        {
+            ["PreInvocation"] = new JsonArray(
+                CreateCommand(commands, AntigravityHookEvents.PreInvocation)),
+            ["PostToolUse"] = new JsonArray(
+                CreateMatcherCommand(commands, AntigravityHookEvents.PostToolUse)),
+            ["PostInvocation"] = new JsonArray(
+                CreateCommand(commands, AntigravityHookEvents.PostInvocation)),
+            ["Stop"] = new JsonArray(
+                CreateCommand(commands, AntigravityHookEvents.Stop))
+        };
+
+    private static JsonObject CreateMatcherCommand(
+        IReadOnlyDictionary<string, string> commands,
+        string hookEvent) => new()
+        {
+            ["matcher"] = "*",
+            ["hooks"] = new JsonArray(CreateCommand(commands, hookEvent))
+        };
+
+    private static JsonObject CreateCommand(
+        IReadOnlyDictionary<string, string> commands,
+        string hookEvent) => new()
+        {
+            ["type"] = "command",
+            ["command"] = commands[hookEvent],
+            ["timeout"] = 10
+        };
+}
+
+internal static class AntigravityHookEvents
+{
+    internal const string PreInvocation = "PreInvocation";
+    internal const string PreToolUse = "PreToolUse";
+    internal const string PostToolUse = "PostToolUse";
+    internal const string PostInvocation = "PostInvocation";
+    internal const string Stop = "Stop";
+
+    internal static IReadOnlyList<string> All { get; } =
+    [
+        PreInvocation,
+        PreToolUse,
+        PostToolUse,
+        PostInvocation,
+        Stop
+    ];
+}

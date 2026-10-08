@@ -102,6 +102,90 @@ that distinction when changing activity detection.
   tier. Do not display the literal word `fast`, and do not infer speed from a
   config-only value.
 
+## Provider and CLI extensibility contract
+
+This application can support multiple CLI/provider integrations, but a new
+integration must not be implemented by making Antigravity look like Codex or
+by copying Codex-specific behavior into a shared fallback.
+
+This section contains both current-architecture preservation guidance and
+longer-lived safety boundaries. Current-architecture guidance may be changed
+when a task explicitly changes the architecture; it must not be treated as a
+permanent prohibition.
+
+### Provider identity and boundaries
+
+- `AppProfileKind` is the Codex Desktop/CLI profile axis. `ProviderId` is the
+  provider/CLI integration axis. Do not add a new provider by adding another
+  `AppProfileKind` unless it is genuinely another Codex profile.
+- In the current architecture, each provider owns its detection, raw parser,
+  observation persistence, activity projection, model/reasoning normalization,
+  usage/billing meaning, party evidence, external integration, and
+  provider-owned runtime state. Preserve this separation unless the task
+  explicitly changes provider architecture; do not move responsibilities as
+  incidental cleanup.
+- In the current architecture, only normalized presence contracts may cross
+  the provider boundary: `PresenceContext`, the common activity vocabulary,
+  project/Git snapshots, session timing, and rendered Discord payloads.
+  `CodexActivityKind` is a display vocabulary, not a provider event schema.
+  If an intentional architecture change alters this boundary, update the
+  contract and its tests as part of that change.
+- In the current registration model, unknown or partially registered provider
+  IDs must fail closed. They must not silently inherit Codex parsers, Codex
+  billing labels, Codex assets, or Codex fallback behavior. A deliberately
+  designed future registration or fallback policy must update this rule and
+  its tests as part of the same architectural change.
+
+### Current runtime architecture
+
+Unless a task explicitly requires an architectural change, preserve the
+current single-runtime design:
+
+- one `PresenceRuntime`
+- one `DiscordPresenceClient`
+- one `SessionClock`
+
+Do not change this architecture incidentally while implementing a provider or
+fixing unrelated behavior.
+
+- A provider switch currently updates the selected Discord options, requests a
+  presence refresh, and preserves the runtime session timestamp. Preserve
+  this behavior unless the task explicitly changes runtime or session
+  architecture.
+- Current dispatch and activity state is provider-owned: Codex state is
+  profile and session scoped; Antigravity state is conversation scoped.
+  Preserve this isolation unless the task explicitly changes the ownership
+  model. Do not allow the previous provider's activity, model, quota, party,
+  or image state to leak across a switch.
+- Current provider selection goes through the central selection/gate policy
+  using enabled/configured status, project evidence, freshness, and active
+  activity. Do not bypass that policy as incidental implementation work. An
+  old idle observation must not take over from a newer active provider.
+
+### New provider completion contract
+
+A new CLI/provider is not complete when configuration alone can name it. Under
+the current architecture, the implementation must provide the following with
+focused tests. If the task intentionally changes the architecture, update the
+affected contract and tests rather than treating this list as immutable:
+
+1. provider ID, enable/disable persistence, configuration, and availability;
+2. provider-specific observation, freshness, project matching, and projection
+   into the shared presence contract;
+3. provider-specific model/reasoning, usage/billing, party, and asset policy;
+4. provider switch behavior, isolated runtime state, diagnostics, and RPC
+   refresh behavior under the current runtime architecture, or its explicitly
+   designed successor;
+5. external configuration installation/uninstallation, when applicable, with
+   ownership checks, backup/restore, conflict detection, and atomic writes;
+6. regression coverage proving no cross-provider leakage of activity text,
+   thinking summaries, MCP/file evidence, quotas, party metadata, or assets.
+
+Provider-specific Discord application IDs and assets are separate by default.
+Sharing the Discord transport is allowed; sharing a provider's identity,
+asset policy, or billing semantics requires an explicit design decision and
+tests.
+
 ## Discord assets and configuration
 
 - Keep the internal Discord asset keys stable (`rpc_codex`, `rpc_thinking`,

@@ -6,6 +6,16 @@ public static class PresenceApplication
 {
     public static async Task<int> RunAsync(string[] args)
     {
+        if (args.Length == 1 && args[0] == "--claude-spinner")
+        {
+            return ClaudeCodeSpinnerCommand.Run();
+        }
+
+        if (args.Length == 1 && args[0] == "--claude-hook")
+        {
+            return await ClaudeCodeHookCommand.RunAsync();
+        }
+
         if (args.Any(arg => string.Equals(arg, "--stop", StringComparison.OrdinalIgnoreCase)))
         {
             return InstanceCoordinator.StopRunningInstance(AppPaths.Create(AppProfileKind.Codex, AppContext.BaseDirectory));
@@ -22,7 +32,7 @@ public static class PresenceApplication
 
         if (instance is null)
         {
-            diagnosticLog.Error("Codex Discord RPC is already running. Use --stop to end the current instance.");
+            diagnosticLog.Error($"{ProductBrand.Name} is already running. Use --stop to end the current instance.");
             return 1;
         }
 
@@ -46,7 +56,7 @@ public static class PresenceApplication
 
         var stateStore = new PresenceStateStore();
         var statePath = appPaths.StatePath;
-        var runtimeState = stateStore.Load(statePath);
+        var runtimeState = stateStore.Load(statePath, options.Providers);
         var settingsPath = appPaths.ExecutableSettingsPath;
         var runtime = new PresenceRuntime(options, runtimeState, cts.Token, appPaths, diagnosticLog);
 
@@ -65,8 +75,8 @@ public static class PresenceApplication
             _ => activeUiSynchronizationContext.Post(context => trayHost?.RequestExit(), null),
             TaskScheduler.Default);
 
-        diagnosticLog.Info("Codex Discord RPC is running in the background.");
-        diagnosticLog.Info("Right-click the tray icon for Enable, Edit Discord RPC, and Quit.");
+        diagnosticLog.Info($"{ProductBrand.Name} is running in the background.");
+        diagnosticLog.Info($"Right-click the tray icon for Enable, Edit {ProductBrand.Name} settings, and Quit.");
 
         Application.Run(trayHost);
 

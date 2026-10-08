@@ -6,6 +6,30 @@ namespace CodexDiscordPresence.Tests;
 public sealed class PresenceTemplateRendererTests
 {
     [Fact]
+    public void Render_ProviderIdentityUsesSharedActivityRendering()
+    {
+        var renderer = new PresenceTemplateRenderer();
+        var template = new PresenceTemplateOptions { State = "{ActivityLine}" };
+        var context = CreateContext(
+            new CodexProcessSnapshot(true, "agy", false)
+            {
+                DetectedActivityKind = CodexActivityKind.ApplyingEdits
+            },
+            new ProjectSnapshot("Nexstrap", @"E:\tool\Nexstrap", null, null, 128, 128, 42000, []),
+            new GitSnapshot(true, 0, null)) with
+        {
+            ProviderId = ProviderIds.Antigravity
+        };
+
+        var presence = renderer.Render(template, context);
+
+        Assert.Equal("Editing", presence.State);
+        Assert.Equal(ProviderIds.Antigravity, presence.ProviderId);
+        Assert.DoesNotContain("Antigravity", presence.Details, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("Antigravity", presence.State, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
     public void Render_WithoutRecentEditedFile_UsesAnalyzingProjectActivity()
     {
         var renderer = new PresenceTemplateRenderer();
@@ -290,6 +314,122 @@ public sealed class PresenceTemplateRendererTests
     }
 
     [Fact]
+    public void Render_AntigravityWaitingDetails_UsesPlanAndModelGroupQuotaEveryFiveSeconds()
+    {
+        var waitingStartedAt = DateTime.UtcNow.AddSeconds(-5);
+        var current = waitingStartedAt.AddSeconds(5);
+        var renderer = new PresenceTemplateRenderer(() => current);
+        var template = new PresenceTemplateOptions
+        {
+            Details = "{ModelName} • {Tokens}",
+            WaitingDetails = "{Cost} {BillingType}{RateLimitDetails}"
+        };
+        var context = CreateContext(
+            new CodexProcessSnapshot(true, "agy", false)
+            {
+                DetectedActivityKind = CodexActivityKind.Ready,
+                ActivityStartedAt = waitingStartedAt,
+                LastObservedAt = waitingStartedAt
+            },
+            new ProjectSnapshot("Nexstrap", @"E:\tool\Nexstrap", null, null, 128, 128, 42000, []),
+            new GitSnapshot(true, 0, null),
+            sessionAge: TimeSpan.FromMinutes(6),
+            lastObservedAt: waitingStartedAt) with
+        {
+            ModelName = "gemini 3.8 flash",
+            ProviderId = ProviderIds.Antigravity,
+            TokenUsage = new TokenUsageSnapshot(
+                12_400,
+                null,
+                PlanName: "Pro",
+                UsageQuotas:
+                [
+                    new UsageQuotaSnapshot("gemini-5h", 0.42m, current.AddHours(2), "5h"),
+                    new UsageQuotaSnapshot("gemini-weekly", 0.875m, current.AddDays(6).AddHours(5), "weekly"),
+                    new UsageQuotaSnapshot("3p-weekly", 0.10m, current.AddDays(1), "weekly")
+                ])
+        };
+
+        Assert.Equal(
+            "Pro • 5h 58% used • reset 2h 0m",
+            renderer.Render(template, context).Details);
+        Assert.DoesNotContain("subsc", renderer.Render(template, context).Details, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void Render_AntigravityInputWaitingDetails_RotatesAtFiveSeconds()
+    {
+        var waitingStartedAt = DateTime.UtcNow.AddSeconds(-5);
+        var renderer = new PresenceTemplateRenderer(() => waitingStartedAt.AddSeconds(5));
+        var template = new PresenceTemplateOptions
+        {
+            Details = "{ModelName}",
+            WaitingDetails = "{PlanName}{RateLimitDetails}"
+        };
+        var context = CreateContext(
+            new CodexProcessSnapshot(true, "agy", false)
+            {
+                DetectedActivityKind = CodexActivityKind.WaitingForInput,
+                ActivityStartedAt = waitingStartedAt,
+                LastObservedAt = waitingStartedAt
+            },
+            new ProjectSnapshot("Nexstrap", @"E:\tool\Nexstrap", null, null, 128, 128, 42000, []),
+            new GitSnapshot(true, 0, null),
+            lastObservedAt: waitingStartedAt) with
+        {
+            ModelName = "claude sonnet 4.6",
+            ProviderId = ProviderIds.Antigravity,
+            TokenUsage = new TokenUsageSnapshot(
+                null,
+                null,
+                PlanName: "Ultra",
+                UsageQuotas:
+                [
+                    new UsageQuotaSnapshot("3p-5h", 0.75m, null, "5h"),
+                    new UsageQuotaSnapshot("3p-weekly", 0.25m, null, "weekly")
+                ])
+        };
+
+        Assert.Equal("Ultra • 5h 25% used", renderer.Render(template, context).Details);
+    }
+
+    [Fact]
+    public void Render_AntigravityWeeklyQuota_IsNotDisplayed()
+    {
+        var waitingStartedAt = DateTime.UtcNow.AddSeconds(-5);
+        var renderer = new PresenceTemplateRenderer(() => waitingStartedAt.AddSeconds(5));
+        var template = new PresenceTemplateOptions
+        {
+            Details = "{ModelName}",
+            WaitingDetails = "{BillingType}{RateLimitDetails}"
+        };
+        var context = CreateContext(
+            new CodexProcessSnapshot(true, "agy", false)
+            {
+                DetectedActivityKind = CodexActivityKind.Ready,
+                ActivityStartedAt = waitingStartedAt,
+                LastObservedAt = waitingStartedAt
+            },
+            new ProjectSnapshot("Nexstrap", @"E:\tool\Nexstrap", null, null, 128, 128, 42000, []),
+            new GitSnapshot(true, 0, null),
+            lastObservedAt: waitingStartedAt) with
+        {
+            ModelName = "gemini 3.8 flash",
+            ProviderId = ProviderIds.Antigravity,
+            TokenUsage = new TokenUsageSnapshot(
+                null,
+                null,
+                PlanName: "Pro",
+                UsageQuotas:
+                [
+                    new UsageQuotaSnapshot("gemini-weekly", 0.25m, null, "weekly")
+                ])
+        };
+
+        Assert.Equal("Pro", renderer.Render(template, context).Details);
+    }
+
+    [Fact]
     public void Render_AnalyzingProjectWithTaskStart_UsesWorkingLabel()
     {
         var renderer = new PresenceTemplateRenderer();
@@ -348,7 +488,7 @@ public sealed class PresenceTemplateRendererTests
     }
 
     [Fact]
-    public void Render_WithActiveSubagentsPrefixesMainAgentAndCarriesPartySize()
+    public void Render_WithActiveSubagentsPrefixesPartyCountAndCarriesPartySize()
     {
         var renderer = new PresenceTemplateRenderer();
         var template = new PresenceTemplateOptions { State = "{ActivityLine}" };
@@ -364,12 +504,12 @@ public sealed class PresenceTemplateRendererTests
 
         var presence = renderer.Render(template, context);
 
-        Assert.Equal("Main agent Reviewing active agents", presence.State);
+        Assert.Equal("5/5 Reviewing active agents", presence.State);
         Assert.Equal(5, presence.PartySize);
     }
 
     [Fact]
-    public void Render_WithSoloPartySizeDoesNotAddMainAgentRole()
+    public void Render_WithSoloPartySizeDoesNotAddPartyPrefix()
     {
         var renderer = new PresenceTemplateRenderer();
         var template = new PresenceTemplateOptions { State = "{ActivityLine}" };
@@ -426,7 +566,7 @@ public sealed class PresenceTemplateRendererTests
 
         var presence = renderer.Render(template, context);
 
-        Assert.Equal("MCP chrome-devtools", presence.State);
+        Assert.Equal("2/2 MCP chrome-devtools", presence.State);
     }
 
     [Fact]

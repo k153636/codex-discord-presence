@@ -238,6 +238,133 @@ public sealed class CodexSessionLogParserTests
     }
 
     [Fact]
+    public void InspectRecentSessions_SelectsPrimaryThreadWhenSubagentIsNewer()
+    {
+        var homePath = CreateTempCodexHome();
+        var projectPath = Path.Combine(Path.GetTempPath(), "CodexPrimaryThreadProject_" + Guid.NewGuid());
+        Directory.CreateDirectory(projectPath);
+
+        try
+        {
+            var now = DateTime.UtcNow;
+            var mainThreadId = "main-thread";
+            var mainSessionPath = Path.Combine(homePath, "sessions", "main.jsonl");
+            var subagentSessionPath = Path.Combine(homePath, "sessions", "subagent.jsonl");
+
+            WriteSession(homePath, "main.jsonl",
+            [
+                CreateSessionMetaLine(now.AddMinutes(-1), mainThreadId, "user", null, projectPath),
+                CreateSessionLine(now.AddSeconds(-30), new
+                {
+                    type = "task_started",
+                    turn_id = "main-turn",
+                    cwd = projectPath
+                }, "event_msg"),
+                CreateSessionLine(now.AddSeconds(-29), new
+                {
+                    type = "reasoning",
+                    turn_id = "main-turn",
+                    summary = new[]
+                    {
+                        new { type = "summary_text", text = "**Main thread summary**" }
+                    }
+                }, "response_item"),
+                CreateSessionLine(now.AddSeconds(-28), new
+                {
+                    type = "item_completed",
+                    item = new
+                    {
+                        type = "CollabAgentToolCall",
+                        id = "spawn-main-agent",
+                        tool = "spawn_agent",
+                        receiver_agents = new[]
+                        {
+                            new { thread_id = "agent-1" }
+                        }
+                    }
+                }, "event_msg")
+            ]);
+
+            WriteSession(homePath, "subagent.jsonl",
+            [
+                CreateSessionMetaLine(now, "subagent-thread", "subagent", mainThreadId, projectPath),
+                CreateSessionLine(now.AddSeconds(1), new
+                {
+                    type = "task_started",
+                    turn_id = "subagent-turn",
+                    cwd = projectPath
+                }, "event_msg"),
+                CreateSessionLine(now.AddSeconds(2), new
+                {
+                    type = "reasoning",
+                    turn_id = "subagent-turn",
+                    summary = new[]
+                    {
+                        new { type = "summary_text", text = "**Subagent summary must not be displayed**" }
+                    }
+                }, "response_item")
+            ]);
+
+            File.SetLastWriteTimeUtc(mainSessionPath, now.AddSeconds(-10));
+            File.SetLastWriteTimeUtc(subagentSessionPath, now);
+
+            var parser = new CodexSessionLogParser(
+                new CodexDetectionOptions { HomePath = homePath },
+                new PresenceTemplateOptions());
+
+            var inspection = parser.InspectRecentSessions(projectPath);
+
+            Assert.NotNull(inspection);
+            Assert.True(inspection!.IsPrimaryThread);
+            Assert.Equal(mainThreadId, inspection.ThreadId);
+            Assert.Equal("user", inspection.ThreadSource);
+            Assert.Null(inspection.ParentThreadId);
+            Assert.Equal("Main thread summary", inspection.LatestThinkingSummary);
+            Assert.Equal(2, inspection.PartySize);
+        }
+        finally
+        {
+            Directory.Delete(homePath, true);
+            Directory.Delete(projectPath, true);
+        }
+    }
+
+    [Fact]
+    public void InspectRecentSessions_DoesNotTreatSubagentThreadAsMainWhenItIsTheOnlyCandidate()
+    {
+        var homePath = CreateTempCodexHome();
+        var projectPath = Path.Combine(Path.GetTempPath(), "CodexSubagentOnlyProject_" + Guid.NewGuid());
+        Directory.CreateDirectory(projectPath);
+
+        try
+        {
+            var now = DateTime.UtcNow;
+            WriteSession(homePath, "subagent-only.jsonl",
+            [
+                CreateSessionMetaLine(now, "subagent-thread", "subagent", "missing-main-thread", projectPath),
+                CreateSessionLine(now.AddSeconds(1), new
+                {
+                    type = "task_started",
+                    turn_id = "subagent-turn",
+                    cwd = projectPath
+                }, "event_msg")
+            ]);
+
+            var parser = new CodexSessionLogParser(
+                new CodexDetectionOptions { HomePath = homePath },
+                new PresenceTemplateOptions());
+
+            Assert.Null(parser.InspectRecentSessions(projectPath));
+            Assert.Null(parser.GetLatestObservedProjectPath());
+        }
+        finally
+        {
+            Directory.Delete(homePath, true);
+            Directory.Delete(projectPath, true);
+        }
+    }
+
+    [Fact]
     public void InspectRecentSessions_EmitsTurnAndToolLifecycleEvents()
     {
         var homePath = CreateTempCodexHome();
@@ -945,6 +1072,66 @@ public sealed class CodexSessionLogParserTests
         }
     }
 
+    [Fact]
+    public void InspectRecentSessions_LargeHistoryReadsLatestSessionSettingsOutsideTail()
+    {
+        var homePath = CreateTempCodexHome();
+        var projectPath = Path.Combine(Path.GetTempPath(), "CodexLargeSessionSettingsProject_" + Guid.NewGuid());
+        Directory.CreateDirectory(projectPath);
+
+        try
+        {
+            var now = DateTime.UtcNow;
+            var lines = new List<string>
+            {
+                CreateSessionLine(now.AddMinutes(-2), new
+                {
+                    session_id = "settings-session",
+                    id = "settings-session",
+                    thread_source = "user",
+                    cwd = projectPath,
+                    model = "gpt-5.6-luna",
+                    reasoning_effort = "xhigh",
+                    service_tier = "priority"
+                }, "session_meta")
+            };
+            var filler = CreateSessionLine(now.AddMinutes(-1), new { type = "token_count" }, "event_msg");
+            lines.AddRange(Enumerable.Repeat(filler, 300));
+            lines.Add(CreateSessionLine(now, new
+            {
+                type = "thread_settings_applied",
+                thread_settings = new
+                {
+                    model = "gpt-5.6-luna",
+                    reasoning_effort = "max",
+                    service_tier = "default"
+                }
+            }, "event_msg"));
+            lines.Add(CreateSessionLine(now.AddSeconds(1), new
+            {
+                type = "token_count",
+                padding = new string('x', 2_100_000)
+            }, "event_msg"));
+            WriteSession(homePath, "large-settings-session.jsonl", lines);
+
+            var parser = new CodexSessionLogParser(
+                new CodexDetectionOptions { HomePath = homePath },
+                new PresenceTemplateOptions());
+
+            var inspection = parser.InspectRecentSessions(projectPath);
+
+            Assert.NotNull(inspection);
+            Assert.Equal("gpt-5.6-luna", inspection!.ModelName);
+            Assert.Equal("max", inspection.ReasoningEffort);
+            Assert.Equal("default", inspection.ServiceTier);
+        }
+        finally
+        {
+            Directory.Delete(homePath, true);
+            Directory.Delete(projectPath, true);
+        }
+    }
+
     private static string CreateTempCodexHome()
     {
         var path = Path.Combine(Path.GetTempPath(), "CodexSessionParserTests_" + Guid.NewGuid());
@@ -965,5 +1152,23 @@ public sealed class CodexSessionLogParserTests
             type,
             payload
         });
+    }
+
+    private static string CreateSessionMetaLine(
+        DateTime timestamp,
+        string threadId,
+        string threadSource,
+        string? parentThreadId,
+        string projectPath)
+    {
+        return CreateSessionLine(timestamp, new
+        {
+            session_id = threadId,
+            id = threadId,
+            parent_thread_id = parentThreadId,
+            thread_source = threadSource,
+            cwd = projectPath,
+            source = "cli"
+        }, "session_meta");
     }
 }

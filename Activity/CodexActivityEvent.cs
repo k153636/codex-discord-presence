@@ -1,6 +1,6 @@
 namespace CodexDiscordPresence;
 
-internal enum CodexActivityEventKind
+public enum CodexActivityEventKind
 {
     TurnStarted = 0,
     Reasoning = 1,

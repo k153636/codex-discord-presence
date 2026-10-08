@@ -10,7 +10,7 @@ public sealed class PresenceStatusLabelResolver
         CodexActivityKind activityKind,
         int changedFileCount)
     {
-        if (context.Codex.IsError)
+        if (context.Activity.IsError)
         {
             return FirstNonEmpty(template.ErrorText, "Error");
         }
@@ -24,8 +24,14 @@ public sealed class PresenceStatusLabelResolver
             CodexActivityKind.DeletingFiles => FirstNonEmpty(template.DeletingFilesText, "Deleting files"),
             CodexActivityKind.RunningCommand => ResolveRunningCommandLabel(template, context),
             CodexActivityKind.Refactoring => FirstNonEmpty(template.RefactoringText, "Refactoring"),
-            CodexActivityKind.ReadingFiles => FirstNonEmpty(template.ReadingText, "Reading"),
-            CodexActivityKind.Researching => FirstNonEmpty(template.ResearchingText, "Researching"),
+            CodexActivityKind.ReadingFiles => ResolveActivityDescriptionLabel(
+                template.ReadingText,
+                context.Activity.ActiveActivityDescription,
+                "Reading"),
+            CodexActivityKind.Researching => ResolveActivityDescriptionLabel(
+                template.ResearchingText,
+                context.Activity.ActiveActivityDescription,
+                "Researching"),
             CodexActivityKind.WaitingForInput => FirstNonEmpty(template.WaitingText, "Waiting"),
             CodexActivityKind.Stalled => FirstNonEmpty(template.StalledText, "Stalled"),
             CodexActivityKind.AnalyzingProject => ResolveAnalyzingLabel(template, context),
@@ -45,8 +51,8 @@ public sealed class PresenceStatusLabelResolver
         }
 
         var thinkingSummary = ThinkingSummaryFormatter.FormatForCurrentReasoning(
-            context.Codex.LatestThinkingSummary,
-            context.Codex.LatestActivityEventKind);
+            context.Activity.LatestThinkingSummary,
+            context.Activity.LatestActivityEventKind);
         if (!string.IsNullOrWhiteSpace(thinkingSummary))
         {
             return thinkingSummary;
@@ -57,7 +63,7 @@ public sealed class PresenceStatusLabelResolver
             return FirstNonEmpty(template.ThinkingText, template.AnalyzingProjectText, "Thinking");
         }
 
-        if (!context.Codex.IsThinking)
+        if (!context.Activity.IsThinking)
         {
             return FirstNonEmpty(template.WaitingText, "Waiting");
         }
@@ -67,8 +73,8 @@ public sealed class PresenceStatusLabelResolver
 
     private static bool HasCurrentThinkingBoundary(PresenceContext context)
     {
-        return context.Codex.IsThinking &&
-            context.Codex.LatestActivityEventKind is
+        return context.Activity.IsThinking &&
+            context.Activity.LatestActivityEventKind is
                 CodexActivityEventKind.Reasoning or
                 CodexActivityEventKind.OperationCompleted or
                 CodexActivityEventKind.InputResolved;
@@ -76,7 +82,7 @@ public sealed class PresenceStatusLabelResolver
 
     private static string ResolveReadyLabel(PresenceTemplateOptions template, PresenceContext context)
     {
-        var lastObservedAt = context.Codex.ActivityStartedAt ?? context.Codex.LastObservedAt ?? context.Session.StartedAt;
+        var lastObservedAt = context.Activity.ActivityStartedAt ?? context.Activity.LastObservedAt ?? context.Session.StartedAt;
         var idleGrace = TimeSpan.FromMinutes(Math.Max(0, template.ReadyIdleGraceMinutes));
         var elapsedSinceLastObserved = DateTime.UtcNow - lastObservedAt;
 
@@ -91,7 +97,7 @@ public sealed class PresenceStatusLabelResolver
     private static string ResolveRunningCommandLabel(PresenceTemplateOptions template, PresenceContext context)
     {
         var baseLabel = FirstNonEmpty(template.RunningCommandText, "Run Command");
-        var commandName = ResolveRunningCommandName(context.Codex.RunningCommandName, context.Codex.RunningCommandKind);
+        var commandName = ResolveRunningCommandName(context.Activity.RunningCommandName, context.Activity.RunningCommandKind);
 
         if (string.IsNullOrWhiteSpace(commandName))
         {
@@ -104,6 +110,19 @@ public sealed class PresenceStatusLabelResolver
         }
 
         return $"{baseLabel}: {commandName}";
+    }
+
+    private static string ResolveActivityDescriptionLabel(
+        string configuredLabel,
+        string? description,
+        string fallback)
+    {
+        if (!string.IsNullOrWhiteSpace(description))
+        {
+            return description.Trim();
+        }
+
+        return FirstNonEmpty(configuredLabel, fallback);
     }
 
     private static string ResolveRunningCommandName(string commandName, RunningCommandKind commandKind)
@@ -126,9 +145,9 @@ public sealed class PresenceStatusLabelResolver
 
     private static bool ShouldUseRunningCommandLabel(PresenceContext context)
     {
-        return context.Codex.ActivityKind == CodexActivityKind.AnalyzingProject &&
-            (!string.IsNullOrWhiteSpace(context.Codex.RunningCommandName) ||
-                context.Codex.RunningCommandKind != RunningCommandKind.Unknown);
+        return context.Activity.ActivityKind == CodexActivityKind.AnalyzingProject &&
+            (!string.IsNullOrWhiteSpace(context.Activity.RunningCommandName) ||
+                context.Activity.RunningCommandKind != RunningCommandKind.Unknown);
     }
 
     private static string FirstNonEmpty(params string[] values)

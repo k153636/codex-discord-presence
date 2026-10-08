@@ -5,6 +5,35 @@ namespace CodexDiscordPresence.Tests;
 public sealed class RecentEditedFileTrackerTests
 {
     [Fact]
+    public void PrimeBaseline_DoesNotAttributeExistingFileChangeToCodex()
+    {
+        var now = DateTime.UtcNow;
+        var tracker = new RecentEditedFileTracker(() => now);
+        var projectPath = Path.Combine(Path.GetTempPath(), "CodexRecentEditedFileTrackerTests_" + Guid.NewGuid());
+        var filePath = Path.Combine(projectPath, "AntigravityEdit.cs");
+        var snapshot = new ProjectSnapshot(
+            "Project",
+            projectPath,
+            "AntigravityEdit.cs",
+            filePath,
+            1,
+            1,
+            1,
+            [new RecentProjectFileSnapshot("AntigravityEdit.cs", filePath, now)]);
+
+        tracker.PrimeBaseline(snapshot);
+
+        Assert.Empty(tracker.GetRecentEditedFiles(snapshot, freshnessSeconds: 12));
+
+        now = now.AddSeconds(1);
+        var codexEdit = snapshot with
+        {
+            RecentFiles = [new RecentProjectFileSnapshot("AntigravityEdit.cs", filePath, now)]
+        };
+        Assert.Single(tracker.GetRecentEditedFiles(codexEdit, freshnessSeconds: 12));
+    }
+
+    [Fact]
     public void GetRecentEditedFiles_ExpiresWhenFileIsNoLongerFreshOrTracked()
     {
         var now = DateTime.UtcNow;

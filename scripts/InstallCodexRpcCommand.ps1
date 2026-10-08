@@ -66,7 +66,7 @@ $root = '__CODEX_RPC_ROOT__'
 $launchScript = Join-Path $root 'scripts\LaunchPublishedBuild.ps1'
 
 if (-not (Test-Path -LiteralPath $launchScript)) {
-    Write-Error "Codex Discord RPC checkout is unavailable: $launchScript"
+    Write-Error "K's Code Presence checkout is unavailable: $launchScript"
     exit 1
 }
 
@@ -103,7 +103,7 @@ $root = '__CODEX_RPC_ROOT__'
 $stopScript = Join-Path $root 'scripts\StopPublishedBuild.ps1'
 
 if (-not (Test-Path -LiteralPath $stopScript)) {
-    Write-Error "Codex Discord RPC checkout is unavailable: $stopScript"
+    Write-Error "K's Code Presence checkout is unavailable: $stopScript"
     exit 1
 }
 
