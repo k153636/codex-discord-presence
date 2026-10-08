@@ -1235,6 +1235,16 @@ body::before {
   h1 {
     font-size: clamp(2.2rem, 6vw, 3.2rem);
   }
+
+  .origin {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 2.25rem;
+  }
+
+  .origin-compare {
+    width: 100%;
+    max-width: 560px;
+  }
 }
 
 @media (max-width: 760px) {
