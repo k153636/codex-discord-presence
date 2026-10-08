@@ -436,6 +436,7 @@ a:focus-visible {
 
 .rpc-preview-carousel {
   --rpc-preview-nav-center-shift: 0px;
+  --rpc-preview-hover-room: 24px;
   position: relative;
   width: 100%;
   min-width: 360px;
@@ -445,9 +446,12 @@ a:focus-visible {
 
 .rpc-preview-viewport {
   position: relative;
+  box-sizing: border-box;
   width: 100%;
   min-width: 360px;
-  height: 148px;
+  height: calc(148px + 2 * var(--rpc-preview-hover-room));
+  margin-block: calc(-1 * var(--rpc-preview-hover-room));
+  padding-block: var(--rpc-preview-hover-room);
   overflow: hidden;
   border-radius: 14px;
   -webkit-mask-image: linear-gradient(to right, transparent 0%, black 8%, black 92%, transparent 100%);
@@ -492,7 +496,7 @@ a:focus-visible {
   opacity: 1;
   filter: none;
   transform-origin: center bottom;
-  transition: transform var(--rpc-preview-slide-duration) var(--rpc-preview-slide-ease), filter var(--rpc-preview-slide-duration) var(--rpc-preview-slide-ease), opacity var(--rpc-preview-slide-duration) var(--rpc-preview-slide-ease), box-shadow var(--rpc-preview-slide-duration) var(--rpc-preview-slide-ease);
+  transition: transform var(--rpc-preview-slide-duration) var(--rpc-preview-slide-ease), translate var(--rpc-preview-slide-duration) var(--rpc-preview-slide-ease), filter var(--rpc-preview-slide-duration) var(--rpc-preview-slide-ease), opacity var(--rpc-preview-slide-duration) var(--rpc-preview-slide-ease), box-shadow var(--rpc-preview-slide-duration) var(--rpc-preview-slide-ease), border-color var(--rpc-preview-slide-duration) var(--rpc-preview-slide-ease);
   will-change: transform, filter, opacity;
 }
 
@@ -537,6 +541,21 @@ a:focus-visible {
     0 0 20px -2px rgba(41, 151, 255, 0.24),
     inset 0 1px 0 rgba(255, 255, 255, 0.24);
   transform: translateX(-50%) scale(var(--rpc-preview-active-scale));
+}
+
+.rpc-preview-card--active {
+  pointer-events: auto;
+}
+
+.rpc-preview-card--active:hover {
+  translate: 0 -6px;
+  border-color: rgba(100, 181, 246, 0.85);
+  box-shadow:
+    0 0 0 1px rgba(41, 151, 255, 0.55),
+    0 0 28px rgba(41, 151, 255, 0.45),
+    0 30px 56px -14px rgba(0, 0, 0, 0.85),
+    inset 0 1px 0 rgba(255, 255, 255, 0.24);
+  transition-duration: var(--motion-duration-short);
 }
 
 .rpc-preview-card--far-next {
