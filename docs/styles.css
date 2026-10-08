@@ -239,6 +239,14 @@ nav a[aria-current="page"] {
   max-width: 640px;
 }
 
+.hero-scope-note {
+  max-width: 720px;
+  margin: 0.6rem auto 0;
+  color: var(--muted);
+  font-size: 0.82rem;
+  line-height: 1.5;
+}
+
 .text-gradient {
   background: var(--gradient-accent);
   -webkit-background-clip: text;
