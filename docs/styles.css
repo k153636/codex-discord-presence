@@ -860,10 +860,9 @@ a:focus-visible {
 
 .compare-label {
   color: var(--muted);
-  font-size: 0.75rem;
+  font-size: 0.78rem;
   font-weight: 600;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
+  letter-spacing: 0.02em;
 }
 
 .compare-row--live .compare-label {
