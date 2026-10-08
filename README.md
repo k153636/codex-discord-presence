@@ -20,7 +20,7 @@ Discord follows the AI coding tool you are actually using. Codex works out of th
 | --- | --- | --- |
 | Codex CLI & Desktop | Built in: local session logs and process signals | Reasoning summaries, MCP servers, edited files, model and effort, tokens, subagent party |
 | Claude Code | Opt-in: observational hooks in `~/.claude/settings.json` | Model, effort, MCP, files, terminal spinner labels, Claude Design, subagent party |
-| Antigravity CLI | Opt-in: official statusLine payload | Model, plan and quota usage, tool activity, reported subagents |
+| Antigravity CLI | Opt-in: official statusLine payload | Model and effort, plan and quota usage, tool activity, reported subagents |
 
 Enabling an integration does not force it to take over; the tool with current, project-matching activity is shown.
 
