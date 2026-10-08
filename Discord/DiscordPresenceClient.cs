@@ -222,7 +222,17 @@ public sealed class DiscordPresenceClient : IDisposable
         _needsPresenceRefresh = true;
     }
 
-    // Called by the runtime thread even when no presence update is required.
+    // Called by the runtime thread even when disabled or no provider can publish.
+    internal void MaintainConnection()
+    {
+        ProcessPendingNotifications();
+        if (!_disposed && _client is null && _utcNow() >= _nextInitializeAttemptUtc)
+        {
+            TryInitialize();
+            ProcessPendingNotifications();
+        }
+    }
+
     // Transport callbacks only enqueue immutable notifications and never mutate client state.
     internal void ProcessPendingNotifications()
     {
@@ -326,18 +336,7 @@ public sealed class DiscordPresenceClient : IDisposable
 
     private bool EnsureReady()
     {
-        ProcessPendingNotifications();
-        if (_disposed)
-        {
-            return false;
-        }
-
-        if (_client is null && _utcNow() >= _nextInitializeAttemptUtc)
-        {
-            TryInitialize();
-            ProcessPendingNotifications();
-        }
-
+        MaintainConnection();
         return _isReady;
     }
 

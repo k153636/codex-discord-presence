@@ -99,7 +99,7 @@ public sealed class PresenceRuntime
                 var activityKind = profileStates[currentProfile].LastActivityKind;
                 try
                 {
-                    rpc.ProcessPendingNotifications();
+                    rpc.MaintainConnection();
                     RefreshTimingSettingsIfNeeded();
 
                     var antigravityEnabled = _state.Enabled &&

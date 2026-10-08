@@ -474,6 +474,116 @@ public sealed class DiscordPresenceClientTests
         Assert.Equal(3, fixture.Client.LastPublishedPresence?.PartySize);
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task MaintainConnection_DisabledClearReconnectsAfterBackoffWithoutUpdate(bool error)
+    {
+        var first = new FakeDiscordPresenceTransport();
+        var second = new FakeDiscordPresenceTransport { AutoReady = false };
+        using var fixture = new ClientFixture(first, second);
+        await fixture.Client.StartAsync(CancellationToken.None);
+        fixture.Client.Clear();
+        first.Emit(new(error ? DiscordPresenceNotificationKind.Error : DiscordPresenceNotificationKind.Closed));
+
+        fixture.Client.MaintainConnection();
+        fixture.Client.Clear();
+        Assert.False(fixture.Client.IsConnected);
+        Assert.False(fixture.Client.IsConnecting);
+        Assert.Equal(0, second.InitializeCalls);
+
+        fixture.Now = fixture.Now.Add(DiscordReconnectBackoff.GetDelay(1)).AddTicks(-1);
+        fixture.Client.MaintainConnection();
+        Assert.Equal(0, second.InitializeCalls);
+        fixture.Now = fixture.Now.AddTicks(1);
+        fixture.Client.MaintainConnection();
+        Assert.Equal(1, second.InitializeCalls);
+        Assert.True(fixture.Client.IsConnecting);
+        fixture.Client.MaintainConnection();
+        Assert.Equal(1, second.InitializeCalls);
+
+        second.Emit(new(DiscordPresenceNotificationKind.Ready));
+        fixture.Client.MaintainConnection();
+        fixture.Client.Clear();
+        Assert.True(fixture.Client.IsConnected);
+        Assert.False(fixture.Client.IsConnecting);
+        Assert.Single(second.ClearPresenceCalls);
+        Assert.Empty(second.SetPresenceCalls);
+    }
+
+    [Fact]
+    public async Task MaintainConnection_ResponseTimeoutPreservesPendingClearAndIgnoresStaleQueue()
+    {
+        var first = new FakeDiscordPresenceTransport { AutoAcknowledge = false };
+        var second = new FakeDiscordPresenceTransport();
+        using var fixture = new ClientFixture(first, second);
+        await fixture.Client.StartAsync(CancellationToken.None);
+        fixture.Client.Update(CreatePresence());
+        fixture.Client.Clear();
+        fixture.Now = fixture.Now.Add(DiscordPresenceClient.ResponseTimeout);
+        fixture.Client.MaintainConnection();
+        Assert.True(first.Disposed);
+        Assert.False(fixture.Client.IsConnected);
+        Assert.Null(fixture.Client.LastPublishedPresence);
+
+        first.Emit(new(DiscordPresenceNotificationKind.Ready));
+        first.Acknowledge(first.SetPresenceCalls[0]);
+        fixture.Now = fixture.Now.Add(DiscordReconnectBackoff.GetDelay(1));
+        fixture.Client.MaintainConnection();
+        Assert.True(fixture.Client.IsConnected);
+        Assert.Null(fixture.Client.LastPublishedPresence);
+        Assert.True(fixture.Client.NeedsPresenceRefresh);
+        Assert.Empty(second.SetPresenceCalls);
+        fixture.Client.Clear();
+        Assert.Single(second.ClearPresenceCalls);
+    }
+
+    [Fact]
+    public async Task Getters_DoNotDrainNotificationsOrRetryConnection()
+    {
+        var first = new FakeDiscordPresenceTransport { AutoReady = false };
+        var second = new FakeDiscordPresenceTransport();
+        using var fixture = new ClientFixture(first, second);
+        await fixture.Client.StartAsync(CancellationToken.None);
+        first.Emit(new(DiscordPresenceNotificationKind.Ready));
+        Assert.False(fixture.Client.IsConnected);
+        Assert.True(fixture.Client.IsConnecting);
+        Assert.True(fixture.Client.NeedsPresenceRefresh);
+        Assert.Null(fixture.Client.LastPublishedPresence);
+        fixture.Client.MaintainConnection();
+        Assert.True(fixture.Client.IsConnected);
+
+        first.Emit(new(DiscordPresenceNotificationKind.Closed));
+        fixture.Client.MaintainConnection();
+        fixture.Now = fixture.Now.Add(DiscordReconnectBackoff.GetDelay(1));
+        Assert.False(fixture.Client.IsConnected);
+        Assert.False(fixture.Client.IsConnecting);
+        Assert.True(fixture.Client.NeedsPresenceRefresh);
+        Assert.Null(fixture.Client.LastPublishedPresence);
+        Assert.Equal(0, second.InitializeCalls);
+        fixture.Client.MaintainConnection();
+        Assert.Equal(1, second.InitializeCalls);
+    }
+
+    [Fact]
+    public async Task MaintainConnection_DisposedClientNeverRetries()
+    {
+        var first = new FakeDiscordPresenceTransport();
+        var second = new FakeDiscordPresenceTransport();
+        using var fixture = new ClientFixture(first, second);
+        await fixture.Client.StartAsync(CancellationToken.None);
+        first.Emit(new(DiscordPresenceNotificationKind.Error));
+        fixture.Client.MaintainConnection();
+        fixture.Client.Dispose();
+        fixture.Now = fixture.Now.AddDays(1);
+        fixture.Client.MaintainConnection();
+        fixture.Client.Clear();
+        Assert.False(fixture.Client.IsConnected);
+        Assert.False(fixture.Client.IsConnecting);
+        Assert.Equal(0, second.InitializeCalls);
+        Assert.False(fixture.Client.Update(CreatePresence()));
+    }
+
     private sealed class ClientFixture : IDisposable
     {
         private readonly string _tempPath = CreateTempDirectory();
