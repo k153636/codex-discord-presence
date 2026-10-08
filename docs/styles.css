@@ -12,11 +12,21 @@
   --muted: #747d91;
   --accent: #2997ff;
   --accent-strong: #64b5f6;
+  --link-hover: #bfdbfe;
   --accent-ink: #051329;
   --eyebrow-accent: #60a5fa;
   --button-primary: #0071e3;
   --button-primary-hover: #0077ed;
   --button-primary-ink: #ffffff;
+  --discord-card-bg: #18181a;
+  --discord-card-text: #b5bac1;
+  --discord-card-title: #f2f3f5;
+  --discord-elapsed: #7ec191;
+  --radius-sm: 0.4rem;
+  --radius-card: 11px;
+  --radius-pill: 980px;
+  --font-text: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI Variable Text", "Segoe UI", ui-sans-serif, system-ui, sans-serif;
+  --font-display: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Segoe UI Variable Display", "Segoe UI", ui-sans-serif, system-ui, sans-serif;
   --max-width: 1180px;
   --motion-duration: 900ms;
   --motion-duration-short: 260ms;
@@ -48,7 +58,7 @@ body {
     radial-gradient(1200px 560px at 50% -60px, rgba(41, 151, 255, 0.12) 0%, rgba(41, 151, 255, 0.035) 50%, transparent 80%);
   background-repeat: no-repeat;
   color: var(--text);
-  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI Variable Text", "Segoe UI", ui-sans-serif, system-ui, sans-serif;
+  font-family: var(--font-text);
   line-height: 1.6;
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
@@ -80,13 +90,13 @@ a {
 }
 
 a:hover {
-  color: #bfdbfe;
+  color: var(--link-hover);
 }
 
 code {
   padding: 0.18rem 0.45rem;
   border: 1px solid var(--border-subtle);
-  border-radius: 0.4rem;
+  border-radius: var(--radius-sm);
   background: rgba(255, 255, 255, 0.045);
   font-size: 0.9em;
 }
@@ -190,7 +200,7 @@ h1,
 h2,
 h3 {
   margin: 0;
-  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Segoe UI Variable Display", "Segoe UI", ui-sans-serif, system-ui, sans-serif;
+  font-family: var(--font-display);
   letter-spacing: -0.038em;
 }
 
@@ -208,7 +218,7 @@ h2 {
   font-size: clamp(1.9rem, 3.8vw, 3rem);
   font-weight: 650;
   line-height: 1.12;
-  color: #ffffff;
+  color: var(--text);
 }
 
 h3 {
@@ -239,7 +249,7 @@ h3 {
   justify-content: center;
   min-height: 2.7rem;
   padding: 0.62rem 1.45rem;
-  border-radius: 980px;
+  border-radius: var(--radius-pill);
   font-size: 0.9rem;
   font-weight: 550;
   letter-spacing: -0.01em;
@@ -395,10 +405,10 @@ a:focus-visible {
   overflow: hidden;
   padding: 10px 10px 3px;
   border: 1px solid rgba(255, 255, 255, 0.09);
-  border-radius: 11px;
-  background: #18181a;
+  border-radius: var(--radius-card);
+  background: var(--discord-card-bg);
   box-shadow: 0 16px 36px rgba(0, 0, 0, 0.45);
-  color: #b5bac1;
+  color: var(--discord-card-text);
   font-family: "gg sans", "Segoe UI Variable Text", "Segoe UI", ui-sans-serif, system-ui, sans-serif;
   backface-visibility: hidden;
   pointer-events: none;
@@ -472,7 +482,7 @@ a:focus-visible {
   backdrop-filter: blur(20px);
   -webkit-backdrop-filter: blur(20px);
   box-shadow: 0 4px 14px rgba(0, 0, 0, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.12);
-  color: #f5f5f7;
+  color: var(--text);
   cursor: pointer;
   transform: translateY(-50%);
   transition: border-color var(--motion-duration-short) var(--motion-ease), background var(--motion-duration-short) var(--motion-ease), color var(--motion-duration-short) var(--motion-ease), transform var(--motion-duration-short) var(--motion-ease), box-shadow var(--motion-duration-short) var(--motion-ease);
@@ -541,7 +551,7 @@ a:focus-visible {
   font-size: 16px;
   font-weight: 700;
   line-height: 22px;
-  color: #f2f3f5;
+  color: var(--discord-card-title);
 }
 
 .rpc-preview-content {
@@ -563,7 +573,7 @@ a:focus-visible {
   display: block;
   width: 100%;
   height: 100%;
-  border-radius: 11px;
+  border-radius: var(--radius-card);
   object-fit: cover;
 }
 
@@ -574,7 +584,7 @@ a:focus-visible {
   display: block;
   width: 32px;
   height: 32px;
-  border: 3px solid #18181a;
+  border: 3px solid var(--discord-card-bg);
   border-radius: 50%;
   object-fit: cover;
 }
@@ -612,14 +622,14 @@ a:focus-visible {
   font-size: 18px;
   font-weight: 700;
   line-height: 24px;
-  color: #f2f3f5;
+  color: var(--discord-card-title);
 }
 
 .rpc-preview-elapsed {
   display: flex !important;
   align-items: center;
   gap: 0.4rem;
-  color: #7ec191;
+  color: var(--discord-elapsed);
   line-height: 21px;
   height: 21px;
 }
