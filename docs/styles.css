@@ -219,8 +219,7 @@ nav a[aria-current="page"] {
   box-shadow: 0 0 24px -6px rgba(41, 151, 255, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.08);
 }
 
-.hero-badge-dot,
-.presence-caption-dot {
+.hero-badge-dot {
   width: 0.45rem;
   height: 0.45rem;
   border-radius: 50%;
@@ -370,30 +369,10 @@ a:focus-visible {
 }
 
 .presence-figure {
-  position: relative;
   width: 100%;
   min-width: 0;
   margin: 0;
-  padding: clamp(2.5rem, 4vw, 3.5rem) 0.5rem 1.25rem;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-lg);
-  background:
-    radial-gradient(ellipse 50% 70% at 50% 0%, rgba(41, 151, 255, 0.10) 0%, transparent 70%),
-    linear-gradient(180deg, rgba(255, 255, 255, 0.035) 0%, rgba(255, 255, 255, 0.01) 100%);
-  box-shadow: 0 40px 80px -40px rgba(0, 0, 0, 0.9), inset 0 1px 0 rgba(255, 255, 255, 0.07);
-}
-
-.presence-caption {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 0.55rem;
-  margin-top: clamp(1.75rem, 3vw, 2.25rem);
-  color: var(--muted);
-  font-size: 0.78rem;
-  font-weight: 550;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
+  padding: 0.25rem 0.5rem 0.75rem;
 }
 
 .rpc-preview-frame {
@@ -1324,8 +1303,7 @@ body::before {
   }
 
   .presence-figure {
-    padding: 2rem 0.75rem 1.25rem;
-    border-radius: 20px;
+    padding: 0.75rem 0 1.25rem;
     overflow-x: visible;
   }
 
@@ -1543,15 +1521,7 @@ body::before {
   }
 
   .presence-figure {
-    padding: 0.75rem 0 0.5rem;
-    border-color: transparent;
-    background: none;
-    box-shadow: none;
     scrollbar-width: none;
-  }
-
-  .presence-caption {
-    margin-top: 1.25rem;
   }
 
   .hero-badge {
