@@ -1327,3 +1327,38 @@ body::before {
   }
 
 }
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    transition-delay: 0ms !important;
+  }
+
+  body::before,
+  .brand-mark,
+  .rpc-preview-shell,
+  .rpc-preview-shell::before,
+  .rpc-preview-shell::after,
+  html:not(.motion-enhanced) .hero-copy {
+    animation: none;
+  }
+
+  html.motion-enhanced [data-motion],
+  html.motion-enhanced .prose > * {
+    opacity: 1;
+    transform: none;
+  }
+
+  .button:hover,
+  .button:active {
+    transform: none;
+  }
+}

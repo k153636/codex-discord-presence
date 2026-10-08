@@ -190,6 +190,7 @@
   const autoAdvanceMaxDelay = 8200;
   const carouselInitialDelay = 1800;
   const carouselAutoAdvanceDelay = 7200;
+  const prefersReducedMotion = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches ?? false;
 
   const clearThemeAutoAdvance = (themeIndex) => {
     window.clearTimeout(autoAdvanceTimers[themeIndex]);
@@ -229,7 +230,7 @@
 
   const scheduleCarouselAutoAdvance = (delay = carouselAutoAdvanceDelay) => {
     clearCarouselAutoAdvance();
-    if (carouselAutoAdvancePaused || document.hidden) {
+    if (prefersReducedMotion || carouselAutoAdvancePaused || document.hidden) {
       return;
     }
 
