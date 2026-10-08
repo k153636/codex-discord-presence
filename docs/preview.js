@@ -40,14 +40,50 @@
       ]
     },
     {
+      app: "Claude Code",
+      model: "claude opus 4.6",
+      speed: "",
+      showTokens: false,
+      smallImage: null,
+      initialEffort: "high",
+      states: [
+        { activity: "Cerebrating", image: "assets/clawd-working-typing.gif", initialElapsedSeconds: 138, effort: "high" },
+        { activity: "Editing PresenceRuntime.cs", image: "assets/clawd-working-building.gif", initialElapsedSeconds: 162, effort: "high" },
+        { activity: "MCP chrome-devtools", image: "assets/clawd-working-building.gif", initialElapsedSeconds: 118, effort: "high" }
+      ]
+    },
+    {
       states: [
         { activity: "Comparing rendered bounds", image: "assets/rpc_thinking.gif", initialElapsedSeconds: 124, tokenGrowthMinPerSecond: 260_000, tokenGrowthMaxPerSecond: 720_000, tokenBurstMin: 240_000, tokenBurstMax: 600_000, effort: "high" },
         { activity: "Keeping the frame stable", image: "assets/rpc_coding.gif", initialElapsedSeconds: 150, tokenGrowthMinPerSecond: 420_000, tokenGrowthMaxPerSecond: 980_000, tokenBurstMin: 360_000, tokenBurstMax: 820_000, effort: "xhigh" },
         { activity: "Reproducing the timer drift", image: "assets/rpc_coding.gif", initialElapsedSeconds: 168, tokenGrowthMinPerSecond: 650_000, tokenGrowthMaxPerSecond: 1_400_000, tokenBurstMin: 600_000, tokenBurstMax: 1_400_000, effort: "max" },
         { activity: "Tracing the icon squeeze", image: "assets/rpc_coding.gif", initialElapsedSeconds: 172, tokenGrowthMinPerSecond: 380_000, tokenGrowthMaxPerSecond: 900_000, tokenBurstMin: 320_000, tokenBurstMax: 760_000, effort: "xhigh" }
       ]
+    },
+    {
+      app: "Antigravity CLI",
+      model: "gemini 3.8 flash",
+      speed: "",
+      showTokens: false,
+      smallImage: null,
+      initialEffort: "medium",
+      states: [
+        { activity: "Editing index.html", image: "assets/rpc_antigravity_cli.png", initialElapsedSeconds: 146, effort: "medium" },
+        { activity: "Thinking", image: "assets/rpc_antigravity_cli.png", initialElapsedSeconds: 128, effort: "medium" }
+      ]
     }
   ];
+  const defaultTheme = {
+    app: "Codex",
+    model: modelLabel,
+    speed: "1.5x",
+    showTokens: true,
+    smallImage: "assets/rpc_codex.png",
+    initialEffort: "xhigh"
+  };
+  rpcThemes.forEach((theme, index) => {
+    rpcThemes[index] = { ...defaultTheme, ...theme };
+  });
 
   const cardPositionClasses = [
     "rpc-preview-card--far-previous",
@@ -59,6 +95,8 @@
 
   const getCardParts = (card) => ({
     image: card.querySelector("[data-rpc-card-image]"),
+    title: card.querySelector("[data-rpc-card-title]"),
+    small: card.querySelector("[data-rpc-card-small]"),
     details: card.querySelector("[data-rpc-card-details]"),
     state: card.querySelector("[data-rpc-card-state]"),
     elapsed: card.querySelector("[data-rpc-elapsed]")
@@ -94,7 +132,7 @@
   };
 
   const themeStateIndexes = selectInitialStateIndexes();
-  const themeEfforts = rpcThemes.map(() => "xhigh");
+  const themeEfforts = rpcThemes.map((theme) => theme.initialEffort);
   const initialTimestamp = performance.now();
   const themeStartedAt = rpcThemes.map(() => initialTimestamp);
   const themeTokenCounts = rpcThemes.map(() => baseTokenCount);
@@ -108,7 +146,7 @@
 
   const formatTokenCount = (tokenCount) => `${(tokenCount / 1_000_000).toFixed(1)}M Token`;
 
-  const getRandomTokenDelta = (minimum, maximum) => Math.round(
+  const getRandomTokenDelta = (minimum = 0, maximum = minimum) => Math.round(
     minimum + Math.random() * (maximum - minimum)
   );
 
@@ -128,7 +166,11 @@
     return themeTokenCounts[themeIndex];
   };
 
-  const formatDetails = (themeIndex, now) => `${modelLabel} ${themeEfforts[themeIndex]} 1.5x • ${formatTokenCount(getTokenCount(themeIndex, now))}`;
+  const formatDetails = (themeIndex, now) => {
+    const theme = rpcThemes[themeIndex];
+    const model = [theme.model, themeEfforts[themeIndex], theme.speed].filter(Boolean).join(" ");
+    return theme.showTokens ? `${model} • ${formatTokenCount(getTokenCount(themeIndex, now))}` : model;
+  };
 
   const getNextStateIndex = (themeIndex) => {
     const currentStateIndex = themeStateIndexes[themeIndex];
@@ -170,6 +212,12 @@
     parts.state.textContent = activity;
     parts.state.classList.toggle("rpc-preview-card-state--wrapped", activity.includes("\n"));
     parts.image.src = state.image;
+    const theme = rpcThemes[themeIndex];
+    parts.title.textContent = theme.app;
+    parts.small.hidden = !theme.smallImage;
+    if (theme.smallImage) {
+      parts.small.src = theme.smallImage;
+    }
     parts.elapsed.textContent = formatElapsed(safeSeconds(state.initialElapsedSeconds));
     card.setAttribute("aria-label", `Discord activity ${themeIndex + 1} of ${rpcThemes.length}: ${details}: ${activity.replace(/\s+/g, " ").trim()}`);
   };

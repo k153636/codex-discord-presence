@@ -665,6 +665,10 @@ a:focus-visible {
   object-fit: cover;
 }
 
+.rpc-preview-small[hidden] {
+  display: none;
+}
+
 .rpc-preview-copy {
   display: grid;
   grid-template-rows: 24px 21px 21px 21px;
