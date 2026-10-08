@@ -866,9 +866,11 @@ a:focus-visible {
 .feature-card,
 .provider-card,
 .origin-compare,
+.install-line,
 html.motion-enhanced .feature-card[data-motion],
 html.motion-enhanced .provider-card[data-motion],
-html.motion-enhanced .origin-compare[data-motion] {
+html.motion-enhanced .origin-compare[data-motion],
+html.motion-enhanced .install-line[data-motion] {
   transition:
     opacity var(--motion-duration) var(--motion-ease) var(--motion-delay, 0ms),
     transform var(--motion-duration) var(--motion-ease) var(--motion-delay, 0ms),
@@ -879,7 +881,8 @@ html.motion-enhanced .origin-compare[data-motion] {
 
 .feature-card:hover::after,
 .provider-card:hover::after,
-.origin-compare:hover::after {
+.origin-compare:hover::after,
+.install-line:hover::after {
   position: absolute;
   top: 100%;
   right: 0;
@@ -891,13 +894,21 @@ html.motion-enhanced .origin-compare[data-motion] {
 .feature-card:hover,
 .provider-card:hover,
 .origin-compare:hover,
+.install-line:hover,
 html.motion-enhanced .feature-card[data-motion]:hover,
 html.motion-enhanced .provider-card[data-motion]:hover,
-html.motion-enhanced .origin-compare[data-motion]:hover {
+html.motion-enhanced .origin-compare[data-motion]:hover,
+html.motion-enhanced .install-line[data-motion]:hover {
   translate: 0 -6px;
   border-color: rgba(96, 165, 250, 0.35);
   box-shadow: 0 18px 40px -24px rgba(41, 151, 255, 0.55), inset 0 1px 0 rgba(255, 255, 255, 0.08);
   transition-duration: var(--motion-duration), var(--motion-duration), var(--motion-surface-duration), var(--motion-surface-duration), var(--motion-surface-duration);
+}
+
+/* The install panel keeps its own downward glow under the shared hover shadow. */
+.install-line:hover,
+html.motion-enhanced .install-line[data-motion]:hover {
+  box-shadow: 0 40px 90px -45px rgba(41, 151, 255, 0.5), 0 18px 40px -24px rgba(41, 151, 255, 0.55), inset 0 1px 0 rgba(255, 255, 255, 0.09);
 }
 
 .feature-visual {
@@ -1085,6 +1096,7 @@ html.motion-enhanced .origin-compare[data-motion]:hover {
 }
 
 .install-line {
+  position: relative;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -1096,7 +1108,8 @@ html.motion-enhanced .origin-compare[data-motion]:hover {
   background:
     radial-gradient(ellipse 70% 90% at 50% 0%, rgba(41, 151, 255, 0.24) 0%, rgba(41, 151, 255, 0.06) 45%, transparent 75%),
     linear-gradient(180deg, rgba(255, 255, 255, 0.04) 0%, rgba(255, 255, 255, 0.01) 100%);
-  box-shadow: 0 40px 90px -45px rgba(41, 151, 255, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.09);
+  box-shadow: 0 40px 90px -45px rgba(41, 151, 255, 0.5), 0 18px 40px -24px rgba(41, 151, 255, 0), inset 0 1px 0 rgba(255, 255, 255, 0.09);
+  translate: 0 0;
   text-align: center;
 }
 
