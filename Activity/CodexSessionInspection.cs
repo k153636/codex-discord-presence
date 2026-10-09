@@ -29,6 +29,7 @@ internal sealed record SessionInspection(
     public string? LastDirectToolFilePath { get; init; }
     public DateTime? LastDirectToolFileAt { get; init; }
     public IReadOnlyList<CodexActivityEvent> ActivityEvents { get; init; } = Array.Empty<CodexActivityEvent>();
+    public SubagentActivitySummary? SubagentActivity { get; init; }
     public IReadOnlyList<string> ActiveAgentThreadIds => CodexAgentActivityTracker.GetActiveAgentThreadIds(ActivityEvents);
     public int PartySize => 1 + ActiveAgentThreadIds.Count;
     public bool IsPrimaryThread =>

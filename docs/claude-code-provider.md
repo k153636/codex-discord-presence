@@ -14,7 +14,11 @@ settings are preserved. Hooks record sanitized session and lifecycle metadata
 under `%LOCALAPPDATA%/CodexDiscordPresence/claude-code/sessions`. Prompts,
 tool responses, shell commands, source text, and thinking bodies are discarded.
 Only file basenames appear in presence. Subagent lifecycle IDs determine party
-membership; subagent tool activity cannot replace main-agent activity.
+membership. Child tool hooks are isolated by `agent_id`, and the small image
+tooltip reports a work category only while a matching child tool event is
+fresh. Child events cannot replace the main-agent activity line. When a child
+is confirmed active but has no fresh tool evidence, Discord shows only the
+active subagent count.
 
 For a native Claude session already running before hook installation, a bounded
 tail of recent main-session transcripts can bootstrap activity. This requires a
@@ -24,20 +28,42 @@ session supplies hook evidence, transcript bootstrap cannot resurrect it after
 `SessionEnd` or overwrite hook observations. Node-based CLI sessions need hooks;
 native-process bootstrap is deliberately limited to the native executable.
 
-The main transcript provides observed model and effort metadata. Unavailable
-metadata stays unknown. Tokens, cost, plan, quota and billing are currently
-omitted: a transcript's per-message tokens are not a subscription quota or a
-session-wide cost. The integration does not access Claude credentials or make
-Anthropic account requests.
+The main transcript provides observed model and effort metadata, and session
+token totals. Token totals sum input, cache creation, cache read and output
+tokens from main-session assistant messages, counting each message ID once
+across streaming blocks. Reads are incremental; child sessions and other
+sessions are excluded. The current context window is never presented as a
+session total.
+
+Hook and statusLine input is forwarded as native bytes, preserving Japanese
+project paths. Transcript token totals do not depend on statusLine installation
+success; if that installation fails, cost and subscription usage are omitted
+while available tokens remain visible.
+
+An observational wrapper around the official `statusLine` captures sanitized
+session cost and subscription usage. The original command still receives the
+same input and its output, ANSI formatting, errors and exit code pass through.
+Existing padding and refresh settings are preserved. Usage observations do not
+create activity or change provider selection. Only a matching active session
+and project can use its usage record.
+
+Codex and Claude share the same token formatting, five-second waiting details
+cycle, five-hour usage percentage and reset countdown, and dashboard billing
+and usage metrics. Subscription billing requires observed subscription usage;
+cost or context alone cannot establish API or subscription billing. Missing
+metadata stays unknown, and an expired usage window is omitted until refreshed.
+Session cost is an estimate, not an actual subscription charge. The integration
+does not access Claude credentials or make Anthropic account requests.
 
 ## Installation safety
 
-Each settings mutation has a local backup. An ownership manifest identifies the
-exact installed hook definitions. Installation is idempotent. Disablement and
-normal application exit remove only those exact definitions, preserving other
-hooks and subsequent user edits. Altered or unowned app definitions are treated
-as conflicts; the settings file remains untouched. Settings are written using an
-atomic replacement, with a check for concurrent edits before replacement.
+Each settings mutation has a local backup. Ownership manifests identify the
+exact installed hook definitions and status-line wrapper, including its original
+value. Installation is idempotent. Disablement and normal application exit
+remove only owned definitions and restore the original status line, preserving
+other hooks and subsequent user edits. Altered or unowned app definitions are
+treated as conflicts; the settings file remains untouched. Settings are written
+using an atomic replacement, with a check for concurrent edits before replacement.
 
 Claude may require approval of changed hooks or a new session before it runs new
 hook commands. The integration does not restart Claude. A missing `SessionEnd`
@@ -57,5 +83,6 @@ attribution and the upstream MIT license in `Assets/RpcArt/ClaudeCode`.
 References:
 
 - [Claude Code hooks](https://code.claude.com/docs/en/hooks)
+- [Claude Code status line](https://code.claude.com/docs/en/statusline)
 - [Upstream defaults, pinned revision](https://github.com/rar-file/claude-rpc/blob/eac1fbb29cfd940dfef300b1340744b8995ae5c9/src/default-config.js)
 - [Upstream license](https://github.com/rar-file/claude-rpc/blob/eac1fbb29cfd940dfef300b1340744b8995ae5c9/LICENSE)

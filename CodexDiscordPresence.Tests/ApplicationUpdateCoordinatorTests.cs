@@ -174,6 +174,61 @@ public sealed class ApplicationUpdateCoordinatorTests
         Assert.Equal(2, fixture.Backend.Checks);
     }
 
+    [Fact]
+    public async Task FailedCheck_RepeatedFailuresIncreaseDelay_AndSuccessRestoresSixHourInterval()
+    {
+        using var fixture = new Fixture(installed: false);
+        fixture.Backend.CheckError = new HttpRequestException("offline");
+        await fixture.Updates.TickAsync(Now, default);
+        await fixture.Updates.TickAsync(Now.AddMinutes(14), default);
+        Assert.Equal(1, fixture.Backend.Checks);
+        await fixture.Updates.TickAsync(Now.AddMinutes(15), default);
+        Assert.Equal(2, fixture.Backend.Checks);
+        await fixture.Updates.TickAsync(Now.AddMinutes(44), default);
+        Assert.Equal(2, fixture.Backend.Checks);
+        fixture.Backend.CheckError = null;
+        fixture.Backend.Latest = null;
+        await fixture.Updates.TickAsync(Now.AddMinutes(45), default);
+        Assert.Equal(3, fixture.Backend.Checks);
+        await fixture.Updates.TickAsync(Now.AddMinutes(45).AddHours(5), default);
+        Assert.Equal(3, fixture.Backend.Checks);
+        await fixture.Updates.TickAsync(Now.AddMinutes(45).AddHours(6), default);
+        Assert.Equal(4, fixture.Backend.Checks);
+    }
+
+    [Fact]
+    public async Task FailedDownload_RetriesWithoutRepeatingSuccessfulReleaseCheck()
+    {
+        using var fixture = new Fixture();
+        fixture.Backend.DownloadError = new IOException("offline");
+        await fixture.Updates.TickAsync(Now, default);
+        await fixture.Updates.TickAsync(Now.AddMinutes(15), default);
+        Assert.Equal(1, fixture.Backend.Checks);
+        Assert.Equal(2, fixture.Backend.Downloads);
+        await fixture.Updates.TickAsync(Now.AddMinutes(44), default);
+        Assert.Equal(2, fixture.Backend.Downloads);
+        fixture.Backend.DownloadError = null;
+        await fixture.Updates.TickAsync(Now.AddMinutes(45), default);
+        Assert.Equal(3, fixture.Backend.Downloads);
+        Assert.Equal(ApplicationUpdateStatus.Ready, fixture.Updates.Snapshot.Status);
+    }
+
+    [Fact]
+    public async Task RateLimitedCheck_ManualRequestsRespectServerDeadline()
+    {
+        using var fixture = new Fixture(installed: false);
+        fixture.Backend.CheckError = new ApplicationUpdateRetryException("HTTP 429", Now.AddHours(2));
+        await fixture.Updates.TickAsync(Now, default);
+        fixture.Updates.RequestCheck();
+        Assert.Equal(Now.AddHours(2), fixture.Updates.Snapshot.RetryAfterUtc);
+        await fixture.Updates.TickAsync(Now.AddHours(1), default);
+        Assert.Equal(1, fixture.Backend.Checks);
+        Assert.Equal(ApplicationUpdateStatus.Failed, fixture.Updates.Snapshot.Status);
+        fixture.Backend.CheckError = null;
+        await fixture.Updates.TickAsync(Now.AddHours(2), default);
+        Assert.Equal(2, fixture.Backend.Checks);
+    }
+
     private sealed class Fixture : IDisposable
     {
         private readonly string _directory = Path.Combine(Path.GetTempPath(), "rpc-update-tests-" + Guid.NewGuid());
@@ -207,8 +262,14 @@ public sealed class ApplicationUpdateCoordinatorTests
         public int Downloads { get; private set; }
         public string[]? Arguments { get; private set; }
         public Exception? DownloadError { get; set; }
+        public Exception? CheckError { get; set; }
         public Action? DuringDownload { get; set; }
-        public Task<string?> CheckAsync(CancellationToken token) { Checks++; return Task.FromResult(Latest); }
+        public Task<string?> CheckAsync(CancellationToken token)
+        {
+            Checks++;
+            if (CheckError is not null) throw CheckError;
+            return Task.FromResult(Latest);
+        }
         public Task DownloadAsync(Action<int> progress, CancellationToken token)
         {
             Downloads++;

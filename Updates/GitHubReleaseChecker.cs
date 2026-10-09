@@ -31,7 +31,10 @@ public sealed class GitHubReleaseChecker
             using var response = await _httpClient.GetAsync(LatestReleaseUri, cancellationToken).ConfigureAwait(false);
             if (!response.IsSuccessStatusCode)
             {
-                return GitHubReleaseCheckResult.Failed($"GitHub release check failed with HTTP {(int)response.StatusCode}.");
+                return GitHubReleaseCheckResult.Failed($"GitHub release check failed with HTTP {(int)response.StatusCode}.") with
+                {
+                    RetryAfterUtc = GetRetryAfterUtc(response, DateTimeOffset.UtcNow)
+                };
             }
 
             await using var stream = await response.Content.ReadAsStreamAsync(cancellationToken).ConfigureAwait(false);
@@ -66,6 +69,27 @@ public sealed class GitHubReleaseChecker
         }
     }
 
+    internal static DateTime? GetRetryAfterUtc(HttpResponseMessage response, DateTimeOffset now)
+    {
+        var retryAfter = response.Headers.RetryAfter;
+        DateTimeOffset? deadline = retryAfter?.Date;
+        if (retryAfter?.Delta is { } delay) deadline = now.Add(delay);
+        if (response.Headers.TryGetValues("X-RateLimit-Remaining", out var remaining) &&
+            remaining.Any(value => value == "0") &&
+            response.Headers.TryGetValues("X-RateLimit-Reset", out var resetValues) &&
+            long.TryParse(resetValues.FirstOrDefault(), System.Globalization.NumberStyles.Integer,
+                System.Globalization.CultureInfo.InvariantCulture, out var resetSeconds))
+        {
+            try
+            {
+                var reset = DateTimeOffset.FromUnixTimeSeconds(resetSeconds);
+                if (deadline is null || reset > deadline) deadline = reset;
+            }
+            catch (ArgumentOutOfRangeException) { }
+        }
+        return deadline is { } future && future > now ? future.UtcDateTime : null;
+    }
+
     private sealed record GitHubReleaseDto(
         [property: JsonPropertyName("id")] long Id,
         [property: JsonPropertyName("tag_name")] string? TagName,
@@ -80,6 +104,8 @@ public sealed record GitHubReleaseCheckResult(
     string? LatestReleaseUrl,
     string? WarningMessage)
 {
+    public DateTime? RetryAfterUtc { get; init; }
+
     public static GitHubReleaseCheckResult UpToDate(SemanticVersion currentVersion, SemanticVersion latestVersion, string? releaseUrl)
     {
         return new GitHubReleaseCheckResult(true, false, currentVersion, latestVersion, releaseUrl, null);

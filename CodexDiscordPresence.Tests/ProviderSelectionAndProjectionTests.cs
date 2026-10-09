@@ -495,6 +495,29 @@ public sealed class ProviderSelectionAndProjectionTests
 
         Assert.Equal(2, projection.Activity.ActiveSubagentCount);
         Assert.Equal(3, projection.Activity.PartySize);
+        Assert.Equal(2, projection.Activity.SubagentActivity?.UnknownCount);
+        Assert.Equal("2 subagents active", projection.Activity.SubagentActivity?.FormatSmallImageText());
+    }
+
+    [Fact]
+    public void Build_ProjectsOnlyExplicitAntigravitySubagentWorkStatuses()
+    {
+        var projection = AntigravityPresenceProjection.Build(
+            Observation(
+                "conversation-a",
+                ProviderAgentState.Working,
+                "2026-09-11T04:05:06Z",
+                activeSubagentCount: 3) with
+            {
+                ActiveSubagentWorkKinds = [SubagentWorkKind.Editing, SubagentWorkKind.Reading]
+            });
+
+        Assert.Equal(4, projection.Activity.PartySize);
+        Assert.Equal(1, projection.Activity.SubagentActivity?.EditingCount);
+        Assert.Equal(1, projection.Activity.SubagentActivity?.ReadingCount);
+        Assert.Equal(1, projection.Activity.SubagentActivity?.UnknownCount);
+        Assert.Equal("3 subagents active · 1 editing, 1 reading, 1 unspecified",
+            projection.Activity.SubagentActivity?.FormatSmallImageText());
     }
 
     [Fact]

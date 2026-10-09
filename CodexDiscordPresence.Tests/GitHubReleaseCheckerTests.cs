@@ -31,7 +31,7 @@ public sealed class GitHubReleaseCheckerTests
         using var client = CreateClient($$"""{ "id": {{id}}, "tag_name": "{{tag}}" }""");
         var result = await new GitHubReleaseChecker(client).CheckLatestReleaseAsync(CancellationToken.None);
 
-        Assert.True(result.UpdateAvailable);
+        Assert.True(result.Succeeded);
         Assert.Equal(expected, result.LatestVersion!.ToString());
     }
 
@@ -83,6 +83,42 @@ public sealed class GitHubReleaseCheckerTests
 
         Assert.False(result.Succeeded);
         Assert.Contains("HTTP 500", result.WarningMessage);
+    }
+
+    [Fact]
+    public void GetRetryAfterUtc_RetryAfterSeconds_ReturnsServerDeadline()
+    {
+        var now = new DateTimeOffset(2026, 10, 9, 0, 0, 0, TimeSpan.Zero);
+        using var response = new HttpResponseMessage(HttpStatusCode.TooManyRequests);
+        response.Headers.RetryAfter = new System.Net.Http.Headers.RetryConditionHeaderValue(TimeSpan.FromMinutes(20));
+
+        Assert.Equal(now.AddMinutes(20).UtcDateTime, GitHubReleaseChecker.GetRetryAfterUtc(response, now));
+    }
+
+    [Fact]
+    public void GetRetryAfterUtc_ExhaustedQuota_UsesLaterResetDeadline()
+    {
+        var now = new DateTimeOffset(2026, 10, 9, 0, 0, 0, TimeSpan.Zero);
+        using var response = new HttpResponseMessage(HttpStatusCode.Forbidden);
+        response.Headers.RetryAfter = new System.Net.Http.Headers.RetryConditionHeaderValue(now.AddMinutes(20));
+        response.Headers.Add("X-RateLimit-Remaining", "0");
+        response.Headers.Add("X-RateLimit-Reset", now.AddHours(1).ToUnixTimeSeconds().ToString());
+
+        Assert.Equal(now.AddHours(1).UtcDateTime, GitHubReleaseChecker.GetRetryAfterUtc(response, now));
+    }
+
+    [Theory]
+    [InlineData("not-a-time", "0")]
+    [InlineData("9223372036854775807", "0")]
+    [InlineData("1791507600", "1")]
+    public void GetRetryAfterUtc_InvalidOrNonExhaustedQuota_DoesNotInventDeadline(string reset, string remaining)
+    {
+        var now = new DateTimeOffset(2026, 10, 9, 0, 0, 0, TimeSpan.Zero);
+        using var response = new HttpResponseMessage(HttpStatusCode.Forbidden);
+        response.Headers.Add("X-RateLimit-Remaining", remaining);
+        response.Headers.Add("X-RateLimit-Reset", reset);
+
+        Assert.Null(GitHubReleaseChecker.GetRetryAfterUtc(response, now));
     }
 
     private static HttpClient CreateClient(string json, HttpStatusCode statusCode = HttpStatusCode.OK)

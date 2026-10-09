@@ -2,9 +2,12 @@ namespace CodexDiscordPresence;
 
 internal sealed class ProviderActivationGate
 {
-    internal static readonly TimeSpan MinimumSwitchInterval = TimeSpan.FromSeconds(5);
+    internal static readonly TimeSpan MinimumSwitchInterval = TimeSpan.FromSeconds(15);
     private string? _currentProviderId;
     private DateTimeOffset? _lastSelectionUtc;
+    private DateTimeOffset? _dashboardPublishedAtUtc;
+    private DateTimeOffset? _confirmedAtUtc;
+    private long? _confirmedPublicationGeneration;
     private bool _hasEvaluated;
     private bool _currentWasActive;
     private DateTimeOffset? _inactiveBoundaryUtc;
@@ -15,6 +18,44 @@ internal sealed class ProviderActivationGate
     }
 
     internal string? CurrentProviderId => _currentProviderId;
+
+    internal bool RecordDashboardPublication(PresenceDashboardSnapshot snapshot)
+    {
+        ArgumentNullException.ThrowIfNull(snapshot);
+        if (_lastSelectionUtc is null || snapshot.HasNoActiveProvider || snapshot.Presence is null ||
+            !string.Equals(snapshot.ProviderId, _currentProviderId, StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
+        var publishedAtUtc = new DateTimeOffset(snapshot.UpdatedAtUtc.ToUniversalTime());
+        if (publishedAtUtc < _lastSelectionUtc.Value)
+        {
+            return false;
+        }
+
+        _dashboardPublishedAtUtc ??= publishedAtUtc;
+        return RecordPresenceAcknowledgment(snapshot.PublishedPresence, publishedAtUtc);
+    }
+
+    internal bool RecordPresenceAcknowledgment(DiscordPresenceSnapshot? presence, DateTimeOffset nowUtc)
+    {
+        if (presence?.AcknowledgedAtUtc is not { } acknowledgedAtUtc ||
+            _lastSelectionUtc is null ||
+            !string.Equals(presence.ProviderId, _currentProviderId, StringComparison.OrdinalIgnoreCase) ||
+            acknowledgedAtUtc < _lastSelectionUtc.Value.UtcDateTime ||
+            acknowledgedAtUtc > nowUtc.UtcDateTime ||
+            _confirmedPublicationGeneration == presence.PublicationGeneration)
+        {
+            return false;
+        }
+
+        // Start the hold when the runtime observes the accepted response.
+        // Later activity acknowledgments on this connection must not restart it.
+        _confirmedAtUtc = nowUtc;
+        _confirmedPublicationGeneration = presence.PublicationGeneration;
+        return true;
+    }
 
     internal void Reset(string? currentProviderId)
     {
@@ -136,7 +177,12 @@ internal sealed class ProviderActivationGate
         DateTimeOffset nowUtc)
     {
         // Re-evaluate live candidates on every poll; never queue an obsolete switch.
-        if (_lastSelectionUtc is { } lastSelection && nowUtc - lastSelection < MinimumSwitchInterval)
+        if (_lastSelectionUtc is { } lastSelection &&
+            (nowUtc - lastSelection < MinimumSwitchInterval ||
+             _dashboardPublishedAtUtc is { } displayed && nowUtc - displayed < MinimumSwitchInterval ||
+             _confirmedAtUtc is { } confirmed && nowUtc - confirmed < MinimumSwitchInterval ||
+             currentCandidate is not null && _confirmedAtUtc is null &&
+                 nowUtc - lastSelection < DiscordPresenceClient.ResponseTimeout))
         {
             return currentCandidate;
         }
@@ -206,6 +252,9 @@ internal sealed class ProviderActivationGate
         if (_lastSelectionUtc is null || !IsCurrentProvider(candidate))
         {
             _lastSelectionUtc = nowUtc;
+            _dashboardPublishedAtUtc = null;
+            _confirmedAtUtc = null;
+            _confirmedPublicationGeneration = null;
         }
         _currentProviderId = candidate.ProviderId.Trim();
         _currentWasActive = candidate.IsActive;

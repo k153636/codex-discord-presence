@@ -47,7 +47,8 @@ internal static class ClaudeCodeHookParser
             }
 
             var agentId = Text(root, "agent_id");
-            if (agentId is not null && eventName is not ("SubagentStart" or "SubagentStop"))
+            if (agentId is not null && eventName is not (
+                "SubagentStart" or "SubagentStop" or "PreToolUse" or "PostToolUse" or "PostToolUseFailure"))
             {
                 return null;
             }
@@ -60,7 +61,9 @@ internal static class ClaudeCodeHookParser
                 ? Text(input, "file_path", 4096) ?? Text(input, "notebook_path", 4096)
                 : null;
             // Store no prompts, commands, tool responses, or source contents.
-            var fileName = file?.Replace('\\', '/').Split('/').LastOrDefault();
+            var fileName = agentId is null
+                ? file?.Replace('\\', '/').Split('/').LastOrDefault()
+                : null;
             return new ClaudeCodeHookEvent(
                 sessionId, Path.GetFullPath(cwd), eventName, nowUtc,
                 Text(root, "tool_name"), Text(root, "tool_use_id"),

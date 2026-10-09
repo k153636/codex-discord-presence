@@ -6,9 +6,6 @@ public sealed class TokenUsageProvider
     private readonly CodexSessionLogParser _sessionLogParser;
     private readonly IBillingTypeProvider? _billingTypeProvider;
     private readonly IRateLimitProvider? _rateLimitProvider;
-    private readonly object _billingTypeLock = new();
-    private bool _billingTypeResolved;
-    private string? _detectedBillingType;
 
     private static readonly IReadOnlyDictionary<string, ModelPricing> PricingByModel = new Dictionary<string, ModelPricing>(StringComparer.OrdinalIgnoreCase)
     {
@@ -116,6 +113,7 @@ public sealed class TokenUsageProvider
         {
             return _rateLimitProvider.GetRateLimit(cancellationToken);
         }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { throw; }
         catch
         {
             return null;
@@ -134,25 +132,13 @@ public sealed class TokenUsageProvider
             return null;
         }
 
-        lock (_billingTypeLock)
+        // The account provider owns refresh/cache policy, including recovery after login.
+        try
         {
-            if (_billingTypeResolved)
-            {
-                return _detectedBillingType;
-            }
-
-            try
-            {
-                _detectedBillingType = _billingTypeProvider.GetBillingType(cancellationToken);
-            }
-            catch
-            {
-                _detectedBillingType = null;
-            }
-
-            _billingTypeResolved = true;
-            return _detectedBillingType;
+            return _billingTypeProvider.GetBillingType(cancellationToken);
         }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { throw; }
+        catch { return null; }
     }
 
     private static bool IsUsableModelName(string? value)

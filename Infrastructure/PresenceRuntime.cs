@@ -60,6 +60,11 @@ public sealed class PresenceRuntime
         var antigravityState = new AntigravityRuntimeState();
         var claudeDirectory = Path.Combine(_paths.AppDataDirectory, "claude-code");
         var claudeStore = new ClaudeCodeObservationStore(Path.Combine(claudeDirectory, "sessions"));
+        var claudeTokenUsage = new ClaudeCodeTokenUsageProvider(new ClaudeCodeUsageStore(Path.Combine(claudeDirectory, "usage")));
+        var claudeStatusLineInstaller = new ClaudeCodeStatusLineInstaller(
+            Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".claude", "settings.json"),
+            claudeDirectory,
+            Path.Combine(_paths.BaseDirectory, "discord-presence-for-codex.exe"));
         var claudeTranscriptReader = new ClaudeCodeTranscriptActivityReader(
             Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".claude", "projects"));
         var claudeInstaller = new ClaudeCodeHookInstaller(
@@ -67,6 +72,7 @@ public sealed class PresenceRuntime
             claudeDirectory,
             Path.Combine(_paths.BaseDirectory, "discord-presence-for-codex.exe"));
         var claudeDispatch = new PresenceDispatchCache();
+        var claudeArtwork = new ClaudeCodeArtworkState();
         var claudeSpinnerReader = new ClaudeCodeSpinnerReader(
             Path.Combine(_paths.BaseDirectory, "discord-presence-for-codex.exe"));
         string? claudeSessionId = null;
@@ -88,7 +94,7 @@ public sealed class PresenceRuntime
             await rpc.StartAsync(_cancellationToken);
             var session = new SessionClock(_sessionStartedAtUtc ?? DateTime.UtcNow);
 
-            var keepAliveInterval = TimeSpan.FromSeconds(15);
+            var keepAliveInterval = PresenceUpdatePolicy.KeepAliveInterval;
             var lastLoggedProjectPath = activeProjectPath;
             var wasDisabled = false;
             var useInitialProfileSnapshots = true;
@@ -99,6 +105,18 @@ public sealed class PresenceRuntime
                 var activityKind = profileStates[currentProfile].LastActivityKind;
                 try
                 {
+                    rpc.MaintainConnection();
+                    var confirmationObservedAtUtc = DateTimeOffset.UtcNow;
+                    if (providerActivationGate.RecordPresenceAcknowledgment(rpc.LastPublishedPresence, confirmationObservedAtUtc))
+                    {
+                        LogProviderConfirmation(currentProviderId, confirmationObservedAtUtc);
+                    }
+                    // Restore timed artwork before potentially slow project/model enrichment.
+                    if (_state.Enabled && currentProviderId == ProviderIds.ClaudeCode &&
+                        claudeArtwork.RestoreIfDue(_options.DiscordClaudeCode, rpc.LastPublishedPresence) is { } restoredArtwork)
+                    {
+                        UpdateDiscordPresence(rpc, keepAliveInterval, claudeDispatch, _options.DiscordClaudeCode, restoredArtwork);
+                    }
                     RefreshTimingSettingsIfNeeded();
 
                     var antigravityEnabled = _state.Enabled &&
@@ -108,10 +126,12 @@ public sealed class PresenceRuntime
                         antigravityEnabled);
                     var claudeAvailable = claudeInstaller.Sync(
                         _state.Enabled && IsProviderEnabled(ProviderIds.ClaudeCode, defaultValue: false), _log);
+                    var claudeUsageAvailable = claudeStatusLineInstaller.Sync(claudeAvailable, _log);
 
                     if (!HandleDisabledState(rpc, wasDisabled))
                     {
                         wasDisabled = true;
+                        claudeArtwork.Cancel();
                         await Delay(TimeSpan.FromSeconds(1));
                         continue;
                     }
@@ -163,11 +183,13 @@ public sealed class PresenceRuntime
                         currentProfile = selectedProfile;
                     }
 
+                    var antigravityNowUtc = DateTimeOffset.UtcNow;
+                    var antigravityFreshness = TimeSpan.FromMinutes(Math.Max(1, _options.Presence.ThinkingStaleTimeoutMinutes));
                     var antigravityStatusLineObservations = antigravityAvailable
-                        ? ReadFreshAntigravityObservations(antigravityEventStore, activeProjectPath)
+                        ? ReadFreshAntigravityObservations(antigravityEventStore, antigravityNowUtc, antigravityFreshness)
                         : Array.Empty<ProviderObservation>();
                     var antigravityHookObservations = antigravityAvailable
-                        ? ReadFreshAntigravityObservations(antigravityHookEventStore, activeProjectPath)
+                        ? ReadFreshAntigravityObservations(antigravityHookEventStore, antigravityNowUtc, antigravityFreshness)
                         : Array.Empty<ProviderObservation>();
                     var antigravityObservation = AntigravityConversationObservationSelector.Select(
                         antigravityHookObservations,
@@ -213,6 +235,7 @@ public sealed class PresenceRuntime
                         claudeObservation);
                     if (selectedProvider is null)
                     {
+                        claudeArtwork.Cancel();
                         rpc.Clear();
                         _state.PublishDashboardSnapshot(new PresenceDashboardSnapshot(
                             currentProfile,
@@ -223,7 +246,10 @@ public sealed class PresenceRuntime
                             rpc.IsConnected,
                             DateTime.UtcNow)
                         {
-                            PublishedPresence = rpc.LastPublishedPresence
+                            PublishedPresence = rpc.LastPublishedPresence,
+                            IsDiscordConnecting = rpc.IsConnecting,
+                            ProviderId = rpc.LastPublishedPresence is null ? null : currentProviderId,
+                            HasNoActiveProvider = true
                         });
                         deferSessionEnrichment = false;
                         await Delay(TimeSpan.FromSeconds(1));
@@ -290,7 +316,8 @@ public sealed class PresenceRuntime
                             ? await claudeSpinnerReader.ReadAsync(claudeObservation.SessionId, _cancellationToken)
                             : null;
                         context = ClaudeCodePresenceProjection.CreateContext(
-                            claudeObservation, projectSnapshot, gitSnapshot, sessionSnapshot, spinnerLabel);
+                            claudeObservation, projectSnapshot, gitSnapshot, sessionSnapshot, spinnerLabel,
+                            claudeTokenUsage.GetSnapshot(claudeObservation, _options.TokenUsage, DateTimeOffset.UtcNow, claudeUsageAvailable));
                         displayActivity = context.Activity;
                     }
                     else if (selectedProvider.ProviderId == ProviderIds.Antigravity && antigravityObservation is not null)
@@ -303,7 +330,8 @@ public sealed class PresenceRuntime
                             sessionSnapshot,
                             projection,
                             projectSnapshot,
-                            gitSnapshot);
+                            gitSnapshot,
+                            AntigravityStatusLineEventStore.MatchesProjectPath(antigravityObservation, activeProjectPath));
                     }
                     else
                     {
@@ -334,6 +362,14 @@ public sealed class PresenceRuntime
                     }
 
                     var presence = renderer.Render(_options.Presence, context);
+                    if (selectedProvider.ProviderId == ProviderIds.ClaudeCode && claudeObservation is not null)
+                    {
+                        presence = claudeArtwork.Apply(claudeObservation, presence, selectedDiscordOptions, rpc.LastPublishedPresence);
+                    }
+                    else
+                    {
+                        claudeArtwork.Cancel();
+                    }
                     UpdateDiscordPresence(
                         rpc,
                         keepAliveInterval,
@@ -356,15 +392,22 @@ public sealed class PresenceRuntime
                     var dashboardSnapshot = new PresenceDashboardSnapshot(
                         currentProfile,
                         context.ModelName,
-                        projectSnapshot.Name,
+                        context.Project.Name,
                         presence,
                         context.TokenUsage,
                         rpc.IsConnected,
                         DateTime.UtcNow)
                     {
-                        PublishedPresence = rpc.LastPublishedPresence
+                        PublishedPresence = string.Equals(rpc.LastPublishedPresence?.ProviderId,
+                            selectedProvider.ProviderId, StringComparison.OrdinalIgnoreCase) ? rpc.LastPublishedPresence : null,
+                        IsDiscordConnecting = rpc.IsConnecting,
+                        ProviderId = selectedProvider.ProviderId
                     };
                     _state.PublishDashboardSnapshot(dashboardSnapshot);
+                    if (providerActivationGate.RecordDashboardPublication(dashboardSnapshot))
+                    {
+                        LogProviderConfirmation(selectedProvider.ProviderId, new DateTimeOffset(dashboardSnapshot.UpdatedAtUtc));
+                    }
                     deferSessionEnrichment = false;
                 }
                 catch (OperationCanceledException) when (_cancellationToken.IsCancellationRequested)
@@ -378,6 +421,7 @@ public sealed class PresenceRuntime
                 }
 
                 var delay = PresenceRefreshPolicy.GetNextDelay(_options.Presence, activityKind, _options.UpdateIntervalSeconds);
+                delay = claudeArtwork.GetNextDelay(delay);
                 if (!activityKind.IsWaiting() && delay > projectSwitchDetectionInterval)
                 {
                     delay = projectSwitchDetectionInterval;
@@ -388,6 +432,7 @@ public sealed class PresenceRuntime
         }
         finally
         {
+            claudeStatusLineInstaller.Sync(false, _log);
             claudeInstaller.Sync(false, _log);
             antigravityIntegration.UninstallIfNeeded();
 
@@ -395,6 +440,12 @@ public sealed class PresenceRuntime
             rpc.Dispose();
             _log.Info($"Stopped {ProductBrand.Name}.");
         }
+    }
+
+    private void LogProviderConfirmation(string providerId, DateTimeOffset confirmedAtUtc)
+    {
+        _log.Info($"Provider presence confirmed: {providerId}; " +
+            $"holdUntilUtc={confirmedAtUtc.Add(ProviderActivationGate.MinimumSwitchInterval):O}");
     }
 
     private bool HandleDisabledState(DiscordPresenceClient rpc, bool wasDisabled)
@@ -411,6 +462,19 @@ public sealed class PresenceRuntime
 
         rpc.Clear();
 
+        _state.PublishDashboardSnapshot(_state.DashboardSnapshot with
+        {
+            Presence = null,
+            TokenUsage = null,
+            ModelName = null,
+            ProjectName = null,
+            HasNoActiveProvider = true,
+            IsDiscordConnected = rpc.IsConnected,
+            IsDiscordConnecting = rpc.IsConnecting,
+            PublishedPresence = rpc.LastPublishedPresence,
+            UpdatedAtUtc = DateTime.UtcNow
+        });
+
         return false;
     }
 
@@ -418,21 +482,19 @@ public sealed class PresenceRuntime
         AntigravityIntegrationCoordinator integration,
         bool enabled) => integration.Sync(enabled);
 
-    private IReadOnlyList<ProviderObservation> ReadFreshAntigravityObservations(
+    internal static IReadOnlyList<ProviderObservation> ReadFreshAntigravityObservations(
         AntigravityStatusLineEventStore eventStore,
-        string activeProjectPath)
+        DateTimeOffset nowUtc,
+        TimeSpan freshnessWindow)
     {
         var hasObservations = eventStore.TryReadLatestByConversation(
-            activeProjectPath,
+            null,
             out var observations);
         if (!hasObservations)
         {
             return Array.Empty<ProviderObservation>();
         }
 
-        var freshnessWindow = TimeSpan.FromMinutes(
-            Math.Max(1, _options.Presence.ThinkingStaleTimeoutMinutes));
-        var nowUtc = DateTimeOffset.UtcNow;
         return observations
             .Where(observation => observation.ObservedAtUtc != default)
             .Where(observation => observation.AgentState != ProviderAgentState.Unknown)
@@ -502,9 +564,8 @@ public sealed class PresenceRuntime
                 IsProviderEnabled(ProviderIds.Antigravity, defaultValue: false),
                 IsProviderConfiguredForRuntime(_options.GetAntigravityDiscordOptions()),
                 antigravityObservation.ObservedAtUtc,
-                HasAntigravityProjectEvidence(antigravityObservation) ||
-                !string.IsNullOrWhiteSpace(activeProjectPath),
-                !string.IsNullOrWhiteSpace(activeProjectPath),
+                antigravityObservation.ProjectKey is not null,
+                AntigravityStatusLineEventStore.MatchesProjectPath(antigravityObservation, activeProjectPath),
                 DetectionStrength: 500,
                 IsActive: AntigravityConversationObservationSelector.IsActive(antigravityObservation.AgentState),
                 ActivityStartedAtUtc: ToUtcOffset(antigravityActivity?.ActivityStartedAt)));
@@ -517,12 +578,6 @@ public sealed class PresenceRuntime
     {
         return !string.IsNullOrWhiteSpace(options.ClientId) &&
             !options.ClientId.StartsWith("YOUR_", StringComparison.OrdinalIgnoreCase);
-    }
-
-    private static bool HasAntigravityProjectEvidence(ProviderObservation observation)
-    {
-        return observation.Workspace?.ProjectName is not null ||
-            observation.Workspace?.WorkspaceName is not null;
     }
 
     private bool IsProviderEnabled(string providerId, bool defaultValue)
@@ -779,6 +834,7 @@ public sealed class PresenceRuntime
         CodexProcessSnapshot codexSnapshot,
         bool includeSessionUsage)
     {
+        selectedProfileState.AccountProvider.SetActivity(codexSnapshot.ActivityKind);
         var tokenUsage = includeSessionUsage
             ? selectedProfileState.TokenUsageProvider.GetSnapshotForSession(
                 activeProjectPath,
@@ -800,12 +856,19 @@ public sealed class PresenceRuntime
             tokenUsage);
     }
 
-    private static PresenceContext BuildAntigravityPresenceContext(
+    internal static PresenceContext BuildAntigravityPresenceContext(
         SessionSnapshot sessionSnapshot,
         AntigravityPresenceProjectionResult projection,
         ProjectSnapshot projectSnapshot,
-        GitSnapshot gitSnapshot)
+        GitSnapshot gitSnapshot,
+        bool isProjectMatch)
     {
+        if (!isProjectMatch)
+        {
+            // The opaque key can establish identity, but cannot locate another workspace on disk.
+            projectSnapshot = new ProjectSnapshot(projection.WorkspaceName ?? "Unknown project", "", null, null, 0, 0, 0, []);
+            gitSnapshot = new GitSnapshot(false, 0, null);
+        }
         return new PresenceContext(
             projection.ModelName,
             projection.Activity,
@@ -856,7 +919,7 @@ public sealed class PresenceRuntime
         var largeImageKey = DiscordAssetKeyResolver.ResolveLargeImageKey(
             discordOptions,
             presence);
-        var presenceSignature = BuildPresenceSignature(presence, largeImageKey);
+        var presenceSignature = rpc.GetPayloadSignature(presence);
         var keepAliveDue = PresenceUpdatePolicy.ShouldSendKeepAlive(selectedProviderState.LastSuccessfulUpdateUtc, DateTime.UtcNow, keepAliveInterval);
         var shouldSendPresence = PresenceDispatchPolicy.ShouldSendPresence(
             presenceSignature,
@@ -1095,28 +1158,6 @@ public sealed class PresenceRuntime
         }
 
         return $"{duration.Seconds}s";
-    }
-
-    private static string BuildPresenceSignature(RenderedPresence presence, string? largeImageKey)
-    {
-        var buttons = string.Join(
-            "|",
-            presence.Buttons.Select(button => $"{button.Label}=>{button.Url}"));
-
-        return string.Join(
-            "\u001f",
-            presence.Details,
-            presence.State,
-            presence.LargeImageText,
-            presence.SmallImageText,
-            presence.ActivityKind.ToString(),
-            presence.RunningCommandKind.ToString(),
-            presence.RunningCommandName,
-            largeImageKey,
-            presence.IsThinking ? "thinking" : "working",
-            presence.IsSuccessfulCompletion ? "success" : "",
-            presence.PartySize?.ToString(System.Globalization.CultureInfo.InvariantCulture) ?? "",
-            buttons);
     }
 
     private sealed record ProfileDetectionSnapshots(

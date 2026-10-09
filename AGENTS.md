@@ -2,7 +2,7 @@
 
 ## Project purpose
 
-This repository is a .NET 9 Windows Forms tray application that publishes the
+This repository is a .NET 10 Windows Forms tray application that publishes the
 current Codex session to Discord Rich Presence. The application must favor
 observable Codex log evidence and a stable, readable Discord line over guesses
 from filesystem timestamps or generic fallback labels.
@@ -38,6 +38,21 @@ affects Discord output.
 
 There is no `Modules/` directory in this project. Keep new code in the existing
 area that owns the responsibility instead of introducing a parallel structure.
+
+## Dashboard source contract
+
+- `Assets/Dashboard/Dashboard.html` is the original Claude Design standalone
+  export. Display it directly in WebView2; do not recreate its visual design
+  with native controls or duplicate its styling in another renderer.
+- `runtime-adapter.js` binds acknowledged RPC data, provider settings, native
+  window actions, and runtime visibility to the original component. Preserve
+  the export bytes and its provider artwork. The provenance test checks its
+  SHA-256; change that only when replacing it with a new approved export.
+- Keep the existing snapshot selection and visible publication timing gates.
+  Source sample values must never appear as live application data. Data
+  refreshes must preserve image elements and keyboard focus.
+- Validate the actual WebView2 window and publish the external `Assets` folder.
+  `scripts/PreviewCapture` captures sanitized snapshots with the real renderer.
 
 ## Presence behavior contract
 
@@ -101,6 +116,19 @@ that distinction when changing activity detection.
   project-matching session reports an effective `priority` or `fast` service
   tier. Do not display the literal word `fast`, and do not infer speed from a
   config-only value.
+
+### Subagent small image
+
+- The RPC small image and its tooltip are reserved for subagent work status.
+  Solo sessions or unavailable subagent evidence omit both fields.
+- Join child activity only to explicitly active identities belonging to the
+  current provider and parent session. Never use the main agent's activity,
+  historical child work, or generic task counts as child-work evidence.
+- A homogeneous, observed child state may select a specific work icon. Mixed
+  states or lifecycle-only evidence use a provider-owned generic active icon
+  and a tooltip showing only confirmed categories and the active count.
+- Child status does not replace the main semantic activity line or main image.
+  Preserve existing party membership rules and provider-specific artwork.
 
 ## Provider and CLI extensibility contract
 
@@ -207,8 +235,8 @@ Run commands from the repository root:
 
 - `dotnet test CodexDiscordPresence.Tests\CodexDiscordPresence.Tests.csproj`
   runs the full xUnit suite.
-- `build.cmd` publishes the Release `win-x64` single-file application to
-  `publish/`.
+- `build.cmd` publishes the Release `win-x64` self-contained single-file
+  application to `publish/`, including the .NET 10 Desktop Runtime.
 - `start.cmd` stops a previous published instance, publishes the latest source,
   and starts the latest published executable. Use `start-cli.cmd` for the CLI
   profile.

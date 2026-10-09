@@ -685,7 +685,8 @@ public sealed class PresenceTemplateRendererTests
         Assert.Equal("Plan mode: gpt-5-codex", presence.Details);
         Assert.Equal("Working", presence.State);
         Assert.Equal("working on Nexstrap", presence.LargeImageText);
-        Assert.Equal("128 files • session 5m", presence.SmallImageText);
+        Assert.Equal(string.Empty, presence.SmallImageText);
+        Assert.Null(presence.SubagentActivity);
     }
 
     [Fact]

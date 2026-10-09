@@ -10,13 +10,17 @@ internal sealed class UpdateSettingsPreserver(AppPaths paths)
     public void Preserve()
     {
         // Compare editable files with packaged baselines so new defaults can still evolve.
-        var overrides = new JsonObject();
+        var currentSettings = new JsonObject();
+        var packagedDefaults = new JsonObject();
         foreach (var name in new[] { "appsettings.json", "appsettings.cli.json" })
         {
             var baseline = ReadObject(Path.Combine(paths.BaseDirectory, name.Replace(".json", ".defaults.json")));
             var current = ReadObject(Path.Combine(paths.BaseDirectory, name));
-            Merge(overrides, Differences(current, baseline));
+            Merge(packagedDefaults, baseline);
+            Merge(currentSettings, current);
         }
+        // Diff the effective settings, using the same file precedence as AppOptions.Load.
+        var overrides = Differences(currentSettings, packagedDefaults);
         var user = File.Exists(paths.UserSettingsPath) ? ReadObject(paths.UserSettingsPath) : new JsonObject();
         Merge(overrides, user); // Existing per-user settings retain their precedence.
 

@@ -285,6 +285,10 @@ internal sealed class AntigravityStatusLineEventStore
         }
     }
 
+    internal static bool MatchesProjectPath(ProviderObservation observation, string? localProjectPath) =>
+        observation.ProjectKey is { } projectKey &&
+        string.Equals(projectKey, CreateProjectKey(localProjectPath), StringComparison.Ordinal);
+
     private static string? CreateProjectKey(string? localProjectPath)
     {
         if (string.IsNullOrWhiteSpace(localProjectPath))
@@ -344,6 +348,9 @@ internal sealed class AntigravityStatusLineEventStore
         [JsonPropertyName("active_subagent_count")]
         public int? ActiveSubagentCount { get; init; }
 
+        [JsonPropertyName("active_subagent_work_kinds")]
+        public string[]? ActiveSubagentWorkKinds { get; init; }
+
         [JsonPropertyName("quota")]
         public Dictionary<string, EventQuota>? Quota { get; init; }
 
@@ -389,6 +396,9 @@ internal sealed class AntigravityStatusLineEventStore
                         observation.ContextWindow.TotalInputTokens,
                         observation.ContextWindow.TotalOutputTokens),
                 ActiveSubagentCount = NormalizeActiveSubagentCount(observation.ActiveSubagentCount),
+                ActiveSubagentWorkKinds = NormalizeActiveSubagentWorkKinds(
+                    observation.ActiveSubagentWorkKinds,
+                    observation.ActiveSubagentCount),
                 Quota = NormalizeQuotas(observation.Quotas),
                 PlanTier = NormalizePlanTier(observation.PlanTier),
                 Operation = observation.Operation is null
@@ -420,6 +430,9 @@ internal sealed class AntigravityStatusLineEventStore
                     !string.Equals(parsed.Source, "antigravity", StringComparison.Ordinal) ||
                     parsed.ObservedAtUtc == default ||
                     !IsValidActiveSubagentCount(parsed.ActiveSubagentCount) ||
+                    !IsValidActiveSubagentWorkKinds(
+                        parsed.ActiveSubagentCount,
+                        parsed.ActiveSubagentWorkKinds) ||
                     !IsValidPlanTier(parsed.PlanTier) ||
                     !IsValidQuotas(parsed.Quota) ||
                     !IsSafeProjectKey(parsed.ProjectKey))
@@ -470,12 +483,77 @@ internal sealed class AntigravityStatusLineEventStore
         {
             TranscriptPath = TranscriptPath,
             ArtifactDirectoryPath = ArtifactDirectoryPath,
+            ProjectKey = ProjectKey,
             Operation = Operation?.ToObservation(),
+            ActiveSubagentWorkKinds = ParseActiveSubagentWorkKinds(ActiveSubagentWorkKinds),
             IsWaitingForInput = WaitingForInput == true
         };
 
         private static int? NormalizeActiveSubagentCount(int? count) =>
             IsValidActiveSubagentCount(count) ? count : null;
+
+        private static string[]? NormalizeActiveSubagentWorkKinds(
+            IReadOnlyList<SubagentWorkKind>? workKinds,
+            int? activeCount)
+        {
+            if (workKinds is null || activeCount is null or <= 0)
+            {
+                return null;
+            }
+
+            if (workKinds.Count > activeCount.Value)
+            {
+                return null;
+            }
+
+            var normalized = workKinds
+                .Where(IsKnownSubagentWorkKind)
+                .Select(ToWireSubagentWorkKind)
+                .ToArray();
+            return normalized.Length == 0 ? null : normalized;
+        }
+
+        private static IReadOnlyList<SubagentWorkKind>? ParseActiveSubagentWorkKinds(
+            IReadOnlyList<string>? workKinds) => workKinds is null
+            ? null
+            : workKinds.Select(ParseSubagentWorkKind).ToArray();
+
+        private static bool IsValidActiveSubagentWorkKinds(
+            int? activeCount,
+            IReadOnlyList<string>? workKinds) =>
+            workKinds is null ||
+            workKinds.Count == 0 ||
+            activeCount is > 0 &&
+            workKinds.Count <= activeCount.Value &&
+            workKinds.All(IsWireSubagentWorkKind);
+
+        private static bool IsKnownSubagentWorkKind(SubagentWorkKind workKind) =>
+            workKind is > SubagentWorkKind.Unknown and <= SubagentWorkKind.Coordinating;
+
+        private static bool IsWireSubagentWorkKind(string workKind) => workKind is
+            "thinking" or "editing" or "reading" or "researching" or "running_command" or "coordinating";
+
+        private static string ToWireSubagentWorkKind(SubagentWorkKind workKind) => workKind switch
+        {
+            SubagentWorkKind.Thinking => "thinking",
+            SubagentWorkKind.Editing => "editing",
+            SubagentWorkKind.Reading => "reading",
+            SubagentWorkKind.Researching => "researching",
+            SubagentWorkKind.RunningCommand => "running_command",
+            SubagentWorkKind.Coordinating => "coordinating",
+            _ => string.Empty
+        };
+
+        private static SubagentWorkKind ParseSubagentWorkKind(string workKind) => workKind switch
+        {
+            "thinking" => SubagentWorkKind.Thinking,
+            "editing" => SubagentWorkKind.Editing,
+            "reading" => SubagentWorkKind.Reading,
+            "researching" => SubagentWorkKind.Researching,
+            "running_command" => SubagentWorkKind.RunningCommand,
+            "coordinating" => SubagentWorkKind.Coordinating,
+            _ => SubagentWorkKind.Unknown
+        };
 
         private static string? NormalizePlanTier(string? planTier) =>
             IsValidPlanTier(planTier) ? planTier : null;

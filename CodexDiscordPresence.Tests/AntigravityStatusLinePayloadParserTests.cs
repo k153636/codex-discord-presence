@@ -146,6 +146,65 @@ public sealed class AntigravityStatusLinePayloadParserTests
     }
 
     [Fact]
+    public void TryParse_ActiveSubagentStatusesRequireDistinctIdentityAndExplicitWorkEvidence()
+    {
+        const string payload = """
+            {
+              "task_count": 99,
+              "subagents": [
+                { "id": "child-one", "role": "builder", "status": "editing" },
+                { "id": "child-one", "role": "builder", "status": "editing" },
+                { "id": "child-two", "status": "running" },
+                { "conversation_id": "child-three", "status": "researching" },
+                { "name": "child-four", "status": "reading" },
+                { "role": "thinker-only", "status": "thinking" },
+                { "id": "child-five", "status": "editing" },
+                { "id": "child-five", "status": "reading" },
+                { "id": "finished", "status": "completed" }
+              ]
+            }
+            """;
+        var parser = new AntigravityStatusLinePayloadParser();
+
+        var parsed = parser.TryParse(
+            Encoding.UTF8.GetBytes(payload),
+            DateTimeOffset.UtcNow,
+            out var observation);
+
+        Assert.True(parsed);
+        Assert.Equal(6, observation?.ActiveSubagentCount);
+        Assert.Equal(
+            [SubagentWorkKind.Editing, SubagentWorkKind.Researching, SubagentWorkKind.Reading, SubagentWorkKind.Thinking],
+            observation?.ActiveSubagentWorkKinds);
+    }
+
+    [Fact]
+    public void TryParse_GenericActiveSubagentStatusesDoNotGuessThinkingOrToolWork()
+    {
+        const string payload = """
+            {
+              "subagents": [
+                { "id": "one", "status": "running" },
+                { "id": "two", "status": "active" },
+                { "id": "three", "status": "working" },
+                { "id": "four", "status": "tool_use" },
+                { "id": "five", "status": "initializing" }
+              ]
+            }
+            """;
+        var parser = new AntigravityStatusLinePayloadParser();
+
+        var parsed = parser.TryParse(
+            Encoding.UTF8.GetBytes(payload),
+            DateTimeOffset.UtcNow,
+            out var observation);
+
+        Assert.True(parsed);
+        Assert.Equal(5, observation?.ActiveSubagentCount);
+        Assert.Empty(observation?.ActiveSubagentWorkKinds ?? []);
+    }
+
+    [Fact]
     public void TryParse_MissingConversationId_DoesNotUseSessionIdAsConversationId()
     {
         const string payload = """

@@ -38,6 +38,9 @@ internal static class DiscordAssetKeyResolver
         return normalizedKey;
     }
 
+    internal static string? ResolveActivityImageKey(DiscordOptions options, CodexActivityKind kind) =>
+        TryGetConfiguredKey(options.ActivityImageKeys, kind.ToString(), out var key) ? key : null;
+
     public static string? ResolveLargeImageKey(DiscordOptions options, RenderedPresence presence)
     {
         ArgumentNullException.ThrowIfNull(options);

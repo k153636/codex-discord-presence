@@ -17,16 +17,41 @@ internal interface IRateLimitProvider
 internal sealed class CodexAccountBillingTypeProvider : IBillingTypeProvider, IRateLimitProvider
 {
     private static readonly TimeSpan RequestTimeout = TimeSpan.FromSeconds(2);
-    private static readonly TimeSpan AccountSnapshotCacheDuration = TimeSpan.FromSeconds(30);
+    internal static readonly TimeSpan ActiveRefreshInterval = TimeSpan.FromSeconds(60);
+    internal static readonly TimeSpan IdleRefreshInterval = TimeSpan.FromMinutes(5);
     private const string CodexExecutable = "codex.cmd";
     private readonly string _codexHomePath;
     private readonly object _snapshotLock = new();
-    private AccountSnapshot? _cachedSnapshot;
-    private DateTime _cachedSnapshotExpiresAtUtc;
+    private readonly Func<DateTime> _utcNow;
+    private readonly Func<CancellationToken, Task<AccountSnapshot>> _readSnapshot;
+    private AccountSnapshot _cachedSnapshot = new(null, null);
+    private Task<AccountSnapshot>? _refreshTask;
+    private DateTime _refreshStartedUtc;
+    private DateTime _lastReadUtc = DateTime.MinValue;
+    private DateTime _retryAfterUtc = DateTime.MinValue;
+    private int _failedAttempts;
+    private bool _isActive;
 
     public CodexAccountBillingTypeProvider(string codexHomePath)
     {
         _codexHomePath = codexHomePath;
+        _utcNow = () => DateTime.UtcNow;
+        _readSnapshot = token => Task.Run(() => ReadAccountSnapshot(token), token);
+    }
+
+    internal CodexAccountBillingTypeProvider(
+        string codexHomePath,
+        Func<CancellationToken, Task<AccountSnapshot>> readSnapshot,
+        Func<DateTime> utcNow)
+    {
+        _codexHomePath = codexHomePath;
+        _readSnapshot = readSnapshot;
+        _utcNow = utcNow;
+    }
+
+    internal void SetActivity(CodexActivityKind activityKind)
+    {
+        lock (_snapshotLock) _isActive = activityKind.IsActive();
     }
 
     public string? GetBillingType(CancellationToken cancellationToken = default)
@@ -41,17 +66,52 @@ internal sealed class CodexAccountBillingTypeProvider : IBillingTypeProvider, IR
 
     private AccountSnapshot GetAccountSnapshot(CancellationToken cancellationToken)
     {
+        cancellationToken.ThrowIfCancellationRequested();
         lock (_snapshotLock)
         {
-            if (_cachedSnapshot is not null && DateTime.UtcNow < _cachedSnapshotExpiresAtUtc)
+            var nowUtc = _utcNow();
+            CompleteRefreshIfReady(nowUtc);
+            var interval = _isActive ? ActiveRefreshInterval : IdleRefreshInterval;
+            if (_refreshTask is null && nowUtc >= _retryAfterUtc && nowUtc - _lastReadUtc >= interval)
             {
-                return _cachedSnapshot;
+                // Account IPC/HTTP is auxiliary; the presence loop always returns immediately.
+                _refreshStartedUtc = nowUtc;
+                _refreshTask = StartRefresh(cancellationToken);
+                CompleteRefreshIfReady(nowUtc);
             }
+            return _cachedSnapshot;
+        }
+    }
 
-            var snapshot = ReadAccountSnapshot(cancellationToken);
-            _cachedSnapshot = snapshot;
-            _cachedSnapshotExpiresAtUtc = DateTime.UtcNow + AccountSnapshotCacheDuration;
-            return snapshot;
+    private Task<AccountSnapshot> StartRefresh(CancellationToken cancellationToken)
+    {
+        try { return _readSnapshot(cancellationToken); }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { throw; }
+        catch { return Task.FromResult(new AccountSnapshot(null, null)); }
+    }
+
+    private void CompleteRefreshIfReady(DateTime nowUtc)
+    {
+        if (_refreshTask is null || !_refreshTask.IsCompleted) return;
+        var refresh = _refreshTask;
+        _refreshTask = null;
+        if (refresh.IsCanceled) return;
+        AccountSnapshot snapshot;
+        try { snapshot = refresh.GetAwaiter().GetResult(); }
+        catch { snapshot = new AccountSnapshot(null, null); }
+        _lastReadUtc = _refreshStartedUtc;
+        _cachedSnapshot = snapshot.BillingType is null
+            ? _cachedSnapshot with { RateLimit = null }
+            : snapshot;
+        if (snapshot.BillingType is null || (snapshot.BillingType == "subsc" && snapshot.RateLimit is null))
+        {
+            _failedAttempts = Math.Min(_failedAttempts + 1, 5);
+            _retryAfterUtc = nowUtc.AddMinutes(Math.Min(15, 1 << (_failedAttempts - 1)));
+        }
+        else
+        {
+            _failedAttempts = 0;
+            _retryAfterUtc = DateTime.MinValue;
         }
     }
 
@@ -77,7 +137,7 @@ internal sealed class CodexAccountBillingTypeProvider : IBillingTypeProvider, IR
                         {
                             name = "codex-discord-presence",
                             title = ProductBrand.Name,
-                            version = "1.0.0"
+                            version = AppVersion.Current.ToString()
                         },
                         capabilities = new
                         {
@@ -113,6 +173,10 @@ internal sealed class CodexAccountBillingTypeProvider : IBillingTypeProvider, IR
                 : null;
 
             return new AccountSnapshot(billingType, rateLimit);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
         }
         catch
         {
@@ -332,7 +396,7 @@ internal sealed class CodexAccountBillingTypeProvider : IBillingTypeProvider, IR
         return null;
     }
 
-    private sealed record AccountSnapshot(
+    internal sealed record AccountSnapshot(
         string? BillingType,
         RateLimitSnapshot? RateLimit);
 }

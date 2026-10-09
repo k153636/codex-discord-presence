@@ -76,7 +76,7 @@ function Stop-CodexRpcProcess {
         -PassThru `
         -ErrorAction Stop
     if ($stopProcess.ExitCode -ne 0) {
-        throw "The previous K's Code Presence process could not be stopped. Exit code: $($stopProcess.ExitCode)"
+        throw "The previous K's Code Presence process could not be safely stopped (exit code $($stopProcess.ExitCode)). Quit it from its tray menu, then retry."
     }
 
     Wait-ForCodexRpcStop

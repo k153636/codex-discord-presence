@@ -125,8 +125,17 @@ internal static class AntigravityConversationObservationSelector
             return hookObservation;
         }
 
+        // Matching conversation IDs alone must not join metadata from different projects.
+        if (hookObservation.ProjectKey is not null && statusLineObservation.ProjectKey is not null &&
+            hookObservation.ProjectKey != statusLineObservation.ProjectKey)
+        {
+            return hookObservation.ObservedAtUtc >= statusLineObservation.ObservedAtUtc
+                ? hookObservation : statusLineObservation;
+        }
+
         return hookObservation with
         {
+            ProjectKey = hookObservation.ProjectKey ?? statusLineObservation.ProjectKey,
             Model = hookObservation.Model ?? statusLineObservation.Model,
             Workspace = hookObservation.Workspace ?? statusLineObservation.Workspace,
             ExecutionMode = hookObservation.ExecutionMode == ProviderExecutionMode.Unknown
@@ -135,6 +144,9 @@ internal static class AntigravityConversationObservationSelector
             ContextWindow = hookObservation.ContextWindow ?? statusLineObservation.ContextWindow,
             ActiveSubagentCount = hookObservation.ActiveSubagentCount ??
                 statusLineObservation.ActiveSubagentCount,
+            ActiveSubagentWorkKinds = hookObservation.ActiveSubagentCount.HasValue
+                ? hookObservation.ActiveSubagentWorkKinds
+                : statusLineObservation.ActiveSubagentWorkKinds,
             Quotas = hookObservation.Quotas ?? statusLineObservation.Quotas,
             PlanTier = hookObservation.PlanTier ?? statusLineObservation.PlanTier,
             TranscriptPath = hookObservation.TranscriptPath ?? statusLineObservation.TranscriptPath,

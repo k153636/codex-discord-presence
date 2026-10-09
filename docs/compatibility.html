@@ -30,10 +30,12 @@
     <h2>Runtime</h2>
     <ul>
       <li>Target platform: Windows x64.</li>
-      <li>Runtime: .NET 9 Desktop Runtime for the current framework-dependent executable.</li>
+      <li>Runtime: .NET 10 Desktop Runtime included; no separate .NET installation required.</li>
       <li>Discord: Discord Desktop must be running for local Rich Presence delivery.</li>
-      <li>Distribution: the latest release is published as <code>discord-presence-for-codex.exe</code>.</li>
+      <li>Distribution: 0.5.0 provides <code>K.CodePresence-win-Setup.exe</code> and <code>K.CodePresence-win-Portable.zip</code>.</li>
     </ul>
+
+    <p>The Dashboard requires the Microsoft Edge WebView2 Runtime, already installed on most Windows systems. Extract the entire portable ZIP before launching its root executable. Both distributions support automatic updates. Archived standalone executables retain their .NET 9 requirement.</p>
 
     <h2>AI coding tools</h2>
     <table>
@@ -42,11 +44,12 @@
       </thead>
       <tbody>
         <tr><td data-label="Tool">Codex CLI &amp; Desktop</td><td data-label="Integration">Built in: process and window signals, local session JSONL</td><td data-label="What Discord can show">Reasoning summaries, MCP, files, model, effort, tokens, party</td></tr>
-        <tr><td data-label="Tool">Claude Code</td><td data-label="Integration"><span>Opt-in: observational hooks in <code>~/.claude/settings.json</code></span></td><td data-label="What Discord can show">Model, effort, MCP, files, spinner labels, Claude Design, party</td></tr>
+        <tr><td data-label="Tool">Claude Code</td><td data-label="Integration"><span>Opt-in: observational hooks and a statusLine wrapper in <code>~/.claude/settings.json</code></span></td><td data-label="What Discord can show">Model, effort, MCP, files, spinner labels, Claude Design, party, cumulative tokens, observed usage and reset countdown</td></tr>
         <tr><td data-label="Tool">Antigravity CLI</td><td data-label="Integration">Opt-in: official statusLine payload</td><td data-label="What Discord can show">Model and effort, plan and quota usage, tool activity, reported subagents</td></tr>
       </tbody>
     </table>
-    <p>Claude Code and Antigravity CLI are enabled from the Dashboard. Enabling an integration does not force it to take over; the tool with current, project-matching activity is shown. Claude Code hook changes keep a local backup, and disabling the integration removes only the app's own hook definitions.</p>
+    <p>Claude Code and Antigravity CLI are enabled from the Dashboard. Selection considers current activity, freshness, and project evidence through a shared switching gate; fresh activity from another project can participate. Claude Code settings changes keep a local backup, preserve terminal output, and restore the original statusLine while removing only owned hooks when disabled.</p>
+    <p>Claude and Codex use the same five-second waiting cycle for Token and Usage. Claude tokens come from main-session transcript usage; five-hour usage, reset time, and estimated session cost require matching statusLine evidence. Missing values remain unknown, and cost is not an actual subscription charge.</p>
 
     <h2>Codex profiles</h2>
     <table>
@@ -67,7 +70,7 @@
       <li>macOS or Linux binaries</li>
       <li>A hosted dashboard or team account</li>
       <li>Guaranteed live quota values from every Codex plan</li>
-      <li>Tokens, cost, or quota for Claude Code</li>
+      <li>Guaranteed usage values from every Claude Code version or account</li>
       <li>Official affiliation with OpenAI, Anthropic, Google, or Discord</li>
     </ul>
 

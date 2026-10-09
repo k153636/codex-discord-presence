@@ -30,6 +30,8 @@ internal sealed class VelopackUpdateBackend : IApplicationUpdateBackend, IDispos
             cancellationToken.ThrowIfCancellationRequested();
             if (!result.Succeeded)
             {
+                if (result.RetryAfterUtc is { } retryAfter)
+                    throw new ApplicationUpdateRetryException(result.WarningMessage, retryAfter);
                 throw new InvalidOperationException(result.WarningMessage);
             }
             return result.UpdateAvailable ? result.LatestVersion?.ToString() : null;
@@ -45,6 +47,9 @@ internal sealed class VelopackUpdateBackend : IApplicationUpdateBackend, IDispos
             // Historical EXE-only releases have no Velopack feed. Treat them as current
             // when their normalized release number is not newer than this installation.
             var legacy = await new GitHubReleaseChecker(_http).CheckLatestReleaseAsync(cancellationToken);
+            cancellationToken.ThrowIfCancellationRequested();
+            if (legacy.RetryAfterUtc is { } retryAfter)
+                throw new ApplicationUpdateRetryException(legacy.WarningMessage, retryAfter);
             if (legacy.Succeeded && !legacy.UpdateAvailable) return null;
             throw;
         }

@@ -62,7 +62,8 @@ internal sealed class ApplicationUpdateMenu : IDisposable
         if (snapshot.Status == ApplicationUpdateStatus.Failed && !_failedNotificationShown)
         {
             _failedNotificationShown = true;
-            _icon.ShowBalloonTip(5000, "Update could not be completed", "The app is still running. It will retry in 15 minutes; see the diagnostic log for details.", ToolTipIcon.Warning);
+            _icon.ShowBalloonTip(5000, "Update could not be completed",
+                $"The app is still running. {Describe(snapshot, DateTime.UtcNow)}. See the diagnostic log for details.", ToolTipIcon.Warning);
         }
         if (snapshot.Status is ApplicationUpdateStatus.UpToDate or ApplicationUpdateStatus.Ready) _failedNotificationShown = false;
     }
@@ -83,7 +84,9 @@ internal sealed class ApplicationUpdateMenu : IDisposable
             ApplicationUpdateStatus.Available => $"Version {snapshot.AvailableVersion} available",
             ApplicationUpdateStatus.Downloading => $"Downloading: {snapshot.Progress}%",
             ApplicationUpdateStatus.Restarting => "Applying update and restarting…",
-            ApplicationUpdateStatus.Failed => "Update failed — retrying later",
+            ApplicationUpdateStatus.Failed => snapshot.RetryAfterUtc > nowUtc
+                ? $"Update failed — retry after {snapshot.RetryAfterUtc.Value.ToLocalTime():g}"
+                : "Update failed — try again later",
             _ => string.Empty
         };
     }

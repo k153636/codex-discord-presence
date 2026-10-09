@@ -30,7 +30,8 @@ public sealed class DiscordPresencePayloadPolicyTests
         Assert.True(Encoding.UTF8.GetByteCount(payload.Details) <= DiscordPresencePayloadPolicy.MaxTextBytes);
         Assert.True(Encoding.UTF8.GetByteCount(payload.State) <= DiscordPresencePayloadPolicy.MaxTextBytes);
         Assert.Equal("large text", payload.Assets!.LargeImageText);
-        Assert.Equal("small text", payload.Assets.SmallImageText);
+        Assert.Null(payload.Assets.SmallImageKey);
+        Assert.Null(payload.Assets.SmallImageText);
         Assert.Single(payload.Buttons!);
         Assert.True(Encoding.UTF8.GetByteCount(payload.Buttons[0].Label) <= DiscordPresencePayloadPolicy.MaxButtonLabelBytes);
         Assert.Equal("https://example.com/valid", payload.Buttons[0].Url);

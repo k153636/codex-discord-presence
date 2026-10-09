@@ -261,28 +261,62 @@ internal static class AntigravityEventPowerShellScript
                 }
             }
 
-            function Get-ActiveSubagentCount([object] $Payload) {
+            function Get-ActiveSubagents([object] $Payload) {
                 if ($null -eq $Payload) { return $null }
                 $property = $Payload.PSObject.Properties['subagents']
                 if ($null -eq $property -or $property.Value -isnot [array]) { return $null }
 
-                $count = 0
+                $agents = [System.Collections.Generic.List[object]]::new()
+                $indicesByIdentity = [System.Collections.Generic.Dictionary[string, int]]::new([StringComparer]::Ordinal)
                 foreach ($candidate in @($property.Value)) {
                     if ($null -eq $candidate) { continue }
                     $status = Get-SafeText (Get-PropertyValue $candidate 'status')
                     if ($null -eq $status -or $status.ToLowerInvariant() -notin @(
-                        'running', 'active', 'thinking', 'working', 'tool_use', 'initializing')) {
+                        'running', 'active', 'thinking', 'working', 'tool_use', 'initializing',
+                        'editing', 'reading', 'researching', 'running_command', 'coordinating')) {
                         continue
                     }
                     $identity = Get-SafeText (Get-PropertyValue $candidate 'id')
                     if ($null -eq $identity) { $identity = Get-SafeText (Get-PropertyValue $candidate 'conversation_id') }
                     if ($null -eq $identity) { $identity = Get-SafeText (Get-PropertyValue $candidate 'name') }
                     if ($null -eq $identity) { $identity = Get-SafeText (Get-PropertyValue $candidate 'role') }
-                    if ($null -eq $identity) { continue }
-                    $count++
-                    if ($count -ge $MaxActiveSubagentCount) { return $MaxActiveSubagentCount }
+                    if ($null -eq $identity -or $identity.Contains('/') -or $identity.Contains('\')) { continue }
+                    $normalizedStatus = $status.ToLowerInvariant()
+                    $workKind = switch ($normalizedStatus) {
+                        'thinking' { 'thinking' }
+                        'editing' { 'editing' }
+                        'reading' { 'reading' }
+                        'researching' { 'researching' }
+                        'running_command' { 'running_command' }
+                        'coordinating' { 'coordinating' }
+                        default { 'unknown' }
+                    }
+                    if ($indicesByIdentity.ContainsKey($identity)) {
+                        $index = $indicesByIdentity[$identity]
+                        if ($agents[$index].WorkKind -ne $workKind) {
+                            $agents[$index].WorkKind = 'unknown'
+                        }
+                        continue
+                    }
+                    if ($agents.Count -ge $MaxActiveSubagentCount) { break }
+                    $indicesByIdentity.Add($identity, $agents.Count)
+                    $agents.Add([pscustomobject]@{ Identity = $identity; WorkKind = $workKind })
                 }
-                return $count
+                return ,($agents.ToArray())
+            }
+
+            function Get-ActiveSubagentCount([object] $Payload) {
+                $agents = Get-ActiveSubagents $Payload
+                if ($null -eq $agents) { return $null }
+                return $agents.Count
+            }
+
+            function Get-ActiveSubagentWorkKinds([object] $Payload) {
+                $agents = Get-ActiveSubagents $Payload
+                if ($null -eq $agents) { return $null }
+                $workKinds = @($agents | Where-Object { $_.WorkKind -ne 'unknown' } |
+                    ForEach-Object { $_.WorkKind })
+                return ,$workKinds
             }
 
             function Get-PathLeaf([object] $Object, [string] $Parent, [string] $Child) {
@@ -463,6 +497,7 @@ internal static class AntigravityEventPowerShellScript
                         execution_mode = $null
                         context_window = $null
                         active_subagent_count = Get-ActiveSubagentCount $payload
+                        active_subagent_work_kinds = Get-ActiveSubagentWorkKinds $payload
                         quota = $null
                         plan_tier = $null
                         operation = $activity
@@ -524,6 +559,7 @@ internal static class AntigravityEventPowerShellScript
                     execution_mode = $executionMode
                     context_window = $contextWindow
                     active_subagent_count = $activeSubagentCount
+                    active_subagent_work_kinds = Get-ActiveSubagentWorkKinds $payload
                     quota = $quota
                     plan_tier = $planTier
                     operation = $activity

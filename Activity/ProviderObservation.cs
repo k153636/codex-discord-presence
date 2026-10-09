@@ -66,8 +66,10 @@ internal sealed record ProviderObservation(
     // contain local transcript paths or tool arguments.
     internal string? TranscriptPath { get; init; }
     internal string? ArtifactDirectoryPath { get; init; }
+    internal string? ProjectKey { get; init; }
     internal ProviderOperationObservation? Operation { get; init; }
     internal bool IsWaitingForInput { get; init; }
+    internal IReadOnlyList<SubagentWorkKind>? ActiveSubagentWorkKinds { get; init; }
 }
 
 internal sealed record ProviderModelObservation(

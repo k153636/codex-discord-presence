@@ -5,6 +5,71 @@ namespace CodexDiscordPresence;
 
 internal static class DashboardTextFormatter
 {
+    public static string FormatProviderName(string? providerId) => providerId switch
+    {
+        ProviderIds.Codex => "Codex",
+        ProviderIds.ClaudeCode => "Claude Code",
+        ProviderIds.Antigravity => "Antigravity CLI",
+        _ => "No active provider"
+    };
+
+    public static string FormatConnection(PresenceDashboardSnapshot snapshot) => snapshot.IsDiscordConnected
+        ? "Connected" : snapshot.IsDiscordConnecting ? "Connecting" : "Disconnected";
+
+    public static (string Title, string Description) FormatEmptyPreview(PresenceDashboardSnapshot snapshot, bool enabled)
+    {
+        if (!enabled) return ("Presence disabled", "Enable Discord Rich Presence from the tray menu.");
+        if (snapshot.HasNoActiveProvider) return ("No active coding client", "Start an enabled client to publish an activity.");
+        if (!snapshot.IsDiscordConnected)
+            return (snapshot.IsDiscordConnecting ? "Connecting to Discord" : "Discord disconnected", "No activity has been acknowledged by Discord.");
+        return ("No published presence", "Waiting for Discord to acknowledge an activity.");
+    }
+
+    public static DashboardMetric[] CreateMetrics(PresenceDashboardSnapshot snapshot, DateTime utcNow)
+    {
+        var usage = snapshot.TokenUsage;
+        var metrics = new List<DashboardMetric>();
+        if (snapshot.HasNoActiveProvider) return [];
+        if (snapshot.ProviderId is ProviderIds.Codex or ProviderIds.ClaudeCode)
+        {
+            var billing = FormatBillingType(usage?.BillingType);
+            if (billing.Length > 0) metrics.Add(new("Billing", billing));
+            if (usage?.RateLimit is { WindowDurationMinutes: 300 } limit)
+            {
+                metrics.Add(new("5h limit", $"{limit.UsedPercent}% used", limit.UsedPercent));
+                metrics.Add(new("Reset in", FormatRemaining(limit.ResetAtUtc, utcNow)));
+            }
+        }
+        else if (snapshot.ProviderId == ProviderIds.Antigravity)
+        {
+            if (!string.IsNullOrWhiteSpace(usage?.PlanName)) metrics.Add(new("Plan", usage.PlanName));
+            var quota = usage?.UsageQuotas?.Where(item => item.RemainingFraction is >= 0 and <= 1)
+                .OrderBy(item => item.RemainingFraction).FirstOrDefault();
+            if (quota is not null)
+            {
+                var percent = (double)(quota.RemainingFraction * 100);
+                metrics.Add(new("Quota left", percent.ToString("0.#", CultureInfo.InvariantCulture) + "%", percent));
+                if (quota.ResetAtUtc is { } reset) metrics.Add(new("Reset in", FormatRemaining(reset.UtcDateTime, utcNow)));
+            }
+        }
+        return metrics.ToArray();
+    }
+
+    public static string FormatUsageNote(PresenceDashboardSnapshot snapshot) => snapshot.HasNoActiveProvider
+        ? "No current provider activity."
+        : snapshot.ProviderId switch
+        {
+            ProviderIds.Codex or ProviderIds.ClaudeCode => "Usage is not available for this session.",
+            ProviderIds.Antigravity => "Plan and quota are not available for this session.",
+            _ => "No current provider activity."
+        };
+
+    private static string FormatRemaining(DateTime reset, DateTime utcNow)
+    {
+        var minutes = (long)Math.Max(0, Math.Ceiling((reset - utcNow).TotalMinutes));
+        return $"{minutes / 60}h {minutes % 60}m";
+    }
+
     public static string FormatActivityType(DiscordPresenceSnapshot? presence)
     {
         return presence?.ActivityType switch
@@ -78,9 +143,7 @@ internal static class DashboardTextFormatter
             return "Disabled";
         }
 
-        var state = snapshot.PublishedPresence is not null
-            ? snapshot.PublishedPresence.State
-            : snapshot.Presence?.State;
+        var state = snapshot.PublishedPresence?.State;
 
         if (!string.IsNullOrWhiteSpace(state))
         {

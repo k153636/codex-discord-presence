@@ -34,14 +34,99 @@ public sealed class ClaudeCodeProviderTests
     public void Parse_InvalidOrUnknownPayload_FailsClosed(string json) => Assert.Null(ClaudeCodeHookParser.Parse(json, Now));
 
     [Fact]
-    public void Parse_SubagentToolEvent_DoesNotReplaceMainActivity()
+    public void Parse_SubagentToolEvent_RetainsOnlySafeChildIdentityAndToolMetadata()
     {
         var json = JsonSerializer.Serialize(new
         {
             session_id = "main", cwd = ProjectPath, hook_event_name = "PreToolUse",
-            tool_name = "Bash", agent_id = "child"
+            tool_name = "Bash", agent_id = "child",
+            tool_input = new { file_path = Path.Combine(ProjectPath, "private", "child.cs"), command = "private command" }
         });
-        Assert.Null(ClaudeCodeHookParser.Parse(json, Now));
+        var parsed = Assert.IsType<ClaudeCodeHookEvent>(ClaudeCodeHookParser.Parse(json, Now));
+        Assert.Equal("child", parsed.AgentId);
+        Assert.Equal("Bash", parsed.ToolName);
+        Assert.Null(parsed.FileName);
+        Assert.DoesNotContain("private", JsonSerializer.Serialize(parsed), StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Apply_SubagentToolHooksUpdateChildStatusWithoutReplacingMainActivity()
+    {
+        var state = Apply(null, "PreToolUse", "Edit", "main-edit", "app.cs");
+        state = Apply(state, "SubagentStart", agentId: "child");
+        var childPreTool = ParseAgentToolEvent("PreToolUse", "Bash", "child-bash", "child");
+
+        state = ClaudeCodeSessionObservation.Apply(state, childPreTool);
+
+        Assert.Single(state.Tools);
+        Assert.Equal("Edit", state.Tools[0].Name);
+        Assert.Single(state.SubagentTools);
+        Assert.Equal(SubagentWorkKind.RunningCommand, state.SubagentTools[0].WorkKind);
+        var projected = ClaudeCodePresenceProjection.Build(state, nowUtc: state.ObservedAtUtc);
+        Assert.Equal(CodexActivityKind.ApplyingEdits, projected.ActivityKind);
+        Assert.Equal(2, projected.PartySize);
+        Assert.Equal(1, projected.SubagentActivity?.RunningCommandCount);
+
+        state = ClaudeCodeSessionObservation.Apply(
+            state,
+            ParseAgentToolEvent("PostToolUse", "Bash", "child-bash", "child"));
+        Assert.Empty(state.SubagentTools);
+        var genericChildActivity = Assert.IsType<SubagentActivitySummary>(
+            ClaudeCodePresenceProjection.Build(state, nowUtc: state.ObservedAtUtc).SubagentActivity);
+        Assert.Equal(0, genericChildActivity.KnownCount);
+        Assert.Equal(1, genericChildActivity.UnknownCount);
+        Assert.Single(state.Tools);
+        Assert.Equal(CodexActivityKind.ApplyingEdits, ClaudeCodePresenceProjection.Build(state, nowUtc: state.ObservedAtUtc).ActivityKind);
+    }
+
+    [Fact]
+    public void Apply_MainStopAndPromptKeepActiveBackgroundAgentUntilExplicitLifecycleEnds()
+    {
+        var state = Apply(null, "UserPromptSubmit", atUtc: Now);
+        state = Apply(state, "SubagentStart", agentId: "child", atUtc: Now.AddSeconds(1));
+        state = Apply(state, "Stop", atUtc: Now.AddSeconds(2));
+        Assert.Equal(2, ClaudeCodePresenceProjection.Build(state, nowUtc: state.ObservedAtUtc).PartySize);
+        Assert.Equal(1, ClaudeCodePresenceProjection.Build(state, nowUtc: state.ObservedAtUtc).SubagentActivity?.ActiveCount);
+
+        state = Apply(state, "UserPromptSubmit", atUtc: Now.AddSeconds(3));
+        Assert.Equal(2, ClaudeCodePresenceProjection.Build(state, nowUtc: state.ObservedAtUtc).PartySize);
+        state = Apply(state, "SessionEnd", atUtc: Now.AddSeconds(4));
+
+        Assert.Empty(state.ActiveAgentIds);
+        Assert.Empty(state.SubagentTools);
+        Assert.Null(ClaudeCodePresenceProjection.Build(state, nowUtc: state.ObservedAtUtc).SubagentActivity);
+    }
+
+    [Fact]
+    public void Build_StaleChildToolEvidenceBecomesGenericWhileMainHooksKeepSessionFresh()
+    {
+        var state = Apply(null, "UserPromptSubmit", atUtc: Now);
+        state = Apply(state, "SubagentStart", agentId: "child", atUtc: Now.AddSeconds(1));
+        state = Apply(state, "PreToolUse", "Edit", "child-edit", agentId: "child", atUtc: Now.AddSeconds(2));
+        Assert.Equal(1, ClaudeCodePresenceProjection.Build(state, nowUtc: state.ObservedAtUtc).SubagentActivity?.EditingCount);
+
+        state = Apply(state, "PreToolUse", "Read", "main-read", file: "main.cs", atUtc: Now.AddMinutes(1));
+        var staleChildActivity = Assert.IsType<SubagentActivitySummary>(
+            ClaudeCodePresenceProjection.Build(state, nowUtc: state.ObservedAtUtc).SubagentActivity);
+
+        Assert.Equal(2, ClaudeCodePresenceProjection.Build(state, nowUtc: state.ObservedAtUtc).PartySize);
+        Assert.Equal(0, staleChildActivity.KnownCount);
+        Assert.Equal(1, staleChildActivity.UnknownCount);
+        Assert.Equal(CodexActivityKind.ReadingFiles, ClaudeCodePresenceProjection.Build(state, nowUtc: state.ObservedAtUtc).ActivityKind);
+    }
+
+    [Fact]
+    public void Build_ChildStatusExpiresEvenWithoutAnotherMainHook()
+    {
+        var state = Apply(null, "UserPromptSubmit", atUtc: Now);
+        state = Apply(state, "SubagentStart", agentId: "child", atUtc: Now);
+        state = Apply(state, "PreToolUse", "Edit", "child-edit", agentId: "child", atUtc: Now);
+
+        var afterDeadline = ClaudeCodePresenceProjection.Build(state, nowUtc: Now.AddSeconds(46));
+
+        Assert.Equal(2, afterDeadline.PartySize);
+        Assert.Equal(1, afterDeadline.SubagentActivity?.UnknownCount);
+        Assert.Equal(0, afterDeadline.SubagentActivity?.EditingCount);
     }
 
     [Fact]
@@ -50,10 +135,12 @@ public sealed class ClaudeCodeProviderTests
         var state = Apply(null, "PreToolUse", "Edit", "edit-1", "app.cs");
         state = Apply(state, "SubagentStart", agentId: "child");
         state = Apply(state, "SubagentStart", agentId: "child");
-        Assert.Equal(CodexActivityKind.ApplyingEdits, ClaudeCodePresenceProjection.Build(state).ActivityKind);
-        Assert.Equal(2, ClaudeCodePresenceProjection.Build(state).PartySize);
+        Assert.Equal(CodexActivityKind.ApplyingEdits, ClaudeCodePresenceProjection.Build(state, nowUtc: state.ObservedAtUtc).ActivityKind);
+        Assert.Equal(2, ClaudeCodePresenceProjection.Build(state, nowUtc: state.ObservedAtUtc).PartySize);
+        Assert.Equal("1 subagent active", ClaudeCodePresenceProjection.Build(state, nowUtc: state.ObservedAtUtc).SubagentActivity?.FormatSmallImageText());
         state = Apply(state, "SubagentStop", agentId: "child");
-        Assert.Null(ClaudeCodePresenceProjection.Build(state).PartySize);
+        Assert.Null(ClaudeCodePresenceProjection.Build(state, nowUtc: state.ObservedAtUtc).PartySize);
+        Assert.Null(ClaudeCodePresenceProjection.Build(state, nowUtc: state.ObservedAtUtc).SubagentActivity);
         Assert.Single(state.Tools);
     }
 
@@ -70,7 +157,7 @@ public sealed class ClaudeCodeProviderTests
         Assert.Equal("MCP blender", Render(state).State);
         state = Apply(state, "PostToolUse", "mcp__blender__inspect", "2");
         Assert.Equal("Thinking", Render(state).State);
-        Assert.False(ClaudeCodePresenceProjection.Build(state).IsMcpOperation);
+        Assert.False(ClaudeCodePresenceProjection.Build(state, nowUtc: state.ObservedAtUtc).IsMcpOperation);
     }
 
     [Fact]
@@ -93,7 +180,7 @@ public sealed class ClaudeCodeProviderTests
     public void Build_ToolActivity_UsesSpecificCommonVocabulary(string tool, CodexActivityKind kind, string label)
     {
         var state = Apply(null, "PreToolUse", tool, "1", "app.cs");
-        Assert.Equal(kind, ClaudeCodePresenceProjection.Build(state).ActivityKind);
+        Assert.Equal(kind, ClaudeCodePresenceProjection.Build(state, nowUtc: state.ObservedAtUtc).ActivityKind);
         Assert.Equal(label, Render(state).State);
     }
 
@@ -103,8 +190,8 @@ public sealed class ClaudeCodeProviderTests
         var state = Apply(null, "PreToolUse", "Edit", "1", "app.cs");
         state = Apply(state, "SubagentStart", agentId: "agent");
         state = Apply(state, "PermissionRequest");
-        Assert.Equal(CodexActivityKind.WaitingForInput, ClaudeCodePresenceProjection.Build(state).ActivityKind);
-        Assert.Empty(ClaudeCodePresenceProjection.Build(state).ActivityFilePaths);
+        Assert.Equal(CodexActivityKind.WaitingForInput, ClaudeCodePresenceProjection.Build(state, nowUtc: state.ObservedAtUtc).ActivityKind);
+        Assert.Empty(ClaudeCodePresenceProjection.Build(state, nowUtc: state.ObservedAtUtc).ActivityFilePaths);
         state = Apply(state, "Stop");
         Assert.Empty(state.Tools);
         state = Apply(state, "SessionEnd");
@@ -169,8 +256,14 @@ public sealed class ClaudeCodeProviderTests
             IsActive: true, ActivityStartedAtUtc: Now);
         var claude = codex with { ProviderId = ProviderIds.ClaudeCode, LastObservedAtUtc = Now.AddSeconds(1), ActivityStartedAtUtc = Now.AddSeconds(1) };
         Assert.Equal(ProviderIds.Codex, gate.Select([codex], Now)!.ProviderId);
+        Assert.True(gate.RecordPresenceAcknowledgment(new("details", "state", null, null, null, null, null, null, null, [])
+        {
+            ProviderId = ProviderIds.Codex,
+            AcknowledgedAtUtc = Now.UtcDateTime,
+            PublicationGeneration = 1
+        }, Now));
         Assert.Equal(ProviderIds.Codex, gate.Select([codex, claude], Now.AddSeconds(1))!.ProviderId);
-        Assert.Equal(ProviderIds.ClaudeCode, gate.Select([codex, claude], Now.AddSeconds(5))!.ProviderId);
+        Assert.Equal(ProviderIds.ClaudeCode, gate.Select([codex, claude], Now.AddSeconds(15))!.ProviderId);
         var idle = claude with { IsActive = false, LastObservedAtUtc = Now.AddSeconds(-10) };
         gate.Reset(ProviderIds.Codex);
         Assert.Equal(ProviderIds.Codex, gate.Select([codex, idle], Now)!.ProviderId);
@@ -331,48 +424,15 @@ public sealed class ClaudeCodeProviderTests
         });
     }
 
-    [Theory]
-    [InlineData(360)]
-    [InlineData(432)]
-    [InlineData(600)]
-    public void Dashboard_ProviderControlsFitAtSupportedWidths_AndClaudePersists(int width)
+    [Fact]
+    public void Dashboard_ClaudeEnableStateIsSentToOriginalHtml()
     {
-        Exception? failure = null;
-        InTemporaryDirectory(directory =>
-        {
-            var state = new PresenceRuntimeState();
-            var statePath = Path.Combine(directory, "state.json");
-            var thread = new Thread(() =>
-            {
-                try
-                {
-                    using var form = new System.Windows.Forms.Form { ClientSize = new System.Drawing.Size(width, 160) };
-                    using var panel = new ProviderIntegrationPanel { Dock = System.Windows.Forms.DockStyle.Top, Height = ProviderIntegrationPanel.PreferredHeight };
-                    form.Controls.Add(panel);
-                    panel.ProviderEnabledChanged += (_, change) =>
-                    {
-                        state.SetProviderEnabled(change.ProviderId, change.Enabled);
-                        new PresenceStateStore().Save(statePath, state);
-                    };
-                    form.Show();
-                    System.Windows.Forms.Application.DoEvents();
-                    foreach (var checkBox in new[] { panel.CodexCheckBox, panel.AntigravityCheckBox, panel.ClaudeCodeCheckBox })
-                    {
-                        Assert.True(checkBox.Parent!.ClientRectangle.Contains(checkBox.Bounds), $"{checkBox.Text}: {checkBox.Bounds} in {checkBox.Parent.ClientRectangle}");
-                    }
-                    panel.ClaudeCodeCheckBox.Checked = true;
-                    form.Close();
-                }
-                catch (Exception ex) { failure = ex; }
-            });
-            thread.SetApartmentState(ApartmentState.STA);
-            thread.Start();
-            thread.Join();
-            Assert.Null(failure);
-            Assert.True(new PresenceStateStore().Load(statePath).IsProviderEnabled(ProviderIds.ClaudeCode, false));
-        });
+        var state = new PresenceRuntimeState();
+        state.SetProviderEnabled(ProviderIds.ClaudeCode, true);
+        var payload = DashboardWebPayload.Create(PresenceDashboardSnapshot.Empty, state, Now.UtcDateTime);
+        Assert.True(payload.Providers[ProviderIds.ClaudeCode]);
+        Assert.Equal(3, payload.Providers.Count);
     }
-
     [Theory]
     [InlineData("[]")]
     [InlineData("null")]
@@ -412,6 +472,7 @@ public sealed class ClaudeCodeProviderTests
     [InlineData("Tools", "[{\"Id\":\"id\",\"Name\":null}]")]
     [InlineData("Tools", "[{\"Id\":\"id\",\"Name\":\"Edit\",\"FileName\":\"../private.cs\"}]")]
     [InlineData("ActiveAgentIds", "[null]")]
+    [InlineData("SubagentTools", "[null]")]
     [InlineData("EventName", "\"Unknown\"")]
     public void Store_InvalidPersistedObservation_IsRejected(string field, string invalidValue)
     {
@@ -464,8 +525,28 @@ public sealed class ClaudeCodeProviderTests
     }
 
     private static ClaudeCodeSessionObservation Apply(ClaudeCodeSessionObservation? previous, string name,
-        string? tool = null, string? toolId = null, string? file = null, string? agentId = null) =>
-        ClaudeCodeSessionObservation.Apply(previous, new("main", ProjectPath, name, Now, tool, toolId, file, agentId));
+        string? tool = null, string? toolId = null, string? file = null, string? agentId = null,
+        DateTimeOffset? atUtc = null) =>
+        ClaudeCodeSessionObservation.Apply(previous,
+            new("main", ProjectPath, name, atUtc ?? Now, tool, toolId, file, agentId));
+
+    private static ClaudeCodeHookEvent ParseAgentToolEvent(
+        string eventName,
+        string toolName,
+        string toolUseId,
+        string agentId)
+    {
+        var json = JsonSerializer.Serialize(new
+        {
+            session_id = "main",
+            cwd = ProjectPath,
+            hook_event_name = eventName,
+            tool_name = toolName,
+            tool_use_id = toolUseId,
+            agent_id = agentId
+        });
+        return Assert.IsType<ClaudeCodeHookEvent>(ClaudeCodeHookParser.Parse(json, Now));
+    }
 
     private static PresenceContext Context(ClaudeCodeSessionObservation state) => ClaudeCodePresenceProjection.CreateContext(
         state, new ProjectSnapshot("project", ProjectPath, "unrelated.cs", "unrelated.cs", 1, 1, 1, []),

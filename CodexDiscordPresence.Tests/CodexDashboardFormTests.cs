@@ -1,152 +1,89 @@
 using System.Drawing;
-using System.Threading;
+using System.Reflection;
+using System.Text.Json;
 using System.Windows.Forms;
-using Xunit;
+using Microsoft.Web.WebView2.WinForms;
 
 namespace CodexDiscordPresence.Tests;
 
 public sealed class CodexDashboardFormTests
 {
     [Fact]
-    public void Form_UsesCompactPortraitSingleColumnOverview_WithPreviewBelowExistingInformation()
+    public void Form_HostsOriginalHtmlInsteadOfRecreatingTheCanvas()
     {
-        Size? windowSize = null;
-        Size? minimumSize = null;
-        var rootControlCount = -1;
-        TableLayoutPanel? layout = null;
-        Control? overview = null;
-        Control? preview = null;
-        Exception? failure = null;
-
-        var thread = new Thread(() =>
+        RunSta(() =>
         {
-            try
-            {
-                using var form = new CodexDashboardForm(new PresenceRuntimeState());
-                Assert.Equal(ProductBrand.Name, form.Text);
-                Assert.Equal($"{ProductBrand.Name} dashboard", form.AccessibleName);
-                windowSize = form.Size;
-                minimumSize = form.MinimumSize;
-                rootControlCount = form.Controls.Count;
-                var overviewLayout = form.Controls.OfType<TableLayoutPanel>().Single();
-                layout = overviewLayout;
-                overview = overviewLayout.GetControlFromPosition(0, 1);
-                preview = overviewLayout.GetControlFromPosition(0, 2);
-            }
-            catch (Exception ex)
-            {
-                failure = ex;
-            }
+            using var form = new CodexDashboardForm(new PresenceRuntimeState());
+            Assert.Equal(ProductBrand.Name, form.Text);
+            Assert.Equal($"{ProductBrand.Name} dashboard", form.AccessibleName);
+            Assert.Equal(new Size(402, 379), form.ClientSize);
+            Assert.Equal(FormBorderStyle.None, form.FormBorderStyle);
+            Assert.IsType<WebView2>(Assert.Single(form.Controls.Cast<Control>()));
         });
-        thread.SetApartmentState(ApartmentState.STA);
-        thread.Start();
-        thread.Join();
-
-        Assert.Null(failure);
-        Assert.Equal(new Size(400, 660), windowSize);
-        Assert.Equal(new Size(400, 660), minimumSize);
-        Assert.Equal(1, rootControlCount);
-        Assert.NotNull(layout);
-        Assert.Equal(1, layout!.ColumnCount);
-        Assert.Equal(3, layout.RowCount);
-        Assert.Equal(Padding.Empty, layout.Padding);
-        Assert.IsType<DashboardOverviewSurface>(overview);
-        Assert.IsType<DashboardPreviewSurface>(preview);
-        Assert.Equal(Padding.Empty, preview!.Margin);
-    }
-
-    [Fact]
-    public void Form_ExposesAccessibleProviderCheckBoxes_AndPersistsChanges()
-    {
-        var statePath = Path.Combine(
-            Path.GetTempPath(),
-            "codex-dashboard-" + Guid.NewGuid().ToString("N"),
-            "presence-state.json");
-        try
-        {
-            var state = new PresenceRuntimeState();
-            state.InitializeProviderEnabled(new Dictionary<string, bool>
-            {
-                [ProviderIds.Codex] = true,
-                [ProviderIds.Antigravity] = false
-            });
-
-            Exception? failure = null;
-            var thread = new Thread(() =>
-            {
-                try
-                {
-                    using var form = new CodexDashboardForm(state, new PresenceStateStore(), statePath);
-                    var panel = form.Controls
-                        .OfType<TableLayoutPanel>()
-                        .Single()
-                        .GetControlFromPosition(0, 0) as ProviderIntegrationPanel;
-
-                    Assert.NotNull(panel);
-                    Assert.True(panel!.CodexCheckBox.Checked);
-                    Assert.False(panel.AntigravityCheckBox.Checked);
-                    Assert.Equal("Codex integration", panel.CodexCheckBox.AccessibleName);
-                    Assert.False(string.IsNullOrWhiteSpace(panel.CodexCheckBox.AccessibleDescription));
-                    Assert.Equal("Antigravity integration", panel.AntigravityCheckBox.AccessibleName);
-                    Assert.False(string.IsNullOrWhiteSpace(panel.AntigravityCheckBox.AccessibleDescription));
-
-                    panel.AntigravityCheckBox.Checked = true;
-                }
-                catch (Exception ex)
-                {
-                    failure = ex;
-                }
-            });
-            thread.SetApartmentState(ApartmentState.STA);
-            thread.Start();
-            thread.Join();
-
-            Assert.Null(failure);
-            Assert.True(state.IsProviderEnabled(ProviderIds.Antigravity, false));
-            var loaded = new PresenceStateStore().Load(statePath);
-            Assert.True(loaded.IsProviderEnabled(ProviderIds.Antigravity, false));
-        }
-        finally
-        {
-            var directory = Path.GetDirectoryName(statePath);
-            if (directory is not null && Directory.Exists(directory))
-            {
-                Directory.Delete(directory, recursive: true);
-            }
-        }
-    }
-
-    [Fact]
-    public void Dashboard_DerivesDiscordActivityTypeLabelFromPublishedPayload()
-    {
-        var presence = new DiscordPresenceSnapshot(
-            "details",
-            "state",
-            null,
-            null,
-            null,
-            null,
-            null,
-            null,
-            null,
-            [])
-        {
-            ActivityType = DiscordRPC.ActivityType.Watching
-        };
-
-        Assert.Equal("Watching:", DashboardTextFormatter.FormatActivityType(presence));
     }
 
     [Theory]
-    [InlineData(364, 2, 360)]
-    [InlineData(380, 10, 360)]
-    [InlineData(464, 16, 432)]
-    public void DashboardLayoutMetrics_AlignsOverviewAndPreviewLeftEdge(
-        int clientWidth,
-        int expectedLeft,
-        int expectedContentWidth)
+    [InlineData(ProviderIds.Codex)]
+    [InlineData(ProviderIds.ClaudeCode)]
+    [InlineData(ProviderIds.Antigravity)]
+    public void Form_ProviderMessagePersistsOnlyKnownIntegrations(string providerId)
     {
-        Assert.Equal(expectedLeft, DashboardLayoutMetrics.GetContentLeft(clientWidth));
-        Assert.Equal(expectedContentWidth, DashboardLayoutMetrics.GetContentWidth(clientWidth));
+        var directory = Path.Combine(Path.GetTempPath(), "dashboard-bridge-" + Guid.NewGuid().ToString("N"));
+        var path = Path.Combine(directory, "state.json");
+        try
+        {
+            RunSta(() =>
+            {
+                var runtime = new PresenceRuntimeState();
+                using var form = new CodexDashboardForm(runtime, new PresenceStateStore(), path);
+                using var message = JsonDocument.Parse(JsonSerializer.Serialize(new {type="provider", providerId, enabled=true}));
+                form.HandleMessage(message.RootElement);
+                Assert.True(runtime.IsProviderEnabled(providerId, false));
+                Assert.True(new PresenceStateStore().Load(path).IsProviderEnabled(providerId, false));
+            });
+        }
+        finally { if (Directory.Exists(directory)) Directory.Delete(directory, true); }
+    }
+
+    [Theory]
+    [InlineData("{\"type\":\"provider\",\"providerId\":\"unknown\",\"enabled\":true}")]
+    [InlineData("{\"type\":\"provider\",\"providerId\":\"codex\",\"enabled\":\"false\"}")]
+    [InlineData("{\"type\":false}")]
+    [InlineData("[]")]
+    [InlineData("null")]
+    public void Form_InvalidMessageDoesNotChangeState(string json)
+    {
+        RunSta(() =>
+        {
+            var runtime = new PresenceRuntimeState();
+            using var form = new CodexDashboardForm(runtime);
+            using var message = JsonDocument.Parse(json);
+            form.HandleMessage(message.RootElement);
+            Assert.Empty(runtime.ProviderEnabled);
+        });
+    }
+
+    [Fact]
+    public void Form_DisposeStopsTimerAndDoesNotInitializeBrowserBeforeShowing()
+    {
+        RunSta(() =>
+        {
+            var form = new CodexDashboardForm(new PresenceRuntimeState());
+            var browser = Assert.IsType<WebView2>(form.Controls[0]);
+            var timer = (System.Windows.Forms.Timer)typeof(CodexDashboardForm).GetField("_refreshTimer", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(form)!;
+            Assert.Null(browser.CoreWebView2);
+            Assert.False(timer.Enabled);
+            form.Dispose();
+            Assert.False(timer.Enabled);
+        });
+    }
+
+    private static void RunSta(Action action)
+    {
+        Exception? failure = null;
+        var thread = new Thread(() => {try {action();} catch (Exception error) {failure = error;}});
+        thread.SetApartmentState(ApartmentState.STA);
+        thread.Start(); thread.Join();
+        if (failure is not null) System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(failure).Throw();
     }
 }

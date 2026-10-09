@@ -32,6 +32,7 @@ internal sealed record ClaudeCodeActivitySnapshot(
     public DateTime? LastEffectiveSignalAt => LastObservedAt;
     public string? LatestThinkingSummary { get; init; }
     public int? PartySize { get; init; }
+    public SubagentActivitySummary? SubagentActivity { get; init; }
     public bool IsSuccessfulCompletion => false;
     public bool IsError { get; init; }
     public bool HasDirectActivityEvidence => true;
@@ -42,7 +43,10 @@ internal sealed record ClaudeCodeActivitySnapshot(
 
 internal static class ClaudeCodePresenceProjection
 {
-    internal static ClaudeCodeActivitySnapshot Build(ClaudeCodeSessionObservation observation, string? spinnerLabel = null)
+    private static readonly TimeSpan SubagentToolFreshness = TimeSpan.FromSeconds(45);
+
+    internal static ClaudeCodeActivitySnapshot Build(ClaudeCodeSessionObservation observation, string? spinnerLabel = null,
+        DateTimeOffset? nowUtc = null)
     {
         var tool = observation.Tools.LastOrDefault();
         var waiting = observation.EventName is "PermissionRequest" or "Notification";
@@ -67,17 +71,21 @@ internal static class ClaudeCodePresenceProjection
             PendingOperationCount = waiting ? 0 : observation.Tools.Count,
             LatestThinkingSummary = kind.IsThinking() && tool is null ? ClaudeCodeHookParser.SafeText(spinnerLabel, 48) : null,
             PartySize = observation.ActiveAgentIds.Count > 0 ? observation.ActiveAgentIds.Count + 1 : null,
+            SubagentActivity = SubagentActivitySummary.Create(
+                observation.ActiveAgentIds.Count,
+                observation.ActiveAgentIds.Select(agentId => ResolveSubagentWorkKind(observation, agentId, nowUtc ?? DateTimeOffset.UtcNow))),
             IsError = observation.EventName == "PostToolUseFailure"
         };
     }
 
     internal static PresenceContext CreateContext(ClaudeCodeSessionObservation observation,
-        ProjectSnapshot project, GitSnapshot git, SessionSnapshot session, string? spinnerLabel = null)
+        ProjectSnapshot project, GitSnapshot git, SessionSnapshot session, string? spinnerLabel = null,
+        TokenUsageSnapshot? tokenUsage = null)
     {
         var metadata = ClaudeCodeTranscriptMetadata.Read(observation.TranscriptPath, observation.SessionId);
         var model = metadata.Model ?? observation.Model;
         return new PresenceContext(NormalizeModel(model), Build(observation, spinnerLabel), project, git, session,
-            new TokenUsageSnapshot(null, null))
+            tokenUsage ?? new TokenUsageSnapshot(null, null))
         {
             ProviderId = ProviderIds.ClaudeCode,
             FeatureLabel = observation.UsesClaudeDesign ? "Claude Design" : null,
@@ -104,6 +112,23 @@ internal static class ClaudeCodePresenceProjection
         _ when McpServer(name) is not null => CodexActivityKind.RunningCommand,
         _ => CodexActivityKind.AnalyzingProject
     };
+
+    private static SubagentWorkKind ResolveSubagentWorkKind(
+        ClaudeCodeSessionObservation observation,
+        string agentId,
+        DateTimeOffset nowUtc)
+    {
+        var tool = observation.SubagentTools.LastOrDefault(item => item.AgentId == agentId);
+        if (tool is null)
+        {
+            return SubagentWorkKind.Unknown;
+        }
+
+        var age = nowUtc.ToUniversalTime() - tool.ObservedAtUtc.ToUniversalTime();
+        return age >= TimeSpan.Zero && age <= SubagentToolFreshness
+            ? tool.WorkKind
+            : SubagentWorkKind.Unknown;
+    }
 
     private static string? McpServer(string toolName)
     {

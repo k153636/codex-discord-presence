@@ -1,198 +1,201 @@
+using System.Diagnostics;
 using System.Drawing;
 using System.Runtime.InteropServices;
-using System.Windows.Forms;
+using System.Text.Json;
+using Microsoft.Web.WebView2.Core;
+using Microsoft.Web.WebView2.WinForms;
 
 namespace CodexDiscordPresence;
 
 public sealed class CodexDashboardForm : Form
 {
-    private const int PreviewRegionHeight = 180;
-
+    internal const string DashboardAddress = "https://dashboard.local/Dashboard.html";
+    private static readonly JsonSerializerOptions WebJson = new(JsonSerializerDefaults.Web);
     private readonly PresenceRuntimeState _runtimeState;
-    private readonly DashboardOverviewSurface _overviewSurface;
-    private readonly DashboardPreviewSurface _previewSurface;
-    private readonly ProviderIntegrationPanel _providerPanel;
-    private readonly System.Windows.Forms.Timer _refreshTimer;
     private readonly PresenceStateStore _stateStore;
     private readonly string _statePath;
-    private bool _syncingProviderControls;
+    private readonly WebView2 _webView = new() {Dock = DockStyle.Fill, DefaultBackgroundColor = Color.FromArgb(11, 12, 14)};
+    private readonly System.Windows.Forms.Timer _refreshTimer = new() {Interval = 500};
+    private readonly DashboardSnapshotSelector _snapshotSelector = new();
+    private PresenceDashboardSnapshot? _sentSnapshot;
+    private string? _lastPayload;
+    private long _snapshotId;
+    private bool _ready;
+    private int _canvasHeight = DashboardWebPayload.DefaultCanvasHeight;
 
     public CodexDashboardForm(PresenceRuntimeState runtimeState)
-        : this(runtimeState, new PresenceStateStore(), PresenceStateStore.GetDefaultPath())
-    {
-    }
+        : this(runtimeState, new PresenceStateStore(), PresenceStateStore.GetDefaultPath()) { }
 
-    public CodexDashboardForm(
-        PresenceRuntimeState runtimeState,
-        PresenceStateStore stateStore,
-        string statePath)
+    public CodexDashboardForm(PresenceRuntimeState runtimeState, PresenceStateStore stateStore, string statePath)
     {
         _runtimeState = runtimeState ?? throw new ArgumentNullException(nameof(runtimeState));
         _stateStore = stateStore ?? throw new ArgumentNullException(nameof(stateStore));
-        _statePath = string.IsNullOrWhiteSpace(statePath)
-            ? throw new ArgumentException("A state path is required.", nameof(statePath))
-            : statePath;
-
+        _statePath = !string.IsNullOrWhiteSpace(statePath) ? statePath : throw new ArgumentException("A state path is required.", nameof(statePath));
         Text = ProductBrand.Name;
-        StartPosition = FormStartPosition.CenterScreen;
-        MinimumSize = new Size(400, 660);
-        Size = MinimumSize;
-        BackColor = DashboardPalette.Window;
-        ForeColor = DashboardPalette.Text;
-        Font = new Font("Segoe UI", 9f);
         AccessibleName = $"{ProductBrand.Name} dashboard";
+        StartPosition = FormStartPosition.CenterScreen;
+        // The export owns its title bar; the preview retains the former compact size.
+        FormBorderStyle = FormBorderStyle.None;
         AutoScaleMode = AutoScaleMode.Dpi;
-        FormBorderStyle = FormBorderStyle.Sizable;
-        MaximizeBox = true;
-        MinimizeBox = true;
-        Icon = LoadWindowIcon();
-
-        _overviewSurface = new DashboardOverviewSurface { Dock = DockStyle.Fill };
-        _previewSurface = new DashboardPreviewSurface
-        {
-            Dock = DockStyle.Fill,
-            Margin = new Padding(0)
-        };
-        _providerPanel = new ProviderIntegrationPanel
-        {
-            Dock = DockStyle.Fill
-        };
-        _providerPanel.ProviderEnabledChanged += OnProviderEnabledChanged;
-        SyncProviderControls();
-
-        var overviewLayout = new TableLayoutPanel
-        {
-            Dock = DockStyle.Fill,
-            BackColor = DashboardPalette.SurfaceInset,
-            ColumnCount = 1,
-            RowCount = 3,
-            Margin = new Padding(0),
-            Padding = new Padding(0)
-        };
-        overviewLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100f));
-        overviewLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, ProviderIntegrationPanel.PreferredHeight));
-        overviewLayout.RowStyles.Add(new RowStyle(SizeType.Percent, 100f));
-        overviewLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, PreviewRegionHeight));
-        overviewLayout.Controls.Add(_providerPanel, 0, 0);
-        overviewLayout.Controls.Add(_overviewSurface, 0, 1);
-        overviewLayout.Controls.Add(_previewSurface, 0, 2);
-        Controls.Add(overviewLayout);
-
-        _refreshTimer = new System.Windows.Forms.Timer { Interval = 500 };
+        AutoScaleDimensions = new SizeF(96, 96);
+        ClientSize = new Size(DashboardWebPayload.CanvasWidth, DashboardWebPayload.DefaultCanvasHeight);
+        MinimumSize = ClientSize;
+        BackColor = _webView.DefaultBackgroundColor;
+        Controls.Add(_webView);
         _refreshTimer.Tick += (_, _) => RefreshSnapshot();
-        _refreshTimer.Start();
-        FormClosed += (_, _) =>
-        {
-            _refreshTimer.Dispose();
-            _providerPanel.ProviderEnabledChanged -= OnProviderEnabledChanged;
-            Icon?.Dispose();
-        };
-        Shown += (_, _) => RefreshSnapshot();
+        Shown += async (_, _) => await InitializeDashboardAsync();
     }
 
-    protected override void OnHandleCreated(EventArgs e)
+    internal DashboardWebPayload CurrentPayload => DashboardWebPayload.Create(SelectSnapshot(), _runtimeState, DateTime.UtcNow);
+
+    private async Task InitializeDashboardAsync()
     {
-        base.OnHandleCreated(e);
-        TryUseDarkTitleBar();
+        try
+        {
+            var folder = Path.Combine(AppContext.BaseDirectory, "Assets", "Dashboard");
+            var adapter = await File.ReadAllTextAsync(Path.Combine(folder, "runtime-adapter.js"));
+            if (IsDisposed) return;
+            var environment = await CoreWebView2Environment.CreateAsync(userDataFolder:
+                Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "CodexDiscordPresence", "dashboard-webview"));
+            if (IsDisposed) return;
+            await _webView.EnsureCoreWebView2Async(environment);
+            if (IsDisposed) return;
+            var browser = _webView.CoreWebView2;
+            browser.Settings.AreDefaultContextMenusEnabled = false;
+            browser.Settings.AreDevToolsEnabled = false;
+            browser.Settings.IsStatusBarEnabled = false;
+            browser.Settings.IsZoomControlEnabled = false;
+            browser.SetVirtualHostNameToFolderMapping("dashboard.local", folder, CoreWebView2HostResourceAccessKind.DenyCors);
+            browser.SetVirtualHostNameToFolderMapping("rpc-art.local", Path.Combine(AppContext.BaseDirectory, "Assets", "RpcArt"), CoreWebView2HostResourceAccessKind.DenyCors);
+            browser.NavigationStarting += (_, e) => e.Cancel = e.Uri != DashboardAddress;
+            browser.NewWindowRequested += (_, e) => e.Handled = true;
+            browser.WebMessageReceived += OnWebMessage;
+            await browser.AddScriptToExecuteOnDocumentCreatedAsync(adapter);
+            if (!IsDisposed) browser.Navigate(DashboardAddress);
+        }
+        catch (Exception error) when (!IsDisposed)
+        {
+            // A missing browser runtime must not stop the tray/RPC service.
+            MessageBox.Show(this, "The dashboard could not open. Install or repair Microsoft Edge WebView2 Runtime.\n\n" + error.Message,
+                ProductBrand.Name, MessageBoxButtons.OK, MessageBoxIcon.Error);
+            Close();
+        }
+        catch (Exception) when (IsDisposed) { }
+    }
+
+    private PresenceDashboardSnapshot SelectSnapshot()
+    {
+        var latest = _runtimeState.DashboardSnapshot;
+        if (!_runtimeState.Enabled || latest.ProviderId is { } id && !_runtimeState.IsProviderEnabled(id))
+        {
+            _snapshotSelector.Reset();
+            latest = latest with {ProviderId = null, Presence = null, PublishedPresence = null, TokenUsage = null, HasNoActiveProvider = true};
+        }
+        return _snapshotSelector.Select(latest, DateTime.UtcNow);
     }
 
     private void RefreshSnapshot()
     {
-        var snapshot = _runtimeState.DashboardSnapshot;
-        var enabled = _runtimeState.Enabled;
-        SyncProviderControls();
-
-        _overviewSurface.SetSnapshot(snapshot, enabled);
-        _previewSurface.SetSnapshot(snapshot, enabled);
+        if (!_ready || IsDisposed || Disposing) return;
+        var snapshot = SelectSnapshot();
+        var data = DashboardWebPayload.Create(snapshot, _runtimeState, DateTime.UtcNow);
+        if (WindowState == FormWindowState.Normal && data.CanvasHeight != _canvasHeight)
+        {
+            _canvasHeight = data.CanvasHeight;
+            var height = (int)Math.Round(_canvasHeight * DeviceDpi / 96d);
+            MinimumSize = Size.Empty;
+            ClientSize = new Size(ClientSize.Width, height);
+            MinimumSize = new Size((int)Math.Round(DashboardWebPayload.CanvasWidth * DeviceDpi / 96d), height);
+        }
+        var payload = JsonSerializer.Serialize(data, WebJson);
+        if (payload == _lastPayload && snapshot.PublishedPresence?.PublicationGeneration == _sentSnapshot?.PublishedPresence?.PublicationGeneration) return;
+        _lastPayload = payload;
+        _sentSnapshot = snapshot;
+        _webView.CoreWebView2.PostWebMessageAsJson($"{{\"type\":\"snapshot\",\"id\":{++_snapshotId},\"payload\":{payload}}}");
     }
 
-    private void OnProviderEnabledChanged(object? sender, ProviderEnabledChangedEventArgs e)
+    private void OnWebMessage(object? sender, CoreWebView2WebMessageReceivedEventArgs e)
     {
-        if (_syncingProviderControls)
+        if (e.Source != DashboardAddress) return;
+        try
         {
-            return;
+            using var document = JsonDocument.Parse(e.WebMessageAsJson);
+            HandleMessage(document.RootElement);
         }
+        catch (JsonException) { }
+    }
 
-        _runtimeState.SetProviderEnabled(e.ProviderId, e.Enabled);
+    internal void HandleMessage(JsonElement message)
+    {
+        if (message.ValueKind != JsonValueKind.Object) return;
+        if (!message.TryGetProperty("type", out var type) || type.ValueKind != JsonValueKind.String) return;
+        switch (type.GetString())
+        {
+            case "ready":
+                _ready = true;
+                _lastPayload = null;
+                _refreshTimer.Start();
+                RefreshSnapshot();
+                break;
+            case "painted" when message.TryGetProperty("id", out var id) && id.ValueKind == JsonValueKind.Number && id.TryGetInt64(out var paintedId) && paintedId == _snapshotId:
+                if (_sentSnapshot is { } displayed)
+                {
+                    _snapshotSelector.RecordOwnerDisplayed(displayed, DateTime.UtcNow);
+                    _snapshotSelector.RecordPresenceDisplayed(displayed, DateTime.UtcNow);
+                }
+                break;
+            case "provider":
+                ApplyProviderMessage(message);
+                break;
+            case "window" when message.TryGetProperty("action", out var action) && action.ValueKind == JsonValueKind.String:
+                ApplyWindowAction(action.GetString());
+                break;
+            case "button":
+                var url = _sentSnapshot?.PublishedPresence?.Buttons.FirstOrDefault()?.Url;
+                if (Uri.TryCreate(url, UriKind.Absolute, out var uri) && uri.Scheme is "http" or "https")
+                    Process.Start(new ProcessStartInfo(uri.AbsoluteUri) {UseShellExecute = true});
+                break;
+        }
+    }
+
+    private void ApplyProviderMessage(JsonElement message)
+    {
+        if (!message.TryGetProperty("providerId", out var provider) || provider.ValueKind != JsonValueKind.String ||
+            !message.TryGetProperty("enabled", out var enabled) || enabled.ValueKind is not (JsonValueKind.True or JsonValueKind.False)) return;
+        var id = provider.GetString();
+        if (id is not (ProviderIds.Codex or ProviderIds.ClaudeCode or ProviderIds.Antigravity)) return;
+        _runtimeState.SetProviderEnabled(id, enabled.GetBoolean());
+        if (!enabled.GetBoolean() && id == _snapshotSelector.CurrentProviderId) _snapshotSelector.Reset();
         _stateStore.Save(_statePath, _runtimeState);
+        RefreshSnapshot();
     }
 
-    private void SyncProviderControls()
+    private void ApplyWindowAction(string? action)
     {
-        _syncingProviderControls = true;
-        try
+        switch (action)
         {
-            _providerPanel.ApplyProviderState(
-                _runtimeState.IsProviderEnabled(ProviderIds.Codex, defaultValue: true),
-                _runtimeState.IsProviderEnabled(ProviderIds.Antigravity, defaultValue: false),
-                _runtimeState.IsProviderEnabled(ProviderIds.ClaudeCode, defaultValue: false));
-        }
-        finally
-        {
-            _syncingProviderControls = false;
+            case "close": Close(); break;
+            case "minimize": WindowState = FormWindowState.Minimized; break;
+            case "maximize": WindowState = WindowState == FormWindowState.Maximized ? FormWindowState.Normal : FormWindowState.Maximized; break;
+            case "drag":
+                ReleaseCapture();
+                SendMessage(Handle, 0x00A1, new IntPtr(2), IntPtr.Zero);
+                break;
         }
     }
 
-    private void TryUseDarkTitleBar()
+    protected override void Dispose(bool disposing)
     {
-        try
+        if (disposing)
         {
-            var enabled = 1;
-            _ = DwmSetWindowAttribute(Handle, 20, ref enabled, sizeof(int));
-            _ = DwmSetWindowAttribute(Handle, 19, ref enabled, sizeof(int));
-
-            var captionColor = ToColorRef(DashboardPalette.Window);
-            var borderColor = ToColorRef(DashboardPalette.Border);
-            var textColor = ToColorRef(DashboardPalette.Text);
-            _ = DwmSetWindowAttribute(Handle, 35, ref captionColor, sizeof(int));
-            _ = DwmSetWindowAttribute(Handle, 34, ref borderColor, sizeof(int));
-            _ = DwmSetWindowAttribute(Handle, 36, ref textColor, sizeof(int));
+            _refreshTimer.Stop();
+            _refreshTimer.Dispose();
         }
-        catch (DllNotFoundException)
-        {
-        }
-        catch (EntryPointNotFoundException)
-        {
-        }
+        base.Dispose(disposing);
     }
-
-    private static int ToColorRef(Color color)
-    {
-        return color.R | (color.G << 8) | (color.B << 16);
-    }
-
-    private static System.Drawing.Icon? LoadWindowIcon()
-    {
-        var path = Path.Combine(AppContext.BaseDirectory, "Assets", "RpcArt", "rpc_codex.png");
-        try
-        {
-            if (!File.Exists(path))
-            {
-                return null;
-            }
-
-            using var source = Image.FromFile(path);
-            using var bitmap = new Bitmap(source, new Size(32, 32));
-            var handle = bitmap.GetHicon();
-            try
-            {
-                using var icon = System.Drawing.Icon.FromHandle(handle);
-                return (System.Drawing.Icon)icon.Clone();
-            }
-            finally
-            {
-                _ = DestroyIcon(handle);
-            }
-        }
-        catch
-        {
-            return null;
-        }
-    }
-
-    [DllImport("dwmapi.dll")]
-    private static extern int DwmSetWindowAttribute(IntPtr hwnd, int attribute, ref int value, int valueSize);
 
     [DllImport("user32.dll")]
-    private static extern bool DestroyIcon(IntPtr hIcon);
+    private static extern bool ReleaseCapture();
+    [DllImport("user32.dll")]
+    private static extern IntPtr SendMessage(IntPtr hwnd, uint message, IntPtr wParam, IntPtr lParam);
 }

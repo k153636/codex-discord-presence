@@ -57,7 +57,16 @@ internal sealed class CodexSessionLogParser
                 candidates.Add(new SessionInspectionCandidate(inspection, file.LastWriteTimeUtc));
             }
 
-            return SelectInspection(candidates, normalizedProjectPath);
+            var selected = SelectInspection(candidates, normalizedProjectPath);
+            if (selected is null)
+            {
+                return null;
+            }
+
+            return selected with
+            {
+                SubagentActivity = ResolveSubagentActivity(selected, candidates, DateTime.UtcNow)
+            };
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
@@ -176,8 +185,8 @@ internal sealed class CodexSessionLogParser
                     string.Equals(payloadType, "session_meta", StringComparison.OrdinalIgnoreCase))
                 {
                     threadId ??= TryGetFirstString(payload, "id", "thread_id", "threadId", "session_id");
-                    threadSource ??= TryGetFirstString(payload, "thread_source", "threadSource");
-                    parentThreadId ??= TryGetFirstString(payload, "parent_thread_id", "parentThreadId");
+                    threadSource ??= ReadThreadSource(payload);
+                    parentThreadId ??= ReadParentThreadId(payload);
                 }
 
                 var timestamp = TryGetTimestamp(document.RootElement);
@@ -1415,6 +1424,58 @@ internal sealed class CodexSessionLogParser
             {
                 return value;
             }
+        }
+
+        return null;
+    }
+
+    private static string? ReadThreadSource(JsonElement payload)
+    {
+        var explicitSource = TryGetFirstString(payload, "thread_source", "threadSource");
+        if (explicitSource is not null)
+        {
+            return explicitSource;
+        }
+
+        if (TryGetObjectProperty(payload, "source", out var source) &&
+            TryGetObjectProperty(source, "subagent", out _))
+        {
+            return "subagent";
+        }
+
+        return TryGetFirstString(payload, "source");
+    }
+
+    private static string? ReadParentThreadId(JsonElement payload)
+    {
+        var directParentThreadId = TryGetFirstString(payload, "parent_thread_id", "parentThreadId");
+        if (directParentThreadId is not null)
+        {
+            return directParentThreadId;
+        }
+
+        if (!TryGetObjectProperty(payload, "source", out var source))
+        {
+            return null;
+        }
+
+        if (TryGetObjectProperty(source, "subagent", out var subagent))
+        {
+            if (TryGetObjectProperty(subagent, "thread_spawn", out var threadSpawn) &&
+                TryGetFirstString(threadSpawn, "parent_thread_id", "parentThreadId") is { } nestedParentThreadId)
+            {
+                return nestedParentThreadId;
+            }
+
+            if (TryGetFirstString(subagent, "parent_thread_id", "parentThreadId") is { } subagentParentThreadId)
+            {
+                return subagentParentThreadId;
+            }
+        }
+
+        if (TryGetObjectProperty(source, "thread_spawn", out var sourceThreadSpawn))
+        {
+            return TryGetFirstString(sourceThreadSpawn, "parent_thread_id", "parentThreadId");
         }
 
         return null;
@@ -2942,6 +3003,74 @@ internal sealed class CodexSessionLogParser
         return best is null
             ? null
             : RememberSelected(best).Source.Inspection;
+    }
+
+    private static SubagentActivitySummary? ResolveSubagentActivity(
+        SessionInspection primary,
+        IReadOnlyList<SessionInspectionCandidate> candidates,
+        DateTime nowUtc)
+    {
+        var activeAgentThreadIds = primary.ActiveAgentThreadIds;
+        if (activeAgentThreadIds.Count == 0)
+        {
+            return null;
+        }
+
+        var observedWorkKinds = new List<SubagentWorkKind>();
+        foreach (var activeAgentThreadId in activeAgentThreadIds
+            .Take(SubagentActivitySummary.MaxObservedWorkKindCount))
+        {
+            var child = candidates
+                .Where(candidate => IsChildSession(candidate.Inspection, activeAgentThreadId, primary.ThreadId))
+                .OrderByDescending(candidate => candidate.SessionLastWriteTimeUtc)
+                .Select(candidate => candidate.Inspection)
+                .FirstOrDefault();
+            if (child is null)
+            {
+                continue;
+            }
+
+            var activityState = child.GetActivityStateAt(nowUtc);
+            if (ResolveSubagentWorkKind(activityState) is { } workKind)
+            {
+                observedWorkKinds.Add(workKind);
+            }
+        }
+
+        return SubagentActivitySummary.Create(activeAgentThreadIds.Count, observedWorkKinds);
+    }
+
+    private static bool IsChildSession(
+        SessionInspection candidate,
+        string activeAgentThreadId,
+        string? primaryThreadId) =>
+        primaryThreadId is not null &&
+        string.Equals(candidate.ThreadId, activeAgentThreadId, StringComparison.Ordinal) &&
+        string.Equals(candidate.ParentThreadId, primaryThreadId, StringComparison.Ordinal) &&
+        !candidate.IsPrimaryThread;
+
+    private static SubagentWorkKind? ResolveSubagentWorkKind(CodexActivityState? activityState)
+    {
+        if (activityState?.Lifecycle != CodexTurnLifecycle.Open)
+        {
+            return null;
+        }
+
+        if (activityState.PendingOperationCount > 0 && activityState.ActiveOperationEvent is { } activeOperation)
+        {
+            return activeOperation.OperationKind switch
+            {
+                CodexOperationKind.Read => SubagentWorkKind.Reading,
+                CodexOperationKind.Edit or CodexOperationKind.Create or CodexOperationKind.Delete => SubagentWorkKind.Editing,
+                CodexOperationKind.Research => SubagentWorkKind.Researching,
+                CodexOperationKind.Command => SubagentWorkKind.RunningCommand,
+                _ => null
+            };
+        }
+
+        return activityState.TriggerEvent?.Kind == CodexActivityEventKind.Reasoning
+            ? SubagentWorkKind.Thinking
+            : null;
     }
 
     private string? SelectLatestObservedProjectPath(IReadOnlyList<SessionInspectionCandidate> candidates)
