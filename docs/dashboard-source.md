@@ -46,9 +46,11 @@ data without modifying those source assets.
 ## Runtime and validation
 
 The dashboard requires Microsoft Edge WebView2 Runtime. RPC and tray operation
-continue if the dashboard cannot initialize. Release packages must include
-`Assets/Dashboard` beside the executable. Source builds require .NET 10 SDK;
-the self-contained publish includes the .NET Desktop Runtime.
+continue if the dashboard cannot initialize. The standalone release embeds
+`Assets/Dashboard` and extracts the original bytes under local application data.
+Codex preview GIFs use the existing configured image URLs; Claude artwork and
+provider PNGs are embedded. Development builds can use external Assets.
+Source builds require .NET 10 SDK; users install .NET 10 Desktop Runtime separately.
 
 `scripts/PreviewCapture` renders sanitized snapshots through the production
 WebView2 form, rather than reading personal session/account data. Its optional

@@ -30,6 +30,7 @@ internal sealed record DashboardWebPayload(
     public int CanvasHeight => DefaultCanvasHeight + PreviewHeight - 147;
 
     private static readonly ConcurrentDictionary<string, string> StaticFrames = new(StringComparer.OrdinalIgnoreCase);
+    private static readonly Lazy<AppOptions> BundledDefaults = new(() => AppOptions.LoadFromFile(BundledAppContent.DefaultSettingsPath("appsettings.json")));
     internal static DashboardWebPayload Create(PresenceDashboardSnapshot snapshot, PresenceRuntimeState runtime, DateTime nowUtc)
     {
         var owner = runtime.Enabled && !snapshot.HasNoActiveProvider && snapshot.Presence is not null
@@ -75,7 +76,7 @@ internal sealed record DashboardWebPayload(
                 : new[] {fileName, fileName + ".gif", fileName + ".png"};
             foreach (var candidate in candidates)
             {
-                var path = Path.Combine(AppContext.BaseDirectory, "Assets", "RpcArt", candidate);
+                var path = Path.Combine(BundledAppContent.AssetsDirectory, "RpcArt", candidate);
                 if (File.Exists(path))
                 {
                     if (!(animationsEnabled ?? DashboardAnimationPreferences.AnimationsEnabled) && Path.GetExtension(path).Equals(".gif", StringComparison.OrdinalIgnoreCase))
@@ -84,7 +85,11 @@ internal sealed record DashboardWebPayload(
                 }
             }
         }
-        return uri?.Scheme is "http" or "https" ? uri.AbsoluteUri : null;
+        if (uri?.Scheme is "http" or "https") return uri.AbsoluteUri;
+        // The standalone EXE uses the same configured remote Codex GIFs as Discord.
+        return fileName.IndexOfAny(['/', '\\', ':']) < 0 &&
+            BundledDefaults.Value.Discord.ExternalImageUrls.TryGetValue(Path.GetFileNameWithoutExtension(fileName), out var fallback)
+            ? fallback : null;
     }
 
     private static string ReadStaticFrame(string path)

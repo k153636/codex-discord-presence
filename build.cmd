@@ -10,4 +10,4 @@ if exist "%~dp0publish-next" (
   echo Failed to remove stale publish staging output: "%~dp0publish-next"
   exit /b 1
 )
-dotnet publish "%~dp0discord-presence-for-codex.csproj" -c Release -r win-x64 --self-contained true -p:DebugType=None -p:DebugSymbols=false -o "%~dp0publish"
+dotnet publish "%~dp0discord-presence-for-codex.csproj" -c Release -r win-x64 --self-contained false -p:StandaloneDistribution=true -p:DebugType=None -p:DebugSymbols=false -o "%~dp0publish"

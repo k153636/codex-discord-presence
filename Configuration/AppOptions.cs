@@ -31,8 +31,7 @@ public sealed class AppOptions
 
     public static AppOptions Load(string[] args, AppPaths paths)
     {
-        var cliSettingsPath = Path.Combine(paths.BaseDirectory, SettingsFileNames.Cli);
-        var options = LoadMerged(paths.ExecutableSettingsPath, cliSettingsPath, paths.UserSettingsPath);
+        var options = LoadDefaultAndUserSettings(paths);
 
         for (var i = 0; i < args.Length; i++)
         {
@@ -54,6 +53,19 @@ public sealed class AppOptions
         }
 
         return options;
+    }
+
+    internal static AppOptions LoadDefaultAndUserSettings(AppPaths paths)
+    {
+        var cliSettingsPath = Path.Combine(paths.BaseDirectory, SettingsFileNames.Cli);
+        var defaultSettingsPath = paths.ExecutableSettingsPath;
+        if (Path.GetFullPath(paths.BaseDirectory).TrimEnd(Path.DirectorySeparatorChar).Equals(
+            AppContext.BaseDirectory.TrimEnd(Path.DirectorySeparatorChar), StringComparison.OrdinalIgnoreCase))
+        {
+            if (!File.Exists(defaultSettingsPath)) defaultSettingsPath = BundledAppContent.DefaultSettingsPath("appsettings.json");
+            if (!File.Exists(cliSettingsPath)) cliSettingsPath = BundledAppContent.DefaultSettingsPath(SettingsFileNames.Cli);
+        }
+        return LoadMerged(defaultSettingsPath, cliSettingsPath, paths.UserSettingsPath);
     }
 
     public static AppOptions LoadFromFile(string path)

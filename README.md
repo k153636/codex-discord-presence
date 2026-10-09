@@ -53,26 +53,27 @@ The content shown in Discord may include project names, file names, and reasonin
 ## Requirements
 
 - Windows x64
+- [.NET 10 Desktop Runtime](https://dotnet.microsoft.com/download/dotnet/10.0)
 - Discord Desktop
 - Microsoft Edge WebView2 Runtime (already installed on most Windows systems)
 - Codex CLI, Codex Desktop, Claude Code, or Antigravity CLI
 
-The **0.5.0** Setup and portable distributions include the .NET 10 Desktop Runtime. No separate .NET installation is required.
+The **0.5.0** distribution is a small standalone EXE, like the previous release. Install the .NET 10 Desktop Runtime separately. Dashboard HTML, artwork, default settings, and license notices are embedded and extracted locally when needed.
 
 ## Installation
 
 1. Start Discord Desktop.
 2. Open the [0.5.0 GitHub Release](https://github.com/k153636/codex-discord-presence/releases/tag/v0.5.0).
-3. Run `K.CodePresence-win-Setup.exe`, or extract **all** of `K.CodePresence-win-Portable.zip` and launch `K's Code Presence.exe` from the extracted folder.
+3. Download and run `discord-presence-for-codex.exe`.
 4. If the Dashboard cannot open, install the [WebView2 Runtime](https://developer.microsoft.com/microsoft-edge/webview2/).
 
 The app stays in the Windows system tray. Use its menu to enable or disable Discord Rich Presence, open the Dashboard, edit settings, manage updates, or quit.
 
-0.5.0 adds opt-in Claude Code and Antigravity CLI support, the original Claude Design Dashboard, and [automatic updates](docs/automatic-updates.md). Claude shares Codex's five-second Token / Usage waiting cycle, including observed usage and reset countdown. See the [release notes](docs/release-notes-0.5.0.md).
+0.5.0 adds opt-in Claude Code and Antigravity CLI support, the original Claude Design Dashboard, and [update notifications](docs/automatic-updates.md). Claude shares Codex's five-second Token / Usage waiting cycle, including observed usage and reset countdown. See the [release notes](docs/release-notes-0.5.0.md).
 
-Historical standalone EXEs need a one-time move to Setup or the portable ZIP to gain automatic updates. Existing settings remain under `%LOCALAPPDATA%\CodexDiscordPresence`. Archived .NET 9 binaries keep their original runtime requirement. See the [version migration](docs/version-history.md).
+Download a new EXE and replace the old one after quitting the tray app. Automatic package download and installation are unavailable in this distribution. Existing settings remain under `%LOCALAPPDATA%\CodexDiscordPresence`. Archived .NET 9 binaries keep their original runtime requirement. See the [version migration](docs/version-history.md).
 
-Source builds require the .NET 10 SDK. Keep the external `Assets` folder beside the source-published executable; the packaged distributions include it. See [dashboard source and integration](docs/dashboard-source.md).
+Source builds require the .NET 10 SDK. The standalone publish embeds its assets; normal development builds can still use the external `Assets` folder. See [dashboard source and integration](docs/dashboard-source.md).
 
 ## Codex CLI and Codex Desktop
 

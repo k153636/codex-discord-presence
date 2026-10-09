@@ -9,12 +9,18 @@
     <Version>0.5.0</Version>
     <RuntimeIdentifier>win-x64</RuntimeIdentifier>
     <PublishSingleFile>true</PublishSingleFile>
-    <PublishSelfContained>true</PublishSelfContained>
+    <PublishSelfContained>false</PublishSelfContained>
     <IncludeNativeLibrariesForSelfExtract>true</IncludeNativeLibrariesForSelfExtract>
     <UseWindowsForms>true</UseWindowsForms>
     <UseWPF>true</UseWPF>
     <DefaultItemExcludes>$(DefaultItemExcludes);publish-release\**;Releases\**</DefaultItemExcludes>
   </PropertyGroup>
+
+  <ItemGroup>
+    <EmbeddedResource Include="Assets\Dashboard\**;Assets\RpcArt\*.png;Assets\RpcArt\ClaudeCode\**;appsettings.json;appsettings.cli.json;LICENSE;THIRD-PARTY-NOTICES.md">
+      <LogicalName>Bundled/%(Identity)</LogicalName>
+    </EmbeddedResource>
+  </ItemGroup>
 
   <ItemGroup>
     <Using Include="System.IO" />
@@ -52,6 +58,18 @@
       <ExcludeFromSingleFile>true</ExcludeFromSingleFile>
     </None>
   </ItemGroup>
+
+  <ItemGroup Condition="'$(StandaloneDistribution)' == 'true'">
+    <None Update="Assets\**;appsettings.json;appsettings.cli.json" CopyToPublishDirectory="Never" />
+  </ItemGroup>
+
+  <Target Name="ExcludePackageDocumentationFromStandalone" AfterTargets="ComputeFilesToPublish"
+          Condition="'$(StandaloneDistribution)' == 'true'">
+    <ItemGroup>
+      <ResolvedFileToPublish Remove="@(ResolvedFileToPublish)"
+                             Condition="'%(ResolvedFileToPublish.Extension)' == '.xml'" />
+    </ItemGroup>
+  </Target>
 
   <ItemGroup>
     <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleToAttribute">
