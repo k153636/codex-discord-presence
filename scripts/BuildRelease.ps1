@@ -33,7 +33,9 @@ try {
     foreach ($name in @('appsettings.json', 'appsettings.cli.json')) {
         Copy-Item -LiteralPath (Join-Path $stagingDirectory $name) -Destination (Join-Path $stagingDirectory ($name.Replace('.json', '.defaults.json')))
     }
-    Copy-Item -LiteralPath (Join-Path $repoDirectory 'LICENSE') -Destination $stagingDirectory
+    foreach ($name in @('LICENSE', 'THIRD-PARTY-NOTICES.md')) {
+        Copy-Item -LiteralPath (Join-Path $repoDirectory $name) -Destination $stagingDirectory
+    }
     $packArguments = @('pack', '--packId', 'K.CodePresence', '--packVersion', $Version,
         '--packTitle', "K's Code Presence", '--packDir', $stagingDirectory,
         '--mainExe', 'discord-presence-for-codex.exe', '--channel', 'win', '--runtime', 'win-x64',
