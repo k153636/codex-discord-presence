@@ -63,6 +63,14 @@
     <None Update="Assets\**;appsettings.json;appsettings.cli.json" CopyToPublishDirectory="Never" />
   </ItemGroup>
 
+  <Target Name="ExcludePackageDocumentationFromStandalone" AfterTargets="ComputeFilesToPublish"
+          Condition="'$(StandaloneDistribution)' == 'true'">
+    <ItemGroup>
+      <ResolvedFileToPublish Remove="@(ResolvedFileToPublish)"
+                             Condition="'%(ResolvedFileToPublish.Extension)' == '.xml'" />
+    </ItemGroup>
+  </Target>
+
   <ItemGroup>
     <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleToAttribute">
       <_Parameter1>CodexDiscordPresence.Tests</_Parameter1>
