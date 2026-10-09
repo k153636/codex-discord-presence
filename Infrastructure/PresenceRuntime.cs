@@ -183,11 +183,13 @@ public sealed class PresenceRuntime
                         currentProfile = selectedProfile;
                     }
 
+                    var antigravityNowUtc = DateTimeOffset.UtcNow;
+                    var antigravityFreshness = TimeSpan.FromMinutes(Math.Max(1, _options.Presence.ThinkingStaleTimeoutMinutes));
                     var antigravityStatusLineObservations = antigravityAvailable
-                        ? ReadFreshAntigravityObservations(antigravityEventStore, activeProjectPath)
+                        ? ReadFreshAntigravityObservations(antigravityEventStore, antigravityNowUtc, antigravityFreshness)
                         : Array.Empty<ProviderObservation>();
                     var antigravityHookObservations = antigravityAvailable
-                        ? ReadFreshAntigravityObservations(antigravityHookEventStore, activeProjectPath)
+                        ? ReadFreshAntigravityObservations(antigravityHookEventStore, antigravityNowUtc, antigravityFreshness)
                         : Array.Empty<ProviderObservation>();
                     var antigravityObservation = AntigravityConversationObservationSelector.Select(
                         antigravityHookObservations,
@@ -328,7 +330,8 @@ public sealed class PresenceRuntime
                             sessionSnapshot,
                             projection,
                             projectSnapshot,
-                            gitSnapshot);
+                            gitSnapshot,
+                            AntigravityStatusLineEventStore.MatchesProjectPath(antigravityObservation, activeProjectPath));
                     }
                     else
                     {
@@ -389,7 +392,7 @@ public sealed class PresenceRuntime
                     var dashboardSnapshot = new PresenceDashboardSnapshot(
                         currentProfile,
                         context.ModelName,
-                        projectSnapshot.Name,
+                        context.Project.Name,
                         presence,
                         context.TokenUsage,
                         rpc.IsConnected,
@@ -479,21 +482,19 @@ public sealed class PresenceRuntime
         AntigravityIntegrationCoordinator integration,
         bool enabled) => integration.Sync(enabled);
 
-    private IReadOnlyList<ProviderObservation> ReadFreshAntigravityObservations(
+    internal static IReadOnlyList<ProviderObservation> ReadFreshAntigravityObservations(
         AntigravityStatusLineEventStore eventStore,
-        string activeProjectPath)
+        DateTimeOffset nowUtc,
+        TimeSpan freshnessWindow)
     {
         var hasObservations = eventStore.TryReadLatestByConversation(
-            activeProjectPath,
+            null,
             out var observations);
         if (!hasObservations)
         {
             return Array.Empty<ProviderObservation>();
         }
 
-        var freshnessWindow = TimeSpan.FromMinutes(
-            Math.Max(1, _options.Presence.ThinkingStaleTimeoutMinutes));
-        var nowUtc = DateTimeOffset.UtcNow;
         return observations
             .Where(observation => observation.ObservedAtUtc != default)
             .Where(observation => observation.AgentState != ProviderAgentState.Unknown)
@@ -563,9 +564,8 @@ public sealed class PresenceRuntime
                 IsProviderEnabled(ProviderIds.Antigravity, defaultValue: false),
                 IsProviderConfiguredForRuntime(_options.GetAntigravityDiscordOptions()),
                 antigravityObservation.ObservedAtUtc,
-                HasAntigravityProjectEvidence(antigravityObservation) ||
-                !string.IsNullOrWhiteSpace(activeProjectPath),
-                !string.IsNullOrWhiteSpace(activeProjectPath),
+                antigravityObservation.ProjectKey is not null,
+                AntigravityStatusLineEventStore.MatchesProjectPath(antigravityObservation, activeProjectPath),
                 DetectionStrength: 500,
                 IsActive: AntigravityConversationObservationSelector.IsActive(antigravityObservation.AgentState),
                 ActivityStartedAtUtc: ToUtcOffset(antigravityActivity?.ActivityStartedAt)));
@@ -578,12 +578,6 @@ public sealed class PresenceRuntime
     {
         return !string.IsNullOrWhiteSpace(options.ClientId) &&
             !options.ClientId.StartsWith("YOUR_", StringComparison.OrdinalIgnoreCase);
-    }
-
-    private static bool HasAntigravityProjectEvidence(ProviderObservation observation)
-    {
-        return observation.Workspace?.ProjectName is not null ||
-            observation.Workspace?.WorkspaceName is not null;
     }
 
     private bool IsProviderEnabled(string providerId, bool defaultValue)
@@ -862,12 +856,19 @@ public sealed class PresenceRuntime
             tokenUsage);
     }
 
-    private static PresenceContext BuildAntigravityPresenceContext(
+    internal static PresenceContext BuildAntigravityPresenceContext(
         SessionSnapshot sessionSnapshot,
         AntigravityPresenceProjectionResult projection,
         ProjectSnapshot projectSnapshot,
-        GitSnapshot gitSnapshot)
+        GitSnapshot gitSnapshot,
+        bool isProjectMatch)
     {
+        if (!isProjectMatch)
+        {
+            // The opaque key can establish identity, but cannot locate another workspace on disk.
+            projectSnapshot = new ProjectSnapshot(projection.WorkspaceName ?? "Unknown project", "", null, null, 0, 0, 0, []);
+            gitSnapshot = new GitSnapshot(false, 0, null);
+        }
         return new PresenceContext(
             projection.ModelName,
             projection.Activity,

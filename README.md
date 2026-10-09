@@ -98,6 +98,8 @@ Antigravity support is opt-in from the Dashboard. The integration reads only the
 
 Antigravity CLI uses its own Discord application configuration and the `rpc_antigravity_cli` static art asset; the existing `rpc_antigravity` asset remains reserved for a future Antigravity desktop application. Codex application IDs and asset mappings are not reused.
 
+Fresh Antigravity activity from another project can participate in automatic tool switching. Project identity remains an opaque local key. When that project differs from the current local project, the app shows the reported workspace name and omits local Git and recent-file metadata instead of borrowing those values from Codex.
+
 If Antigravity already has a user-owned `statusLine` setting, the application reports a conflict and leaves that setting unchanged.
 
 ## More information

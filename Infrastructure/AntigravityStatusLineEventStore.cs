@@ -285,6 +285,10 @@ internal sealed class AntigravityStatusLineEventStore
         }
     }
 
+    internal static bool MatchesProjectPath(ProviderObservation observation, string? localProjectPath) =>
+        observation.ProjectKey is { } projectKey &&
+        string.Equals(projectKey, CreateProjectKey(localProjectPath), StringComparison.Ordinal);
+
     private static string? CreateProjectKey(string? localProjectPath)
     {
         if (string.IsNullOrWhiteSpace(localProjectPath))
@@ -479,6 +483,7 @@ internal sealed class AntigravityStatusLineEventStore
         {
             TranscriptPath = TranscriptPath,
             ArtifactDirectoryPath = ArtifactDirectoryPath,
+            ProjectKey = ProjectKey,
             Operation = Operation?.ToObservation(),
             ActiveSubagentWorkKinds = ParseActiveSubagentWorkKinds(ActiveSubagentWorkKinds),
             IsWaitingForInput = WaitingForInput == true
