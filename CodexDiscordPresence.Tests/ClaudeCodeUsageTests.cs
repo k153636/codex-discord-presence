@@ -99,6 +99,27 @@ public sealed class ClaudeCodeUsageTests
     }
 
     [Fact]
+    public void Snapshot_StatusLineUnavailable_StillReadsTokensAndOmitsPreviouslyStoredUsage()
+    {
+        InDirectory(directory =>
+        {
+            var path = Path.Combine(directory, "transcript.jsonl");
+            File.WriteAllText(path, Message("a", 60, 10));
+            var store = new ClaudeCodeUsageStore(Path.Combine(directory, "usage"));
+            store.Write(ClaudeCodeUsageObservation.Parse(Payload("main", ProjectPath), Now)!);
+            var provider = new ClaudeCodeTokenUsageProvider(store);
+            Assert.NotNull(provider.GetSnapshot(Session(path), new(), Now).RateLimit);
+            var snapshot = provider.GetSnapshot(Session(path), new(), Now, usageAvailable: false);
+            Assert.Equal(90, snapshot.TotalTokens);
+            Assert.Null(snapshot.EstimatedCostUsd);
+            Assert.Null(snapshot.BillingType);
+            Assert.Null(snapshot.RateLimit);
+            Assert.Null(provider.GetSnapshot(Session(path), new() { Enabled = false }, Now, usageAvailable: false).TotalTokens);
+            Assert.NotNull(provider.GetSnapshot(Session(path), new(), Now).RateLimit);
+        });
+    }
+
+    [Fact]
     public void Tokens_PartialLastLine_IsCountedOnceAfterCompletion_AndTruncationResetsTotals()
     {
         InDirectory(directory =>

@@ -317,7 +317,7 @@ public sealed class PresenceRuntime
                             : null;
                         context = ClaudeCodePresenceProjection.CreateContext(
                             claudeObservation, projectSnapshot, gitSnapshot, sessionSnapshot, spinnerLabel,
-                            claudeUsageAvailable ? claudeTokenUsage.GetSnapshot(claudeObservation, _options.TokenUsage, DateTimeOffset.UtcNow) : null);
+                            claudeTokenUsage.GetSnapshot(claudeObservation, _options.TokenUsage, DateTimeOffset.UtcNow, claudeUsageAvailable));
                         displayActivity = context.Activity;
                     }
                     else if (selectedProvider.ProviderId == ProviderIds.Antigravity && antigravityObservation is not null)

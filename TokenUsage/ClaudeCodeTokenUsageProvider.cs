@@ -14,9 +14,10 @@ internal sealed class ClaudeCodeTokenUsageProvider(ClaudeCodeUsageStore store)
     private long _total;
     private DateTime _lastWriteUtc;
 
-    internal TokenUsageSnapshot GetSnapshot(ClaudeCodeSessionObservation session, TokenUsageOptions options, DateTimeOffset nowUtc)
+    internal TokenUsageSnapshot GetSnapshot(ClaudeCodeSessionObservation session, TokenUsageOptions options, DateTimeOffset nowUtc,
+        bool usageAvailable = true)
     {
-        var usage = store.GetForSession(session, nowUtc);
+        var usage = usageAvailable ? store.GetForSession(session, nowUtc) : null;
         var limit = usage?.RateLimit is { } observedLimit && observedLimit.ResetAtUtc > nowUtc.UtcDateTime ? observedLimit : null;
         return new(options.Enabled && !session.Ended ? ReadTotal(session) : null,
             options.Enabled ? usage?.EstimatedCostUsd : null,
