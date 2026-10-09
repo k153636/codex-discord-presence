@@ -6,6 +6,11 @@ public static class PresenceApplication
 {
     public static async Task<int> RunAsync(string[] args)
     {
+        if (args.Length == 1 && args[0] == "--claude-statusline")
+        {
+            return await ClaudeCodeStatusLineCommand.RunAsync();
+        }
+
         if (args.Length == 1 && args[0] == "--claude-spinner")
         {
             return ClaudeCodeSpinnerCommand.Run();

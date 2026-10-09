@@ -79,12 +79,13 @@ internal static class ClaudeCodePresenceProjection
     }
 
     internal static PresenceContext CreateContext(ClaudeCodeSessionObservation observation,
-        ProjectSnapshot project, GitSnapshot git, SessionSnapshot session, string? spinnerLabel = null)
+        ProjectSnapshot project, GitSnapshot git, SessionSnapshot session, string? spinnerLabel = null,
+        TokenUsageSnapshot? tokenUsage = null)
     {
         var metadata = ClaudeCodeTranscriptMetadata.Read(observation.TranscriptPath, observation.SessionId);
         var model = metadata.Model ?? observation.Model;
         return new PresenceContext(NormalizeModel(model), Build(observation, spinnerLabel), project, git, session,
-            new TokenUsageSnapshot(null, null))
+            tokenUsage ?? new TokenUsageSnapshot(null, null))
         {
             ProviderId = ProviderIds.ClaudeCode,
             FeatureLabel = observation.UsesClaudeDesign ? "Claude Design" : null,

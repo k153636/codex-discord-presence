@@ -178,7 +178,7 @@ public sealed class DashboardTextFormatterTests
     }
 
     [Fact]
-    public void Usage_ClaudeAndUnknownProviderCannotBorrowCodexBillingOrLimits()
+    public void Usage_CodexAndClaudeShareNormalizedMetrics_UnknownProviderStillFailsClosed()
     {
         var snapshot = PresenceDashboardSnapshot.Empty with
         {
@@ -186,7 +186,7 @@ public sealed class DashboardTextFormatterTests
             TokenUsage = new(100, 2m, "subsc", new(75, 300, DateTime.UtcNow.AddHours(1)))
         };
         Assert.Equal(3, DashboardTextFormatter.CreateMetrics(snapshot, DateTime.UtcNow).Length);
-        Assert.Empty(DashboardTextFormatter.CreateMetrics(snapshot with { ProviderId = ProviderIds.ClaudeCode }, DateTime.UtcNow));
+        Assert.Equal(3, DashboardTextFormatter.CreateMetrics(snapshot with { ProviderId = ProviderIds.ClaudeCode }, DateTime.UtcNow).Length);
         Assert.Empty(DashboardTextFormatter.CreateMetrics(snapshot with { ProviderId = "unknown" }, DateTime.UtcNow));
         Assert.Empty(DashboardTextFormatter.CreateMetrics(snapshot with { HasNoActiveProvider = true }, DateTime.UtcNow));
     }

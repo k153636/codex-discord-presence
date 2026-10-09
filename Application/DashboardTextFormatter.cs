@@ -30,7 +30,7 @@ internal static class DashboardTextFormatter
         var usage = snapshot.TokenUsage;
         var metrics = new List<DashboardMetric>();
         if (snapshot.HasNoActiveProvider) return [];
-        if (snapshot.ProviderId == ProviderIds.Codex)
+        if (snapshot.ProviderId is ProviderIds.Codex or ProviderIds.ClaudeCode)
         {
             var billing = FormatBillingType(usage?.BillingType);
             if (billing.Length > 0) metrics.Add(new("Billing", billing));
@@ -59,8 +59,7 @@ internal static class DashboardTextFormatter
         ? "No current provider activity."
         : snapshot.ProviderId switch
         {
-            ProviderIds.ClaudeCode => "Claude Code does not report usage or billing to this app.",
-            ProviderIds.Codex => "Usage is not available for this session.",
+            ProviderIds.Codex or ProviderIds.ClaudeCode => "Usage is not available for this session.",
             ProviderIds.Antigravity => "Plan and quota are not available for this session.",
             _ => "No current provider activity."
         };

@@ -60,6 +60,11 @@ public sealed class PresenceRuntime
         var antigravityState = new AntigravityRuntimeState();
         var claudeDirectory = Path.Combine(_paths.AppDataDirectory, "claude-code");
         var claudeStore = new ClaudeCodeObservationStore(Path.Combine(claudeDirectory, "sessions"));
+        var claudeTokenUsage = new ClaudeCodeTokenUsageProvider(new ClaudeCodeUsageStore(Path.Combine(claudeDirectory, "usage")));
+        var claudeStatusLineInstaller = new ClaudeCodeStatusLineInstaller(
+            Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".claude", "settings.json"),
+            claudeDirectory,
+            Path.Combine(_paths.BaseDirectory, "discord-presence-for-codex.exe"));
         var claudeTranscriptReader = new ClaudeCodeTranscriptActivityReader(
             Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".claude", "projects"));
         var claudeInstaller = new ClaudeCodeHookInstaller(
@@ -121,6 +126,7 @@ public sealed class PresenceRuntime
                         antigravityEnabled);
                     var claudeAvailable = claudeInstaller.Sync(
                         _state.Enabled && IsProviderEnabled(ProviderIds.ClaudeCode, defaultValue: false), _log);
+                    var claudeUsageAvailable = claudeStatusLineInstaller.Sync(claudeAvailable, _log);
 
                     if (!HandleDisabledState(rpc, wasDisabled))
                     {
@@ -308,7 +314,8 @@ public sealed class PresenceRuntime
                             ? await claudeSpinnerReader.ReadAsync(claudeObservation.SessionId, _cancellationToken)
                             : null;
                         context = ClaudeCodePresenceProjection.CreateContext(
-                            claudeObservation, projectSnapshot, gitSnapshot, sessionSnapshot, spinnerLabel);
+                            claudeObservation, projectSnapshot, gitSnapshot, sessionSnapshot, spinnerLabel,
+                            claudeUsageAvailable ? claudeTokenUsage.GetSnapshot(claudeObservation, _options.TokenUsage, DateTimeOffset.UtcNow) : null);
                         displayActivity = context.Activity;
                     }
                     else if (selectedProvider.ProviderId == ProviderIds.Antigravity && antigravityObservation is not null)
@@ -422,6 +429,7 @@ public sealed class PresenceRuntime
         }
         finally
         {
+            claudeStatusLineInstaller.Sync(false, _log);
             claudeInstaller.Sync(false, _log);
             antigravityIntegration.UninstallIfNeeded();
 

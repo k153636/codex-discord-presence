@@ -82,8 +82,9 @@ internal static class Program
             _ => "MCP chrome-devtools"
         };
         var details = provider == ProviderIds.Codex ? "gpt 6.1 sol high" : provider == ProviderIds.ClaudeCode ? "claude sonnet high" : "gemini 3.1 pro high";
+        if (provider is ProviderIds.Codex or ProviderIds.ClaudeCode) details += " • 12.4K Token";
         var small = provider == ProviderIds.ClaudeCode ? "https://rpc-art.local/clawd-working-typing.gif" : provider == ProviderIds.Antigravity ? "rpc_antigravity_cli" : "rpc_codex";
-        var usage = provider == ProviderIds.Codex ? new TokenUsageSnapshot(null, null, "subsc", new(25, 300, now.AddHours(3)))
+        var usage = provider is ProviderIds.Codex or ProviderIds.ClaudeCode ? new TokenUsageSnapshot(12_400, null, "subsc", new(25, 300, now.AddHours(3)))
             : provider == ProviderIds.Antigravity ? new TokenUsageSnapshot(null, null, PlanName: "Pro", UsageQuotas: [new("model", 0.75m, now.AddHours(2))])
             : new TokenUsageSnapshot(null, null);
         var rendered = new RenderedPresence(details, state, "rpc_reading", small, [], now.AddMinutes(-2),
