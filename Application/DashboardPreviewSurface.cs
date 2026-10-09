@@ -25,6 +25,17 @@ internal sealed class DashboardPreviewSurface : DashboardSurface
 
     public static int GetPreferredHeight(PresenceDashboardSnapshot snapshot) => snapshot.PublishedPresence?.Buttons.Count > 0 ? 212 : 178;
 
+    internal event Action<PresenceDashboardSnapshot>? PresenceDisplayed;
+
+    protected override void OnPaint(PaintEventArgs e)
+    {
+        base.OnPaint(e);
+        if (_enabled)
+        {
+            PresenceDisplayed?.Invoke(_snapshot);
+        }
+    }
+
     public void SetSnapshot(PresenceDashboardSnapshot snapshot, bool enabled)
     {
         _snapshot = snapshot;

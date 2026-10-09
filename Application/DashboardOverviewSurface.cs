@@ -12,6 +12,14 @@ internal sealed class DashboardOverviewSurface : DashboardSurface
 
     public DashboardOverviewSurface() => AccessibleName = "Presence owner and usage";
 
+    internal event Action<PresenceDashboardSnapshot>? ProviderDisplayed;
+
+    protected override void OnPaint(PaintEventArgs e)
+    {
+        base.OnPaint(e);
+        ProviderDisplayed?.Invoke(_snapshot);
+    }
+
     public void SetSnapshot(PresenceDashboardSnapshot snapshot, bool enabled)
     {
         _snapshot = enabled ? snapshot : snapshot with { ProviderId = null, HasNoActiveProvider = true, TokenUsage = null };

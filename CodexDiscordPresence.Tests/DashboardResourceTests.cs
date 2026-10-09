@@ -135,6 +135,44 @@ public sealed class DashboardResourceTests
         });
     }
 
+    [Fact]
+    public void Form_ActualPaintingHoldsProviderAndNoActiveSnapshotImmediatelyClearsIt()
+    {
+        RunSta(() =>
+        {
+            var runtime = new PresenceRuntimeState();
+            runtime.InitializeProviderEnabled(new Dictionary<string, bool>
+            {
+                [ProviderIds.Codex] = true,
+                [ProviderIds.ClaudeCode] = true
+            });
+            var first = PresenceDashboardSnapshot.Empty with
+            {
+                ProviderId = ProviderIds.Codex,
+                Presence = new("details", "state", null, "", [], null, CodexActivityKind.Ready, RunningCommandKind.Unknown, ""),
+                PublishedPresence = new("details", "state", null, null, null, null, null, null, null, []) { ProviderId = ProviderIds.Codex }
+            };
+            runtime.PublishDashboardSnapshot(first);
+            using var form = new CodexDashboardForm(runtime);
+            var refresh = typeof(CodexDashboardForm).GetMethod("RefreshSnapshot", BindingFlags.Instance | BindingFlags.NonPublic)!;
+            refresh.Invoke(form, null);
+            using var bitmap = new Bitmap(form.Width, form.Height);
+            form.DrawToBitmap(bitmap, new Rectangle(Point.Empty, form.Size));
+            runtime.PublishDashboardSnapshot(first with
+            {
+                ProviderId = ProviderIds.ClaudeCode,
+                PublishedPresence = first.PublishedPresence! with { ProviderId = ProviderIds.ClaudeCode }
+            });
+            refresh.Invoke(form, null);
+            var panel = Assert.IsType<ProviderIntegrationPanel>(((TableLayoutPanel)form.Controls[0]).GetControlFromPosition(0, 0));
+            Assert.Equal("Live", panel.CodexCheckBox.AccessibleDescription);
+            Assert.Equal("Standby", panel.ClaudeCodeCheckBox.AccessibleDescription);
+            runtime.PublishDashboardSnapshot(PresenceDashboardSnapshot.Empty with { HasNoActiveProvider = true });
+            refresh.Invoke(form, null);
+            Assert.Equal("Standby", panel.CodexCheckBox.AccessibleDescription);
+        });
+    }
+
     private static void RunSta(Action action)
     {
         Exception? failure = null;

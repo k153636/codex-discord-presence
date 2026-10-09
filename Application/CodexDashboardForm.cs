@@ -17,6 +17,7 @@ public sealed class CodexDashboardForm : Form
     private readonly string _statePath;
     private bool _syncingProviderControls;
     private bool _resourcesDisposed;
+    private readonly DashboardSnapshotSelector _snapshotSelector = new();
 
     public CodexDashboardForm(PresenceRuntimeState runtimeState)
         : this(runtimeState, new PresenceStateStore(), PresenceStateStore.GetDefaultPath())
@@ -61,6 +62,8 @@ public sealed class CodexDashboardForm : Form
             Margin = Padding.Empty
         };
         _providerPanel.ProviderEnabledChanged += OnProviderEnabledChanged;
+        _overviewSurface.ProviderDisplayed += snapshot => _snapshotSelector.RecordOwnerDisplayed(snapshot, DateTime.UtcNow);
+        _previewSurface.PresenceDisplayed += snapshot => _snapshotSelector.RecordPresenceDisplayed(snapshot, DateTime.UtcNow);
         SyncProviderControls();
 
         var overviewLayout = new TableLayoutPanel
@@ -110,8 +113,14 @@ public sealed class CodexDashboardForm : Form
     private void RefreshSnapshot()
     {
         if (IsDisposed || Disposing) return;
-        var snapshot = _runtimeState.DashboardSnapshot;
+        var latest = _runtimeState.DashboardSnapshot;
         var enabled = _runtimeState.Enabled;
+        if (!enabled || latest.ProviderId is { } providerId && !_runtimeState.IsProviderEnabled(providerId))
+        {
+            _snapshotSelector.Reset();
+            latest = latest with { ProviderId = null, Presence = null, HasNoActiveProvider = true };
+        }
+        var snapshot = _snapshotSelector.Select(latest, DateTime.UtcNow);
         SyncProviderControls();
         _providerPanel.SetOwner(!enabled || snapshot.HasNoActiveProvider || snapshot.Presence is null ? null : snapshot.ProviderId);
         var layout = (TableLayoutPanel)Controls[0];
@@ -134,6 +143,10 @@ public sealed class CodexDashboardForm : Form
         }
 
         _runtimeState.SetProviderEnabled(e.ProviderId, e.Enabled);
+        if (!e.Enabled && e.ProviderId == _snapshotSelector.CurrentProviderId)
+        {
+            _snapshotSelector.Reset();
+        }
         _stateStore.Save(_statePath, _runtimeState);
     }
 
