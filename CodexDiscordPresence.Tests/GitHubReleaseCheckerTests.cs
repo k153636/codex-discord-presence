@@ -31,7 +31,7 @@ public sealed class GitHubReleaseCheckerTests
         using var client = CreateClient($$"""{ "id": {{id}}, "tag_name": "{{tag}}" }""");
         var result = await new GitHubReleaseChecker(client).CheckLatestReleaseAsync(CancellationToken.None);
 
-        Assert.True(result.UpdateAvailable);
+        Assert.True(result.Succeeded);
         Assert.Equal(expected, result.LatestVersion!.ToString());
     }
 

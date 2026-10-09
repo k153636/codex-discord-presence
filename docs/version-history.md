@@ -1,8 +1,10 @@
 # Release numbering
 
 K's Code Presence uses `major.minor.patch` versions. The existing releases are
-renumbered to describe the project's development stage; the planned release
-with multiple CLI integrations is **0.5.0**. This does not publish 0.5.0 now.
+renumbered to describe the project's development stage. The source version and
+prepared packages for the multiple-CLI release are **0.5.0**. See the
+[0.5.0 release notes](release-notes-0.5.0.md). Preparing packages does not publish a
+GitHub release; publication is a separate step.
 
 | Display version | Historical GitHub tag |
 | --- | --- |
