@@ -29,28 +29,27 @@ internal static class DashboardTextFormatter
     {
         var usage = snapshot.TokenUsage;
         var metrics = new List<DashboardMetric>();
-        var accent = DashboardProviderPresentation.Accent(snapshot.ProviderId);
         if (snapshot.HasNoActiveProvider) return [];
         if (snapshot.ProviderId == ProviderIds.Codex)
         {
             var billing = FormatBillingType(usage?.BillingType);
-            if (billing.Length > 0) metrics.Add(new("Billing", billing, accent));
+            if (billing.Length > 0) metrics.Add(new("Billing", billing));
             if (usage?.RateLimit is { WindowDurationMinutes: 300 } limit)
             {
-                metrics.Add(new("5h limit", $"{limit.UsedPercent}% used", accent, limit.UsedPercent));
-                metrics.Add(new("Reset in", FormatRemaining(limit.ResetAtUtc, utcNow), accent));
+                metrics.Add(new("5h limit", $"{limit.UsedPercent}% used", limit.UsedPercent));
+                metrics.Add(new("Reset in", FormatRemaining(limit.ResetAtUtc, utcNow)));
             }
         }
         else if (snapshot.ProviderId == ProviderIds.Antigravity)
         {
-            if (!string.IsNullOrWhiteSpace(usage?.PlanName)) metrics.Add(new("Plan", usage.PlanName, accent));
+            if (!string.IsNullOrWhiteSpace(usage?.PlanName)) metrics.Add(new("Plan", usage.PlanName));
             var quota = usage?.UsageQuotas?.Where(item => item.RemainingFraction is >= 0 and <= 1)
                 .OrderBy(item => item.RemainingFraction).FirstOrDefault();
             if (quota is not null)
             {
                 var percent = (double)(quota.RemainingFraction * 100);
-                metrics.Add(new("Quota left", percent.ToString("0.#", CultureInfo.InvariantCulture) + "%", accent, percent));
-                if (quota.ResetAtUtc is { } reset) metrics.Add(new("Reset in", FormatRemaining(reset.UtcDateTime, utcNow), accent));
+                metrics.Add(new("Quota left", percent.ToString("0.#", CultureInfo.InvariantCulture) + "%", percent));
+                if (quota.ResetAtUtc is { } reset) metrics.Add(new("Reset in", FormatRemaining(reset.UtcDateTime, utcNow)));
             }
         }
         return metrics.ToArray();

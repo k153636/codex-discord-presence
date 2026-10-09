@@ -39,6 +39,21 @@ affects Discord output.
 There is no `Modules/` directory in this project. Keep new code in the existing
 area that owns the responsibility instead of introducing a parallel structure.
 
+## Dashboard source contract
+
+- `Assets/Dashboard/Dashboard.html` is the original Claude Design standalone
+  export. Display it directly in WebView2; do not recreate its visual design
+  with native controls or duplicate its styling in another renderer.
+- `runtime-adapter.js` binds acknowledged RPC data, provider settings, native
+  window actions, and runtime visibility to the original component. Preserve
+  the export bytes and its provider artwork. The provenance test checks its
+  SHA-256; change that only when replacing it with a new approved export.
+- Keep the existing snapshot selection and visible publication timing gates.
+  Source sample values must never appear as live application data. Data
+  refreshes must preserve image elements and keyboard focus.
+- Validate the actual WebView2 window and publish the external `Assets` folder.
+  `scripts/PreviewCapture` captures sanitized snapshots with the real renderer.
+
 ## Presence behavior contract
 
 The presence state is one semantic activity line. Do not concatenate a

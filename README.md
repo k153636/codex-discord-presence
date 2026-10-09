@@ -77,6 +77,11 @@ users do not need to install .NET separately. Source builds require the .NET 10
 SDK, and `build.cmd` also produces a self-contained executable. The installation
 steps above still apply to the currently published .NET 9 standalone release.
 
+The next dashboard displays the original Claude Design HTML using Microsoft
+Edge WebView2. It requires the [WebView2 Runtime](https://developer.microsoft.com/microsoft-edge/webview2/),
+which is already installed on most Windows systems. Keep the `Assets` folder
+beside the executable when using a source publish. See [dashboard source and integration](docs/dashboard-source.md).
+
 ## Codex CLI and Codex Desktop
 
 The app supports separate detection settings for Desktop and CLI.

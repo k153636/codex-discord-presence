@@ -424,48 +424,15 @@ public sealed class ClaudeCodeProviderTests
         });
     }
 
-    [Theory]
-    [InlineData(360)]
-    [InlineData(432)]
-    [InlineData(600)]
-    public void Dashboard_ProviderControlsFitAtSupportedWidths_AndClaudePersists(int width)
+    [Fact]
+    public void Dashboard_ClaudeEnableStateIsSentToOriginalHtml()
     {
-        Exception? failure = null;
-        InTemporaryDirectory(directory =>
-        {
-            var state = new PresenceRuntimeState();
-            var statePath = Path.Combine(directory, "state.json");
-            var thread = new Thread(() =>
-            {
-                try
-                {
-                    using var form = new System.Windows.Forms.Form { ClientSize = new System.Drawing.Size(width, 160) };
-                    using var panel = new ProviderIntegrationPanel { Dock = System.Windows.Forms.DockStyle.Top, Height = ProviderIntegrationPanel.PreferredHeight };
-                    form.Controls.Add(panel);
-                    panel.ProviderEnabledChanged += (_, change) =>
-                    {
-                        state.SetProviderEnabled(change.ProviderId, change.Enabled);
-                        new PresenceStateStore().Save(statePath, state);
-                    };
-                    form.Show();
-                    System.Windows.Forms.Application.DoEvents();
-                    foreach (var checkBox in new[] { panel.CodexCheckBox, panel.AntigravityCheckBox, panel.ClaudeCodeCheckBox })
-                    {
-                        Assert.True(checkBox.Parent!.ClientRectangle.Contains(checkBox.Bounds), $"{checkBox.Text}: {checkBox.Bounds} in {checkBox.Parent.ClientRectangle}");
-                    }
-                    panel.ClaudeCodeCheckBox.Checked = true;
-                    form.Close();
-                }
-                catch (Exception ex) { failure = ex; }
-            });
-            thread.SetApartmentState(ApartmentState.STA);
-            thread.Start();
-            thread.Join();
-            Assert.Null(failure);
-            Assert.True(new PresenceStateStore().Load(statePath).IsProviderEnabled(ProviderIds.ClaudeCode, false));
-        });
+        var state = new PresenceRuntimeState();
+        state.SetProviderEnabled(ProviderIds.ClaudeCode, true);
+        var payload = DashboardWebPayload.Create(PresenceDashboardSnapshot.Empty, state, Now.UtcDateTime);
+        Assert.True(payload.Providers[ProviderIds.ClaudeCode]);
+        Assert.Equal(3, payload.Providers.Count);
     }
-
     [Theory]
     [InlineData("[]")]
     [InlineData("null")]

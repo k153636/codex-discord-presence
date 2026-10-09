@@ -1,7 +1,4 @@
 using System.Drawing;
-using System.Drawing.Imaging;
-using System.Reflection;
-using System.Runtime.InteropServices;
 using System.Windows.Forms;
 
 namespace CodexDiscordPresence.PreviewCapture;
@@ -30,60 +27,61 @@ internal static class Program
             [ProviderIds.Codex] = true, [ProviderIds.ClaudeCode] = true, [ProviderIds.Antigravity] = true
         });
         runtime.PublishDashboardSnapshot(CreateShowcaseSnapshot(provider, connection));
-        using var form = new CodexDashboardForm(runtime);
-        form.Show();
-        PumpMessages(TimeSpan.FromMilliseconds(100));
-        var baseDpi = form.DeviceDpi;
-        var baseClientSize = form.ClientSize;
-        if (dpi != form.DeviceDpi) ExerciseDpiChange(form, dpi);
-        SetSimulatedChildDpi(form, dpi);
-        // Physical non-client borders stay at monitor DPI. Normalize the fixture's
-        // client area explicitly so drawing comparisons retain the intended proportions.
-        var timer = typeof(CodexDashboardForm).GetField("_refreshTimer", BindingFlags.Instance | BindingFlags.NonPublic)!
-            .GetValue(form) as System.Windows.Forms.Timer ?? throw new InvalidOperationException("Refresh timer missing.");
-        timer.Stop();
-        form.MinimumSize = Size.Empty;
-        var targetClientSize = new Size((int)Math.Round(baseClientSize.Width * dpi / (float)baseDpi),
-            (int)Math.Round(baseClientSize.Height * dpi / (float)baseDpi));
-        form.ClientSize = targetClientSize;
-        for (var attempt = 0; attempt < 3; attempt++)
+        using var form = new CodexDashboardForm(runtime, new PresenceStateStore(), outputPath + ".fixture-state.json");
+        var browser = (Microsoft.Web.WebView2.WinForms.WebView2)form.Controls[0];
+        Exception? failure = null;
+        form.Shown += async (_, _) =>
         {
-            GetClientRect(form.Handle, out var clientRect);
-            if (clientRect.Right == targetClientSize.Width && clientRect.Bottom == targetClientSize.Height) break;
-            SetWindowPos(form.Handle, IntPtr.Zero, 0, 0, form.Width + targetClientSize.Width - clientRect.Right,
-                form.Height + targetClientSize.Height - clientRect.Bottom, 0x0016);
-        }
-        GetClientRect(form.Handle, out var actualClient);
-        if (actualClient.Right != targetClientSize.Width || actualClient.Bottom != targetClientSize.Height)
-            throw new InvalidOperationException("DPI fixture client size did not match.");
-        PumpMessages(TimeSpan.FromMilliseconds(100));
-        using var bitmap = new Bitmap(form.Width, form.Height, PixelFormat.Format32bppArgb);
-        form.DrawToBitmap(bitmap, new Rectangle(Point.Empty, form.Size));
-        bitmap.Save(outputPath, ImageFormat.Png);
-        Console.WriteLine($"Captured sanitized dashboard: {outputPath}; {form.Width}x{form.Height}; simulated WinForms DPI={dpi}; physical window DPI={GetDpiForWindow(form.Handle)}.");
-        foreach (var control in Descendants(form))
-            Console.WriteLine($"{control.GetType().Name}: DPI={control.DeviceDpi}; bounds={control.Bounds}.");
-        var layout = form.Controls.OfType<TableLayoutPanel>().Single();
-        var preview = layout.GetControlFromPosition(0, 2) ?? throw new InvalidOperationException("Preview row missing.");
-        using var previewBitmap = new Bitmap(preview.Width, preview.Height, PixelFormat.Format32bppArgb);
-        preview.DrawToBitmap(previewBitmap, preview.ClientRectangle);
-        previewBitmap.Save(Path.Combine(Path.GetDirectoryName(outputPath)!, Path.GetFileNameWithoutExtension(outputPath) + "-preview.png"), ImageFormat.Png);
-        form.Close();
-        return 0;
+            try
+            {
+                var deadline = DateTime.UtcNow.AddSeconds(30);
+                var loaded = false;
+                while (DateTime.UtcNow < deadline)
+                {
+                    if (browser.CoreWebView2 is not null &&
+                        await browser.CoreWebView2.ExecuteScriptAsync("document.querySelector('#app')?.hidden === false && !!document.querySelector('figure')") == "true")
+                    {
+                        loaded = true;
+                        break;
+                    }
+                    await Task.Delay(100);
+                }
+                if (!loaded) throw new TimeoutException("Original dashboard HTML did not render.");
+                var core = browser.CoreWebView2 ?? throw new InvalidOperationException("Browser is unavailable.");
+                // Exercise browser layout without changing Windows monitor settings.
+                var scale = dpi / 96d;
+                browser.ZoomFactor = scale / (form.DeviceDpi / 96d);
+                form.MinimumSize = Size.Empty;
+                form.ClientSize = new Size((int)Math.Ceiling(402 * scale), (int)Math.Ceiling(414 * scale));
+                await Task.Delay(500);
+                var layout = await core.ExecuteScriptAsync("JSON.stringify({width:innerWidth,height:innerHeight,scrollWidth:document.documentElement.scrollWidth,scrollHeight:document.documentElement.scrollHeight})");
+                using var document = System.Text.Json.JsonDocument.Parse(System.Text.Json.JsonSerializer.Deserialize<string>(layout)!);
+                var dimensions = document.RootElement;
+                if (dimensions.GetProperty("scrollWidth").GetInt32() > dimensions.GetProperty("width").GetInt32() ||
+                    dimensions.GetProperty("scrollHeight").GetInt32() > dimensions.GetProperty("height").GetInt32())
+                    throw new InvalidOperationException("Dashboard canvas overflows its viewport.");
+                await using var image = File.Create(outputPath);
+                await core.CapturePreviewAsync(Microsoft.Web.WebView2.Core.CoreWebView2CapturePreviewImageFormat.Png, image);
+                Console.WriteLine($"Captured original HTML with sanitized runtime fixtures: {outputPath}; browser scale={scale}; physical monitor DPI={form.DeviceDpi}; layout={layout}.");
+            }
+            catch (Exception error) {failure = error; Console.Error.WriteLine(error);}
+            finally {form.Close();}
+        };
+        Application.Run(form);
+        return failure is null ? 0 : 1;
     }
-
     private static PresenceDashboardSnapshot CreateShowcaseSnapshot(string provider, string connection)
     {
         // Hand-authored presentation fixtures never read user logs, configuration, or account data.
         var now = DateTime.UtcNow;
         var state = provider switch
         {
-            ProviderIds.ClaudeCode => "Editing DashboardControls.cs",
+            ProviderIds.ClaudeCode => "Editing runtime-adapter.js",
             ProviderIds.Antigravity => "Planning a UI update",
             _ => "MCP chrome-devtools"
         };
         var details = provider == ProviderIds.Codex ? "gpt 6.1 sol high" : provider == ProviderIds.ClaudeCode ? "claude sonnet high" : "gemini 3.1 pro high";
-        var small = provider == ProviderIds.ClaudeCode ? "clawd-notification" : provider == ProviderIds.Antigravity ? "rpc_antigravity_cli" : "rpc_codex";
+        var small = provider == ProviderIds.ClaudeCode ? "https://rpc-art.local/clawd-working-typing.gif" : provider == ProviderIds.Antigravity ? "rpc_antigravity_cli" : "rpc_codex";
         var usage = provider == ProviderIds.Codex ? new TokenUsageSnapshot(null, null, "subsc", new(25, 300, now.AddHours(3)))
             : provider == ProviderIds.Antigravity ? new TokenUsageSnapshot(null, null, PlanName: "Pro", UsageQuotas: [new("model", 0.75m, now.AddHours(2))])
             : new TokenUsageSnapshot(null, null);
@@ -96,67 +94,9 @@ internal static class Program
             HasNoActiveProvider = provider == "none",
             IsDiscordConnecting = connection == "connecting",
             PublishedPresence = connection is "unacknowledged" or "disabled" || provider == "none" ? null : new DiscordPresenceSnapshot(
-                details, state, provider == ProviderIds.ClaudeCode ? "clawd-working-typing" : provider == ProviderIds.Antigravity ? "rpc_antigravity_cli" : "rpc_reading", state,
-                small, provider, now.AddMinutes(-2), null, null, [])
+                details, state, provider == ProviderIds.ClaudeCode ? "https://rpc-art.local/clawd-working-typing.gif" : provider == ProviderIds.Antigravity ? "rpc_antigravity_cli" : "rpc_reading", state,
+                small, "1 subagent · editing", now.AddMinutes(-2), null, null, [])
         };
     }
 
-    private static IEnumerable<Control> Descendants(Control control)
-    {
-        yield return control;
-        foreach (Control child in control.Controls)
-            foreach (var descendant in Descendants(child)) yield return descendant;
-    }
-
-    private static void SetSimulatedChildDpi(Form form, int dpi)
-    {
-        // Test-only: WM_DPICHANGED cannot change the actual monitor DPI, so Windows
-        // leaves child caches at the physical DPI. Set their caches for drawing fixtures.
-        var property = typeof(Control).GetProperty("DeviceDpiInternal", BindingFlags.Instance | BindingFlags.NonPublic)
-            ?? throw new MissingMemberException(typeof(Control).FullName, "DeviceDpiInternal");
-        foreach (var control in Descendants(form))
-        {
-            property.SetValue(control, dpi);
-            if (control.DeviceDpi != dpi) throw new InvalidOperationException("DPI fixture cache did not update.");
-        }
-        foreach (var control in Descendants(form))
-        {
-            typeof(Control).GetMethod("OnResize", BindingFlags.Instance | BindingFlags.NonPublic)!
-                .Invoke(control, [EventArgs.Empty]);
-            control.PerformLayout();
-            control.Invalidate();
-        }
-    }
-
-    private static void ExerciseDpiChange(Form form, int dpi)
-    {
-        // Exercise the real WinForms WM_DPICHANGED path without changing the user's monitor settings.
-        var scale = dpi / (float)form.DeviceDpi;
-        var suggested = new NativeRect { Left = form.Left, Top = form.Top,
-            Right = form.Left + (int)Math.Round(form.Width * scale), Bottom = form.Top + (int)Math.Round(form.Height * scale) };
-        var pointer = Marshal.AllocHGlobal(Marshal.SizeOf<NativeRect>());
-        try
-        {
-            Marshal.StructureToPtr(suggested, pointer, false);
-            SendMessage(form.Handle, 0x02E0, (IntPtr)(dpi | dpi << 16), pointer);
-        }
-        finally { Marshal.FreeHGlobal(pointer); }
-    }
-
-    private static void PumpMessages(TimeSpan duration)
-    {
-        var deadline = DateTime.UtcNow + duration;
-        while (DateTime.UtcNow < deadline) { Application.DoEvents(); Thread.Sleep(10); }
-    }
-
-    [StructLayout(LayoutKind.Sequential)]
-    private struct NativeRect { public int Left, Top, Right, Bottom; }
-    [DllImport("user32.dll", EntryPoint = "SendMessageW")]
-    private static extern IntPtr SendMessage(IntPtr window, uint message, IntPtr parameter, IntPtr data);
-    [DllImport("user32.dll")]
-    private static extern uint GetDpiForWindow(IntPtr window);
-    [DllImport("user32.dll")]
-    private static extern bool GetClientRect(IntPtr window, out NativeRect rect);
-    [DllImport("user32.dll")]
-    private static extern bool SetWindowPos(IntPtr window, IntPtr insertAfter, int x, int y, int width, int height, uint flags);
 }

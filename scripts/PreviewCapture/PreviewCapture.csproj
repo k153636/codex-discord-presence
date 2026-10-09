@@ -13,6 +13,9 @@
   </ItemGroup>
 
   <ItemGroup>
+    <None Include="..\..\Assets\Dashboard\**"
+          Link="Assets\Dashboard\%(RecursiveDir)%(Filename)%(Extension)"
+          CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\..\Assets\RpcArt\**\*.png;..\..\Assets\RpcArt\**\*.gif"
           Link="Assets\RpcArt\%(RecursiveDir)%(Filename)%(Extension)">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>

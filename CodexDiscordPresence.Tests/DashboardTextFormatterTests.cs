@@ -175,7 +175,6 @@ public sealed class DashboardTextFormatterTests
     public void ProviderPresentation_UsesOnlyItsOwnIdentity(string? provider, string expected)
     {
         Assert.Equal(expected, DashboardTextFormatter.FormatProviderName(provider));
-        if (provider is null or "other-provider") Assert.Null(DashboardProviderPresentation.IconReference(provider));
     }
 
     [Fact]
