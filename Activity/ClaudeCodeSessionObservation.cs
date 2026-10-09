@@ -17,6 +17,7 @@ internal sealed record ClaudeCodeSessionObservation(
 {
     public bool FromTranscript { get; init; }
     public DateTimeOffset? LastActivityEventAtUtc { get; init; }
+    public DateTimeOffset? LastUserPromptAtUtc { get; init; }
     public bool HasConfirmedClaudeDesignUsage { get; init; }
     public bool UsesClaudeDesign => HasConfirmedClaudeDesignUsage || Tools.Any(tool => tool.IsClaudeDesignOperation);
 
@@ -88,6 +89,8 @@ internal sealed record ClaudeCodeSessionObservation(
             current.TranscriptPath ?? (reset ? null : previous!.TranscriptPath),
             tools.ToArray(), agents.Order(StringComparer.Ordinal).ToArray())
         {
+            LastUserPromptAtUtc = current.EventName == "UserPromptSubmit" ? current.ObservedAtUtc
+                : reset ? null : previous!.LastUserPromptAtUtc,
             HasConfirmedClaudeDesignUsage = confirmedDesign,
             LastActivityEventAtUtc = !reset && current.EventName is "SubagentStart" or "SubagentStop"
                 ? previous!.LastActivityEventAtUtc ?? previous.ObservedAtUtc

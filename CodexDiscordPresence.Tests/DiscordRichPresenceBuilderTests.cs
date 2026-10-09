@@ -42,7 +42,7 @@ public sealed class DiscordRichPresenceBuilderTests
         var payload = DiscordRichPresenceBuilder.Create(
             ClaudeCodeAssetPolicy.CreateDiscordOptions(), rendered, "party");
 
-        Assert.Equal("https://cdn.qualit.ly/clawd-notification.gif", payload.Assets.SmallImageKey);
+        Assert.Equal("https://cdn.qualit.ly/clawd-sleeping.gif", payload.Assets.SmallImageKey);
         Assert.DoesNotContain("rpc_codex", payload.Assets.LargeImageKey);
     }
 

@@ -2,21 +2,24 @@ namespace CodexDiscordPresence;
 
 internal static class ClaudeCodeAssetPolicy
 {
+    internal const string NotificationImageKey = "claude_notification";
+    // 300 frames at 20 ms per frame in clawd-notification.gif.
+    internal static readonly TimeSpan NotificationLoopDuration = TimeSpan.FromSeconds(6);
     // Public Claude Code application supplied by rar-file/claude-rpc.
     internal static DiscordOptions CreateDiscordOptions() => new()
     {
         ClientId = "1506443909406920948",
         LargeImageKey = "claude_idle",
-        SmallImageKey = "claude_notification",
+        SmallImageKey = "claude_idle",
         CompletedImageKey = null,
-        ErrorImageKey = "claude_notification",
+        ErrorImageKey = "claude_idle",
         ActivityImageKeys = Enum.GetValues<CodexActivityKind>().ToDictionary(
             kind => kind.ToString(),
             kind => kind switch
             {
                 CodexActivityKind.AnalyzingProject or CodexActivityKind.Planning => "claude_thinking",
-                CodexActivityKind.WaitingForInput => "claude_notification",
-                CodexActivityKind.Ready or CodexActivityKind.Offline or CodexActivityKind.Stalled => "claude_idle",
+                CodexActivityKind.WaitingForInput or CodexActivityKind.Ready or
+                    CodexActivityKind.Offline or CodexActivityKind.Stalled => "claude_idle",
                 _ => "claude_working"
             }),
         RunningCommandImageKeys = new(),
@@ -31,6 +34,10 @@ internal static class ClaudeCodeAssetPolicy
 
     internal static string? ResolveImageKey(DiscordOptions options, RenderedPresence presence)
     {
+        if (presence.LargeImageKeyOverride == NotificationImageKey && presence.ActivityKind.IsActive() && !presence.IsError)
+        {
+            return NotificationImageKey;
+        }
         var name = presence.IsError ? nameof(CodexActivityKind.WaitingForInput) : presence.ActivityKind.ToString();
         return options.ActivityImageKeys.GetValueOrDefault(name) ?? options.LargeImageKey;
     }

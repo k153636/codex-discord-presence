@@ -156,7 +156,7 @@ public sealed class ClaudeCodeProviderTests
         }, context);
         Assert.Equal("Claude Code", rendered.Details);
         var options = ClaudeCodeAssetPolicy.CreateDiscordOptions();
-        Assert.Equal("claude_notification", options.SmallImageKey);
+        Assert.Equal("claude_idle", options.SmallImageKey);
         Assert.DoesNotContain(options.ExternalImageUrls.Keys, key => key.StartsWith("rpc_"));
         Assert.Equal("https://cdn.qualit.ly/clawd-working-typing.gif", DiscordAssetKeyResolver.ResolveLargeImageReference(options, rendered));
     }
@@ -272,7 +272,7 @@ public sealed class ClaudeCodeProviderTests
             foreach (var options in new[] { AppOptions.LoadMerged(path), AppOptions.LoadFromFile(path) })
             {
                 Assert.Equal("123", options.DiscordClaudeCode.ClientId);
-                Assert.Equal("claude_notification", options.DiscordClaudeCode.SmallImageKey);
+                Assert.Equal("claude_idle", options.DiscordClaudeCode.SmallImageKey);
                 Assert.All(options.DiscordClaudeCode.ActivityImageKeys.Values, key => Assert.StartsWith("claude_", key));
                 Assert.False(options.Providers[ProviderIds.ClaudeCode].Enabled);
             }

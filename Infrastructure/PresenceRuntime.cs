@@ -67,6 +67,7 @@ public sealed class PresenceRuntime
             claudeDirectory,
             Path.Combine(_paths.BaseDirectory, "discord-presence-for-codex.exe"));
         var claudeDispatch = new PresenceDispatchCache();
+        var claudeArtwork = new ClaudeCodeArtworkState();
         var claudeSpinnerReader = new ClaudeCodeSpinnerReader(
             Path.Combine(_paths.BaseDirectory, "discord-presence-for-codex.exe"));
         string? claudeSessionId = null;
@@ -105,6 +106,12 @@ public sealed class PresenceRuntime
                     {
                         LogProviderConfirmation(currentProviderId, confirmationObservedAtUtc);
                     }
+                    // Restore timed artwork before potentially slow project/model enrichment.
+                    if (_state.Enabled && currentProviderId == ProviderIds.ClaudeCode &&
+                        claudeArtwork.RestoreIfDue(_options.DiscordClaudeCode, rpc.LastPublishedPresence) is { } restoredArtwork)
+                    {
+                        UpdateDiscordPresence(rpc, keepAliveInterval, claudeDispatch, _options.DiscordClaudeCode, restoredArtwork);
+                    }
                     RefreshTimingSettingsIfNeeded();
 
                     var antigravityEnabled = _state.Enabled &&
@@ -118,6 +125,7 @@ public sealed class PresenceRuntime
                     if (!HandleDisabledState(rpc, wasDisabled))
                     {
                         wasDisabled = true;
+                        claudeArtwork.Cancel();
                         await Delay(TimeSpan.FromSeconds(1));
                         continue;
                     }
@@ -219,6 +227,7 @@ public sealed class PresenceRuntime
                         claudeObservation);
                     if (selectedProvider is null)
                     {
+                        claudeArtwork.Cancel();
                         rpc.Clear();
                         _state.PublishDashboardSnapshot(new PresenceDashboardSnapshot(
                             currentProfile,
@@ -343,6 +352,14 @@ public sealed class PresenceRuntime
                     }
 
                     var presence = renderer.Render(_options.Presence, context);
+                    if (selectedProvider.ProviderId == ProviderIds.ClaudeCode && claudeObservation is not null)
+                    {
+                        presence = claudeArtwork.Apply(claudeObservation, presence, selectedDiscordOptions, rpc.LastPublishedPresence);
+                    }
+                    else
+                    {
+                        claudeArtwork.Cancel();
+                    }
                     UpdateDiscordPresence(
                         rpc,
                         keepAliveInterval,
@@ -394,6 +411,7 @@ public sealed class PresenceRuntime
                 }
 
                 var delay = PresenceRefreshPolicy.GetNextDelay(_options.Presence, activityKind, _options.UpdateIntervalSeconds);
+                delay = claudeArtwork.GetNextDelay(delay);
                 if (!activityKind.IsWaiting() && delay > projectSwitchDetectionInterval)
                 {
                     delay = projectSwitchDetectionInterval;

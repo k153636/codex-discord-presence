@@ -467,6 +467,7 @@ public sealed record RenderedPresence(
     RunningCommandKind RunningCommandKind,
     string RunningCommandName)
 {
+    internal string? LargeImageKeyOverride { get; init; }
     public string? ProviderId { get; init; }
     public int? PartySize { get; init; }
     public bool IsSuccessfulCompletion { get; init; }
