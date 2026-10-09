@@ -832,6 +832,7 @@ public sealed class PresenceRuntime
         CodexProcessSnapshot codexSnapshot,
         bool includeSessionUsage)
     {
+        selectedProfileState.AccountProvider.SetActivity(codexSnapshot.ActivityKind);
         var tokenUsage = includeSessionUsage
             ? selectedProfileState.TokenUsageProvider.GetSnapshotForSession(
                 activeProjectPath,

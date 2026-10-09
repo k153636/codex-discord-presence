@@ -15,12 +15,12 @@ public sealed class ProfileRuntimeState : PresenceRuntimeCache
         var sessionLogParser = new CodexSessionLogParser(codexOptions, presenceOptions);
         Detector = new CodexProcessDetector(codexOptions, presenceOptions, sessionLogParser);
         ModelNameProvider = new CodexModelNameProvider(codexOptions, presenceOptions, sessionLogParser);
-        var accountProvider = new CodexAccountBillingTypeProvider(codexOptions.GetResolvedHomePath());
+        AccountProvider = new CodexAccountBillingTypeProvider(codexOptions.GetResolvedHomePath());
         TokenUsageProvider = new TokenUsageProvider(
             codexOptions,
             tokenUsageOptions,
-            accountProvider,
-            accountProvider,
+            AccountProvider,
+            AccountProvider,
             sessionLogParser);
     }
 
@@ -30,4 +30,5 @@ public sealed class ProfileRuntimeState : PresenceRuntimeCache
     public CodexProcessDetector Detector { get; }
     public CodexModelNameProvider ModelNameProvider { get; }
     public TokenUsageProvider TokenUsageProvider { get; }
+    internal CodexAccountBillingTypeProvider AccountProvider { get; }
 }
