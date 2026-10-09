@@ -1329,10 +1329,7 @@ public sealed class PresenceRuntime
 
         try
         {
-            var reloadedOptions = AppOptions.LoadMerged(
-                _paths.ExecutableSettingsPath,
-                Path.Combine(_paths.BaseDirectory, SettingsFileNames.Cli),
-                _paths.UserSettingsPath);
+            var reloadedOptions = AppOptions.LoadDefaultAndUserSettings(_paths);
             var reloadedTiming = RuntimeTimingSettings.From(reloadedOptions);
 
             if (!reloadedTiming.Equals(_timingSettings))

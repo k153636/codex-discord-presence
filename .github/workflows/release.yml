@@ -29,15 +29,15 @@ jobs:
           if ($env:GITHUB_REF_NAME -ne $expected) { throw "Tag must match assembly version: $expected" }
       - name: Validate application
         run: dotnet test CodexDiscordPresence.Tests/CodexDiscordPresence.Tests.csproj -c Release
-      - name: Package installer, portable app, and update feed
+      - name: Publish standalone executable
         shell: pwsh
-        run: ./scripts/BuildRelease.ps1
+        run: ./scripts/BuildStandaloneRelease.ps1
       - uses: actions/upload-artifact@v7.0.2
         with:
           name: windows-release
           path: Releases/**/*
           if-no-files-found: error
-      - name: Create draft release with complete update assets
+      - name: Create draft release with standalone executable
         if: startsWith(github.ref, 'refs/tags/')
         shell: pwsh
         env:

@@ -52,7 +52,7 @@ public sealed class CodexDashboardForm : Form
     {
         try
         {
-            var folder = Path.Combine(AppContext.BaseDirectory, "Assets", "Dashboard");
+            var folder = Path.Combine(BundledAppContent.AssetsDirectory, "Dashboard");
             var adapter = await File.ReadAllTextAsync(Path.Combine(folder, "runtime-adapter.js"));
             if (IsDisposed) return;
             var environment = await CoreWebView2Environment.CreateAsync(userDataFolder:
@@ -66,7 +66,7 @@ public sealed class CodexDashboardForm : Form
             browser.Settings.IsStatusBarEnabled = false;
             browser.Settings.IsZoomControlEnabled = false;
             browser.SetVirtualHostNameToFolderMapping("dashboard.local", folder, CoreWebView2HostResourceAccessKind.DenyCors);
-            browser.SetVirtualHostNameToFolderMapping("rpc-art.local", Path.Combine(AppContext.BaseDirectory, "Assets", "RpcArt"), CoreWebView2HostResourceAccessKind.DenyCors);
+            browser.SetVirtualHostNameToFolderMapping("rpc-art.local", Path.Combine(BundledAppContent.AssetsDirectory, "RpcArt"), CoreWebView2HostResourceAccessKind.DenyCors);
             browser.NavigationStarting += (_, e) => e.Cancel = e.Uri != DashboardAddress;
             browser.NewWindowRequested += (_, e) => e.Handled = true;
             browser.WebMessageReceived += OnWebMessage;

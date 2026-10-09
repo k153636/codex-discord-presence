@@ -1,7 +1,6 @@
 # 0.5.0
 
-K's Code Presence 0.5.0 for Windows x64. Download the Setup installer or portable
-ZIP from the [GitHub Release](https://github.com/k153636/codex-discord-presence/releases/tag/v0.5.0).
+K's Code Presence 0.5.0 for Windows x64. Download the standalone EXE from the [GitHub Release](https://github.com/k153636/codex-discord-presence/releases/tag/v0.5.0).
 
 - Adds opt-in Claude Code and Antigravity CLI integrations alongside Codex
   Desktop and CLI, using current provider activity and a shared switching gate.
@@ -13,13 +12,13 @@ ZIP from the [GitHub Release](https://github.com/k153636/codex-discord-presence/
   available when statusLine installation encounters a conflict.
 - Detects fresh Antigravity CLI activity across project boundaries without
   borrowing another provider's Git, recent-file, party, or usage metadata.
-- Displays the original Claude Design dashboard through WebView2 and adds
-  installer, portable, and automatic-update packages with the .NET 10 Desktop
-  Runtime included. WebView2 Runtime and Discord Desktop are required.
+- Displays the original Claude Design dashboard through WebView2. Its original
+  HTML and animated artwork are embedded in the standalone EXE. The .NET 10
+  Desktop Runtime, WebView2 Runtime, and Discord Desktop are required separately.
 - Includes third-party notices and the provider artwork licenses in packages.
 
-Historical standalone executables remain .NET 9 builds. Install the Setup or
-portable distribution once to gain automatic-update support. Settings remain
+Historical releases remain .NET 9 builds. This distribution supports update
+notifications; quit the tray app and replace the EXE manually. Settings remain
 under `%LOCALAPPDATA%\CodexDiscordPresence`.
 
 Claude hook changes may require approval or a new Claude session. The app does
