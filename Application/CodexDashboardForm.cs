@@ -16,6 +16,7 @@ public sealed class CodexDashboardForm : Form
     private readonly PresenceStateStore _stateStore;
     private readonly string _statePath;
     private bool _syncingProviderControls;
+    private bool _resourcesDisposed;
 
     public CodexDashboardForm(PresenceRuntimeState runtimeState)
         : this(runtimeState, new PresenceStateStore(), PresenceStateStore.GetDefaultPath())
@@ -81,13 +82,21 @@ public sealed class CodexDashboardForm : Form
         _refreshTimer = new System.Windows.Forms.Timer { Interval = 500 };
         _refreshTimer.Tick += (_, _) => RefreshSnapshot();
         _refreshTimer.Start();
-        FormClosed += (_, _) =>
-        {
-            _refreshTimer.Dispose();
-            _providerPanel.ProviderEnabledChanged -= OnProviderEnabledChanged;
-            Icon?.Dispose();
-        };
         Shown += (_, _) => RefreshSnapshot();
+    }
+
+    protected override void Dispose(bool disposing)
+    {
+        if (disposing && !_resourcesDisposed)
+        {
+            _resourcesDisposed = true;
+            _refreshTimer?.Stop();
+            _refreshTimer?.Dispose();
+            if (_providerPanel is not null) _providerPanel.ProviderEnabledChanged -= OnProviderEnabledChanged;
+            Icon?.Dispose();
+            Icon = null;
+        }
+        base.Dispose(disposing);
     }
 
     protected override void OnHandleCreated(EventArgs e)
@@ -98,6 +107,7 @@ public sealed class CodexDashboardForm : Form
 
     private void RefreshSnapshot()
     {
+        if (IsDisposed || Disposing) return;
         var snapshot = _runtimeState.DashboardSnapshot;
         var enabled = _runtimeState.Enabled;
         SyncProviderControls();
