@@ -29,6 +29,12 @@ internal sealed class DashboardPresenceImageSlot : IDisposable
 
     public Image CurrentImage => _currentImage;
 
+    internal static Image? LoadLocalImage(string reference)
+    {
+        using var resource = TryLoadLocalImage(reference);
+        return resource is null ? null : new Bitmap(resource.Image);
+    }
+
     public void SetReference(string? imageReference)
     {
         if (_disposed)
@@ -191,7 +197,7 @@ internal sealed class DashboardPresenceImageSlot : IDisposable
     {
         try
         {
-            if (ImageAnimator.CanAnimate(image))
+            if (DashboardAnimationPreferences.AnimationsEnabled && ImageAnimator.CanAnimate(image))
             {
                 ImageAnimator.Animate(image, _frameChangedHandler);
             }
@@ -226,6 +232,15 @@ internal sealed class DashboardPresenceImageSlot : IDisposable
         var extension = Path.GetExtension(fileName);
         var stem = Path.GetFileNameWithoutExtension(fileName);
         var candidateNames = new List<string>();
+
+        if (stem.StartsWith("clawd-", StringComparison.OrdinalIgnoreCase))
+        {
+            candidateNames.Add(Path.Combine("ClaudeCode", extension.Length == 0 ? fileName + ".gif" : fileName));
+        }
+        else if (string.Equals(stem, "rpc_claude_code", StringComparison.OrdinalIgnoreCase))
+        {
+            candidateNames.Add(Path.Combine("ClaudeCode", "clawd-notification.gif"));
+        }
 
         if (extension.Length == 0)
         {

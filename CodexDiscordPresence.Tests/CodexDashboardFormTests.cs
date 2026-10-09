@@ -43,13 +43,14 @@ public sealed class CodexDashboardFormTests
         thread.Join();
 
         Assert.Null(failure);
-        Assert.Equal(new Size(400, 660), windowSize);
-        Assert.Equal(new Size(400, 660), minimumSize);
+        Assert.InRange(windowSize!.Value.Width, 400, 410);
+        Assert.InRange(windowSize.Value.Height, 378, 390);
+        Assert.Equal(windowSize, minimumSize);
         Assert.Equal(1, rootControlCount);
         Assert.NotNull(layout);
         Assert.Equal(1, layout!.ColumnCount);
         Assert.Equal(3, layout.RowCount);
-        Assert.Equal(Padding.Empty, layout.Padding);
+        Assert.Equal(new Padding(12), layout.Padding);
         Assert.IsType<DashboardOverviewSurface>(overview);
         Assert.IsType<DashboardPreviewSurface>(preview);
         Assert.Equal(Padding.Empty, preview!.Margin);
@@ -140,7 +141,7 @@ public sealed class CodexDashboardFormTests
     [Theory]
     [InlineData(364, 2, 360)]
     [InlineData(380, 10, 360)]
-    [InlineData(464, 16, 432)]
+    [InlineData(464, 12, 440)]
     public void DashboardLayoutMetrics_AlignsOverviewAndPreviewLeftEdge(
         int clientWidth,
         int expectedLeft,

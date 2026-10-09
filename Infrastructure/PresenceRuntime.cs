@@ -226,6 +226,7 @@ public sealed class PresenceRuntime
                         {
                             PublishedPresence = rpc.LastPublishedPresence,
                             IsDiscordConnecting = rpc.IsConnecting,
+                            ProviderId = rpc.LastPublishedPresence is null ? null : currentProviderId,
                             HasNoActiveProvider = true
                         });
                         deferSessionEnrichment = false;
@@ -366,7 +367,8 @@ public sealed class PresenceRuntime
                         DateTime.UtcNow)
                     {
                         PublishedPresence = rpc.LastPublishedPresence,
-                        IsDiscordConnecting = rpc.IsConnecting
+                        IsDiscordConnecting = rpc.IsConnecting,
+                        ProviderId = selectedProvider.ProviderId
                     };
                     _state.PublishDashboardSnapshot(dashboardSnapshot);
                     deferSessionEnrichment = false;
@@ -417,6 +419,11 @@ public sealed class PresenceRuntime
 
         _state.PublishDashboardSnapshot(_state.DashboardSnapshot with
         {
+            Presence = null,
+            TokenUsage = null,
+            ModelName = null,
+            ProjectName = null,
+            HasNoActiveProvider = true,
             IsDiscordConnected = rpc.IsConnected,
             IsDiscordConnecting = rpc.IsConnecting,
             PublishedPresence = rpc.LastPublishedPresence,

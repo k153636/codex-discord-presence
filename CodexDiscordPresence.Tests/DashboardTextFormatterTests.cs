@@ -154,4 +154,67 @@ public sealed class DashboardTextFormatterTests
     {
         Assert.Equal("", DashboardTextFormatter.FormatActivity(PresenceDashboardSnapshot.Empty, enabled: true));
     }
+
+    [Fact]
+    public void FormatActivity_UnacknowledgedRenderDoesNotAppearAsPublished()
+    {
+        var snapshot = PresenceDashboardSnapshot.Empty with
+        {
+            Presence = new RenderedPresence("details", "not acknowledged", null, "", [], null,
+                CodexActivityKind.AnalyzingProject, RunningCommandKind.Unknown, "")
+        };
+        Assert.Empty(DashboardTextFormatter.FormatActivity(snapshot, true));
+    }
+
+    [Theory]
+    [InlineData(ProviderIds.Codex, "Codex")]
+    [InlineData(ProviderIds.ClaudeCode, "Claude Code")]
+    [InlineData(ProviderIds.Antigravity, "Antigravity CLI")]
+    [InlineData(null, "No active provider")]
+    [InlineData("other-provider", "No active provider")]
+    public void ProviderPresentation_UsesOnlyItsOwnIdentity(string? provider, string expected)
+    {
+        Assert.Equal(expected, DashboardTextFormatter.FormatProviderName(provider));
+        if (provider is null or "other-provider") Assert.Null(DashboardProviderPresentation.IconReference(provider));
+    }
+
+    [Fact]
+    public void Usage_ClaudeAndUnknownProviderCannotBorrowCodexBillingOrLimits()
+    {
+        var snapshot = PresenceDashboardSnapshot.Empty with
+        {
+            ProviderId = ProviderIds.Codex,
+            TokenUsage = new(100, 2m, "subsc", new(75, 300, DateTime.UtcNow.AddHours(1)))
+        };
+        Assert.Equal(3, DashboardTextFormatter.CreateMetrics(snapshot, DateTime.UtcNow).Length);
+        Assert.Empty(DashboardTextFormatter.CreateMetrics(snapshot with { ProviderId = ProviderIds.ClaudeCode }, DateTime.UtcNow));
+        Assert.Empty(DashboardTextFormatter.CreateMetrics(snapshot with { ProviderId = "unknown" }, DateTime.UtcNow));
+        Assert.Empty(DashboardTextFormatter.CreateMetrics(snapshot with { HasNoActiveProvider = true }, DateTime.UtcNow));
+    }
+
+    [Fact]
+    public void Usage_AntigravityUsesLowestReportedQuotaAndItsReset()
+    {
+        var now = DateTime.UtcNow;
+        var snapshot = PresenceDashboardSnapshot.Empty with
+        {
+            ProviderId = ProviderIds.Antigravity,
+            TokenUsage = new(null, null, "subsc", new(99, 300, now), "Pro",
+                [new("model-a", 0.7m, now.AddHours(5)), new("model-b", 0.25m, now.AddHours(1))])
+        };
+        var metrics = DashboardTextFormatter.CreateMetrics(snapshot, now);
+        Assert.Equal(["Plan", "Quota left", "Reset in"], metrics.Select(item => item.Label));
+        Assert.Equal("25%", metrics[1].Value);
+        Assert.Equal("1h 0m", metrics[2].Value);
+    }
+
+    [Theory]
+    [InlineData(true, false, "Connected")]
+    [InlineData(false, true, "Connecting")]
+    [InlineData(false, false, "Disconnected")]
+    public void ConnectionLabel_DistinguishesHandshakeFromDisconnected(bool connected, bool connecting, string expected)
+    {
+        Assert.Equal(expected, DashboardTextFormatter.FormatConnection(PresenceDashboardSnapshot.Empty with
+        { IsDiscordConnected = connected, IsDiscordConnecting = connecting }));
+    }
 }

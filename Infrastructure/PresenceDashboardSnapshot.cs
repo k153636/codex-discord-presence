@@ -9,6 +9,8 @@ public sealed record PresenceDashboardSnapshot(
     bool IsDiscordConnected,
     DateTime UpdatedAtUtc)
 {
+    public string? ProviderId { get; init; } = ProviderIds.Codex;
+
     public DiscordPresenceSnapshot? PublishedPresence { get; init; }
 
     public bool IsDiscordConnecting { get; init; }
@@ -22,5 +24,8 @@ public sealed record PresenceDashboardSnapshot(
         null,
         null,
         false,
-        DateTime.MinValue);
+        DateTime.MinValue)
+    {
+        ProviderId = null
+    };
 }

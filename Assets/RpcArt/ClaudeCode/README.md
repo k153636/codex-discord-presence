@@ -11,3 +11,8 @@ copies preserve the source artwork and attribution.
 - `clawd-working-building.gif`: tool activity
 - `clawd-sleeping.gif`: idle
 - `clawd-notification.gif`: waiting for input
+
+`clawd-icon.png` is a static crop of the notification GIF's first frame,
+provided by the Claude Design cloud dashboard handoff. It makes Clawd readable
+in the dashboard's 16px provider chip and 20px owner row. The original animated
+GIF is preserved, and the same upstream MIT license applies to this derivative.

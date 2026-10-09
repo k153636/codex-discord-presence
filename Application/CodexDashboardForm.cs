@@ -6,7 +6,7 @@ namespace CodexDiscordPresence;
 
 public sealed class CodexDashboardForm : Form
 {
-    private const int PreviewRegionHeight = 180;
+    private const int PreviewRegionHeight = 178;
 
     private readonly PresenceRuntimeState _runtimeState;
     private readonly DashboardOverviewSurface _overviewSurface;
@@ -36,19 +36,20 @@ public sealed class CodexDashboardForm : Form
 
         Text = ProductBrand.Name;
         StartPosition = FormStartPosition.CenterScreen;
-        MinimumSize = new Size(400, 660);
-        Size = MinimumSize;
+        ClientSize = new Size(384, 344);
+        MinimumSize = SizeFromClientSize(ClientSize);
         BackColor = DashboardPalette.Window;
         ForeColor = DashboardPalette.Text;
         Font = new Font("Segoe UI", 9f);
         AccessibleName = $"{ProductBrand.Name} dashboard";
         AutoScaleMode = AutoScaleMode.Dpi;
+        AutoScaleDimensions = new SizeF(96, 96);
         FormBorderStyle = FormBorderStyle.Sizable;
         MaximizeBox = true;
         MinimizeBox = true;
         Icon = LoadWindowIcon();
 
-        _overviewSurface = new DashboardOverviewSurface { Dock = DockStyle.Fill };
+        _overviewSurface = new DashboardOverviewSurface { Dock = DockStyle.Fill, Margin = Padding.Empty };
         _previewSurface = new DashboardPreviewSurface
         {
             Dock = DockStyle.Fill,
@@ -56,7 +57,8 @@ public sealed class CodexDashboardForm : Form
         };
         _providerPanel = new ProviderIntegrationPanel
         {
-            Dock = DockStyle.Fill
+            Dock = DockStyle.Fill,
+            Margin = Padding.Empty
         };
         _providerPanel.ProviderEnabledChanged += OnProviderEnabledChanged;
         SyncProviderControls();
@@ -64,11 +66,11 @@ public sealed class CodexDashboardForm : Form
         var overviewLayout = new TableLayoutPanel
         {
             Dock = DockStyle.Fill,
-            BackColor = DashboardPalette.SurfaceInset,
+            BackColor = DashboardPalette.Window,
             ColumnCount = 1,
             RowCount = 3,
             Margin = new Padding(0),
-            Padding = new Padding(0)
+            Padding = new Padding(12)
         };
         overviewLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100f));
         overviewLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, ProviderIntegrationPanel.PreferredHeight));
@@ -111,6 +113,14 @@ public sealed class CodexDashboardForm : Form
         var snapshot = _runtimeState.DashboardSnapshot;
         var enabled = _runtimeState.Enabled;
         SyncProviderControls();
+        _providerPanel.SetOwner(!enabled || snapshot.HasNoActiveProvider || snapshot.Presence is null ? null : snapshot.ProviderId);
+        var layout = (TableLayoutPanel)Controls[0];
+        var previewHeight = DashboardPreviewSurface.GetPreferredHeight(snapshot);
+        var previousMinimum = MinimumSize;
+        var scale = DeviceDpi / 96f;
+        MinimumSize = SizeFromClientSize(new Size((int)Math.Round(384 * scale), (int)Math.Round((166 + previewHeight) * scale)));
+        layout.RowStyles[2].Height = previewHeight * DeviceDpi / 96f;
+        if (Size == previousMinimum) Size = MinimumSize;
 
         _overviewSurface.SetSnapshot(snapshot, enabled);
         _previewSurface.SetSnapshot(snapshot, enabled);
