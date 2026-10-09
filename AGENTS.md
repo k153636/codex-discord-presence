@@ -102,6 +102,19 @@ that distinction when changing activity detection.
   tier. Do not display the literal word `fast`, and do not infer speed from a
   config-only value.
 
+### Subagent small image
+
+- The RPC small image and its tooltip are reserved for subagent work status.
+  Solo sessions or unavailable subagent evidence omit both fields.
+- Join child activity only to explicitly active identities belonging to the
+  current provider and parent session. Never use the main agent's activity,
+  historical child work, or generic task counts as child-work evidence.
+- A homogeneous, observed child state may select a specific work icon. Mixed
+  states or lifecycle-only evidence use a provider-owned generic active icon
+  and a tooltip showing only confirmed categories and the active count.
+- Child status does not replace the main semantic activity line or main image.
+  Preserve existing party membership rules and provider-specific artwork.
+
 ## Provider and CLI extensibility contract
 
 This application can support multiple CLI/provider integrations, but a new

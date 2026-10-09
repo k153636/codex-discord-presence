@@ -7,7 +7,7 @@ public sealed class DiscordRichPresenceBuilderTests
     [Theory]
     [InlineData("appsettings.json")]
     [InlineData("appsettings.cli.json")]
-    public void Create_ShippedAntigravityProfilesUseTheirOwnSmallIcon(string settingsFile)
+    public void Create_SoloAntigravityProfilesOmitSmallImageAndTooltip(string settingsFile)
     {
         using var settings = System.Text.Json.JsonDocument.Parse(
             File.ReadAllText(Path.Combine(AppContext.BaseDirectory, settingsFile)));
@@ -26,12 +26,13 @@ public sealed class DiscordRichPresenceBuilderTests
 
         var payload = DiscordRichPresenceBuilder.Create(options, rendered, "party");
 
-        Assert.Equal("rpc_antigravity_cli", payload.Assets.SmallImageKey);
+        Assert.Null(payload.Assets.SmallImageKey);
+        Assert.Null(payload.Assets.SmallImageText);
         Assert.Equal("rpc_antigravity_cli", payload.Assets.LargeImageKey);
     }
 
     [Fact]
-    public void Create_ClaudeCodeSmallIconUsesClawdWithoutCodexAssets()
+    public void Create_SoloClaudeCodeOmitsSmallImageWithoutChangingLargeArtwork()
     {
         var rendered = new RenderedPresence("Claude Code", "Working", null, "", [],
             null, CodexActivityKind.AnalyzingProject, RunningCommandKind.Unknown, "")
@@ -42,8 +43,155 @@ public sealed class DiscordRichPresenceBuilderTests
         var payload = DiscordRichPresenceBuilder.Create(
             ClaudeCodeAssetPolicy.CreateDiscordOptions(), rendered, "party");
 
-        Assert.Equal("https://cdn.qualit.ly/clawd-sleeping.gif", payload.Assets.SmallImageKey);
-        Assert.DoesNotContain("rpc_codex", payload.Assets.LargeImageKey);
+        Assert.Null(payload.Assets.SmallImageKey);
+        Assert.Null(payload.Assets.SmallImageText);
+        Assert.DoesNotContain("rpc_codex", payload.Assets.LargeImageKey ?? "");
+    }
+
+    [Fact]
+    public void Create_ConfirmedClaudeSubagentUsesClaudeWorkArtAndObservedStatus()
+    {
+        var rendered = new RenderedPresence("Claude Code", "Editing", null, "session metadata", [],
+            null, CodexActivityKind.ApplyingEdits, RunningCommandKind.Unknown, "")
+        {
+            ProviderId = ProviderIds.ClaudeCode,
+            SubagentActivity = SubagentActivitySummary.Create(1, [SubagentWorkKind.Editing])
+        };
+
+        var payload = DiscordRichPresenceBuilder.Create(
+            ClaudeCodeAssetPolicy.CreateDiscordOptions(), rendered, "party");
+
+        Assert.Equal("https://cdn.qualit.ly/clawd-working-building.gif", payload.Assets.SmallImageKey);
+        Assert.Equal("1 subagent · editing", payload.Assets.SmallImageText);
+        Assert.DoesNotContain("rpc_", payload.Assets.SmallImageKey ?? "");
+    }
+
+    [Fact]
+    public void Create_ConfirmedAntigravitySubagentsUseOnlyAntigravityArtAndGenericActiveText()
+    {
+        var rendered = new RenderedPresence("Antigravity", "Working", null, "session metadata", [],
+            null, CodexActivityKind.AnalyzingProject, RunningCommandKind.Unknown, "")
+        {
+            ProviderId = ProviderIds.Antigravity,
+            PartySize = 3,
+            SubagentActivity = SubagentActivitySummary.Create(2, null)
+        };
+
+        var payload = DiscordRichPresenceBuilder.Create(
+            new DiscordOptions { LargeImageKey = "rpc_antigravity_cli" }, rendered, "party");
+
+        Assert.Equal("rpc_antigravity_cli", payload.Assets.SmallImageKey);
+        Assert.Equal("2 subagents active", payload.Assets.SmallImageText);
+        Assert.Equal(3, payload.Party!.Size);
+    }
+
+    [Fact]
+    public void Create_CodexMixedChildWorkUsesGenericArtAndDoesNotInventCoordination()
+    {
+        var rendered = new RenderedPresence("Codex", "Working", null, "session metadata", [],
+            null, CodexActivityKind.AnalyzingProject, RunningCommandKind.Unknown, "")
+        {
+            ProviderId = ProviderIds.Codex,
+            SubagentActivity = SubagentActivitySummary.Create(
+                2,
+                [SubagentWorkKind.Editing, SubagentWorkKind.Reading])
+        };
+        var options = new DiscordOptions
+        {
+            ActivityImageKeys = new(StringComparer.OrdinalIgnoreCase)
+            {
+                [nameof(CodexActivityKind.ApplyingEdits)] = "codex_editing",
+                [nameof(CodexActivityKind.ReadingFiles)] = "codex_reading",
+                [nameof(CodexActivityKind.CoordinatingChanges)] = "codex_active"
+            }
+        };
+
+        var payload = DiscordRichPresenceBuilder.Create(options, rendered, "party");
+
+        Assert.Equal("codex_active", payload.Assets.SmallImageKey);
+        Assert.Equal("2 subagents active · 1 editing, 1 reading", payload.Assets.SmallImageText);
+        Assert.DoesNotContain("coordinating", payload.Assets.SmallImageText ?? "");
+        Assert.DoesNotContain("thinking", payload.Assets.SmallImageText ?? "");
+    }
+
+    [Fact]
+    public void Create_CodexHomogeneousChildWorkUsesSpecificArtAndOverridesSessionTooltip()
+    {
+        var rendered = new RenderedPresence("Codex", "Working", null, "session metadata", [],
+            null, CodexActivityKind.AnalyzingProject, RunningCommandKind.Unknown, "")
+        {
+            ProviderId = ProviderIds.Codex,
+            SubagentActivity = SubagentActivitySummary.Create(
+                2,
+                [SubagentWorkKind.Editing, SubagentWorkKind.Editing])
+        };
+        var options = new DiscordOptions
+        {
+            SmallImageKey = "rpc_codex",
+            ActivityImageKeys = new(StringComparer.OrdinalIgnoreCase)
+            {
+                [nameof(CodexActivityKind.ApplyingEdits)] = "codex_editing",
+                [nameof(CodexActivityKind.CoordinatingChanges)] = "codex_active"
+            }
+        };
+
+        var payload = DiscordRichPresenceBuilder.Create(options, rendered, "party");
+
+        Assert.Equal("codex_editing", payload.Assets.SmallImageKey);
+        Assert.Equal("2 subagents · editing", payload.Assets.SmallImageText);
+        Assert.DoesNotContain("session", payload.Assets.SmallImageText ?? "");
+    }
+
+    [Theory]
+    [InlineData(ProviderIds.Codex)]
+    [InlineData(ProviderIds.ClaudeCode)]
+    public void Create_ChildActivityArt_UsesCaseInsensitiveMappings(string providerId)
+    {
+        var rendered = new RenderedPresence("details", "main activity", null, "", [], null,
+            CodexActivityKind.ApplyingEdits, RunningCommandKind.Unknown, "")
+        {
+            ProviderId = providerId,
+            SubagentActivity = SubagentActivitySummary.Create(1, [SubagentWorkKind.Editing])
+        };
+        var options = new DiscordOptions
+        {
+            ActivityImageKeys = new(StringComparer.Ordinal) { ["applyingedits"] = "child_editing" }
+        };
+
+        Assert.Equal("child_editing", DiscordRichPresenceBuilder.Create(options, rendered, "party").Assets.SmallImageKey);
+    }
+
+    [Theory]
+    [InlineData(ProviderIds.Codex)]
+    [InlineData(ProviderIds.ClaudeCode)]
+    public void Create_MissingChildActivityArt_OmitsSmallImageRatherThanFailing(string providerId)
+    {
+        var rendered = new RenderedPresence("details", "main activity", null, "", [], null,
+            CodexActivityKind.ApplyingEdits, RunningCommandKind.Unknown, "")
+        {
+            ProviderId = providerId,
+            SubagentActivity = SubagentActivitySummary.Create(1, [SubagentWorkKind.Editing])
+        };
+
+        var payload = DiscordRichPresenceBuilder.Create(new DiscordOptions { ActivityImageKeys = null! }, rendered, "party");
+        Assert.Null(payload.Assets.SmallImageKey);
+        Assert.Null(payload.Assets.SmallImageText);
+    }
+
+    [Fact]
+    public void Create_UnknownProviderDoesNotInheritAnotherProvidersChildArt()
+    {
+        var rendered = new RenderedPresence("Unknown", "Working", null, "session metadata", [],
+            null, CodexActivityKind.AnalyzingProject, RunningCommandKind.Unknown, "")
+        {
+            ProviderId = "future-provider",
+            SubagentActivity = SubagentActivitySummary.Create(1, [SubagentWorkKind.Editing])
+        };
+
+        var payload = DiscordRichPresenceBuilder.Create(new DiscordOptions(), rendered, "party");
+
+        Assert.Null(payload.Assets.SmallImageKey);
+        Assert.Null(payload.Assets.SmallImageText);
     }
 
     [Fact]
@@ -78,7 +226,7 @@ public sealed class DiscordRichPresenceBuilderTests
             DiscordAssetKeyResolver.ResolveLargeImageReference(options, rendered),
             payload.Assets!.LargeImageKey);
         Assert.Equal(rendered.LargeImageText, payload.Assets.LargeImageText);
-        Assert.Equal(rendered.SmallImageText, payload.Assets.SmallImageText);
+        Assert.Null(payload.Assets.SmallImageText);
         Assert.Equal(startedAt, payload.Timestamps!.Start);
         Assert.Equal(3, payload.Party!.Size);
         Assert.Equal(3, payload.Party.Max);

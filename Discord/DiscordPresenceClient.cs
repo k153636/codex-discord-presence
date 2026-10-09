@@ -320,7 +320,9 @@ public sealed class DiscordPresenceClient : IDisposable
             : presence;
         _pendingPresence = null;
         _log.Info(presence is null ? "Discord RPC presence clear acknowledged."
-            : $"Discord RPC presence acknowledged. provider={requested?.ProviderId ?? "unknown"}; publication={_publicationGeneration}");
+            : $"Discord RPC presence acknowledged. provider={requested?.ProviderId ?? "unknown"}; publication={_publicationGeneration}; " +
+              $"smallImage={(LastPublishedPresence?.SmallImageKey is null ? "none" : "present")}; " +
+              $"smallText={LastPublishedPresence?.SmallImageText ?? "<none>"}");
     }
 
     private static string? ResolveAcknowledgedImageKey(string? requested, string? acknowledged)

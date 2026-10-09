@@ -287,7 +287,7 @@ public sealed class CodexSessionLogParserTests
 
             WriteSession(homePath, "subagent.jsonl",
             [
-                CreateSessionMetaLine(now, "subagent-thread", "subagent", mainThreadId, projectPath),
+                CreateNestedSubagentSessionMetaLine(now, "agent-1", mainThreadId, projectPath),
                 CreateSessionLine(now.AddSeconds(1), new
                 {
                     type = "task_started",
@@ -321,6 +321,77 @@ public sealed class CodexSessionLogParserTests
             Assert.Null(inspection.ParentThreadId);
             Assert.Equal("Main thread summary", inspection.LatestThinkingSummary);
             Assert.Equal(2, inspection.PartySize);
+            Assert.Equal(1, inspection.SubagentActivity?.ActiveCount);
+            Assert.Equal(1, inspection.SubagentActivity?.ThinkingCount);
+            Assert.Equal(0, inspection.SubagentActivity?.UnknownCount);
+        }
+        finally
+        {
+            Directory.Delete(homePath, true);
+            Directory.Delete(projectPath, true);
+        }
+    }
+
+    [Fact]
+    public void InspectRecentSessions_ActiveSubagentWithStaleChildEventsUsesGenericStatus()
+    {
+        var homePath = CreateTempCodexHome();
+        var projectPath = Path.Combine(Path.GetTempPath(), "CodexStaleChildProject_" + Guid.NewGuid());
+        Directory.CreateDirectory(projectPath);
+
+        try
+        {
+            var now = DateTime.UtcNow;
+            var old = now.AddMinutes(-2);
+            WriteSession(homePath, "main.jsonl",
+            [
+                CreateSessionMetaLine(old, "main-thread", "user", null, projectPath),
+                CreateSessionLine(old.AddSeconds(1), new
+                {
+                    type = "task_started",
+                    turn_id = "main-turn",
+                    cwd = projectPath
+                }, "event_msg"),
+                CreateSessionLine(old.AddSeconds(2), new
+                {
+                    type = "item_completed",
+                    item = new
+                    {
+                        type = "CollabAgentToolCall",
+                        id = "spawn-main-agent",
+                        tool = "spawn_agent",
+                        receiver_agents = new[] { new { thread_id = "agent-1" } }
+                    }
+                }, "event_msg")
+            ]);
+            WriteSession(homePath, "subagent.jsonl",
+            [
+                CreateNestedSubagentSessionMetaLine(old, "agent-1", "main-thread", projectPath),
+                CreateSessionLine(old.AddSeconds(3), new
+                {
+                    type = "task_started",
+                    turn_id = "child-turn",
+                    cwd = projectPath
+                }, "event_msg"),
+                CreateSessionLine(old.AddSeconds(4), new
+                {
+                    type = "reasoning",
+                    turn_id = "child-turn",
+                    summary = new[] { new { type = "summary_text", text = "private child summary" } }
+                }, "response_item")
+            ]);
+
+            var parser = new CodexSessionLogParser(
+                new CodexDetectionOptions { HomePath = homePath },
+                new PresenceTemplateOptions());
+
+            var inspection = parser.InspectRecentSessions(projectPath);
+
+            Assert.NotNull(inspection);
+            Assert.Equal(2, inspection!.PartySize);
+            Assert.Equal(1, inspection.SubagentActivity?.ActiveCount);
+            Assert.Equal(0, inspection.SubagentActivity?.KnownCount);
+            Assert.Equal(1, inspection.SubagentActivity?.UnknownCount);
         }
         finally
         {
@@ -1169,6 +1240,31 @@ public sealed class CodexSessionLogParserTests
             thread_source = threadSource,
             cwd = projectPath,
             source = "cli"
+        }, "session_meta");
+    }
+
+    private static string CreateNestedSubagentSessionMetaLine(
+        DateTime timestamp,
+        string threadId,
+        string parentThreadId,
+        string projectPath)
+    {
+        return CreateSessionLine(timestamp, new
+        {
+            session_id = threadId,
+            id = threadId,
+            source = new
+            {
+                subagent = new
+                {
+                    thread_spawn = new
+                    {
+                        parent_thread_id = parentThreadId,
+                        agent_id = "redacted-agent-id"
+                    }
+                }
+            },
+            cwd = projectPath
         }, "session_meta");
     }
 }

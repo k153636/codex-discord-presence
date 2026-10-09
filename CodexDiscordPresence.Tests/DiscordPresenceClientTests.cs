@@ -412,14 +412,19 @@ public sealed class DiscordPresenceClientTests
         fixture.Client.UpdateOptions(new DiscordOptions
         {
             ClientId = "test-client-id",
-            SmallImageKey = "rpc_codex",
             ExternalImageUrls = new Dictionary<string, string>
             {
-                ["rpc_codex"] = "https://example.com/codex.gif"
+                ["rpc_codex"] = "https://example.com/codex.gif",
+                ["rpc_coding"] = "https://example.com/coding.gif"
             }
         });
-        Assert.True(fixture.Client.Update(CreatePresence()));
+        Assert.True(fixture.Client.Update(CreatePresence() with
+        {
+            ProviderId = ProviderIds.Codex,
+            SubagentActivity = SubagentActivitySummary.Create(1, [SubagentWorkKind.Editing])
+        }));
         var requested = DiscordPresenceSnapshot.From(transport.SetPresenceCalls[0]);
+        Assert.Equal("https://example.com/coding.gif", requested.SmallImageKey);
         var acknowledged = requested with
         {
             LargeImageKey = "1234567890",

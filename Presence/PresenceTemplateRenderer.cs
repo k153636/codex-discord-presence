@@ -16,12 +16,13 @@ public sealed class PresenceTemplateRenderer
     public RenderedPresence Render(PresenceTemplateOptions template, PresenceContext context)
     {
         var values = BuildValues(template, context);
+        var subagentActivity = context.Activity.SubagentActivity;
 
         return new RenderedPresence(
             ResolveDetails(template, context, values),
             Apply(template.State, values),
             RenderLargeImageText(template, values),
-            Apply(template.SmallImageText, values),
+            subagentActivity?.FormatSmallImageText() ?? "",
             template.Buttons.Select(button => new RenderedButton(
                 Apply(button.Label, values),
                 Apply(button.Url, values))).ToArray(),
@@ -32,6 +33,7 @@ public sealed class PresenceTemplateRenderer
         {
             ProviderId = context.ProviderId,
             PartySize = context.Activity.PartySize,
+            SubagentActivity = subagentActivity,
             IsSuccessfulCompletion = context.Activity.IsSuccessfulCompletion,
             IsError = context.Activity.IsError,
             IsThinking = context.Activity.IsThinking,
@@ -470,6 +472,7 @@ public sealed record RenderedPresence(
     internal string? LargeImageKeyOverride { get; init; }
     public string? ProviderId { get; init; }
     public int? PartySize { get; init; }
+    public SubagentActivitySummary? SubagentActivity { get; init; }
     public bool IsSuccessfulCompletion { get; init; }
     public bool IsError { get; init; }
     public bool IsThinking { get; init; }

@@ -59,7 +59,7 @@ internal sealed class AntigravityStatusLinePayloadParser : IProviderObservationP
         var agentState = ReadAgentState(root);
         var executionMode = ReadExecutionMode(root);
         var contextWindow = ReadContextWindow(root);
-        var activeSubagentCount = ReadActiveSubagentCount(root);
+        var activeSubagents = ReadActiveSubagents(root);
         var quotas = ReadQuotas(root, observedAtUtc);
         var planTier = ReadSafeText(root, "plan_tier") ??
             ReadSafeText(root, "planTier") ??
@@ -79,13 +79,17 @@ internal sealed class AntigravityStatusLinePayloadParser : IProviderObservationP
             conversationId,
             executionMode,
             contextWindow,
-            activeSubagentCount,
+            activeSubagents?.Count,
             quotas,
             planTier)
         {
             TranscriptPath = ReadPathValueAny(root, "transcript_path", "transcriptPath"),
             ArtifactDirectoryPath = ReadPathValueAny(root, "artifact_directory_path", "artifactDirectoryPath"),
             Operation = operation,
+            ActiveSubagentWorkKinds = activeSubagents?
+                .Select(subagent => subagent.WorkKind)
+                .Where(workKind => workKind != SubagentWorkKind.Unknown)
+                .ToArray(),
             IsWaitingForInput = ReadBooleanAny(
                 root,
                 "waiting_for_input",
@@ -269,7 +273,7 @@ internal sealed class AntigravityStatusLinePayloadParser : IProviderObservationP
         return null;
     }
 
-    private static int? ReadActiveSubagentCount(JsonElement root)
+    private static IReadOnlyList<ActiveSubagentObservation>? ReadActiveSubagents(JsonElement root)
     {
         if (!root.TryGetProperty("subagents", out var subagents) ||
             subagents.ValueKind != JsonValueKind.Array)
@@ -277,24 +281,36 @@ internal sealed class AntigravityStatusLinePayloadParser : IProviderObservationP
             return null;
         }
 
-        var count = 0;
+        var activeByIdentity = new Dictionary<string, SubagentWorkKind>(StringComparer.Ordinal);
         foreach (var subagent in subagents.EnumerateArray())
         {
             if (subagent.ValueKind != JsonValueKind.Object ||
-                !IsActiveSubagent(subagent) ||
-                !HasSubagentIdentity(subagent))
+                !TryReadActiveSubagent(subagent, out var identity, out var workKind))
             {
                 continue;
             }
 
-            count++;
-            if (count == ProviderObservation.MaxActiveSubagentCount)
+            if (activeByIdentity.TryGetValue(identity, out var previousWorkKind))
+            {
+                if (previousWorkKind != workKind)
+                {
+                    activeByIdentity[identity] = SubagentWorkKind.Unknown;
+                }
+
+                continue;
+            }
+
+            if (activeByIdentity.Count >= ProviderObservation.MaxActiveSubagentCount)
             {
                 break;
             }
+
+            activeByIdentity.Add(identity, workKind);
         }
 
-        return count;
+        return activeByIdentity
+            .Select(pair => new ActiveSubagentObservation(pair.Key, pair.Value))
+            .ToArray();
     }
 
     private static ProviderOperationObservation? ReadOperation(JsonElement root)
@@ -428,25 +444,46 @@ internal sealed class AntigravityStatusLinePayloadParser : IProviderObservationP
         return false;
     }
 
-    private static bool IsActiveSubagent(JsonElement subagent)
+    private static bool TryReadActiveSubagent(
+        JsonElement subagent,
+        out string identity,
+        out SubagentWorkKind workKind)
     {
         var status = ReadSafeText(subagent, "status")?.ToLowerInvariant();
-        return status is
-            "running" or
-            "active" or
-            "thinking" or
-            "working" or
-            "tool_use" or
-            "initializing";
+        identity = ReadSafeIdentifier(subagent, "id") ??
+            ReadSafeIdentifier(subagent, "conversation_id") ??
+            ReadSafeIdentifier(subagent, "name") ??
+            ReadSafeIdentifier(subagent, "role") ??
+            string.Empty;
+        workKind = ParseSubagentWorkKind(status);
+        return identity.Length > 0 && IsActiveSubagentStatus(status);
     }
 
-    private static bool HasSubagentIdentity(JsonElement subagent)
+    private static bool IsActiveSubagentStatus(string? status) => status is
+        "running" or
+        "active" or
+        "thinking" or
+        "working" or
+        "tool_use" or
+        "initializing" or
+        "editing" or
+        "reading" or
+        "researching" or
+        "running_command" or
+        "coordinating";
+
+    private static SubagentWorkKind ParseSubagentWorkKind(string? status) => status switch
     {
-        return ReadSafeText(subagent, "id") is not null ||
-            ReadSafeText(subagent, "conversation_id") is not null ||
-            ReadSafeText(subagent, "name") is not null ||
-            ReadSafeText(subagent, "role") is not null;
-    }
+        "thinking" => SubagentWorkKind.Thinking,
+        "editing" => SubagentWorkKind.Editing,
+        "reading" => SubagentWorkKind.Reading,
+        "researching" => SubagentWorkKind.Researching,
+        "running_command" => SubagentWorkKind.RunningCommand,
+        "coordinating" => SubagentWorkKind.Coordinating,
+        _ => SubagentWorkKind.Unknown
+    };
+
+    private sealed record ActiveSubagentObservation(string Identity, SubagentWorkKind WorkKind);
 
     private static long? ReadNonNegativeInt64(JsonElement root, string propertyName)
     {

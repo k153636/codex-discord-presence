@@ -19,6 +19,7 @@ internal static class DiscordRichPresenceBuilder
             .Cast<RpcButton>()
             .Take(2)
             .ToArray();
+        var smallImage = DiscordSubagentSmallImagePolicy.Resolve(options, presence);
 
         return new RichPresence
         {
@@ -28,8 +29,8 @@ internal static class DiscordRichPresenceBuilder
             {
                 LargeImageKey = DiscordAssetKeyResolver.ResolveLargeImageReference(options, presence),
                 LargeImageText = DiscordPresencePayloadPolicy.NormalizeOptionalText(presence.LargeImageText),
-                SmallImageKey = DiscordAssetKeyResolver.ResolveImageReference(options, options.SmallImageKey),
-                SmallImageText = DiscordPresencePayloadPolicy.NormalizeOptionalText(presence.SmallImageText)
+                SmallImageKey = smallImage.ImageReference,
+                SmallImageText = DiscordPresencePayloadPolicy.NormalizeOptionalText(smallImage.Text)
             },
             Party = DiscordPartyBuilder.Create(
                 presence.PartySize,

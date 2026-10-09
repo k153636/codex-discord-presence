@@ -13,6 +13,8 @@ internal sealed class DashboardPreviewSurface : DashboardSurface
     private readonly FontFamily _discordFontFamily = DashboardTypography.CreateDiscordFontFamily();
     private readonly DashboardPresenceImageSlot _largeImage;
     private readonly DashboardPresenceImageSlot _smallImage;
+    private readonly ToolTip _smallImageToolTip = new();
+    private static readonly Rectangle SmallImageBounds = new(76, 134, 28, 28);
     private readonly DashboardConnectionPill _connection = new();
 
     public DashboardPreviewSurface()
@@ -45,9 +47,39 @@ internal sealed class DashboardPreviewSurface : DashboardSurface
         _connection.SetSnapshot(snapshot);
         var empty = DashboardTextFormatter.FormatEmptyPreview(snapshot, enabled);
         AccessibleDescription = snapshot.PublishedPresence is { } presence
-            ? $"Last acknowledged Discord presence. {DashboardTextFormatter.FormatProviderName(snapshot.ProviderId)}. {presence.Details}. {presence.State}. {DashboardTextFormatter.FormatConnection(snapshot)}."
+            ? $"Last acknowledged Discord presence. {DashboardTextFormatter.FormatProviderName(snapshot.ProviderId)}. {presence.Details}. {presence.State}. " +
+              $"{(string.IsNullOrWhiteSpace(presence.SmallImageKey) ? string.Empty : presence.SmallImageText)}. {DashboardTextFormatter.FormatConnection(snapshot)}."
             : empty.Title + ". " + empty.Description;
+        UpdateSmallImageToolTip(IsHandleCreated ? PointToClient(Cursor.Position) : new Point(-1, -1));
         Invalidate();
+    }
+
+    internal string? GetSmallImageToolTip(Point location)
+    {
+        var presence = _snapshot.PublishedPresence;
+        var scale = DeviceDpi / 96f;
+        var bounds = new RectangleF(SmallImageBounds.X * scale, SmallImageBounds.Y * scale,
+            SmallImageBounds.Width * scale, SmallImageBounds.Height * scale);
+        return presence is not null && !string.IsNullOrWhiteSpace(presence.SmallImageKey) && bounds.Contains(location)
+            ? presence.SmallImageText : null;
+    }
+
+    protected override void OnMouseMove(MouseEventArgs e)
+    {
+        base.OnMouseMove(e);
+        UpdateSmallImageToolTip(e.Location);
+    }
+
+    protected override void OnMouseLeave(EventArgs e)
+    {
+        base.OnMouseLeave(e);
+        _smallImageToolTip.SetToolTip(this, string.Empty);
+    }
+
+    private void UpdateSmallImageToolTip(Point location)
+    {
+        var text = GetSmallImageToolTip(location) ?? string.Empty;
+        if (_smallImageToolTip.GetToolTip(this) != text) _smallImageToolTip.SetToolTip(this, text);
     }
 
     protected override void OnResize(EventArgs e)
@@ -63,6 +95,7 @@ internal sealed class DashboardPreviewSurface : DashboardSurface
         if (disposing)
         {
             _largeImage.Dispose(); _smallImage.Dispose(); _neutralImage.Dispose();
+            _smallImageToolTip.Dispose();
             _gameIcon.Dispose(); _discordFontFamily.Dispose();
         }
         base.Dispose(disposing);
@@ -90,7 +123,7 @@ internal sealed class DashboardPreviewSurface : DashboardSurface
         DashboardDrawing.DrawText(g, _discordFontFamily, DashboardTextFormatter.FormatActivityType(presence),
             new Rectangle(12, card.Top + 9, card.Width - 24, 20), 9f, FontStyle.Bold, color);
         if (!string.IsNullOrWhiteSpace(presence.LargeImageKey)) DrawRoundedImage(g, _largeImage.CurrentImage, new Rectangle(12, card.Top + 40, 88, 88));
-        if (!string.IsNullOrWhiteSpace(presence.SmallImageKey)) DrawSmallImage(g, new Rectangle(76, card.Top + 104, 28, 28));
+        if (!string.IsNullOrWhiteSpace(presence.SmallImageKey)) DrawSmallImage(g, SmallImageBounds);
         var textLeft = 112;
         var textWidth = card.Width - textLeft - 12;
         DashboardDrawing.DrawText(g, _discordFontFamily, DashboardTextFormatter.FormatProviderName(_snapshot.ProviderId),

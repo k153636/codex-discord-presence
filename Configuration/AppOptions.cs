@@ -218,7 +218,7 @@ public sealed class DiscordOptions
 {
     public string ClientId { get; set; } = "1516846793873424474";
     public string? LargeImageKey { get; set; } = "rpc_thinking";
-    public string? SmallImageKey { get; set; } = "rpc_codex";
+    public string? SmallImageKey { get; set; }
     public string? CompletedImageKey { get; set; } = "rpc_success";
     public int CompletedImageHoldSeconds { get; set; } = 60;
     public string? ErrorImageKey { get; set; } = "rpc_error";
@@ -348,7 +348,7 @@ public sealed class PresenceTemplateOptions
     public string State { get; set; } = "{ActivityLine}";
     public bool EnableLargeImageText { get; set; } = true;
     public string LargeImageText { get; set; } = "{ProjectName}";
-    public string SmallImageText { get; set; } = "{ProjectFileCount} files \u2022 session {SessionElapsed}";
+    public string SmallImageText { get; set; } = "";
     public PresenceButtonOptions[] Buttons { get; set; } =
     [
         new()

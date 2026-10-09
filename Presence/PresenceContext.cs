@@ -30,6 +30,7 @@ public interface IPresenceActivitySnapshot
     DateTime? LastEffectiveSignalAt { get; }
     string? LatestThinkingSummary { get; }
     int? PartySize { get; }
+    SubagentActivitySummary? SubagentActivity { get; }
     bool IsSuccessfulCompletion { get; }
     bool IsError { get; }
     bool HasDirectActivityEvidence { get; }
@@ -154,6 +155,7 @@ public sealed partial record CodexProcessSnapshot
     public DateTime? LastEffectiveSignalAt { get; init; }
     public string? LatestThinkingSummary { get; init; }
     public int? PartySize { get; init; }
+    public SubagentActivitySummary? SubagentActivity => SessionInspection?.SubagentActivity;
     public bool IsSuccessfulCompletion { get; init; }
     public bool IsError { get; init; }
     public bool HasDirectActivityEvidence { get; init; }

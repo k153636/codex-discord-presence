@@ -46,6 +46,7 @@ internal sealed record AntigravityActivitySnapshot(
         ? 1 + ActiveSubagentCount.Value
         : null;
     public int? ActiveSubagentCount { get; init; }
+    public SubagentActivitySummary? SubagentActivity { get; init; }
     public bool IsSuccessfulCompletion => false;
     public bool IsError => false;
     public bool HasDirectActivityEvidence => true;
@@ -93,6 +94,9 @@ internal static class AntigravityPresenceProjection
         {
             LatestActivityEventKind = state.LatestActivityEventKind,
             ActiveSubagentCount = NormalizeActiveSubagentCount(observation.ActiveSubagentCount),
+            SubagentActivity = SubagentActivitySummary.Create(
+                NormalizeActiveSubagentCount(observation.ActiveSubagentCount) ?? 0,
+                observation.ActiveSubagentWorkKinds),
             ActivityReason = ResolveActivityReason(observation, operation),
             RunningCommandKind = ResolveRunningCommandKind(operation),
             RunningCommandName = ResolveRunningCommandName(operation),

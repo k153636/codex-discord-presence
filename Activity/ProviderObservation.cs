@@ -68,6 +68,7 @@ internal sealed record ProviderObservation(
     internal string? ArtifactDirectoryPath { get; init; }
     internal ProviderOperationObservation? Operation { get; init; }
     internal bool IsWaitingForInput { get; init; }
+    internal IReadOnlyList<SubagentWorkKind>? ActiveSubagentWorkKinds { get; init; }
 }
 
 internal sealed record ProviderModelObservation(

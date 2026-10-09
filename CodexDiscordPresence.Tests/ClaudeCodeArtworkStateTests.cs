@@ -19,8 +19,9 @@ public sealed class ClaudeCodeArtworkStateTests
         var observation = Observe(null, eventName, Start);
         var rendered = Render(observation);
         Assert.Equal("claude_idle", DiscordAssetKeyResolver.ResolveLargeImageKey(_options, rendered));
-        Assert.Equal("https://cdn.qualit.ly/clawd-sleeping.gif",
-            DiscordRichPresenceBuilder.Create(_options, rendered, "party").Assets.SmallImageKey);
+        var payload = DiscordRichPresenceBuilder.Create(_options, rendered, "party");
+        Assert.Null(payload.Assets.SmallImageKey);
+        Assert.Null(payload.Assets.SmallImageText);
     }
 
     [Fact]
@@ -198,7 +199,8 @@ public sealed class ClaudeCodeArtworkStateTests
 
     private static ClaudeCodeSessionObservation Observe(ClaudeCodeSessionObservation? previous, string name,
         DateTimeOffset atUtc, string? tool = null) => ClaudeCodeSessionObservation.Apply(previous,
-        new("main", Project, name, atUtc, ToolName: tool, ToolUseId: tool, AgentId: "child"));
+        new("main", Project, name, atUtc, ToolName: tool, ToolUseId: tool,
+            AgentId: name is "SubagentStart" or "SubagentStop" ? "child" : null));
 
     private static RenderedPresence Render(ClaudeCodeSessionObservation observation) => new PresenceTemplateRenderer().Render(
         new PresenceTemplateOptions { Details = "{ModelName}", State = "{ActivityLine}" },

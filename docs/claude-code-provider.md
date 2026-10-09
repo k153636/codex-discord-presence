@@ -14,7 +14,11 @@ settings are preserved. Hooks record sanitized session and lifecycle metadata
 under `%LOCALAPPDATA%/CodexDiscordPresence/claude-code/sessions`. Prompts,
 tool responses, shell commands, source text, and thinking bodies are discarded.
 Only file basenames appear in presence. Subagent lifecycle IDs determine party
-membership; subagent tool activity cannot replace main-agent activity.
+membership. Child tool hooks are isolated by `agent_id`, and the small image
+tooltip reports a work category only while a matching child tool event is
+fresh. Child events cannot replace the main-agent activity line. When a child
+is confirmed active but has no fresh tool evidence, Discord shows only the
+active subagent count.
 
 For a native Claude session already running before hook installation, a bounded
 tail of recent main-session transcripts can bootstrap activity. This requires a

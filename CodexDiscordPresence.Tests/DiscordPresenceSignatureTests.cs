@@ -90,6 +90,23 @@ public sealed class DiscordPresenceSignatureTests
     }
 
     [Fact]
+    public void GetPayloadSignature_SubagentWorkChanges_RequestAnotherSend()
+    {
+        using var fixture = new Fixture();
+        var first = CreatePresence() with
+        {
+            SubagentActivity = SubagentActivitySummary.Create(1, [SubagentWorkKind.Editing])
+        };
+        var changed = first with
+        {
+            SubagentActivity = SubagentActivitySummary.Create(1, [SubagentWorkKind.Reading])
+        };
+
+        Assert.NotEqual(fixture.Client.GetPayloadSignature(first), fixture.Client.GetPayloadSignature(changed));
+        Assert.NotEqual(fixture.Client.GetPayloadSignature(first), fixture.Client.GetPayloadSignature(CreatePresence()));
+    }
+
+    [Fact]
     public void GetPayloadSignature_UnchangedPayload_StillPermitsKeepAliveAndReconnectRefresh()
     {
         using var fixture = new Fixture();

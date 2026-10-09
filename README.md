@@ -18,9 +18,9 @@ Discord follows the AI coding tool you are actually using. Codex works out of th
 
 | Tool | Integration | What Discord can show |
 | --- | --- | --- |
-| Codex CLI & Desktop | Built in: local session logs and process signals | Reasoning summaries, MCP servers, edited files, model and effort, tokens, subagent party |
-| Claude Code | Opt-in: observational hooks in `~/.claude/settings.json` | Model, effort, MCP, files, terminal spinner labels, Claude Design, subagent party |
-| Antigravity CLI | Opt-in: official statusLine payload | Model and effort, plan and quota usage, tool activity, reported subagents |
+| Codex CLI & Desktop | Built in: local session logs and process signals | Reasoning summaries, MCP servers, edited files, model and effort, tokens, subagent party and observed work status |
+| Claude Code | Opt-in: observational hooks in `~/.claude/settings.json` | Model, effort, MCP, files, terminal spinner labels, Claude Design, subagent party and child tool status |
+| Antigravity CLI | Opt-in: official statusLine payload | Model and effort, plan and quota usage, tool activity, and reported subagents with explicit status when available |
 
 Enabling an integration does not force it to take over; the tool with current, project-matching activity is shown.
 
@@ -36,6 +36,7 @@ Automatic switching waits at least five seconds after Discord acknowledges the c
 - Session duration, plus token usage and estimated cost when available
 - Project information and Git change counts
 - Party information for active subagents
+- A small image and tooltip for confirmed active subagents; a work category appears only when child activity evidence identifies it
 - A project website button labeled `K's Code RPC`
 
 ## Analysis happens locally
@@ -88,7 +89,7 @@ Claude Code support is opt-in from the Dashboard. The app adds observational hoo
 
 ## Antigravity CLI
 
-Antigravity support is opt-in from the Dashboard. The integration reads only the official statusLine JSON payload, groups observations by `conversation_id`, and treats `thinking`, `working`, and `tool_use` as active states. It omits Discord party metadata for solo sessions and publishes a party only when the payload explicitly reports active `subagents`; `task_count` is never used as a subagent count because it represents background work rather than confirmed subagents.
+Antigravity support is opt-in from the Dashboard. The integration reads only the official statusLine JSON payload, groups observations by `conversation_id`, and treats `thinking`, `working`, and `tool_use` as active states. It omits Discord party metadata and the subagent small image for solo sessions, and publishes a party only when the payload explicitly reports active `subagents`; `task_count` is never used as a subagent count because it represents background work rather than confirmed subagents. The tooltip reports specific child work only when the payload supplies an explicit status; otherwise it reports the active count without guessing.
 
 Antigravity CLI uses its own Discord application configuration and the `rpc_antigravity_cli` static art asset; the existing `rpc_antigravity` asset remains reserved for a future Antigravity desktop application. Codex application IDs and asset mappings are not reused.
 

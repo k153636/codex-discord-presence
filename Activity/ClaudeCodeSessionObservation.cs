@@ -3,6 +3,12 @@ namespace CodexDiscordPresence;
 internal sealed record ClaudeCodeToolObservation(string Id, string Name, string? FileName,
     bool IsClaudeDesignOperation = false);
 
+internal sealed record ClaudeCodeSubagentToolObservation(
+    string AgentId,
+    string ToolUseId,
+    SubagentWorkKind WorkKind,
+    DateTimeOffset ObservedAtUtc);
+
 internal sealed record ClaudeCodeSessionObservation(
     string SessionId,
     string ProjectPath,
@@ -16,6 +22,7 @@ internal sealed record ClaudeCodeSessionObservation(
     IReadOnlyList<string> ActiveAgentIds)
 {
     public bool FromTranscript { get; init; }
+    public IReadOnlyList<ClaudeCodeSubagentToolObservation> SubagentTools { get; init; } = [];
     public DateTimeOffset? LastActivityEventAtUtc { get; init; }
     public DateTimeOffset? LastUserPromptAtUtc { get; init; }
     public bool HasConfirmedClaudeDesignUsage { get; init; }
@@ -35,9 +42,38 @@ internal sealed record ClaudeCodeSessionObservation(
             previous.Ended || current.EventName == "SessionStart";
         var tools = reset ? new List<ClaudeCodeToolObservation>() : previous!.Tools.ToList();
         var agents = reset ? new HashSet<string>(StringComparer.Ordinal) : previous!.ActiveAgentIds.ToHashSet(StringComparer.Ordinal);
+        var subagentTools = reset
+            ? new List<ClaudeCodeSubagentToolObservation>()
+            : previous!.SubagentTools.ToList();
         var eventName = current.EventName;
         var confirmedDesign = !reset && previous!.HasConfirmedClaudeDesignUsage;
-        if (eventName == "PreToolUse" && current.ToolName is { } toolName && tools.Count < 64)
+        var isSubagentToolEvent = current.AgentId is not null && current.EventName is
+            "PreToolUse" or "PostToolUse" or "PostToolUseFailure";
+        if (isSubagentToolEvent && current.AgentId is { } subagentId)
+        {
+            if (agents.Contains(subagentId) && current.EventName == "PreToolUse" &&
+                current.ToolName is { } subagentToolName)
+            {
+                var toolUseId = current.ToolUseId ?? subagentToolName;
+                subagentTools.RemoveAll(tool => tool.AgentId == subagentId && tool.ToolUseId == toolUseId);
+                if (subagentTools.Count < 64)
+                {
+                    subagentTools.Add(new ClaudeCodeSubagentToolObservation(
+                        subagentId,
+                        toolUseId,
+                        ClassifySubagentTool(subagentToolName),
+                        current.ObservedAtUtc.ToUniversalTime()));
+                }
+            }
+            else if (agents.Contains(subagentId) && current.EventName is "PostToolUse" or "PostToolUseFailure")
+            {
+                subagentTools.RemoveAll(tool => tool.AgentId == subagentId &&
+                    (current.ToolUseId is { } completedId
+                        ? tool.ToolUseId == completedId
+                        : current.ToolName is { } completedTool && tool.ToolUseId == completedTool));
+            }
+        }
+        else if (eventName == "PreToolUse" && current.ToolName is { } toolName && tools.Count < 64)
         {
             var id = current.ToolUseId ?? toolName;
             tools.RemoveAll(tool => tool.Id == id);
@@ -61,10 +97,11 @@ internal sealed record ClaudeCodeSessionObservation(
         else if (eventName == "SubagentStop" && current.AgentId is { } stoppedId)
         {
             agents.Remove(stoppedId);
+            subagentTools.RemoveAll(tool => tool.AgentId == stoppedId);
         }
 
         // Subagent lifecycle updates party evidence without replacing main-agent activity.
-        if (eventName is "SubagentStart" or "SubagentStop")
+        if (eventName is "SubagentStart" or "SubagentStop" || isSubagentToolEvent)
         {
             eventName = reset ? "SessionStart" : previous!.EventName;
         }
@@ -76,6 +113,7 @@ internal sealed record ClaudeCodeSessionObservation(
         if (current.EventName == "SessionEnd")
         {
             agents.Clear();
+            subagentTools.Clear();
         }
 
         var activityStartedAt = !reset && eventName == previous!.EventName &&
@@ -91,10 +129,21 @@ internal sealed record ClaudeCodeSessionObservation(
         {
             LastUserPromptAtUtc = current.EventName == "UserPromptSubmit" ? current.ObservedAtUtc
                 : reset ? null : previous!.LastUserPromptAtUtc,
+            SubagentTools = subagentTools.ToArray(),
             HasConfirmedClaudeDesignUsage = confirmedDesign,
-            LastActivityEventAtUtc = !reset && current.EventName is "SubagentStart" or "SubagentStop"
+            LastActivityEventAtUtc = !reset &&
+                (current.EventName is "SubagentStart" or "SubagentStop" || isSubagentToolEvent)
                 ? previous!.LastActivityEventAtUtc ?? previous.ObservedAtUtc
                 : current.ObservedAtUtc
         };
     }
+
+    private static SubagentWorkKind ClassifySubagentTool(string toolName) => toolName switch
+    {
+        "Edit" or "Write" or "NotebookEdit" => SubagentWorkKind.Editing,
+        "Read" or "Glob" or "Grep" => SubagentWorkKind.Reading,
+        "WebSearch" or "WebFetch" => SubagentWorkKind.Researching,
+        "Bash" or "PowerShell" => SubagentWorkKind.RunningCommand,
+        _ => SubagentWorkKind.Unknown
+    };
 }

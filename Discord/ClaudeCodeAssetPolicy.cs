@@ -10,7 +10,7 @@ internal static class ClaudeCodeAssetPolicy
     {
         ClientId = "1506443909406920948",
         LargeImageKey = "claude_idle",
-        SmallImageKey = "claude_idle",
+        SmallImageKey = null,
         CompletedImageKey = null,
         ErrorImageKey = "claude_idle",
         ActivityImageKeys = Enum.GetValues<CodexActivityKind>().ToDictionary(
@@ -38,7 +38,10 @@ internal static class ClaudeCodeAssetPolicy
         {
             return NotificationImageKey;
         }
-        var name = presence.IsError ? nameof(CodexActivityKind.WaitingForInput) : presence.ActivityKind.ToString();
-        return options.ActivityImageKeys.GetValueOrDefault(name) ?? options.LargeImageKey;
+        var kind = presence.IsError ? CodexActivityKind.WaitingForInput : presence.ActivityKind;
+        return DiscordAssetKeyResolver.ResolveActivityImageKey(options, kind) ?? options.LargeImageKey;
     }
+
+    internal static string? ResolveSubagentImageKey(DiscordOptions options, CodexActivityKind activityKind) =>
+        DiscordAssetKeyResolver.ResolveActivityImageKey(options, activityKind);
 }

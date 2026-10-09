@@ -41,11 +41,57 @@ public sealed class AntigravityStatusLineInfrastructureTests
         Assert.Equal(0.875m, latest?.Quotas?.Single(quota => quota.Id == "gemini-weekly").RemainingFraction);
         Assert.Equal(149318, latest?.ContextWindow?.TotalTokens);
         Assert.Equal(1, latest?.ActiveSubagentCount);
+        Assert.Empty(latest?.ActiveSubagentWorkKinds ?? []);
         var persisted = File.ReadAllText(fixture.EventFilePath);
         Assert.DoesNotContain("redacted@example.invalid", persisted, StringComparison.Ordinal);
         Assert.DoesNotContain("transcript.jsonl", persisted, StringComparison.Ordinal);
         Assert.DoesNotContain(projectPath, persisted, StringComparison.Ordinal);
         Assert.True(new FileInfo(fixture.EventFilePath).Length <= AntigravityStatusLineEventStore.MaxEventFileBytes);
+    }
+
+    [Fact]
+    public void EventStore_PersistsOnlyNormalizedSubagentWorkKinds()
+    {
+        using var fixture = new TemporaryFixture();
+        const string payload = """
+            {
+              "conversation_id": "conversation-id",
+              "subagents": [
+                { "id": "private-child-id", "role": "private-role", "status": "editing" }
+              ]
+            }
+            """;
+        Assert.True(new AntigravityStatusLinePayloadParser().TryParse(
+            Encoding.UTF8.GetBytes(payload),
+            DateTimeOffset.UtcNow,
+            out var observation));
+        var store = new AntigravityStatusLineEventStore(fixture.EventFilePath);
+
+        Assert.True(store.TryAppend(observation!));
+        Assert.True(store.TryReadLatest(out var latest));
+
+        Assert.Equal(1, latest?.ActiveSubagentCount);
+        Assert.Equal([SubagentWorkKind.Editing], latest?.ActiveSubagentWorkKinds);
+        var persisted = File.ReadAllText(fixture.EventFilePath);
+        Assert.Contains("active_subagent_work_kinds", persisted, StringComparison.Ordinal);
+        Assert.Contains("editing", persisted, StringComparison.Ordinal);
+        Assert.DoesNotContain("private-child-id", persisted, StringComparison.Ordinal);
+        Assert.DoesNotContain("private-role", persisted, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void EventStore_RejectsUnrecognizedSubagentWorkKind()
+    {
+        using var fixture = new TemporaryFixture();
+        var store = new AntigravityStatusLineEventStore(fixture.EventFilePath);
+        var observation = CreateObservation("conversation") with { ActiveSubagentCount = 1 };
+        Assert.True(store.TryAppend(observation));
+        var invalid = JsonNode.Parse(File.ReadAllText(fixture.EventFilePath))!;
+        invalid["active_subagent_work_kinds"] = new JsonArray("private operation");
+        File.WriteAllText(fixture.EventFilePath, invalid.ToJsonString());
+
+        Assert.False(store.TryReadLatest(out var latest));
+        Assert.Null(latest);
     }
 
     [Fact]
@@ -396,6 +442,7 @@ public sealed class AntigravityStatusLineInfrastructureTests
             StringComparison.Ordinal);
         Assert.Contains("Exit-WithStatus $statusLine", result.ScriptContent, StringComparison.Ordinal);
         Assert.Contains("active_subagent_count", result.ScriptContent, StringComparison.Ordinal);
+        Assert.Contains("active_subagent_work_kinds", result.ScriptContent, StringComparison.Ordinal);
         Assert.Contains("subagents", result.ScriptContent, StringComparison.Ordinal);
         Assert.DoesNotContain("transcript", result.ScriptContent, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("task_count", result.ScriptContent, StringComparison.OrdinalIgnoreCase);
@@ -431,6 +478,7 @@ public sealed class AntigravityStatusLineInfrastructureTests
         Assert.True(store.TryReadLatest(@"C:\repo", out var observation));
         Assert.Equal(ProviderAgentState.Working, observation?.AgentState);
         Assert.Equal(1, observation?.ActiveSubagentCount);
+        Assert.Equal([SubagentWorkKind.Editing], observation?.ActiveSubagentWorkKinds);
         Assert.Equal("Pro", observation?.PlanTier);
         Assert.Equal(0.75m, observation?.Quotas?.Single(quota => quota.Id == "gemini-weekly").RemainingFraction);
     }
@@ -680,7 +728,7 @@ public sealed class AntigravityStatusLineInfrastructureTests
             }
           },
           "subagents": [
-            { "name": "researcher", "role": "research", "status": "running" },
+            { "name": "researcher", "role": "research", "status": "editing" },
             { "name": "finished", "role": "build", "status": "completed" }
           ]
         }

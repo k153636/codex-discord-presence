@@ -82,18 +82,26 @@ internal sealed class ClaudeCodeObservationStore(string directory)
                 return null;
             }
             var observation = JsonSerializer.Deserialize<ClaudeCodeSessionObservation>(File.ReadAllText(path));
-            return observation is { Tools: not null, ActiveAgentIds: not null } &&
+            return observation is { Tools: not null, ActiveAgentIds: not null, SubagentTools: not null } &&
                 ClaudeCodeHookParser.SafeText(observation.SessionId) is not null &&
                 ClaudeCodeHookParser.SafeText(observation.ProjectPath, 4096) is not null &&
                 Path.IsPathFullyQualified(observation.ProjectPath) &&
                 ClaudeCodeHookParser.EventNames.Contains(observation.EventName, StringComparer.Ordinal) &&
                 observation.Tools.Count <= 64 && observation.ActiveAgentIds.Count <= 64 &&
+                observation.SubagentTools.Count <= 64 &&
                 observation.Tools.All(tool => tool is not null &&
                     ClaudeCodeHookParser.SafeText(tool.Id) is not null &&
                     ClaudeCodeHookParser.SafeText(tool.Name) is not null &&
                     (tool.FileName is null || ClaudeCodeHookParser.SafeText(tool.FileName) is not null &&
                         tool.FileName.IndexOfAny(['/', '\\', ':']) < 0)) &&
-                observation.ActiveAgentIds.All(id => ClaudeCodeHookParser.SafeText(id) is not null)
+                observation.ActiveAgentIds.All(id => ClaudeCodeHookParser.SafeText(id) is not null) &&
+                observation.SubagentTools.All(tool => tool is not null &&
+                    observation.ActiveAgentIds.Contains(tool.AgentId, StringComparer.Ordinal) &&
+                    ClaudeCodeHookParser.SafeText(tool.AgentId) is not null &&
+                    ClaudeCodeHookParser.SafeText(tool.ToolUseId) is not null &&
+                    tool.ObservedAtUtc != default &&
+                    tool.ObservedAtUtc <= observation.ObservedAtUtc &&
+                    tool.WorkKind is >= SubagentWorkKind.Unknown and <= SubagentWorkKind.Coordinating)
                 ? observation
                 : null;
         }
