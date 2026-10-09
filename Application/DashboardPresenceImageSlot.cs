@@ -76,6 +76,7 @@ internal sealed class DashboardPresenceImageSlot : IDisposable
     public void Dispose()
     {
         if (_disposed)
+        ReplaceImage(_fallbackImage);
         {
             return;
         }
