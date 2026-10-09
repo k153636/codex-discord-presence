@@ -18,6 +18,8 @@ internal sealed class ApplicationUpdateCoordinator
     private string? _readyVersion;
     private DateTime _nextCheckUtc;
     private DateTime _retryAfterUtc;
+    private DateTime _serverRetryAfterUtc;
+    private int _failedAttempts;
     private DateTime? _idleSinceUtc;
     private int _checkRequested;
     private int _restartRequested;
@@ -105,18 +107,20 @@ internal sealed class ApplicationUpdateCoordinator
         var manualCheck = Interlocked.Exchange(ref _checkRequested, 0) != 0;
         try
         {
-            if (_readyVersion is null && (manualCheck ||
+            if (_readyVersion is null && nowUtc >= _serverRetryAfterUtc && (manualCheck ||
                 (_checksEnabled && nowUtc >= _nextCheckUtc && nowUtc >= _retryAfterUtc)))
             {
                 Publish(ApplicationUpdateStatus.Checking);
                 _availableVersion = NewerVersion(await _backend.CheckAsync(cancellationToken));
                 _nextCheckUtc = nowUtc.AddHours(6);
                 _retryAfterUtc = DateTime.MinValue;
+                _serverRetryAfterUtc = DateTime.MinValue;
+                _failedAttempts = 0;
                 Publish(_availableVersion is null ? ApplicationUpdateStatus.UpToDate : ApplicationUpdateStatus.Available);
             }
 
             var automatic = AutomaticAllowed(nowUtc);
-            if (_readyVersion is null && _availableVersion is not null && _backend.IsInstalled &&
+            if (_readyVersion is null && _availableVersion is not null && _backend.IsInstalled && nowUtc >= _serverRetryAfterUtc &&
                 (manualRestart || (automatic && nowUtc >= _retryAfterUtc)))
             {
                 Publish(ApplicationUpdateStatus.Downloading);
@@ -126,6 +130,7 @@ internal sealed class ApplicationUpdateCoordinator
                 _readyVersion = NewerVersion(_backend.PreparedVersion)
                     ?? throw new InvalidDataException("The downloaded update was not verified.");
                 _retryAfterUtc = DateTime.MinValue;
+                _failedAttempts = 0;
             }
 
             if (_readyVersion is null) return;
@@ -150,8 +155,12 @@ internal sealed class ApplicationUpdateCoordinator
         catch (Exception ex)
         {
             _idleSinceUtc = null;
-            _retryAfterUtc = nowUtc.AddMinutes(15);
-            _nextCheckUtc = _retryAfterUtc;
+            _failedAttempts = Math.Min(_failedAttempts + 1, 6);
+            _retryAfterUtc = nowUtc.AddMinutes(Math.Min(360, 15 * (1 << (_failedAttempts - 1))));
+            if (ex is ApplicationUpdateRetryException retry && retry.RetryAfterUtc > _serverRetryAfterUtc)
+                _serverRetryAfterUtc = retry.RetryAfterUtc;
+            if (_serverRetryAfterUtc > _retryAfterUtc) _retryAfterUtc = _serverRetryAfterUtc;
+            if (Snapshot.Status == ApplicationUpdateStatus.Checking) _nextCheckUtc = _retryAfterUtc;
             Publish(ApplicationUpdateStatus.Failed, error: ex.Message);
             _log($"Application update failed; the current application continues running: {ex.Message}");
         }
