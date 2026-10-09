@@ -43,6 +43,18 @@ public sealed class ApplicationUpdateMenuTests
         Assert.StartsWith("Postponed until", ApplicationUpdateMenu.Describe(ready with { DeferredUntilUtc = now.AddDays(1) }, now));
     }
 
+    [Fact]
+    public void FailedUpdate_DisplaysActualRetryDeadline()
+    {
+        var now = new DateTime(2026, 10, 9, 0, 0, 0, DateTimeKind.Utc);
+        var failed = new ApplicationUpdateSnapshot(ApplicationUpdateStatus.Failed, "0.2.5", null, false, true,
+            RetryAfterUtc: now.AddHours(2));
+
+        Assert.Equal($"Update failed — retry after {now.AddHours(2).ToLocalTime():g}",
+            ApplicationUpdateMenu.Describe(failed, now));
+        Assert.Equal("Update failed — try again later", ApplicationUpdateMenu.Describe(failed, now.AddHours(3)));
+    }
+
     private static void RunSta(Action action)
     {
         Exception? failure = null;

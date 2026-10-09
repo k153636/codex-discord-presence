@@ -15,7 +15,8 @@ internal sealed record ApplicationUpdateSnapshot(
     DateTime? RestartAtUtc = null,
     DateTime? DeferredUntilUtc = null,
     string? Error = null,
-    bool BackgroundChecksEnabled = true);
+    bool BackgroundChecksEnabled = true,
+    DateTime? RetryAfterUtc = null);
 
 internal interface IApplicationUpdateBackend
 {

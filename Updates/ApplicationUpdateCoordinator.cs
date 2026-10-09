@@ -195,7 +195,8 @@ internal sealed class ApplicationUpdateCoordinator
         lock (_sync) _snapshot = _snapshot with
         {
             Status = status, AvailableVersion = _readyVersion ?? _availableVersion,
-            Progress = progress, RestartAtUtc = restartAtUtc, Error = error
+            Progress = progress, RestartAtUtc = restartAtUtc, Error = error,
+            RetryAfterUtc = status == ApplicationUpdateStatus.Failed ? _retryAfterUtc : null
         };
     }
 }

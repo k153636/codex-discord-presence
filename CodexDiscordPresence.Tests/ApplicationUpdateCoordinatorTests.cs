@@ -220,6 +220,7 @@ public sealed class ApplicationUpdateCoordinatorTests
         fixture.Backend.CheckError = new ApplicationUpdateRetryException("HTTP 429", Now.AddHours(2));
         await fixture.Updates.TickAsync(Now, default);
         fixture.Updates.RequestCheck();
+        Assert.Equal(Now.AddHours(2), fixture.Updates.Snapshot.RetryAfterUtc);
         await fixture.Updates.TickAsync(Now.AddHours(1), default);
         Assert.Equal(1, fixture.Backend.Checks);
         Assert.Equal(ApplicationUpdateStatus.Failed, fixture.Updates.Snapshot.Status);
