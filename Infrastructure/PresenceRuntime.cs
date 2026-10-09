@@ -909,7 +909,7 @@ public sealed class PresenceRuntime
         var largeImageKey = DiscordAssetKeyResolver.ResolveLargeImageKey(
             discordOptions,
             presence);
-        var presenceSignature = BuildPresenceSignature(presence, largeImageKey);
+        var presenceSignature = rpc.GetPayloadSignature(presence);
         var keepAliveDue = PresenceUpdatePolicy.ShouldSendKeepAlive(selectedProviderState.LastSuccessfulUpdateUtc, DateTime.UtcNow, keepAliveInterval);
         var shouldSendPresence = PresenceDispatchPolicy.ShouldSendPresence(
             presenceSignature,
@@ -1148,28 +1148,6 @@ public sealed class PresenceRuntime
         }
 
         return $"{duration.Seconds}s";
-    }
-
-    private static string BuildPresenceSignature(RenderedPresence presence, string? largeImageKey)
-    {
-        var buttons = string.Join(
-            "|",
-            presence.Buttons.Select(button => $"{button.Label}=>{button.Url}"));
-
-        return string.Join(
-            "\u001f",
-            presence.Details,
-            presence.State,
-            presence.LargeImageText,
-            presence.SmallImageText,
-            presence.ActivityKind.ToString(),
-            presence.RunningCommandKind.ToString(),
-            presence.RunningCommandName,
-            largeImageKey,
-            presence.IsThinking ? "thinking" : "working",
-            presence.IsSuccessfulCompletion ? "success" : "",
-            presence.PartySize?.ToString(System.Globalization.CultureInfo.InvariantCulture) ?? "",
-            buttons);
     }
 
     private sealed record ProfileDetectionSnapshots(

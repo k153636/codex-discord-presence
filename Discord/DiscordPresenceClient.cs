@@ -58,6 +58,13 @@ public sealed class DiscordPresenceClient : IDisposable
 
     public DiscordPresenceSnapshot? LastPublishedPresence { get; private set; }
 
+    internal string GetPayloadSignature(RenderedPresence presence)
+    {
+        var payload = DiscordRichPresenceBuilder.Create(_options, presence, _partyId);
+        // Use the SDK's serialization contract after normalization and asset resolution.
+        return Newtonsoft.Json.JsonConvert.SerializeObject(payload);
+    }
+
     internal void RequestPresenceRefresh()
     {
         ProcessPendingNotifications();
