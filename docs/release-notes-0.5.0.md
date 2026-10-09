@@ -1,7 +1,7 @@
 # 0.5.0
 
-Release preparation for K's Code Presence on Windows x64. Publishing the release
-is a separate step from building these packages.
+K's Code Presence 0.5.0 for Windows x64. Download the Setup installer or portable
+ZIP from the [GitHub Release](https://github.com/k153636/codex-discord-presence/releases/tag/v0.5.0).
 
 - Adds opt-in Claude Code and Antigravity CLI integrations alongside Codex
   Desktop and CLI, using current provider activity and a shared switching gate.

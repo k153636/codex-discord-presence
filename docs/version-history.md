@@ -1,10 +1,8 @@
 # Release numbering
 
 K's Code Presence uses `major.minor.patch` versions. The existing releases are
-renumbered to describe the project's development stage. The source version and
-prepared packages for the multiple-CLI release are **0.5.0**. See the
-[0.5.0 release notes](release-notes-0.5.0.md). Preparing packages does not publish a
-GitHub release; publication is a separate step.
+renumbered to describe the project's development stage. The multiple-CLI release is **0.5.0**, tagged `v0.5.0`. See the
+[0.5.0 release notes](release-notes-0.5.0.md).
 
 | Display version | Historical GitHub tag |
 | --- | --- |
@@ -20,7 +18,7 @@ new display version. Future releases use the new version in the title, tag,
 assembly metadata, and update package.
 
 The archived standalone executables remain framework-dependent .NET 9 builds
-and require the .NET 9 Desktop Runtime. The next Setup installer and portable ZIP
+and require the .NET 9 Desktop Runtime. The 0.5.0 Setup installer and portable ZIP
 include the .NET 10 Desktop Runtime, as do their automatic-update packages.
 Changing the source target does not change archived binaries or their runtime
 requirements.
@@ -29,6 +27,5 @@ The update checker maps only these four archived GitHub release IDs and their
 original tags. It does not reinterpret arbitrary or future 1.x versions.
 
 Old executables only check for updates; they cannot acquire automatic-update
-support themselves. Install the updater-enabled distribution once when it is
-released. Existing settings and provider enablement remain under
+support themselves. Install the updater-enabled distribution once. Existing settings and provider enablement remain under
 `%LOCALAPPDATA%\CodexDiscordPresence`.

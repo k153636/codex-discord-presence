@@ -1,11 +1,11 @@
 # Automatic updates
 
-The next distribution includes a Velopack Setup installer, a portable ZIP, and a
+The 0.5.0 distribution includes a Velopack Setup installer, a portable ZIP, and a
 versioned update package/feed. Both Setup and the extracted portable app support
 updates. The old standalone EXE has no replacement mechanism: move to Setup or
 the portable ZIP once to enable it. Old release download links remain valid.
 
-The next Setup and portable distributions include the .NET 10 Desktop Runtime.
+The 0.5.0 Setup and portable distributions include the .NET 10 Desktop Runtime.
 Their full and delta update packages carry the runtime with the app, so an
 existing .NET 9 installation can move to .NET 10 without installing a separate
 runtime. Historical standalone EXEs retain their .NET 9 Desktop Runtime
@@ -45,8 +45,8 @@ fixes require rebuilding and distributing the app with the patched SDK; a
 system-wide .NET update does not patch the bundled runtime. See Microsoft's
 [self-contained deployment guidance](https://learn.microsoft.com/en-us/dotnet/core/deploying/runtime-patch-selection).
 
-1. Set the project `<Version>` to the three-component release number. The prepared
-   multiple-CLI release is `0.5.0`; packaging does not publish it.
+1. Set the project `<Version>` to the three-component release number. The
+   multiple-CLI release is `0.5.0`; packaging alone does not publish a release.
 2. Run `package.cmd` (or `scripts/BuildRelease.ps1`). The pinned `vpk` tool and
    application library must have the same version. Each run creates a fresh directory
    under ignored `Releases/`, so rebuilding never replaces an earlier package.

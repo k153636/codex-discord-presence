@@ -74,7 +74,7 @@
         "name": "What are the current requirements?",
         "acceptedAnswer": {
           "@type": "Answer",
-          "text": "The current published build targets Windows x64, requires the .NET 9 Desktop Runtime, and requires Discord Desktop to be running for Rich Presence delivery."
+          "text": "0.5.0 targets Windows x64 and requires Discord Desktop and the Microsoft Edge WebView2 Runtime. Setup and portable distributions include the .NET 10 Desktop Runtime; no separate .NET installation is required."
         }
       },
       {
@@ -129,14 +129,14 @@
     <p>The project does not provide a hosted backend or user account. It reads local session and project metadata, then sends the configured rendered activity to Discord's local RPC client. The configured activity may include a project name, file label, or reasoning summary. Review the <a href="privacy.html">data-flow notes</a> before using custom templates.</p>
 
     <h2>What are the current requirements?</h2>
-    <p>The current published build targets Windows x64, requires the .NET 9 Desktop Runtime, and requires Discord Desktop to be running for Rich Presence delivery.</p>
-    <p>The next Setup installer and portable ZIP will include the .NET 10 Desktop Runtime. Their update packages will also carry the runtime; archived standalone executables will still require .NET 9.</p>
+    <p>0.5.0 targets Windows x64 and requires Discord Desktop and the Microsoft Edge WebView2 Runtime. Setup and portable distributions include the .NET 10 Desktop Runtime; no separate .NET installation is required.</p>
+    <p>Archived standalone executables still require .NET 9. Install Setup or the portable distribution once to gain automatic updates; existing settings are preserved.</p>
 
     <h2>Is this an official OpenAI, Anthropic, Google, or Discord product?</h2>
     <p>No. This is an unofficial community project and is not endorsed by OpenAI, Anthropic, Google, or Discord.</p>
 
     <h2>Where can I download it?</h2>
-    <p>Use the <a href="https://github.com/k153636/codex-discord-presence/releases/latest">latest GitHub Release</a>. The release currently provides <code>discord-presence-for-codex.exe</code>.</p>
+    <p>Use the <a href="https://github.com/k153636/codex-discord-presence/releases/latest">latest GitHub Release</a>. Run <code>K.CodePresence-win-Setup.exe</code>, or extract the entire <code>K.CodePresence-win-Portable.zip</code> and launch <code>K's Code Presence.exe</code>.</p>
 </main>
 
   <footer class="site-footer" data-motion="site-footer">

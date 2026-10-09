@@ -16,8 +16,8 @@
 - Brand: K's Code Presence.
 - Product type: local Windows tray application.
 - Supported published target: Windows x64.
-- Current runtime requirement: .NET 9 Desktop Runtime.
-- Upcoming Setup and portable distribution: self-contained .NET 10 Desktop Runtime, including automatic-update packages; no separate .NET installation required. Archived standalone EXEs remain .NET 9 builds.
+- Current release: 0.5.0. Dashboard requires Microsoft Edge WebView2 Runtime.
+- Setup and portable distribution: self-contained .NET 10 Desktop Runtime, including automatic-update packages; no separate .NET installation required. Archived standalone EXEs remain .NET 9 builds.
 - Discord requirement: Discord Desktop must be running for local Rich Presence delivery.
 - Supported tools: Codex Desktop and a separate Codex CLI profile (built in), plus opt-in Claude Code and Antigravity CLI integrations enabled from the Dashboard.
 - Claude Code: observational hooks and a statusLine wrapper in ~/.claude/settings.json; shows model, effort, MCP and file activity, terminal spinner labels, Claude Design, subagent party, and cumulative main-session tokens. While waiting, tokens and observed five-hour usage/reset countdown alternate every five seconds with the same formatting as Codex. Estimated cost and usage require matching session/project statusLine evidence; missing values stay unknown and cost is not a subscription charge. Original terminal output is preserved. Prompts, tool output, and source text are discarded.
@@ -37,4 +37,4 @@
 
 ## Installation
 
-Download `discord-presence-for-codex.exe` from the latest GitHub Release and run it on Windows x64 with the .NET 9 Desktop Runtime installed.
+Download `K.CodePresence-win-Setup.exe` from the latest GitHub Release, or extract the entire `K.CodePresence-win-Portable.zip` and launch its root `K's Code Presence.exe`. Both include .NET 10 and support automatic updates. Discord Desktop and WebView2 Runtime are required.
