@@ -70,13 +70,13 @@ internal sealed class DashboardPresenceImageSlot : IDisposable
 
         var cancellation = new CancellationTokenSource();
         _loadCancellation = cancellation;
+        ReplaceImage(_fallbackImage);
         _ = LoadRemoteImageAsync(imageUri, requestVersion, cancellation);
     }
 
     public void Dispose()
     {
         if (_disposed)
-        ReplaceImage(_fallbackImage);
         {
             return;
         }
