@@ -670,8 +670,8 @@ public sealed class DiscordPresenceClientTests
         transport.Acknowledge(transport.SetPresenceCalls[1]);
         fixture.Client.MaintainConnection();
         Assert.False(gate.RecordPresenceAcknowledgment(fixture.Client.LastPublishedPresence, new DateTimeOffset(fixture.Now)));
-        Assert.Equal(ProviderIds.ClaudeCode, gate.Select([claude, codex], start.AddSeconds(10.136))?.ProviderId);
-        Assert.Equal(ProviderIds.Codex, gate.Select([claude, codex], start.AddSeconds(10.137))?.ProviderId);
+        Assert.Equal(ProviderIds.ClaudeCode, gate.Select([claude, codex], start.AddSeconds(20.136))?.ProviderId);
+        Assert.Equal(ProviderIds.Codex, gate.Select([claude, codex], start.AddSeconds(20.137))?.ProviderId);
     }
 
     [Fact]

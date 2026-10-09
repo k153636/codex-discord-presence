@@ -2,7 +2,7 @@ namespace CodexDiscordPresence;
 
 internal sealed class ProviderActivationGate
 {
-    internal static readonly TimeSpan MinimumSwitchInterval = TimeSpan.FromSeconds(5);
+    internal static readonly TimeSpan MinimumSwitchInterval = TimeSpan.FromSeconds(15);
     private string? _currentProviderId;
     private DateTimeOffset? _lastSelectionUtc;
     private DateTimeOffset? _dashboardPublishedAtUtc;

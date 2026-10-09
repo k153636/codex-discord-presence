@@ -24,7 +24,7 @@ Discord follows the AI coding tool you are actually using. Codex works out of th
 
 Enabling an integration does not force it to take over; the tool with current, project-matching activity is shown.
 
-Automatic switching waits at least five seconds after Discord acknowledges the current tool's first activity. The Dashboard also holds a tool for five seconds after its first activity card is drawn. Activity updates within the same tool remain live; repeated acknowledgments do not restart the hold. If no acknowledgment arrives, the wait expires after 30 seconds so switching cannot stall indefinitely.
+Automatic switching waits at least 15 seconds after Discord acknowledges the current tool's first activity. The Dashboard also holds a tool for 15 seconds after its first activity card is drawn. Activity updates within the same tool remain live; repeated acknowledgments do not restart the hold. If no acknowledgment arrives, the wait expires after 30 seconds so switching cannot stall indefinitely.
 
 ## What it can show in Discord
 

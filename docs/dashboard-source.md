@@ -35,7 +35,7 @@ small image policy, real buttons and window controls, missing-data visibility,
 and accessible labels. They do not introduce a second visual design.
 
 DOM reconciliation preserves image elements and focus during elapsed-time
-updates. The existing five second selection gates receive confirmation after
+updates. The shared 15 second selection gates receive confirmation after
 the browser paints. Provider checkboxes persist through the same state store as
 the tray menu. Solo sessions omit the small image and tooltip.
 
