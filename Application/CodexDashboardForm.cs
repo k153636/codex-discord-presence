@@ -21,6 +21,7 @@ public sealed class CodexDashboardForm : Form
     private string? _lastPayload;
     private long _snapshotId;
     private bool _ready;
+    private int _canvasHeight = DashboardWebPayload.DefaultCanvasHeight;
 
     public CodexDashboardForm(PresenceRuntimeState runtimeState)
         : this(runtimeState, new PresenceStateStore(), PresenceStateStore.GetDefaultPath()) { }
@@ -33,11 +34,11 @@ public sealed class CodexDashboardForm : Form
         Text = ProductBrand.Name;
         AccessibleName = $"{ProductBrand.Name} dashboard";
         StartPosition = FormStartPosition.CenterScreen;
-        // The export includes its own title bar. Use its complete original canvas size.
+        // The export owns its title bar; the preview retains the former compact size.
         FormBorderStyle = FormBorderStyle.None;
         AutoScaleMode = AutoScaleMode.Dpi;
         AutoScaleDimensions = new SizeF(96, 96);
-        ClientSize = new Size(402, 414);
+        ClientSize = new Size(DashboardWebPayload.CanvasWidth, DashboardWebPayload.DefaultCanvasHeight);
         MinimumSize = ClientSize;
         BackColor = _webView.DefaultBackgroundColor;
         Controls.Add(_webView);
@@ -97,7 +98,16 @@ public sealed class CodexDashboardForm : Form
     {
         if (!_ready || IsDisposed || Disposing) return;
         var snapshot = SelectSnapshot();
-        var payload = JsonSerializer.Serialize(DashboardWebPayload.Create(snapshot, _runtimeState, DateTime.UtcNow), WebJson);
+        var data = DashboardWebPayload.Create(snapshot, _runtimeState, DateTime.UtcNow);
+        if (WindowState == FormWindowState.Normal && data.CanvasHeight != _canvasHeight)
+        {
+            _canvasHeight = data.CanvasHeight;
+            var height = (int)Math.Round(_canvasHeight * DeviceDpi / 96d);
+            MinimumSize = Size.Empty;
+            ClientSize = new Size(ClientSize.Width, height);
+            MinimumSize = new Size((int)Math.Round(DashboardWebPayload.CanvasWidth * DeviceDpi / 96d), height);
+        }
+        var payload = JsonSerializer.Serialize(data, WebJson);
         if (payload == _lastPayload && snapshot.PublishedPresence?.PublicationGeneration == _sentSnapshot?.PublishedPresence?.PublicationGeneration) return;
         _lastPayload = payload;
         _sentSnapshot = snapshot;

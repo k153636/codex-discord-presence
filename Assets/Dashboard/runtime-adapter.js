@@ -1,5 +1,6 @@
 /* Runtime binding for the unchanged Claude Design standalone export.
-   The original component owns markup, colors, dimensions and provider art. */
+   The original component owns markup, colors and provider art.
+   Preview dimensions retain the former compact size requested by the user. */
 (() => {
   "use strict";
   let component, snapshot, snapshotId = 0, register;
@@ -89,6 +90,9 @@
   function decorate(root) {
     const card = root.querySelector("figure");
     if (!card) return;
+    card.style.width = `${snapshot.previewWidth}px`;
+    card.style.height = `${snapshot.previewHeight}px`;
+    root.querySelector(".kcp").style.height = `${snapshot.canvasHeight - 2}px`;
     card.querySelector("div > span").textContent = snapshot.activityType || "Discord preview";
     const images = card.querySelectorAll("img");
     images[0].hidden = !snapshot.largeImage;

@@ -22,6 +22,13 @@ internal sealed record DashboardWebPayload(
     bool HasPublishedPresence,
     bool Enabled)
 {
+    internal const int CanvasWidth = 402;
+    internal const int DefaultCanvasHeight = 379;
+    // Match the former native preview's painted card, including its 1 px inset.
+    public int PreviewWidth => 359;
+    public int PreviewHeight => string.IsNullOrWhiteSpace(ButtonLabel) ? 147 : 181;
+    public int CanvasHeight => DefaultCanvasHeight + PreviewHeight - 147;
+
     private static readonly ConcurrentDictionary<string, string> StaticFrames = new(StringComparer.OrdinalIgnoreCase);
     internal static DashboardWebPayload Create(PresenceDashboardSnapshot snapshot, PresenceRuntimeState runtime, DateTime nowUtc)
     {

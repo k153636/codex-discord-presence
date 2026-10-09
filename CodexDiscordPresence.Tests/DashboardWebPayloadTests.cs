@@ -4,6 +4,19 @@ namespace CodexDiscordPresence.Tests;
 
 public sealed class DashboardWebPayloadTests
 {
+    [Theory]
+    [InlineData(null, 147, 379)]
+    [InlineData("", 147, 379)]
+    [InlineData("K's Code RPC", 181, 413)]
+    public void PreviewDimensions_MatchOriginalCompactCard(string? buttonLabel, int height, int canvasHeight)
+    {
+        var payload = DashboardWebPayload.Create(PresenceDashboardSnapshot.Empty, new PresenceRuntimeState(), DateTime.UtcNow)
+            with {ButtonLabel = buttonLabel};
+        Assert.Equal(359, payload.PreviewWidth);
+        Assert.Equal(height, payload.PreviewHeight);
+        Assert.Equal(canvasHeight, payload.CanvasHeight);
+    }
+
     [Fact]
     public void OriginalDashboard_RemainsByteIdenticalToReceivedExport()
     {

@@ -10,7 +10,11 @@ provider artwork are not a recreation in Windows Forms.
 - Received export filename: `Dashboard.html`
 - SHA-256: `587933D7CFF0CCE6A4D148BFE4038CCC0EBBB9339AC2474E5F4EE88DBB201D16`
 - Original canvas: 400 by 412 CSS pixels, plus its own 1 pixel border on each
-  side; the host client area is 402 by 414 pixels at 100% scale.
+  side. The application keeps the original 402 pixel host width and restores
+  the user's previous preview size: 359 by 147 pixels without a button, or
+  359 by 181 pixels with a button. Host height is 379 or 413 pixels respectively
+  at 100% scale. Only the adapter applies these requested dimension overrides;
+  the received HTML bytes remain unchanged.
 
 `OriginalDashboard_RemainsByteIdenticalToReceivedExport` guards the original
 bytes. Replace the export and update this provenance only for an approved new

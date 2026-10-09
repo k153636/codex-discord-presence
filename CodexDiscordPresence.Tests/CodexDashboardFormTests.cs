@@ -16,7 +16,7 @@ public sealed class CodexDashboardFormTests
             using var form = new CodexDashboardForm(new PresenceRuntimeState());
             Assert.Equal(ProductBrand.Name, form.Text);
             Assert.Equal($"{ProductBrand.Name} dashboard", form.AccessibleName);
-            Assert.Equal(new Size(402, 414), form.ClientSize);
+            Assert.Equal(new Size(402, 379), form.ClientSize);
             Assert.Equal(FormBorderStyle.None, form.FormBorderStyle);
             Assert.IsType<WebView2>(Assert.Single(form.Controls.Cast<Control>()));
         });

@@ -50,9 +50,10 @@ internal static class Program
                 var core = browser.CoreWebView2 ?? throw new InvalidOperationException("Browser is unavailable.");
                 // Exercise browser layout without changing Windows monitor settings.
                 var scale = dpi / 96d;
+                var canvasHeight = form.ClientSize.Height / (form.DeviceDpi / 96d);
                 browser.ZoomFactor = scale / (form.DeviceDpi / 96d);
                 form.MinimumSize = Size.Empty;
-                form.ClientSize = new Size((int)Math.Ceiling(402 * scale), (int)Math.Ceiling(414 * scale));
+                form.ClientSize = new Size((int)Math.Ceiling(402 * scale), (int)Math.Ceiling(canvasHeight * scale));
                 await Task.Delay(500);
                 var layout = await core.ExecuteScriptAsync("JSON.stringify({width:innerWidth,height:innerHeight,scrollWidth:document.documentElement.scrollWidth,scrollHeight:document.documentElement.scrollHeight})");
                 using var document = System.Text.Json.JsonDocument.Parse(System.Text.Json.JsonSerializer.Deserialize<string>(layout)!);
