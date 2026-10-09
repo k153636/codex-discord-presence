@@ -89,7 +89,7 @@ public sealed class PresenceRuntime
             await rpc.StartAsync(_cancellationToken);
             var session = new SessionClock(_sessionStartedAtUtc ?? DateTime.UtcNow);
 
-            var keepAliveInterval = TimeSpan.FromSeconds(15);
+            var keepAliveInterval = PresenceUpdatePolicy.KeepAliveInterval;
             var lastLoggedProjectPath = activeProjectPath;
             var wasDisabled = false;
             var useInitialProfileSnapshots = true;
