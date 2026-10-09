@@ -6,7 +6,7 @@ namespace CodexDiscordPresence;
 
 internal sealed class ClaudeCodeHookInstaller(string settingsPath, string integrationDirectory, string executablePath)
 {
-    private const string OwnershipMarker = "CodexDiscordPresence.ClaudeCodeHook.v1";
+    private const string OwnershipMarker = ClaudeCodeNativeCommand.HookOwnershipMarker;
     private bool _installed;
     private string? _lastFailure;
 
@@ -199,15 +199,12 @@ internal sealed class ClaudeCodeHookInstaller(string settingsPath, string integr
 
     internal static JsonObject CreateDefinition(string executablePath)
     {
-        var escapedPath = executablePath.Replace("'", "''", StringComparison.Ordinal);
-        var script = $"# {OwnershipMarker}\n$payload = [Console]::In.ReadToEnd(); $payload | & '{escapedPath}' --claude-hook; exit 0";
-        var encoded = Convert.ToBase64String(Encoding.Unicode.GetBytes(script));
         return new JsonObject
         {
             ["hooks"] = new JsonArray(new JsonObject
             {
                 ["type"] = "command",
-                ["command"] = "powershell.exe -NoLogo -NoProfile -NonInteractive -WindowStyle Hidden -EncodedCommand " + encoded,
+                ["command"] = ClaudeCodeNativeCommand.Create(executablePath, "--claude-hook"),
                 ["timeout"] = 5
             })
         };

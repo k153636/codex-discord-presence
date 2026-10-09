@@ -6,7 +6,7 @@ namespace CodexDiscordPresence;
 
 internal sealed class ClaudeCodeStatusLineInstaller(string settingsPath, string integrationDirectory, string executablePath)
 {
-    private const string OwnershipMarker = "CodexDiscordPresence.ClaudeCodeStatusLine.v1";
+    private const string OwnershipMarker = ClaudeCodeNativeCommand.StatusLineOwnershipMarker;
     private bool _installed;
     private string? _lastFailure;
     private string ManifestPath => Path.Combine(integrationDirectory, "status-line-owner.json");
@@ -161,33 +161,8 @@ internal sealed class ClaudeCodeStatusLineInstaller(string settingsPath, string 
             throw new IOException("Claude settings changed concurrently; installation deferred.");
     }
 
-    internal static string CreateCommand(string executablePath)
-    {
-        // Native streams preserve Unicode, ANSI escapes and newlines from the user's existing command.
-        var script = $$"""
-            # {{OwnershipMarker}}
-            $ProgressPreference = 'SilentlyContinue'
-            $p = New-Object System.Diagnostics.Process
-            $p.StartInfo.FileName = '{{executablePath.Replace("'", "''", StringComparison.Ordinal)}}'
-            $p.StartInfo.Arguments = '--claude-statusline'
-            $p.StartInfo.UseShellExecute = $false
-            $p.StartInfo.CreateNoWindow = $true
-            $p.StartInfo.RedirectStandardInput = $true
-            $p.StartInfo.RedirectStandardOutput = $true
-            $p.StartInfo.RedirectStandardError = $true
-            [void]$p.Start()
-            $outTask = $p.StandardOutput.BaseStream.CopyToAsync([Console]::OpenStandardOutput())
-            $errTask = $p.StandardError.BaseStream.CopyToAsync([Console]::OpenStandardError())
-            [Console]::OpenStandardInput().CopyTo($p.StandardInput.BaseStream)
-            $p.StandardInput.Close()
-            [void]$outTask.GetAwaiter().GetResult()
-            [void]$errTask.GetAwaiter().GetResult()
-            $p.WaitForExit()
-            exit $p.ExitCode
-            """;
-        return "powershell.exe -NoLogo -NoProfile -NonInteractive -WindowStyle Hidden -EncodedCommand " +
-            Convert.ToBase64String(Encoding.Unicode.GetBytes(script));
-    }
+    internal static string CreateCommand(string executablePath) =>
+        ClaudeCodeNativeCommand.Create(executablePath, "--claude-statusline");
 
     private static bool IsAppCommand(JsonNode? node)
     {
