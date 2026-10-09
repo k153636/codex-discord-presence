@@ -202,6 +202,39 @@ public sealed class ProviderActivationGateTests
         Assert.Equal(ProviderIds.ClaudeCode, gate.Select([claude], now.AddSeconds(5))?.ProviderId);
     }
 
+    [Theory]
+    [InlineData(ProviderIds.Codex, ProviderIds.ClaudeCode, ProviderIds.Antigravity)]
+    [InlineData(ProviderIds.ClaudeCode, ProviderIds.Antigravity, ProviderIds.Codex)]
+    [InlineData(ProviderIds.Antigravity, ProviderIds.Codex, ProviderIds.ClaudeCode)]
+    public void Select_AllCliPairsHoldOwnerForFiveSecondsAfterEachSwitch(
+        string initial, string next, string third)
+    {
+        var now = DateTimeOffset.Parse("2026-10-09T00:00:00Z");
+        var gate = new ProviderActivationGate(initial);
+        var current = Candidate(initial, now, true);
+        gate.Select([current], now);
+        var replacement = Candidate(next, now, true) with { LastActivityEventAtUtc = now.AddSeconds(1) };
+        Assert.Equal(initial, gate.Select([current, replacement], now.AddSeconds(4.999))?.ProviderId);
+        Assert.Equal(next, gate.Select([current, replacement], now.AddSeconds(5))?.ProviderId);
+        var newest = Candidate(third, now, true) with { LastActivityEventAtUtc = now.AddSeconds(6) };
+        Assert.Equal(next, gate.Select([current, replacement, newest], now.AddSeconds(9.999))?.ProviderId);
+        Assert.Equal(third, gate.Select([current, replacement, newest], now.AddSeconds(10))?.ProviderId);
+    }
+
+    [Fact]
+    public void Select_SameCliActivityUpdatesImmediatelyWithoutExtendingSwitchCooldown()
+    {
+        var now = DateTimeOffset.Parse("2026-10-09T00:00:00Z");
+        var gate = new ProviderActivationGate(ProviderIds.Codex);
+        var codex = Candidate(ProviderIds.Codex, now, true);
+        gate.Select([codex], now);
+        var updated = codex with { LastActivityEventAtUtc = now.AddSeconds(4) };
+        Assert.Same(updated, gate.Select([updated], now.AddSeconds(4)));
+        var claude = Candidate(ProviderIds.ClaudeCode, now, true) with { LastActivityEventAtUtc = now.AddSeconds(4.5) };
+        Assert.Equal(ProviderIds.Codex, gate.Select([updated, claude], now.AddSeconds(4.999))?.ProviderId);
+        Assert.Equal(ProviderIds.ClaudeCode, gate.Select([updated, claude], now.AddSeconds(5))?.ProviderId);
+    }
+
     private static ProviderSelectionCandidate Candidate(
         string providerId,
         DateTimeOffset observedAt,
