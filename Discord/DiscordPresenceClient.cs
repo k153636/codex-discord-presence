@@ -10,6 +10,7 @@ public sealed class DiscordPresenceClient : IDisposable
     private readonly Func<DateTime> _utcNow;
     private IDiscordPresenceTransport? _client;
     private bool _isReady;
+    private long _publicationGeneration;
     private bool _disposed;
     private DateTime? _connectionStartedUtc;
     private PendingPresence? _pendingPresence;
@@ -142,7 +143,10 @@ public sealed class DiscordPresenceClient : IDisposable
                 return false;
             }
 
-            _pendingPresence = new(DiscordPresenceSnapshot.From(publishedPresence), nowUtc);
+            _pendingPresence = new(DiscordPresenceSnapshot.From(publishedPresence) with
+            {
+                ProviderId = presence.ProviderId
+            }, nowUtc);
             client.SetPresence(publishedPresence);
             _clearSentForCurrentConnection = false;
             _needsPresenceRefresh = false;
@@ -256,6 +260,7 @@ public sealed class DiscordPresenceClient : IDisposable
                     break;
                 case DiscordPresenceNotificationKind.Ready:
                     _isReady = true;
+                    _publicationGeneration++;
                     _connectionStartedUtc = null;
                     _failedInitializeAttempts = 0;
                     _nextInitializeAttemptUtc = DateTime.MinValue;
@@ -292,15 +297,23 @@ public sealed class DiscordPresenceClient : IDisposable
         }
 
         var requested = _pendingPresence.Presence;
+        if (presence is null)
+        {
+            _publicationGeneration++;
+        }
         LastPublishedPresence = presence is not null && requested is not null
             ? presence with
             {
+                ProviderId = requested.ProviderId,
+                AcknowledgedAtUtc = _utcNow(),
+                PublicationGeneration = _publicationGeneration,
                 LargeImageKey = ResolveAcknowledgedImageKey(requested.LargeImageKey, presence.LargeImageKey),
                 SmallImageKey = ResolveAcknowledgedImageKey(requested.SmallImageKey, presence.SmallImageKey)
             }
             : presence;
         _pendingPresence = null;
-        _log.Info(presence is null ? "Discord RPC presence clear acknowledged." : "Discord RPC presence acknowledged.");
+        _log.Info(presence is null ? "Discord RPC presence clear acknowledged."
+            : $"Discord RPC presence acknowledged. provider={requested?.ProviderId ?? "unknown"}; publication={_publicationGeneration}");
     }
 
     private static string? ResolveAcknowledgedImageKey(string? requested, string? acknowledged)

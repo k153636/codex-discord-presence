@@ -100,6 +100,11 @@ public sealed class PresenceRuntime
                 try
                 {
                     rpc.MaintainConnection();
+                    var confirmationObservedAtUtc = DateTimeOffset.UtcNow;
+                    if (providerActivationGate.RecordPresenceAcknowledgment(rpc.LastPublishedPresence, confirmationObservedAtUtc))
+                    {
+                        LogProviderConfirmation(currentProviderId, confirmationObservedAtUtc);
+                    }
                     RefreshTimingSettingsIfNeeded();
 
                     var antigravityEnabled = _state.Enabled &&
@@ -366,11 +371,16 @@ public sealed class PresenceRuntime
                         rpc.IsConnected,
                         DateTime.UtcNow)
                     {
-                        PublishedPresence = rpc.LastPublishedPresence,
+                        PublishedPresence = string.Equals(rpc.LastPublishedPresence?.ProviderId,
+                            selectedProvider.ProviderId, StringComparison.OrdinalIgnoreCase) ? rpc.LastPublishedPresence : null,
                         IsDiscordConnecting = rpc.IsConnecting,
                         ProviderId = selectedProvider.ProviderId
                     };
                     _state.PublishDashboardSnapshot(dashboardSnapshot);
+                    if (providerActivationGate.RecordDashboardPublication(dashboardSnapshot))
+                    {
+                        LogProviderConfirmation(selectedProvider.ProviderId, new DateTimeOffset(dashboardSnapshot.UpdatedAtUtc));
+                    }
                     deferSessionEnrichment = false;
                 }
                 catch (OperationCanceledException) when (_cancellationToken.IsCancellationRequested)
@@ -401,6 +411,12 @@ public sealed class PresenceRuntime
             rpc.Dispose();
             _log.Info($"Stopped {ProductBrand.Name}.");
         }
+    }
+
+    private void LogProviderConfirmation(string providerId, DateTimeOffset confirmedAtUtc)
+    {
+        _log.Info($"Provider presence confirmed: {providerId}; " +
+            $"holdUntilUtc={confirmedAtUtc.Add(ProviderActivationGate.MinimumSwitchInterval):O}");
     }
 
     private bool HandleDisabledState(DiscordPresenceClient rpc, bool wasDisabled)

@@ -16,6 +16,12 @@ public sealed record DiscordPresenceSnapshot(
 {
     public ActivityType ActivityType { get; init; } = ActivityType.Playing;
 
+    public string? ProviderId { get; init; }
+
+    public DateTime? AcknowledgedAtUtc { get; init; }
+
+    public long PublicationGeneration { get; init; }
+
     public static DiscordPresenceSnapshot From(RichPresence presence)
     {
         ArgumentNullException.ThrowIfNull(presence);

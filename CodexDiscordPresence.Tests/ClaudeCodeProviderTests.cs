@@ -169,6 +169,12 @@ public sealed class ClaudeCodeProviderTests
             IsActive: true, ActivityStartedAtUtc: Now);
         var claude = codex with { ProviderId = ProviderIds.ClaudeCode, LastObservedAtUtc = Now.AddSeconds(1), ActivityStartedAtUtc = Now.AddSeconds(1) };
         Assert.Equal(ProviderIds.Codex, gate.Select([codex], Now)!.ProviderId);
+        Assert.True(gate.RecordPresenceAcknowledgment(new("details", "state", null, null, null, null, null, null, null, [])
+        {
+            ProviderId = ProviderIds.Codex,
+            AcknowledgedAtUtc = Now.UtcDateTime,
+            PublicationGeneration = 1
+        }, Now));
         Assert.Equal(ProviderIds.Codex, gate.Select([codex, claude], Now.AddSeconds(1))!.ProviderId);
         Assert.Equal(ProviderIds.ClaudeCode, gate.Select([codex, claude], Now.AddSeconds(5))!.ProviderId);
         var idle = claude with { IsActive = false, LastObservedAtUtc = Now.AddSeconds(-10) };

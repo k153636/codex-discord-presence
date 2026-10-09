@@ -584,6 +584,107 @@ public sealed class DiscordPresenceClientTests
         Assert.False(fixture.Client.Update(CreatePresence()));
     }
 
+    [Fact]
+    public async Task Acknowledgment_UsesPendingProviderAndAcceptanceTimeWithoutBorrowingQueuedResponseMetadata()
+    {
+        var transport = new FakeDiscordPresenceTransport { AutoAcknowledge = false };
+        using var fixture = new ClientFixture(transport);
+        await fixture.Client.StartAsync(CancellationToken.None);
+        fixture.Client.Update(CreatePresence() with { ProviderId = ProviderIds.ClaudeCode });
+        Assert.Null(fixture.Client.LastPublishedPresence);
+        fixture.Now = fixture.Now.AddSeconds(5.137);
+        transport.Acknowledge(transport.SetPresenceCalls[0]);
+        fixture.Client.MaintainConnection();
+        Assert.Equal(ProviderIds.ClaudeCode, fixture.Client.LastPublishedPresence?.ProviderId);
+        Assert.Equal(fixture.Now, fixture.Client.LastPublishedPresence?.AcknowledgedAtUtc);
+        Assert.Equal(1, fixture.Client.LastPublishedPresence?.PublicationGeneration);
+        Assert.Contains("provider=claude-code", File.ReadAllText(fixture.Log.Path));
+    }
+
+    [Fact]
+    public async Task Acknowledgment_SameApplicationProviderSwitchRetainsRequestOwnershipUntilFreshResponse()
+    {
+        var transport = new FakeDiscordPresenceTransport { AutoAcknowledge = false };
+        using var fixture = new ClientFixture(transport);
+        await fixture.Client.StartAsync(CancellationToken.None);
+        fixture.Client.Update(CreatePresence() with { ProviderId = ProviderIds.Codex });
+        transport.Acknowledge(transport.SetPresenceCalls[0]);
+        fixture.Client.RequestPresenceRefresh();
+        Assert.Equal(ProviderIds.Codex, fixture.Client.LastPublishedPresence?.ProviderId);
+        fixture.Now = fixture.Now.AddSeconds(1);
+        fixture.Client.Update(CreatePresence() with { ProviderId = ProviderIds.ClaudeCode, State = "Claude activity" });
+        Assert.Equal(ProviderIds.Codex, fixture.Client.LastPublishedPresence?.ProviderId);
+        transport.Acknowledge(transport.SetPresenceCalls[1]);
+        fixture.Client.MaintainConnection();
+        Assert.Equal(ProviderIds.ClaudeCode, fixture.Client.LastPublishedPresence?.ProviderId);
+        Assert.Equal(fixture.Now, fixture.Client.LastPublishedPresence?.AcknowledgedAtUtc);
+    }
+
+    [Fact]
+    public async Task Acknowledgment_ReconnectionGetsNewGenerationAndOldQueuedAckCannotConfirmIt()
+    {
+        var first = new FakeDiscordPresenceTransport();
+        var second = new FakeDiscordPresenceTransport { AutoAcknowledge = false };
+        using var fixture = new ClientFixture(first, second);
+        await fixture.Client.StartAsync(CancellationToken.None);
+        fixture.Client.Update(CreatePresence() with { ProviderId = ProviderIds.Codex });
+        Assert.Equal(1, fixture.Client.LastPublishedPresence?.PublicationGeneration);
+        first.Emit(new(DiscordPresenceNotificationKind.Closed));
+        fixture.Client.MaintainConnection();
+        fixture.Now = fixture.Now.Add(DiscordReconnectBackoff.GetDelay(1));
+        fixture.Client.Update(CreatePresence() with { ProviderId = ProviderIds.Codex });
+        first.Acknowledge(first.SetPresenceCalls[0]);
+        fixture.Client.MaintainConnection();
+        Assert.Null(fixture.Client.LastPublishedPresence);
+        second.Acknowledge(second.SetPresenceCalls[0]);
+        fixture.Client.MaintainConnection();
+        Assert.Equal(2, fixture.Client.LastPublishedPresence?.PublicationGeneration);
+        Assert.Equal(fixture.Now, fixture.Client.LastPublishedPresence?.AcknowledgedAtUtc);
+    }
+
+    [Fact]
+    public async Task Select_RealClientDelayedAckAnchorsGateToConfirmationAndLaterUpdatesDoNotPostponeSwitch()
+    {
+        var transport = new FakeDiscordPresenceTransport { AutoAcknowledge = false };
+        using var fixture = new ClientFixture(transport);
+        var start = new DateTimeOffset(fixture.Now);
+        var gate = new ProviderActivationGate(ProviderIds.ClaudeCode);
+        var claude = new ProviderSelectionCandidate(ProviderIds.ClaudeCode, true, true, start, false, false,
+            IsActive: true, LastActivityEventAtUtc: start);
+        var codex = claude with { ProviderId = ProviderIds.Codex, LastActivityEventAtUtc = start.AddSeconds(1) };
+        gate.Select([claude], start);
+        await fixture.Client.StartAsync(CancellationToken.None);
+        fixture.Client.Update(CreatePresence() with { ProviderId = ProviderIds.ClaudeCode });
+        fixture.Now = fixture.Now.AddSeconds(5.137);
+        transport.Acknowledge(transport.SetPresenceCalls[0]);
+        fixture.Client.MaintainConnection();
+        Assert.True(gate.RecordPresenceAcknowledgment(fixture.Client.LastPublishedPresence, new DateTimeOffset(fixture.Now)));
+        Assert.Equal(ProviderIds.ClaudeCode, gate.Select([claude, codex], start.AddSeconds(5.375))?.ProviderId);
+        fixture.Now = start.AddSeconds(8).UtcDateTime;
+        fixture.Client.Update(CreatePresence() with { ProviderId = ProviderIds.ClaudeCode, State = "fresh same-CLI activity" });
+        transport.Acknowledge(transport.SetPresenceCalls[1]);
+        fixture.Client.MaintainConnection();
+        Assert.False(gate.RecordPresenceAcknowledgment(fixture.Client.LastPublishedPresence, new DateTimeOffset(fixture.Now)));
+        Assert.Equal(ProviderIds.ClaudeCode, gate.Select([claude, codex], start.AddSeconds(10.136))?.ProviderId);
+        Assert.Equal(ProviderIds.Codex, gate.Select([claude, codex], start.AddSeconds(10.137))?.ProviderId);
+    }
+
+    [Fact]
+    public async Task Acknowledgment_AfterClearStartsNewPublicationWithoutReplacingConnection()
+    {
+        var transport = new FakeDiscordPresenceTransport();
+        using var fixture = new ClientFixture(transport);
+        await fixture.Client.StartAsync(CancellationToken.None);
+        fixture.Client.Update(CreatePresence() with { ProviderId = ProviderIds.Codex });
+        var firstGeneration = fixture.Client.LastPublishedPresence!.PublicationGeneration;
+        fixture.Client.Clear();
+        Assert.Null(fixture.Client.LastPublishedPresence);
+        fixture.Now = fixture.Now.AddSeconds(1);
+        fixture.Client.Update(CreatePresence() with { ProviderId = ProviderIds.Codex });
+        Assert.True(fixture.Client.LastPublishedPresence!.PublicationGeneration > firstGeneration);
+        Assert.Equal(1, transport.InitializeCalls);
+    }
+
     private sealed class ClientFixture : IDisposable
     {
         private readonly string _tempPath = CreateTempDirectory();
