@@ -35,6 +35,11 @@ across streaming blocks. Reads are incremental; child sessions and other
 sessions are excluded. The current context window is never presented as a
 session total.
 
+Hook and statusLine input is forwarded as native bytes, preserving Japanese
+project paths. Transcript token totals do not depend on statusLine installation
+success; if that installation fails, cost and subscription usage are omitted
+while available tokens remain visible.
+
 An observational wrapper around the official `statusLine` captures sanitized
 session cost and subscription usage. The original command still receives the
 same input and its output, ANSI formatting, errors and exit code pass through.

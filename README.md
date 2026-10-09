@@ -19,7 +19,7 @@ Discord follows the AI coding tool you are actually using. Codex works out of th
 | Tool | Integration | What Discord can show |
 | --- | --- | --- |
 | Codex CLI & Desktop | Built in: local session logs and process signals | Reasoning summaries, MCP servers, edited files, model and effort, tokens, subagent party and observed work status |
-| Claude Code | Opt-in: observational hooks in `~/.claude/settings.json` | Model, effort, MCP, files, terminal spinner labels, Claude Design, subagent party and child tool status |
+| Claude Code | Opt-in: observational hooks and a statusLine wrapper in `~/.claude/settings.json` | Model, effort, MCP, files, terminal spinner labels, Claude Design, subagent party, child tool status, tokens and observed usage |
 | Antigravity CLI | Opt-in: official statusLine payload | Model and effort, plan and quota usage, tool activity, and reported subagents with explicit status when available |
 
 Enabling an integration does not force it to take over; the tool with current, project-matching activity is shown.
@@ -90,7 +90,9 @@ It checks the running Codex process, session logs, and CLI command-line informat
 
 ## Claude Code
 
-Claude Code support is opt-in from the Dashboard. The app adds observational hooks to `~/.claude/settings.json`, keeps a local backup of that file, and removes only its own hook definitions when the integration is disabled. Prompts, tool output, and source text are discarded. Tokens, cost, and quota are not shown for Claude Code.
+Claude Code support is opt-in from the Dashboard. The app adds observational hooks and a statusLine wrapper to `~/.claude/settings.json`, keeps a local backup, and restores the original statusLine while removing only its own hooks when disabled. Existing terminal output is preserved. Prompts, tool output, and source text are discarded.
+
+Main-session transcript usage supplies cumulative Token totals, including cache tokens, without counting repeated streaming blocks twice. During waiting, Claude uses the same five-second Token / Usage cycle as Codex. The official statusLine supplies observed five-hour usage, reset countdown, and estimated session cost when available. Missing values remain unknown; cost is an estimate, not a subscription charge. Token totals remain available if statusLine installation encounters a conflict. See [Claude Code integration](docs/claude-code-provider.md).
 
 ## Antigravity CLI
 
@@ -115,6 +117,6 @@ If Antigravity already has a user-owned `statusLine` setting, the application re
 This project is not an official OpenAI, Anthropic, Google, or Discord product.
 
 The current release targets Windows x64.
-Token usage, cost, and rate-limit information may not be available in every environment, and are not shown for Claude Code.
+Token usage, estimated cost, and rate-limit information may not be available in every environment. Claude subscription usage requires matching session and project evidence from its statusLine.
 
 MIT License

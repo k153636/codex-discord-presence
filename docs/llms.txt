@@ -20,7 +20,7 @@
 - Upcoming Setup and portable distribution: self-contained .NET 10 Desktop Runtime, including automatic-update packages; no separate .NET installation required. Archived standalone EXEs remain .NET 9 builds.
 - Discord requirement: Discord Desktop must be running for local Rich Presence delivery.
 - Supported tools: Codex Desktop and a separate Codex CLI profile (built in), plus opt-in Claude Code and Antigravity CLI integrations enabled from the Dashboard.
-- Claude Code: observational hooks in ~/.claude/settings.json; shows model, effort, MCP and file activity, terminal spinner labels, Claude Design, and subagent party; prompts, tool output, and source text are discarded; tokens, cost, and quota are not shown.
+- Claude Code: observational hooks and a statusLine wrapper in ~/.claude/settings.json; shows model, effort, MCP and file activity, terminal spinner labels, Claude Design, subagent party, and cumulative main-session tokens. While waiting, tokens and observed five-hour usage/reset countdown alternate every five seconds with the same formatting as Codex. Estimated cost and usage require matching session/project statusLine evidence; missing values stay unknown and cost is not a subscription charge. Original terminal output is preserved. Prompts, tool output, and source text are discarded.
 - Antigravity CLI: official statusLine payload; shows model and effort, plan and quota usage, tool activity, and explicitly reported subagents.
 - Main output: one readable Discord activity line with configured details, state, assets, timestamps, and buttons.
 - Activity evidence: structured Codex session events and direct tool targets take precedence over fallback file and timestamp evidence.

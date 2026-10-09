@@ -34,7 +34,7 @@
         "name": "What does it show for Claude Code?",
         "acceptedAnswer": {
           "@type": "Answer",
-          "text": "Observed model and effort, MCP and file activity, terminal spinner labels such as Cerebrating, Claude Design work, and subagent party size. Tokens, cost, and quota are not shown for Claude Code, and prompts, tool output, and source text are discarded."
+          "text": "Observed model and effort, MCP and file activity, terminal spinner labels, Claude Design work, subagent party, and cumulative main-session tokens. While waiting, tokens alternate with observed five-hour usage and reset countdown every five seconds, using the same formatting as Codex. Estimated session cost and usage require matching statusLine evidence; missing values stay unknown. Existing terminal output is preserved, and prompts, tool output, and source text are discarded."
         }
       },
       {
@@ -114,7 +114,7 @@
     <p>Codex CLI and Codex Desktop are detected by default. Claude Code and Antigravity CLI are opt-in integrations you enable from the Dashboard. Discord shows the tool you are actually using; enabling an integration does not force it to take over. See the <a href="compatibility.html">compatibility notes</a>.</p>
 
     <h2>What does it show for Claude Code?</h2>
-    <p>Observed model and effort, MCP and file activity, terminal spinner labels such as Cerebrating, Claude Design work, and subagent party size. Tokens, cost, and quota are not shown for Claude Code, and prompts, tool output, and source text are discarded.</p>
+    <p>Observed model and effort, MCP and file activity, terminal spinner labels, Claude Design work, subagent party, and cumulative main-session tokens. While waiting, tokens alternate with observed five-hour usage and reset countdown every five seconds, using the same formatting as Codex. Estimated session cost and usage require matching statusLine evidence; missing values stay unknown. Existing terminal output is preserved, and prompts, tool output, and source text are discarded.</p>
 
     <h2>What does it show for Antigravity CLI?</h2>
     <p>Model and effort, plan and quota usage, and tool activity from Antigravity's official statusLine payload. A party appears only when the payload reports active subagents. If you already have your own statusLine setting, the app reports a conflict and leaves it unchanged.</p>

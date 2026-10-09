@@ -34,7 +34,7 @@
       <li>Process and window signals used to select the active Codex profile.</li>
       <li>Project and Git metadata used for the configured activity context.</li>
       <li>Local application settings and the saved tray enable state.</li>
-      <li>When Claude Code is enabled: sanitized session and lifecycle metadata written by observational hooks under <code>%LOCALAPPDATA%\CodexDiscordPresence</code>. Prompts, tool responses, shell commands, source text, and thinking bodies are discarded, and Claude credentials are never read.</li>
+      <li>When Claude Code is enabled: sanitized session and lifecycle metadata from observational hooks, and matching session cost and usage metadata from a statusLine wrapper, are stored under <code>%LOCALAPPDATA%\CodexDiscordPresence</code>. The main-session transcript is read locally for model metadata and cumulative tokens. Original terminal output is preserved. Prompts, tool responses, shell commands, source text, and thinking bodies are discarded, and Claude credentials are never read.</li>
       <li>When Antigravity CLI is enabled: the official statusLine JSON payload.</li>
     </ul>
 
